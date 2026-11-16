@@ -38,6 +38,7 @@ const ACTIONS = {
   'settings.manage': 'admin',
   'site.rollback': 'admin',
   'audit.read': 'admin',
+  'memory.site': 'admin',
 } as const satisfies Record<string, Role>
 
 const OPERATOR_ACTIONS = {

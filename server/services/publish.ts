@@ -100,6 +100,8 @@ export function createPublishHandler(writer: ReleaseWriter = noopReleaseWriter):
             .where(eq(pages.id, pageId))
             .run()
           ctx.db.update(reviews).set({ state: 'published' }).where(eq(reviews.id, review.id)).run()
+          // A live page wins over any old redirect from its address (for example after moving a page back).
+          ctx.db.delete(redirects).where(and(eq(redirects.siteId, ctx.siteId), eq(redirects.fromPath, page.path))).run()
           if (page.publishedPath && page.publishedPath !== page.path) addRedirect(ctx, page.publishedPath, page.path, 'slug_change')
           audit(ctx, 'system', 'page.published', { type: 'page', id: pageId }, { releaseId, versionId, reviewId: review.id, selfApproved: review.selfApproved })
           notify(ctx, [review.submittedBy], 'published', `"${page.title}" is live.`, { type: 'page', id: pageId })

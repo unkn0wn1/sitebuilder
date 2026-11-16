@@ -1,0 +1,69 @@
+// Site settings stored on the sites row. One schema so reads, writes and the GUI agree.
+// See docs/04-gui.md (Settings) and ADR 0011 (named tracking integrations).
+import { z } from 'zod'
+
+const id = (re: RegExp, example: string) => z.string().trim().regex(re, `Should look like ${example}.`)
+
+export const EMBED_PROVIDER_KEYS = ['virtuous', 'youtube', 'tally', 'google_forms'] as const
+
+export const trackingSchema = z
+  .object({
+    ga4: id(/^G-[A-Z0-9]{4,12}$/, 'G-ABC123XYZ').nullable().default(null),
+    gtm: id(/^GTM-[A-Z0-9]{4,10}$/, 'GTM-ABC1234').nullable().default(null),
+    plausible: id(/^[a-z0-9.-]{3,253}$/, 'example.org').nullable().default(null),
+    cookiebot: id(/^[0-9a-f-]{36}$/, 'a Cookiebot domain group id (36 characters)').nullable().default(null),
+  })
+  .strict()
+
+export const siteSettingsSchema = z
+  .object({
+    titlePattern: z.string().trim().max(80).default('{page} | {site}'),
+    workflow: z.object({ selfApproval: z.boolean().default(false) }).strict().default({ selfApproval: false }),
+    allowedEmbedProviders: z.array(z.enum(EMBED_PROVIDER_KEYS)).optional(),
+    tracking: trackingSchema.default({ ga4: null, gtm: null, plausible: null, cookiebot: null }),
+    seo: z.object({ defaultSocialImage: z.string().max(64).nullable().default(null), allowIndexing: z.boolean().default(true) }).strict().default({ defaultSocialImage: null, allowIndexing: true }),
+    ai: z.object({ enabled: z.boolean().default(false), monthlyCapPence: z.number().int().min(0).max(1_000_000).default(2000) }).strict().default({ enabled: false, monthlyCapPence: 2000 }),
+  })
+  .strict()
+
+export type SiteSettings = z.infer<typeof siteSettingsSchema>
+
+/** What PATCH /settings accepts: any subset, one level of nesting merged. */
+export const settingsPatchSchema = z
+  .object({
+    name: z.string().trim().min(1).max(100).optional(),
+    primaryDomain: z.string().trim().toLowerCase().regex(/^[a-z0-9.-]{3,253}$/, 'Just the domain, like example.org.').nullable().optional(),
+    titlePattern: z.string().trim().max(80).optional(),
+    workflow: z.object({ selfApproval: z.boolean() }).strict().optional(),
+    allowedEmbedProviders: z.array(z.enum(EMBED_PROVIDER_KEYS)).optional(),
+    tracking: trackingSchema.partial().optional(),
+    seo: z.object({ defaultSocialImage: z.string().max(64).nullable(), allowIndexing: z.boolean() }).partial().strict().optional(),
+    ai: z.object({ enabled: z.boolean(), monthlyCapPence: z.number().int().min(0).max(1_000_000) }).partial().strict().optional(),
+  })
+  .strict()
+
+export type SettingsPatch = z.infer<typeof settingsPatchSchema>
+
+/** Read stored settings leniently: unknown or broken values fall back to defaults rather than failing. */
+export function readSettings(raw: unknown): SiteSettings {
+  const parsed = siteSettingsSchema.safeParse(raw ?? {})
+  if (parsed.success) return parsed.data
+  const base = siteSettingsSchema.parse({})
+  if (raw && typeof raw === 'object') {
+    for (const [key, value] of Object.entries(raw)) {
+      const one = siteSettingsSchema.shape[key as keyof SiteSettings]?.safeParse(value)
+      if (one?.success) (base as Record<string, unknown>)[key] = one.data
+    }
+  }
+  return base
+}
+
+export function mergeSettings(current: SiteSettings, patch: Omit<SettingsPatch, 'name' | 'primaryDomain'>): SiteSettings {
+  const next: Record<string, unknown> = structuredClone(current)
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined) continue
+    const cur = next[key]
+    next[key] = value && typeof value === 'object' && !Array.isArray(value) && cur && typeof cur === 'object' ? { ...cur, ...value } : value
+  }
+  return siteSettingsSchema.parse(next)
+}

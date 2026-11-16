@@ -6,6 +6,7 @@ import { diffPages, type PageDiff } from '../../shared/diff'
 import { newId } from '../../shared/ids'
 import { validatePageDoc, type PageDoc } from '../../shared/page'
 import { atLeast, can } from '../../shared/roles'
+import { readSettings } from '../../shared/settings'
 import { canSubmit, restingState } from '../../shared/workflow'
 import { pages, reviewComments, reviews, sites } from '../db/schema'
 import { audit } from './audit'
@@ -18,8 +19,8 @@ import { getTemplateRules } from './templates'
 
 export type ReviewRow = typeof reviews.$inferSelect
 
-export function siteSettings(ctx: ServiceCtx): { workflow?: { selfApproval?: boolean } } {
-  return (ctx.db.select({ settings: sites.settings }).from(sites).where(eq(sites.id, ctx.siteId)).get()?.settings ?? {}) as { workflow?: { selfApproval?: boolean } }
+export function siteSettings(ctx: ServiceCtx) {
+  return readSettings(ctx.db.select({ settings: sites.settings }).from(sites).where(eq(sites.id, ctx.siteId)).get()?.settings)
 }
 
 export function requireReview(ctx: ServiceCtx, id: string): ReviewRow {
