@@ -58,7 +58,8 @@ Rules:
 
 - **One task, one target.** The session is created with a task type and a target id. Every tool call carries that target and the API checks it. A page edit session for "Winter appeal" cannot touch "About us".
 - **No escalation inside a session.** If someone asks the page-edit AI to "also change the menu", it explains that menus are edited from Site parts and offers to open that, which starts a new, separate task.
-- **Role filter.** Editors can run New page and Page edit tasks. Admins can run every task type and get every tool. (Approvers on Site parts is an open question.)
+- **Role filter.** Editors can run New page and Page edit tasks. Admins can run every task type, so they get every tool across the app, but each session is still one task. (Approvers on Site parts is an open question.)
+- **Admins are bound too.** An admin's page edit session is locked to that page, the same as anyone's. To change a menu they go to Site parts, like everyone else. "Admins get everything" means access to every task type, not one session that can touch everything.
 - **Read context is scoped too.** A page edit session sees the sitemap (titles and URLs) for linking, but cannot read or change other pages' content.
 - **Audit.** Each session is logged with its task type, target, user and tool calls.
 
@@ -208,7 +209,6 @@ Text from uploads, embeds, reference URLs and even existing page content is trea
 - Should "how do I use the builder" help be in scope (probably yes), and how far does it go?
 - Do we log full prompts, or summaries only, for privacy?
 - Cost cap defaults per site.
-- Should an admin's page edit session still be bound to that page by default (safer), with admins switching task to go wider, or should admin sessions get every tool at once?
 - Later, maybe: a site-wide setting to switch off individual AI features (for example AI media upload or reference-URL design) for organisations that want less AI.
 - Streaming UI: stream the agent's text and tool calls live to the panel and canvas, or show progress and apply per step?
 - Should our tools also be exposed over MCP, so other agents and clients can use them (with the same scoping)?

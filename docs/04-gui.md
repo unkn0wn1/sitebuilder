@@ -42,7 +42,7 @@ flowchart TD
   Settings --> SBackups["Backups and export"]
 ```
 
-🤖 marks the screens where the **AI panel** appears. It is contextual, not global: there is no floating chat elsewhere. Editors see it on New page and Edit page. Approvers also on Site parts. Admins also on Templates and Brand and Design (themes). Pages list, Media, Approvals and Settings have no AI panel. Each screen starts its own AI task with a tool set bound to the one thing being edited (a page edit cannot touch menus, templates or other pages), filtered by role; admins get everything. See [12-ai-harness.md](12-ai-harness.md#task-scoped-tools).
+🤖 marks the screens where the **AI panel** appears. It is contextual, not global: there is no floating chat elsewhere. Editors see it on New page and Edit page. Approvers also on Site parts. Admins also on Templates and Brand and Design (themes). Pages list, Media, Approvals and Settings have no AI panel. Each screen starts its own AI task with a tool set bound to the one thing being edited (a page edit cannot touch menus, templates or other pages), filtered by role; admins get every task type, but each session (an admin's page edit included) stays bound to its one target. See [12-ai-harness.md](12-ai-harness.md#task-scoped-tools).
 
 ### Left nav (example)
 
