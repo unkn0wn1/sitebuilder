@@ -63,6 +63,7 @@ One shape for every error, written so the GUI can show `message` to a person as 
 | `POST /pages` | Editor+ | Create a page: `{ title, template, parentId?, slug? }`. Returns the page with an empty draft built from the template's starting sections |
 | `GET /pages/:id` | Editor+ | Page row, current draft document, `draftRevision`, live version id, current review |
 | `POST /pages/:id/ops` | Editor+ | Apply operations: `{ baseRevision, ops: [...] }`. Returns `{ revision, doc, opIds }`, or `409 conflict` |
+| `GET /pages/:id/ops` | Editor+ | Operation log since a revision: `?since=` (for catching up after a conflict) |
 | `POST /pages/:id/undo` | Editor+ | Undo one operation: `{ opId }` |
 | `POST /pages/:id/checkpoint` | Editor+ | Seal the current draft as a named version: `{ summary }` |
 | `GET /pages/:id/versions` | Editor+ | Version history (sealed versions and the latest autosave) |
@@ -77,7 +78,7 @@ One shape for every error, written so the GUI can show `message` to a person as 
 
 | Method and path | Who | Does |
 | --- | --- | --- |
-| `GET /reviews` | Approver+ | Pending reviews (and recent decided ones with `state`) |
+| `GET /reviews` | Approver+ (editors see only their own) | Pending reviews (and recent decided ones with `state`) |
 | `GET /reviews/:id` | Approver+, submitter | Review, pinned version, diff against live, check results, comments |
 | `POST /reviews/:id/approve` | Approver+ | `{ versionId }` must match the pinned version. Self-approval rules apply ([ADR 0005](decisions/0005-rollback-and-approval.md)). Queues a publish job and returns its id |
 | `POST /reviews/:id/send-back` | Approver+ | `{ comment }` (required) |
@@ -128,6 +129,7 @@ Tools run inside the server. They call the same services as the routes above, so
 | `GET /settings`, `PATCH /settings` | Admin | Site settings |
 | `PUT /settings/secrets/:name` | Admin or Operator | Write-only: AI key, Cloudflare token, SMTP password. Never readable afterwards |
 | `GET /audit` | Admin | Audit log with filters |
+| `GET /notifications` | Signed in | Your latest 50 notifications |
 | `GET /health` | Anyone | Liveness (no details) |
 | `GET /system` | Operator | Version, disk, last publish, last backup, job queue |
 
