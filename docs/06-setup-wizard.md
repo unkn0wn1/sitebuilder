@@ -1,0 +1,47 @@
+# Setup wizard
+
+Draft. The wizard is what makes every later page look right. It runs once when a site is created, and admins can re-run any step later.
+
+The output is the **brand pack**: a locked set of choices that editors and the agent work inside but cannot change.
+
+## Step 1: Brand
+
+- Organisation name, short description and tone of voice (used by the agent when it writes copy).
+- Logo (SVG preferred) and favicon.
+- Colours: primary, secondary, accent, neutrals. The wizard checks contrast and warns about pairs that fail accessibility checks.
+- Fonts: a short curated list of fast, self-hosted fonts, with heading and body choices. No third-party font loading.
+- Shape and feel: corner radius, spacing scale, button style.
+- Optional: start from an existing site's colours and logo.
+
+These become design tokens (a Tailwind theme) used by every block.
+
+## Step 2: Shell and menus
+
+- Header style (from a few options), main menu items and order.
+- Footer content: contact details, social links, legal links, registered charity details.
+- Page tree: home and the main sections.
+- Optional site-wide banners (for example an appeal strip).
+
+## Step 3: Allowed templates and blocks
+
+- Pick which page templates staff can use (for example Home, Standard, Campaign or donation, Story, News post, Event).
+- For each template, choose which blocks are allowed and any required blocks (a campaign page must include a donation embed, for example).
+- Register donation forms and other embeds (for example Virtuous form IDs) so editors and the agent can pick them by name rather than pasting code.
+
+## Step 4: Integrations
+
+- AI model provider and key (bring your own).
+- Cloudflare zone and API token for cache purge (required before first publish).
+- Allowed embed domains.
+
+## Step 5: Preview and finish
+
+- Shows a sample home page and a sample campaign page using the brand pack.
+- Admin confirms, and the brand pack is locked.
+
+## Open questions
+
+- Should the wizard itself be chat-driven ("describe your organisation") with forms as the fallback, or forms first?
+- How many header and footer styles to offer at first?
+- Can a site have more than one brand pack (for example a sub-brand or campaign microsite)?
+- Is Cloudflare setup part of the wizard, or a separate admin step before go-live?
