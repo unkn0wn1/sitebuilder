@@ -16,6 +16,7 @@ The design is written here first, then built. Everything in this folder is a dra
 | [09-roadmap.md](09-roadmap.md) | Phases and the first pilot |
 | [10-essentials.md](10-essentials.md) | CMS feature inventory with priorities and GUI placement (to discuss) |
 | [11-theming.md](11-theming.md) | Themes: switching the whole site's look (draft) |
+| [12-ai-harness.md](12-ai-harness.md) | How the AI is wrapped and kept on remit (draft) |
 | [open-questions.md](open-questions.md) | Decisions still to make |
 | [decisions/](decisions/) | Short architecture decision records (ADRs) |
 

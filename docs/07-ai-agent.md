@@ -1,6 +1,6 @@
 # AI agent
 
-Draft. The agent is a helpful colleague who builds pages, not a free-form code generator.
+Draft. The agent is a helpful colleague who builds pages, not a free-form code generator and not a general-purpose chatbot. Its single remit and how that is enforced are in [12-ai-harness.md](12-ai-harness.md).
 
 ## The conversation
 

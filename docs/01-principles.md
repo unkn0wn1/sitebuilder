@@ -25,19 +25,26 @@ Every design decision is checked against these. When two pull in different direc
 - Every save is a new version. Anything can be rolled back.
 - Third-party scripts only load from an allow-list of domains.
 
-## 4. Own your site
+## 4. The AI has one remit
+
+- The AI builds and edits this site's pages and content inside the builder. Nothing else.
+- It is **not a general-purpose chatbot**. Off-remit requests (general questions, writing emails, coding help, anything unrelated to the site) are politely declined and redirected back to what it can do.
+- Scope is enforced by the system prompt **and** the tool set: it only has tools for site content, so it cannot do anything else even if asked cleverly.
+- See [12-ai-harness.md](12-ai-harness.md).
+
+## 5. Own your site
 
 - Self-hostable on one small server.
 - Content is plain JSON that can be exported at any time.
 - Bring your own AI model key, so the organisation controls cost and provider.
 - No lock-in to a hosted platform, a page builder vendor or a single agency.
 
-## 5. Beautiful by default
+## 6. Beautiful by default
 
 - The starter blocks and templates should look modern and polished out of the box.
 - The brand wizard should make it hard to produce something ugly or off-brand.
 
-## 6. Borrow good ideas
+## 7. Borrow good ideas
 
 - Reuse proven open-source parts for the hard bits (Nuxt, sharp, Lighthouse).
 - Borrow good designs (for example Puck's `{ type, props }` block shape) rather than inventing new ones.
