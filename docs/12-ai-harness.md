@@ -37,6 +37,29 @@ Rules:
 - **The server enforces it.** Scope is checked by the API on every tool call (screen, role, target), not just hidden in the UI.
 - **A conversation belongs to its screen.** Leaving the screen ends or parks that conversation; there is no cross-screen chat history.
 
+## Per-instance tool allowlist
+
+Each install (instance) can also switch AI tools off for the whole site. Admins set this in **Settings > AI tools**. It is layered on top of role and screen scoping:
+
+```
+effective tools = instance allowlist ∩ tools allowed for the user's role ∩ tools for the current screen
+```
+
+- The instance allowlist can only remove tools, never grant a role or screen something it would not otherwise have.
+- Examples: an instance can turn off AI media upload (`request_upload`), design from a reference URL, AI copywriting, or the AI on admin screens entirely.
+- If every tool for a screen is switched off, the AI panel does not appear on that screen.
+- Sensible defaults ship on; higher-risk tools (such as reference-URL design) could ship off by default. To decide.
+- Changes to the allowlist are admin-only and recorded in the audit log.
+- The API enforces the intersection on every tool call; the UI only reflects it.
+
+```mermaid
+flowchart LR
+  All["All AI tools"] --> I["Instance allowlist<br/>(Settings > AI tools)"]
+  I --> R["Role scope<br/>(editor, approver, admin)"]
+  R --> S["Screen scope<br/>(New page, Edit page, Brand...)"]
+  S --> E["Effective tools<br/>for this request"]
+```
+
 ## Parts of the harness
 
 | Part | What it does |
@@ -60,3 +83,4 @@ Text from uploads, embeds, reference URLs and even existing page content is trea
 - Should "how do I use the builder" help be in scope (probably yes), and how far does it go?
 - Do we log full prompts, or summaries only, for privacy?
 - Cost cap defaults per site.
+- Which tools ship switched off by default in the instance allowlist?

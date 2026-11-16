@@ -102,6 +102,7 @@ In the spirit of doing one thing well, the list is deliberately lean. Anything t
 | Per-change undo | Undo any single agent change | must | AI panel, page editor |
 | AI settings | Provider, model and key (bring your own), usage display | must | Settings > Integrations |
 | Scoped tools | Tools and context depend on screen and role (editors cannot change brand or theme via AI) | must | Enforced by the API |
+| Instance tool allowlist | Admins switch AI tools off for the whole install; effective tools = instance ∩ role ∩ screen | must | Settings > AI tools |
 | Copy help | Suggest headlines, SEO text and alt text | nice | AI panel, field-level "suggest" buttons |
 | Site-wide agent | Ask for changes across pages ("update the phone number everywhere") | later | To decide (no global chat; maybe an admin-only screen) |
 

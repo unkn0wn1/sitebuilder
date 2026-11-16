@@ -38,6 +38,7 @@ flowchart TD
   Settings --> STracking["Tracking and consent"]
   Settings --> SUsers["Users and roles"]
   Settings --> SInteg["Integrations<br/>AI, Cloudflare"]
+  Settings --> SAITools["AI tools<br/>instance allowlist"]
   Settings --> SPub["Publishing and activity"]
   Settings --> SBackups["Backups and export"]
 ```
@@ -66,6 +67,7 @@ flowchart TD
 | Tracking and consent | Analytics or tag manager slot, cookie consent slot |
 | Users and roles | Invite, deactivate, roles (Editor, Approver, Admin) |
 | Integrations | AI provider, model and key, usage; Cloudflare zone and token for purge |
+| AI tools | Per-instance allowlist of AI tools (for example turn off AI media upload or reference-URL design). Effective tools = instance allowlist ∩ role ∩ screen; see [12-ai-harness.md](12-ai-harness.md#per-instance-tool-allowlist) |
 | Security | Embed domain allow-list |
 | Publishing and activity | Publish log and releases, site rollback, audit log (including agent tool calls) |
 | Backups and export | Backup status, full export of content and media |
