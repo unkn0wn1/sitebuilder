@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { newId } from '../../shared/ids'
 import type { Role } from '../../shared/roles'
 import { authTokens, secrets, sessions, users } from '../db/schema'
+import { enqueueJob } from './jobs'
 import { AppError } from './errors'
 import { inTx, iso, type ServiceCtx } from './context'
 
@@ -96,6 +97,15 @@ export function acceptInvite(ctx: ServiceCtx, raw: string, name: string, passwor
     ctx.db.update(users).set({ name: name.trim(), status: 'active', passwordHash: hashPassword(password) }).where(eq(users.id, token.userId)).run()
     return ctx.db.select().from(users).where(eq(users.id, token.userId)).get()!
   })
+}
+
+/**
+ * Ask for a reset link. Always behaves the same whether or not the account exists,
+ * so it can't be used to find out who has an account. The email job mints the link.
+ */
+export function requestPasswordReset(ctx: ServiceCtx, email: string): void {
+  const user = ctx.db.select().from(users).where(and(eq(users.siteId, ctx.siteId), eq(users.email, email.trim().toLowerCase()))).get()
+  if (user && user.status === 'active') enqueueJob(ctx, 'send_email', { kind: 'reset', userId: user.id })
 }
 
 export function resetPassword(ctx: ServiceCtx, raw: string, password: string): void {

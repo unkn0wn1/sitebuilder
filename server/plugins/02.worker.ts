@@ -1,4 +1,6 @@
 // The job worker loop, inside the builder process (ADR 0009). Off with SITEBUILDER_WORKER=0.
+import { join } from 'node:path'
+import { createEmailHandler, outboxMailer } from '../services/email'
 import { createPublishHandler } from '../services/publish'
 import { runJobsOnce, type JobHandlers } from '../services/jobs'
 import { useServiceCtx } from '../utils/state'
@@ -7,7 +9,11 @@ const skipped = (what: string) => ({ run: () => ({ skipped: `${what} is not buil
 
 export const handlers: JobHandlers = {
   publish: createPublishHandler(),
-  send_email: skipped('Email sending (SMTP)'),
+  // SMTP is not built yet. Outside production (or with SITEBUILDER_MAIL_OUTBOX set) emails go to a folder.
+  send_email: createEmailHandler({
+    mailer: process.env.SITEBUILDER_MAIL_OUTBOX || process.env.NODE_ENV !== 'production' ? outboxMailer(process.env.SITEBUILDER_MAIL_OUTBOX || join('.data', 'outbox')) : null,
+    baseUrl: process.env.SITEBUILDER_ORIGIN ?? 'http://localhost:3000',
+  }),
   purge_cache: skipped('Cloudflare purge'),
   media_renditions: skipped('Image renditions'),
   run_checks: skipped('Rendered-page checks'),
