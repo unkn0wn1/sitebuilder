@@ -25,7 +25,7 @@ flowchart LR
 1. **Token-only themes:** same block renderers, different tokens. Cheap to make, safe, and the brand wizard can produce them. Good for colour and type changes.
 2. **Full themes:** their own block renderers as well as tokens, for a genuinely different design. More work, and code, so they go through developer review.
 
-A theme could likely be a Nuxt layer that overrides block components and provides tokens. To be decided.
+A theme is a Nuxt layer that provides tokens and can override block renderers. Core themes ship with core; an organisation's own themes live in its `site/themes/` folder ([ADR 0006](decisions/0006-site-layer.md)). Switching theme recompiles the render bundle and re-renders the whole site ([ADR 0004](decisions/0004-incremental-publish.md)).
 
 ## Uses
 
@@ -46,9 +46,12 @@ A theme could likely be a Nuxt layer that overrides block components and provide
 - **Speed and accessibility** checks apply to every theme, not just the default one.
 - **Full rebuild** on switch, so larger sites take longer to publish.
 
+## Decided
+
+- A theme is a Nuxt layer: in core, or in the site's own `site/themes/` ([ADR 0006](decisions/0006-site-layer.md)).
+- The builder UI always uses its own neutral look; only the canvas and previews use the site theme ([ADR 0008](decisions/0008-editor-shape.md)).
+- One theme per site in v1.
+
 ## Open questions
 
-- Is a theme a Nuxt layer, a folder in the repo, or an installable package?
-- Should the builder UI follow the site theme, or always use its own neutral look?
-- Can different sections of a site use different themes (for example a campaign microsite), or one theme per site?
 - How are third-party themes reviewed if the project becomes open source?

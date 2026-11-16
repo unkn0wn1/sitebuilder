@@ -17,17 +17,15 @@ Keep it simple: one agent, one remit, one small tool set.
 
 ## Contextual, not global
 
-There is **no global floating chat**. The AI panel only appears on specific screens, and on each one each screen starts its own task with tools and context scoped to that task and the user's role (see [Task-scoped tools](#task-scoped-tools)).
+There is **no global floating chat**. The AI panel only appears on specific screens, and each screen starts its own task with tools and context scoped to that task and the user's role (see [Task-scoped tools](#task-scoped-tools)). Decided in [ADR 0012](decisions/0012-ai-panel-screens-v1.md).
 
 | Screen | Who sees the AI panel | What the AI can do there |
 | --- | --- | --- |
 | Pages > New page | Editors, approvers, admins | Ask the questions, pick a template, build the first draft |
 | Pages > Edit page (page editor) | Editors, approvers, admins | Edit this page's blocks, copy, SEO text and alt text |
-| Site parts (header, footer, menus) | Approvers and admins | Edit the site-wide blocks and menus |
 | Templates | Admins | Suggest and adjust allowed and required blocks per template |
 | Brand, and Design (themes) | Admins | Suggest colours, fonts and token changes, compare themes |
-| Other admin areas where it helps (to decide) | Admins | Scoped to that screen only |
-| Pages list, Media, Approvals, Settings | Nobody | No AI panel |
+| Site parts (header, footer, menus), Pages list, Media, Forms and embeds, Approvals, Settings | Nobody | No AI panel. Site parts are edited by hand |
 
 Rules:
 
@@ -42,32 +40,32 @@ Rules:
 Every AI session is **one task**, and each task type gets **its own small tool set, bound to the one object it is working on**. When the AI is editing a page, it is given only the page builder tools for that page. It physically cannot edit menus, templates, the header or footer, the brand or any other page, because those tools are simply not in its session, and the API rejects any call outside the target.
 
 ```
-effective tools = task tool set, bound to the target object, filtered by the user's role
-(admins: all task types and all tools)
+effective tools = the tool set for this session's one task type,
+                  bound to its one target, filtered by the user's role
+(admins can start every task type, but each session still gets one task's tools)
 ```
 
 | Task type | Started from | Tool set | Bound to |
 | --- | --- | --- | --- |
 | New page | Pages > New page | Page builder tools, plus `list_templates` and `create_draft` | The new draft page |
 | Page edit | Pages > Edit page | Page builder tools (blocks, props, media, crops, SEO, preview, checks, submit) | That one page's draft |
-| Site parts | Site parts (header, footer, menus) | Site-part tools (header and footer blocks, menu items), preview, checks, submit | That one site part |
 | Template | Templates | Template tools (allowed and required blocks, starting layouts) | That one template |
 | Brand and design | Brand and Design | Brand token and theme tools, preview, contrast checks | The site's brand pack or one theme |
 
 Rules:
 
 - **One task, one target.** The session is created with a task type and a target id. Every tool call carries that target and the API checks it. A page edit session for "Winter appeal" cannot touch "About us".
-- **No escalation inside a session.** If someone asks the page-edit AI to "also change the menu", it explains that menus are edited from Site parts and offers to open that, which starts a new, separate task.
-- **Role filter.** Editors can run New page and Page edit tasks. Admins can run every task type, so they get every tool across the app, but each session is still one task. (Approvers on Site parts is an open question.)
+- **No escalation inside a session.** If someone asks the page-edit AI to "also change the menu", it explains that menus are edited by hand in Site parts and offers a link there. It has no tool to do it.
+- **Role filter.** Editors and approvers can run New page and Page edit tasks. Admins can also run Template and Brand and design tasks. Admins can start every task type, but each session is still one task with that task's tools.
 - **Admins are bound too.** An admin's page edit session is locked to that page, the same as anyone's. To change a menu they go to Site parts, like everyone else. "Admins get everything" means access to every task type, not one session that can touch everything.
 - **Read context is scoped too.** A page edit session sees the sitemap (titles and URLs) for linking, but cannot read or change other pages' content.
 - **Audit.** Each session is logged with its task type, target, user and tool calls.
 
 ```mermaid
 flowchart LR
-  T["Task type<br/>(new page, page edit, site parts,<br/>template, brand and design)"] --> TS["Task tool set"]
+  T["Task type<br/>(new page, page edit,<br/>template, brand and design)"] --> TS["Task tool set"]
   TS --> B["Bound to one target<br/>(this page, this menu, this template)"]
-  B --> R["Filtered by role<br/>(admins: everything)"]
+  B --> R["Filtered by role<br/>(admins: every task type)"]
   R --> E["Tools in this session"]
 ```
 
@@ -130,6 +128,8 @@ flowchart TD
 
 When a limit is hit, the agent stops, says what it managed and what is left, and never leaves the draft in an invalid state.
 
+**When the provider is down** (timeout, error, rejected key), the turn stops the same way, the panel shows "The assistant isn't available right now. Everything else works as normal.", and a simple circuit breaker pauses retries for 2 minutes after 3 failures in 5 minutes. The rest of the builder is unaffected. See [16-operations.md](16-operations.md#when-the-ai-provider-is-down). Panel states are in [04-gui.md](04-gui.md#assistant-states).
+
 ## Tools
 
 A **fixed, typed tool set** mapped one to one onto the CMS API. Each tool has a JSON Schema for its inputs (generated from the block schemas where relevant) and goes through the same validation and permissions as the GUI.
@@ -151,7 +151,7 @@ A **fixed, typed tool set** mapped one to one onto the CMS API. Each tool has a 
 | `submit_for_review` | Hand the draft to an approver with a change summary |
 | `remember` | Propose a site or user memory entry (see Memory) |
 
-These are the page builder tools. Other task types (site parts, template, brand and design) have their own small sets; see [Task-scoped tools](#task-scoped-tools). A session only ever gets the set for its task, bound to its target.
+These are the page builder tools. Other task types (template, brand and design) have their own small sets; see [Task-scoped tools](#task-scoped-tools). A session only ever gets the set for its task, bound to its target.
 
 **Never:** a publish tool, code execution, arbitrary HTML, CSS or script, arbitrary web fetch (apart from the user-given reference URL feature, when enabled), email, or file system access.
 
@@ -203,14 +203,14 @@ Each site has one **default agent profile**: the base instructions on top of the
 
 Text from uploads, embeds, reference URLs and even existing page content is treated as data, never as instructions. Anything in it that looks like an instruction to the AI is ignored, and the remit still applies.
 
+That alone is not relied on. The mechanical controls are in [15-security.md](15-security.md#the-ai): task-scoped tools bound to one target, nothing goes live without a person, `remember` needs a click, no secrets in context, and the reference URL study session has no write tools.
+
 ## Open questions
 
 - Exact wording of the decline-and-redirect message, and whether admins can tune it.
 - Should "how do I use the builder" help be in scope (probably yes), and how far does it go?
-- Do we log full prompts, or summaries only, for privacy?
+- Log retention: v1 keeps tool calls in full and message text for 90 days, then summaries ([15-security.md](15-security.md#privacy)). Revisit after the pilot.
 - Cost cap defaults per site.
 - Later, maybe: a site-wide setting to switch off individual AI features (for example AI media upload or reference-URL design) for organisations that want less AI.
-- Streaming UI: stream the agent's text and tool calls live to the panel and canvas, or show progress and apply per step?
 - Should our tools also be exposed over MCP, so other agents and clients can use them (with the same scoping)?
 - Is a vision-capable model required for the screenshot self-check, or is it optional with a checks-only fallback?
-- Should approvers get the AI panel on Site parts? The docs currently say yes, but only editors and admins were named. To confirm.

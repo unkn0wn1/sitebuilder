@@ -9,7 +9,7 @@ Using [sharp](https://sharp.pixelplumbing.com):
 1. Check type and size (JPEG, PNG, WebP, AVIF; SVG only for logos and icons, sanitised). Reject anything huge.
 2. Auto-rotate from EXIF, then strip metadata (including GPS location).
 3. Cap the stored original (for example 3200 pixels on the long edge).
-4. Generate renditions at set widths, for example 320, 640, 960, 1280, 1920 and 2560, in **AVIF** and **WebP** (plus a JPEG fallback if needed).
+4. Generate renditions at set widths, 320, 640, 960, 1280, 1920 and 2560, in **AVIF** and **WebP**. No JPEG fallback in v1 ([ADR 0013](decisions/0013-renditions-at-upload.md)).
 5. Store a tiny blurred placeholder and the dominant colour, to avoid blank boxes while loading.
 6. Record width, height and focal point for each media item.
 
@@ -32,7 +32,7 @@ The renderer outputs a full responsive image, so the browser picks the right fil
 - The first large image on a page (usually the hero) is `fetchpriority="high"` and not lazy-loaded. Everything else is lazy.
 - Alt text is required unless the image is marked as decorative.
 
-Whether renditions are made at upload time with sharp directly, or at generate time with Nuxt Image and IPX, is an open question. Upload time is simpler and keeps publish fast.
+Renditions are made **at upload time** by a background job using sharp, so publishing never waits for image work ([ADR 0013](decisions/0013-renditions-at-upload.md)). Media lives in one shared, append-only folder outside the release folders, so every kept release can still find its images ([ADR 0005](decisions/0005-rollback-and-approval.md)).
 
 ## Required sizes and crop approval
 
@@ -64,7 +64,5 @@ Different crops per breakpoint (for example a wide 16:9 crop on desktop and a ta
 
 ## Open questions
 
-- Renditions at upload time (sharp directly) or at generate time (Nuxt Image with IPX)?
-- Exact width set and quality settings for AVIF and WebP.
-- Is a JPEG fallback still worth generating?
-- Where media lives long term: local disk only, or optional object storage (for example S3-compatible or Cloudflare R2)?
+- Exact quality settings for AVIF and WebP (to tune in the spike against the budgets in [17-testing-and-budgets.md](17-testing-and-budgets.md)).
+- Optional object storage for media (for example Cloudflare R2) after v1. v1 is local disk, backed up off-site ([16-operations.md](16-operations.md#backups-and-restore)).

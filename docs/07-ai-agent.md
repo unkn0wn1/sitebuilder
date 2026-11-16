@@ -6,8 +6,9 @@ Draft. The agent is a helpful colleague who builds pages, not a free-form code g
 
 The AI panel is **contextual, not global**. There is no floating chat on every screen.
 
-- **Editors (staff):** on **New page** and **Edit page** only.
-- **Admins:** also on **Templates**, **Brand**, **Design (themes)** and similar admin areas.
+- **Editors, approvers and admins:** on **New page** and **Edit page**.
+- **Admins:** also on **Templates** (page types) and **Brand and Design**.
+- **Nobody:** Site parts, Pages list, Media, Forms and embeds, Approvals, Settings. Site parts (header, footer, menus) are edited by hand. See [ADR 0012](decisions/0012-ai-panel-screens-v1.md).
 
 Each screen starts a task, and each task type gets its own tool set bound to the one thing being edited, filtered by role. A page edit session only has the page builder tools for that page, so it physically cannot change menus, templates, the header or footer, the brand or other pages. Admins get every task type, but an admin's page edit is locked to that page too. The tool table below is the page builder set used on New page and Edit page. See [12-ai-harness.md](12-ai-harness.md#task-scoped-tools).
 
@@ -74,7 +75,7 @@ Draft. A user points at another site and asks for the same behaviour, for exampl
 1. **Fetch and study.** The agent fetches the page (and its CSS and JS) and works out the structure and behaviour: layout, sticky or shrinking header, mega menu, dropdowns, mobile toggle, hover states, transitions and animation, breakpoints.
 2. **Describe it back.** It summarises what it found in plain words ("sticky header that shrinks on scroll, mega menu with three columns, slide-in menu on mobile") and checks that this is what the user meant.
 3. **Clean-room reimplementation.** It writes a **new variant of one of our own blocks** (for example a `Header` variant) from that description, using our block schema and styled only with our theme tokens. It does not copy their code, images, logos, icons, fonts or content.
-4. **Developer review.** A new block variant is code, so it does not go straight into the site. It is opened as a change (for example a pull request) for developer review, accessibility and speed checks and tests, then added to the allowed block library.
+4. **Developer review.** A new block variant is code, so it does not go straight into the site. It is opened as a change to the site's own `site/` layer ([ADR 0006](decisions/0006-site-layer.md)), never to core, for developer review, accessibility and speed checks and tests, then added to the allowed block library.
 5. **Normal flow.** Once in the library, it is used like any other block: preview at desktop, tablet and mobile, then human approval before publish.
 
 This is the one place the agent produces code, and it never reaches the live site without a developer accepting it. The page-building agent still only assembles approved blocks.
@@ -84,7 +85,7 @@ This is the one place the agent produces code, and it never reaches the live sit
 - **Copyright and licences.** Study behaviour, do not copy. No verbatim code, assets or text from the reference site. If a site's code is under a licence we want to reuse, that is a deliberate human decision, recorded with the licence.
 - **Accessibility.** The reimplementation must be keyboard usable, work with screen readers (correct ARIA for menus and toggles), respect reduced motion, and pass contrast with our theme. Reference sites are often worse here, so do not copy their mistakes.
 - **Speed.** No heavy libraries for an effect. Prefer CSS, and only add client JS if the behaviour needs it.
-- **Fetching.** Only fetch the URL the user gave. Treat page content as data, never as instructions to the agent.
+- **Fetching.** Only fetch the URL the user gave, through the SSRF guard in [15-security.md](15-security.md#reference-url-fetch-when-enabled). Treat page content as data, never as instructions. The session that studies the reference site has no write tools at all.
 
 ### Open questions
 
@@ -98,10 +99,14 @@ This is the one place the agent produces code, and it never reaches the live sit
 - Keep prompts small: send the block schemas for the current template only, not the whole library.
 - Show rough usage per site so the organisation can keep an eye on cost.
 
+## Decided
+
+- Grok is the default for the pilot ([12-ai-harness.md](12-ai-harness.md#bring-your-own-model)).
+- Tool calls are applied to the canvas live, one by one, with progress streamed to the panel ([04-gui.md](04-gui.md#assistant-states)).
+- Context per task is defined in [12-ai-harness.md](12-ai-harness.md#context): the current page, the sitemap (titles and addresses), memory. No other pages' content.
+- The agent writes copy from scratch or polishes, as asked. Its summary says which.
+
 ## Open questions
 
-- Default model provider, and who pays model costs during the pilot.
-- Should the agent write copy from scratch, or only polish what staff give it? (Probably both, clearly labelled.)
-- Streaming tool calls to the canvas live, or apply them in a batch per reply?
+- Who pays model costs during the pilot.
 - Can the agent suggest a new block type that does not exist (as a note to admins), or only use what exists?
-- How much page and site context to give it (other pages, menus, past campaigns)?

@@ -1,211 +1,412 @@
 # Builder GUI
 
-**Draft for discussion.** We still need to think properly about how the GUI should work. This doc collects the current ideas and the open questions. Nothing here is final.
+**Draft, with the v1 shape decided.** The editor layout, mobile scope and where the AI appears are locked in by [ADR 0008](decisions/0008-editor-shape.md) and [ADR 0012](decisions/0012-ai-panel-screens-v1.md). The journeys this GUI must serve are in [18-user-journeys.md](18-user-journeys.md).
 
 Built with Vue 3, Tailwind and Flowbite / flowbite-vue.
 
-## GUI map (early sketch)
+## Look and feel
 
-An early sketch to help think it through, not a spec. The nav and screens are shaped by the [CMS feature inventory](10-essentials.md) so that every **must** item has a home. All of it may change.
+- **Calm and neutral.** The builder has its own quiet look (white and light grey, one accent colour for main actions). Only the canvas and previews use the site's theme.
+- **Comfortable density.** 14 to 16 pixel text, generous spacing, large click targets. This is for busy charity staff, not web designers.
+- **Plain words** from the [glossary](#glossary). No developer terms on screen.
+- **One main action per screen**, always top right ("New page", "Submit for approval", "Approve and publish").
+- **Status always visible** as a coloured label next to every page title, in lists and in the editor header.
+- Items a user cannot use are **hidden, not greyed out**.
+
+## Glossary
+
+What staff see, and what it means in the docs and code.
+
+| On screen | In the docs and code |
+| --- | --- |
+| Section | Block |
+| Page type | Template |
+| Draft | `draft` |
+| Waiting for approval | `in_review` |
+| Publishing | `approved` |
+| Live | `published` |
+| Live, with changes | `published` with a newer draft |
+| Offline | `unpublished` |
+| Submit for approval | Create a review |
+| Send back | Review sent back with a comment |
+| Approve and publish | Approve the pinned version and queue a publish |
+| Site parts | Header, footer, menus, banner |
+| Assistant | The AI panel and agent |
+| History | Versions |
+| Bin | Soft-deleted items |
+| Look (Brand and Design) | Brand pack and themes |
+
+## GUI map
 
 ```mermaid
 flowchart TD
   Login["Sign in"] --> Shell["Builder shell<br/>left nav + top bar<br/>(search, notifications, user menu)<br/>no global chat"]
   Shell --> Pages["Pages"]
-  Shell --> Parts["Site parts 🤖"]
+  Shell --> Parts["Site parts"]
   Shell --> Media["Media"]
   Shell --> Forms["Forms and embeds"]
   Shell --> Approvals["Approvals (badge)"]
   Shell --> Brand["Brand and Design 🤖<br/>(admins)"]
-  Shell --> Templates["Templates 🤖<br/>(admins)"]
+  Shell --> Templates["Page types 🤖<br/>(admins)"]
   Shell --> Settings["Settings"]
 
   Pages --> List["Pages list<br/>search, filter, paginate, bin"]
-  List --> NewPage["New page 🤖<br/>pick template, or start with the AI"]
-  NewPage --> Editor["Edit page 🤖<br/>canvas, block panel,<br/>properties / Page tab (SEO), AI panel, history"]
+  List --> NewPage["New page 🤖<br/>conversation, or pick a page type"]
+  NewPage --> Editor["Edit page 🤖<br/>left rail (Assistant, Add, Outline),<br/>canvas with device switch,<br/>inspector (Section, Page, History)"]
   List --> Editor
-  Parts --> Editor
+  Parts --> PartEditor["Site part editor<br/>(header, footer, menus)<br/>by hand, no assistant"]
   Editor --> Preview["Preview<br/>desktop / tablet / mobile<br/>+ speed score"]
-  Editor --> Submit["Submit for review"]
+  Editor --> Submit["Submit for approval"]
+  PartEditor --> Submit
   Submit --> Approvals
-  Approvals --> Review["Review<br/>preview, diff, speed,<br/>accessibility, SEO checks"]
-  Review -->|Approve and publish| Publish["Publish progress<br/>build, deploy, Cloudflare purge"]
+  Approvals --> Review["Review<br/>preview, changes, checks, comments"]
+  Review -->|Approve and publish| Publish["Publish progress<br/>build, go live, clear cache"]
   Review -->|Send back| Editor
   Publish --> Live["Live page link"]
-
-  Settings --> SGeneral["General"]
-  Settings --> SSEO["SEO and redirects"]
-  Settings --> STracking["Tracking and consent"]
-  Settings --> SUsers["Users and roles"]
-  Settings --> SInteg["Integrations<br/>AI, Cloudflare"]
-  Settings --> SPub["Publishing and activity"]
-  Settings --> SBackups["Backups and export"]
 ```
 
-🤖 marks the screens where the **AI panel** appears. It is contextual, not global: there is no floating chat elsewhere. Editors see it on New page and Edit page. Approvers also on Site parts. Admins also on Templates and Brand and Design (themes). Pages list, Media, Approvals and Settings have no AI panel. Each screen starts its own AI task with a tool set bound to the one thing being edited (a page edit cannot touch menus, templates or other pages), filtered by role; admins get every task type, but each session (an admin's page edit included) stays bound to its one target. See [12-ai-harness.md](12-ai-harness.md#task-scoped-tools).
+🤖 marks the screens where the **assistant** appears ([ADR 0012](decisions/0012-ai-panel-screens-v1.md)): New page and Edit page for editors, approvers and admins; Page types and Brand and Design for admins. Nowhere else. Each screen starts its own task bound to the one thing being edited. See [12-ai-harness.md](12-ai-harness.md#task-scoped-tools).
 
-### Left nav (example)
+### Left nav
 
-| Item | What it holds (must items from the inventory) | Who |
+| Item | What it holds | Who |
 | --- | --- | --- |
-| **Pages** | Pages list (paginated, search, filter by status and template, last edited), page tree and slugs, new page (template or AI), page editor with AI panel, page editor, system pages such as 404 | Editors and up |
-| **Site parts** 🤖 | Header (logo, menu, CTA), Footer, Menus. Later: reusable blocks, site banner | Approvers and up |
-| **Media** | Library, upload, renditions status, alt text, required-size crops | Editors and up |
-| **Forms and embeds** | Registered donation forms (for example Virtuous) by name, other allowed embeds | Approvers and up |
-| **Approvals** | Drafts waiting for review, with a count badge; the review screen | Approvers and up |
-| **Brand and Design** 🤖 | Brand pack (colours, fonts, logo, shapes), contrast checks, favicon from logo, re-run wizard steps; Design tab for themes ([11-theming.md](11-theming.md)) | Admins |
-| **Templates** 🤖 | Allowed templates, allowed and required blocks per template | Admins |
-| **Settings** | See below | Admins |
+| **Pages** | Pages list, page tree and addresses, new page, page editor, system pages such as 404, bin | Editors and up |
+| **Site parts** | Header, footer, menus. Later: reusable sections, site banner | Approvers and up |
+| **Media** | Library, upload, processing status, alt text, crops, bin | Editors and up |
+| **Forms and embeds** | Registered donation forms (for example Virtuous) and other embeds by name. Only from domains on the admin allow-list | Approvers and up |
+| **Approvals** | Items waiting for approval, with a count badge; the review screen | Approvers and up |
+| **Brand and Design** 🤖 | Brand pack, contrast checks, favicon from logo, re-run wizard steps, Design tab for themes ([11-theming.md](11-theming.md)) | Admins |
+| **Page types** 🤖 | Allowed page types, allowed and required sections per type | Admins |
+| **Settings** | See below | Admins (System: operators) |
 
 **Settings sections:**
 
-| Section | Must items |
-| --- | --- |
-| General | Site name, primary domain, title pattern, favicon override |
-| SEO and redirects | robots.txt, sitemap view, default social image, redirects table |
-| Tracking and consent | Analytics or tag manager slot, cookie consent slot |
-| Users and roles | Invite, deactivate, roles (Editor, Approver, Admin) |
-| Integrations | AI provider, model and key, usage; Cloudflare zone and token for purge |
-| AI | Agent profile (instructions), site memory, usage and cost dashboard, caps |
-| Security | Embed domain allow-list |
-| Publishing and activity | Publish log and releases, site rollback, audit log (including agent tool calls) |
-| Backups and export | Backup status, full export of content and media |
+| Section | Contents | Who |
+| --- | --- | --- |
+| General | Site name, primary domain, title pattern, favicon override | Admin |
+| Workflow | Self-approval on or off ([ADR 0005](decisions/0005-rollback-and-approval.md)) | Admin |
+| SEO and redirects | robots.txt, sitemap view, default social image, redirects table | Admin |
+| Tracking and consent | Named integrations by id: GA4, Tag Manager, Plausible, Cookiebot ([ADR 0011](decisions/0011-named-tracking-integrations.md)) | Admin |
+| Users and roles | Invite, deactivate, roles (Editor, Approver, Admin), operator flag | Admin |
+| Integrations | AI provider, model and key; Cloudflare zone and token; email (SMTP) | Admin or operator |
+| AI | Agent profile, site memory, usage and cost, caps | Admin |
+| Security | Embed domain allow-list | Admin |
+| Publishing and activity | Releases, site rollback, audit log (including AI tool calls) | Admin (log), approvers can view releases |
+| Backups and export | Backup status, full export | Admin or operator |
+| System | Version, disk, jobs, health, upgrades | Operator |
 
-**Top bar:** site name, link to the live site, builder search (pages, media, blocks), notifications bell (review requested, sent back, published, publish failed), user menu (profile, password, sign out).
-
-Items a user cannot use are hidden, not greyed out.
+**Top bar:** site name, link to the live site, search (pages, media, sections; Ctrl or Cmd K), notifications bell, user menu (profile, password, notification settings, my assistant memory, sign out).
 
 ### Builder shell wireframe
 
 ```
 +------------------+--------------------------------------------------------+
-| sitebuilder      | Site name [View live] [Search..] (bell)       [User v]|
+| sitebuilder      | Site name [View live] [Search  Ctrl K] (bell)  [User v]|
 +------------------+--------------------------------------------------------+
-| > Pages          |  Pages                          [Bin]   [+ New page]    |
-|   Site parts     |  [Search...........]  Status [All v]  Template [All v]  |
-|   Media          |  ------------------------------------------------------ |
-|   Forms/embeds   |  Title            Status      Last edited     URL       |
-|   Approvals (2)  |  Home             Published   2h ago, Asha    /         |
-|   Brand/Design   |  Winter appeal    Draft       5m ago, Sam     -         |
-|   Templates      |  About us         In review   1d ago, Priya   /about    |
-|   Settings       |  ...                                                    |
-|                  |                                  < 1 2 3 ... 9 >        |
+| > Pages          |  Pages                          [Bin]   [+ New page]   |
+|   Site parts     |  [Search...........]  Status [All v]  Type [All v]     |
+|   Media          |  ------------------------------------------------------|
+|   Forms/embeds   |  Title            Status        Last edited     Address|
+|   Approvals (2)  |  Home             Live          2h ago, Asha    /      |
+|   Brand/Design   |  Winter appeal    Draft         5m ago, Sam     -      |
+|   Page types     |  About us         Waiting       1d ago, Priya   /about |
+|   Settings       |  Volunteer        Live, changes 3d ago, Asha    /volun.|
+|                  |                                  < 1 2 3 ... 9 >       |
 +------------------+--------------------------------------------------------+
 ```
 
-## Page editor layout (sketch)
+## Page editor
+
+### Layout
 
 ```
-+---------------------------------------------------------------------------+
-| < Pages   Winter appeal (draft)          [Preview] [Submit for review]    |
-+------------------+----------------------------------------+---------------+
-| Blocks           |                                        | AI panel      |
-|  + Hero          |          Live page canvas              |               |
-|  + Rich text     |   (real block components, on-brand)    | Agent: What's |
-|  + Stats         |                                        | the headline? |
-|  + Donation form |   click a block to select it           |               |
-|  ...             |                                        | You: ...      |
-|                  |                                        |               |
-| Outline          |                                        |               |
-|  1. Hero         +----------------------------------------+               |
-|  2. Rich text    | Selected block: Hero                   | [message box] |
-|  3. Donation     |  Heading [______]  Image [Change/Crop] |               |
-+------------------+----------------------------------------+---------------+
++---------------------------------------------------------------------------------+
+| < Pages  Winter appeal [Draft]  Saved      [Desktop|Tablet|Mobile]  Undo Redo    |
+|                                             Preview   [Submit for approval]     |
++--+-------------------+---------------------------------------+-----------------+
+|  | Assistant|Add|Outline                                     | Section|Page|History|
+|  |                   |                                       |                 |
+|  | (one tab open)    |     Canvas at the chosen width        | Fields for the  |
+|  |                   |     real sections, site theme         | selected section|
+|  | Assistant: chat,  |     click text to type in place       |                 |
+|  | progress, cards   |     click a section to select it      | Heading [_____] |
+|  | Add: section list |                                       | Photo  [Change] |
+|  | Outline: drag to  |                                       |        [Crop]   |
+|  | reorder           |                                       | Button [_____]  |
+|  | [message box]     |                                       |                 |
++--+-------------------+---------------------------------------+-----------------+
+ ^ nav collapsed to icons
 ```
 
-Four parts:
+- **Left rail, tabbed:** Assistant (only where allowed), Add (sections allowed for this page type), Outline (drag, or Alt with up and down arrows, to reorder). One tab open at a time. The rail collapses to icons.
+- **Canvas:** the page rendered with the real sections and the site's theme, at the width chosen in the toolbar (Desktop 1280, Tablet 768, Mobile 390). Narrower than the space available, it is centred on grey; wider, it scales down to fit and says so ("Shown at 80%").
+- **Inline text:** headings and body text are edited on the canvas. A character counter appears as you near a section's limit. Pasted text is cleaned into the rich text format ([ADR 0010](decisions/0010-zod-versioned-blocks-structured-rich-text.md)).
+- **Inspector, tabbed:** **Section** (the selected section's fields, generated from its schema), **Page** (title, address, parent, page type, SEO: title, description, social image, canonical, hide from search engines), **History** (versions). It slides away when nothing is selected, giving the canvas the room.
+- **Section toolbar** on the canvas when a section is selected: move up, move down, duplicate, remove, and "Ask the assistant about this section" (pre-fills the chat).
+- **Flat sections in v1.** No nesting. Layout choices are options on a section.
 
-- **Block panel** (left): block palette (only the blocks allowed for this template) and an outline for reordering.
-- **Canvas** (middle): the page rendered with the real block components, at a chosen width. Click a block to select it.
-- **AI panel** (right, collapsible, only on New page and Edit page for editors): the agent. Its changes appear on the canvas as they happen.
-- **Properties panel**: the selected block's fields, generated from the block schema (text, image with crop, link, options). Shown under the canvas or as a drawer; see open questions. A **Page** tab in the same panel holds page settings (slug, parent, template) and SEO (title, description, social image, canonical, noindex). A **History** tab lists versions with preview and rollback.
+### Save, undo and history
 
-When the left nav is open the editor is cramped, so the editor collapses the nav to icons.
+- **Autosave.** Every change is sent as an operation within a second ([13-data-model.md](13-data-model.md#versions-drafts-and-autosave)). The header shows **Saving...**, then **Saved**. There is no Save button.
+- **Offline.** If the connection drops, changes are kept in the browser and a banner says "You're offline. Your changes will save when you're back." Nothing is lost on a reload.
+- **Undo and redo** (toolbar, Ctrl or Cmd Z, Shift Z) work across your own changes in this session, including assistant changes you asked for. Each assistant change line also has its own **Undo**.
+- If someone else changed the same thing since, undo explains instead of guessing: "Sam has changed this heading since, so it can't be undone automatically."
+- **Two people on one page:** the other person's avatar shows in the header ("Sam is editing"). If you both change the same field, you see "Sam changed this a moment ago" with **Keep mine** and **Use Sam's**.
+- **History tab:** a timeline of saved versions (who, when, a summary, "Live" marker). Assistant turns, submissions and publishes are separate entries. **Save a version** with a name is available for "before I try something".
+
+### Assistant states
+
+| State | What the panel shows | Canvas |
+| --- | --- | --- |
+| Ready | Greeting for the task, 3 suggested prompts | Normal |
+| Thinking | "Thinking..." with a soft animation, Stop button | Normal |
+| Working | Checklist of steps as they happen, Stop button | Sections being changed glow; you can still scroll and look |
+| Checking | "Checking it on a phone and a computer..." | Normal |
+| Needs you | An inline card: crop this photo, upload a photo, pick one of these forms | The relevant section is highlighted |
+| Done | Short summary of changes, each with Undo; next suggested step | Normal |
+| Stopped | "Stopped. Here's what I'd done so far." Changes kept, each with Undo | Normal |
+| Limit reached | "That's as far as I can go in one go. Here's what's left." | Normal |
+| Monthly budget used | "This month's assistant budget is used up. You can still edit by hand." | Normal |
+| Unavailable | "The assistant isn't available right now. Everything else works as normal." Retry | Normal |
+| Off-remit | A polite decline and a redirect to what it can do | Normal |
+
+While the assistant is working, typing in the canvas is allowed. If you change something it is about to change, its next step sees your change (it always reads the latest draft).
 
 ## Preview
 
-- A **Preview** button opens the page as it will look when published, outside the editor chrome.
-- The preview has a **toolbar at the top** to switch between **Desktop**, **Tablet** and **Mobile** widths (for example 1280, 768 and 390 pixels), plus a button to go back to editing.
-- The preview renders inside an iframe sized to the chosen width, so media queries behave exactly as on a real device.
-- Later: show the speed advisor results in the preview toolbar (score and top hints).
+- **Preview** opens the page exactly as it will be published, outside the editor chrome, rendered with the same render bundle as publishing ([ADR 0004](decisions/0004-incremental-publish.md)).
+- Toolbar: back to editing, Desktop, Tablet, Mobile (1280, 768, 390), a custom width box, and the speed score with the top hints.
+- Renders in an iframe sized to the width, so media queries behave as on a real device.
+- **Share preview** (approvers and up): a link that works without signing in, expires after 7 days, can be revoked, and is never indexed. For trustees and partners.
 
 ```
-+---------------------------------------------------------------+
-| [< Back to editor]   [Desktop] [Tablet] [Mobile]   Speed: 98  |
-+---------------------------------------------------------------+
-|                                                               |
-|                   page at the chosen width                    |
-|                                                               |
-+---------------------------------------------------------------+
++---------------------------------------------------------------------------+
+| [< Back to editing]  [Desktop] [Tablet] [Mobile] [ 1024 ]  Speed: 98  [Share] |
++---------------------------------------------------------------------------+
+|                                                                           |
+|                        page at the chosen width                           |
+|                                                                           |
++---------------------------------------------------------------------------+
 ```
-
-## AI panel
-
-- Contextual, not global: it only appears on the screens marked 🤖 in the GUI map, never as a floating chat across the builder.
-
-- Collapsible on the screens where it appears.
-- The agent asks a handful of questions for a new page, then builds a draft. See [07-ai-agent.md](07-ai-agent.md).
-- Each agent change is shown as a short line in the chat ("Added Hero", "Changed heading") and can be undone individually.
-- The person can mix chat and direct editing freely.
 
 ## Approval flow
 
-1. Editor clicks **Submit for review**.
-2. Approver opens it from **Approvals** and sees: the preview (with the device toolbar), a diff against the live version, and the speed advisor results.
-3. Approver clicks **Approve and publish**, or **Send back** with a comment.
-4. On publish, a progress indicator shows build, deploy and cache purge, then a link to the live page.
+1. **Submit for approval** opens a panel: optional note, an automatic change summary (editable), and the checks ([17-testing-and-budgets.md](17-testing-and-budgets.md#checks-before-review)). Blocking problems have **Fix** links.
+2. The review is **pinned to that version**. Editing the draft afterwards withdraws it, with a warning before the first edit.
+3. The approver opens it from the email or **Approvals**.
+4. **Approve and publish** or **Send back** (comment required).
+5. Publish progress, then a link to the live page.
 
-```mermaid
-stateDiagram-v2
-  [*] --> Draft
-  Draft --> InReview: Submit for review
-  InReview --> Draft: Send back (with comment)
-  InReview --> Publishing: Approve and publish
-  Publishing --> Published: build, deploy, purge OK
-  Publishing --> InReview: failed (shown with reason)
-  Published --> Draft: new edits create a new draft
-  Published --> Draft: Unpublish
+Page states and transitions are defined once in [13-data-model.md](13-data-model.md#page-workflow-states).
+
+### Review screen
+
 ```
++---------------------------------------------------------------------------------+
+| Review: Winter appeal  by Asha, 10 min ago          [Send back] [Approve & publish]|
++---------------------------------------------------------------------------------+
+| [Desktop] [Tablet] [Mobile]     ( ) Preview  (o) Show changes                    |
++-----------------------------------------------------+---------------------------+
+|                                                     | Asha's note               |
+|   page at chosen width                              |  "New appeal for Dec"     |
+|   changed sections outlined,                        | Changes                   |
+|   changed words highlighted,                        |  + Hero added             |
+|   "Removed: Quote" strip where a section went       |  ~ Heading changed        |
+|                                                     |  - Quote removed          |
+|   [comment pin on a section]                        | Checks                    |
+|                                                     |  ok Alt text              |
+|                                                     |  ! Hero photo 410 KB      |
+|                                                     |  Speed 97                 |
+|                                                     | Comments                  |
+|                                                     |  [Add a comment...]       |
++-----------------------------------------------------+---------------------------+
+```
+
+- **Show changes** is the default for edits to a live page; **Preview** is the default for new pages.
+- Clicking a change in the list scrolls to it.
+- Comments can be pinned to a section and are shown to the submitter in the editor next to that section.
+- Blocking checks disable **Approve and publish**, with an **Override** link that asks for a reason (logged).
+- If the draft changed after submission, the screen says so and approval is disabled.
+- Works on a phone: the right column becomes tabs under the preview.
+
+### Publish progress
+
+```
++--------------------------------------------------------------+
+|  Publishing Winter appeal                                     |
+|  [x] Building        [x] Going live       [ ] Clearing cache  |
+|  ...........................................                  |
++--------------------------------------------------------------+
+```
+
+Ends with "Live" and **View page**. Menu, header or footer changes say "Updating every page (about a minute)".
+
+## Other screens
+
+### New page
+
+```
++---------------------------------------------------------------+
+| < Pages   New page                                             |
++---------------------------------------------------------------+
+|                                                               |
+|      Assistant: Hi Asha. What's this page for?                |
+|                                                               |
+|      [A donation appeal] [A news story] [An event] [Other]    |
+|                                                               |
+|      [ Type a message...                         ] [Send]     |
+|                                                               |
+|      Or pick a page type yourself                             |
++---------------------------------------------------------------+
+```
+
+After **Build it**, it becomes the editor layout with the Assistant tab open.
+
+### Site parts: menus
 
 ```
 +---------------------------------------------------------------------------+
-| Review: Winter appeal                       [Send back]  [Approve & publish]|
-+---------------------------------------------------------------------------+
-| [Desktop] [Tablet] [Mobile]     View: (o) Preview  ( ) Diff vs live        |
-+-------------------------------------------------+-------------------------+
-|                                                 | Speed check: 97         |
-|           page preview at chosen width          |  ! Hero image 410 KB    |
-|           (changed blocks outlined in diff)     |  ok Alt text present    |
-|                                                 | Changes                 |
-|                                                 |  + Hero added           |
-|                                                 |  ~ Heading changed      |
-|                                                 | SEO: title, desc ok     |
-+-------------------------------------------------+-------------------------+
+| Site parts > Main menu [Live]               [Preview]  [Submit for approval]|
++-------------------------------------+-------------------------------------+
+| = Home                         [..] |  Header preview  [Computer][Phone]  |
+| = About us                     [..] |                                     |
+|     = Our team                 [..] |  [logo] Home  About v  Adopt  Donate|
+| = Adopt                        [..] |                                     |
+| = Volunteer (draft!)           [..] |                                     |
+| [+ Add item]                        |                                     |
++-------------------------------------+-------------------------------------+
 ```
 
-## Image crops in the editor
+Header and footer use the page editor layout without the assistant tab, limited to the sections allowed in them.
 
-When an image does not fit a block's required size, the editor shows a crop rectangle locked to the right aspect ratio and the user must approve the crop. See [05-image-pipeline.md](05-image-pipeline.md).
+### Media library and item
 
-## Roles (first idea)
+```
++---------------------------------------------------------------------------+
+| Media                                [Search...]  [Type v]  [+ Upload]     |
++---------------------------------------------------------------------------+
+| [img] [img] [img] [img] [img] [img]                                        |
+| [img] [img] [img]  Drag photos here to upload                              |
++---------------------------------------------------------------------------+
 
-- **Editor:** create and edit drafts, use the agent, submit for review.
-- **Approver:** everything an editor can do, plus approve and publish.
-- **Admin:** everything, plus brand pack, menus, templates, users and integrations.
+Item panel (right):  preview | Alt text [______] [Suggest] [ ] Decorative
+                     Focal point: click the photo | Crops: 16:9 approved
+                     Used on: Home, Winter appeal | Size 3200 x 2133 | [Bin]
+```
+
+### Crop dialog
+
+```
++-------------------------------------------------------------+
+| Crop for: Hero (needs 16:9, at least 1280 x 720)             |
++-------------------------------------------+-----------------+
+|                                           | On a computer    |
+|     photo with a 16:9 frame you can       | [small preview]  |
+|     move and resize (shape is locked)     | On a phone       |
+|                                           | [small preview]  |
++-------------------------------------------+-----------------+
+|                                  [Cancel]  [Use this crop]  |
++-------------------------------------------------------------+
+```
+
+### History
+
+```
+History                                  [Save a version]
+o  Now          Draft (autosaved)        Asha
+o  10:42        Assistant: changed hero  Asha + Assistant
+*  Yesterday    LIVE  Approved by Spencer
+o  3 Nov        Submitted                Asha
+   [View]  [Restore this version]
+```
+
+### Setup wizard
+
+```
+Step 2 of 5: Site parts                       [Save and finish later]
+(1 Brand) (2 Site parts) (3 Page types) (4 Integrations) (5 Preview)
++-------------------------------------+--------------------------------+
+| Header style: (o) Simple ( ) Centre | Live preview of header and     |
+| Main menu: [list editor]            | footer with your brand         |
+| Footer: contact, social, legal      |                                |
++-------------------------------------+--------------------------------+
+                                        [Back]  [Next: Page types]
+```
+
+### Mobile mode
+
+```
++------------------------+
+| Winter appeal  [Live]  |
+| [Search pages...]      |
++------------------------+
+| page, full width       |
+| tap text to edit  ->   |
+|  full-screen text      |
+|  editor with [Done]    |
++------------------------+
+| [Submit for approval]  |
++------------------------+
+```
+
+On phones the builder offers: Pages (search and open), text edits, swapping a photo for one already uploaded, Approvals (review and approve), notifications. Everything else says "Open on a computer to do this."
+
+## Patterns
+
+### Errors and validation
+
+- **Where:** on the field, and on the section in the canvas (a small red marker), never only as a toast.
+- **How:** say what happened and what to do, in plain words, with no codes. "This heading is too long. Keep it under 80 characters (it's 94)."
+- **Server errors:** "Something went wrong saving that. We've kept your change and will try again." with a reference id for support.
+- **Blocking checks** are listed in the submit panel with **Fix** links.
+
+### Empty states
+
+| Screen | Empty state |
+| --- | --- |
+| Pages (new site) | "No pages yet." [Make one with the assistant] [Pick a page type] |
+| Media | "No photos yet. Drag some here." |
+| Approvals | "Nothing waiting. Nice work." |
+| History | "This is the first version." |
+| Search | "Nothing found for 'wintr'. Try fewer words." |
+| Bin | "The bin is empty. Deleted items stay here for 30 days." |
+
+### Loading
+
+- Skeletons for lists and the canvas, not spinners.
+- Anything over 2 seconds shows what it is doing ("Making web-friendly sizes...").
+
+### Notifications
+
+In-app (bell) and email ([16-operations.md](16-operations.md#email)): review requested, sent back (with comment), published, publish failed, emergency rollback. Each links straight to the thing.
+
+### Keyboard shortcuts
+
+| Keys | Does |
+| --- | --- |
+| Ctrl or Cmd K | Search and jump |
+| Ctrl or Cmd Z, Shift Z | Undo, redo |
+| Ctrl or Cmd Enter | Send to the assistant |
+| / | Focus the assistant box |
+| Esc | Deselect, close panels |
+| Alt Up, Alt Down | Move the selected section |
+| Ctrl or Cmd Shift P | Preview |
+| ? | Show all shortcuts |
+
+### Accessibility of the builder
+
+The builder itself meets **WCAG 2.2 AA**: everything works by keyboard, focus is always visible, controls are labelled, and reordering never needs dragging.
+
+## Roles
+
+- **Editor:** create and edit drafts, use the assistant, upload media, submit for approval.
+- **Approver:** everything an editor can do, plus approve and publish, unpublish, Site parts, Forms and embeds, redirects.
+- **Admin:** everything, plus Brand and Design, Page types, users, settings, integrations and emergency site rollback.
+- **Operator** (a flag, can be combined with any role or none): System, backups, upgrades and integrations, without content rights ([ADR 0007](decisions/0007-single-site-install.md)).
 
 ## Open questions
 
-- Is the main way in the chat, or the visual editor? Should a new page start in chat by default?
-- On New page, is the AI panel a full-width "conversation" step that hands over to the editor, or the same right column as Edit page?
-- Which other admin screens, if any, should get an AI panel?
-- Should approvers get the AI panel on Site parts? Currently shown, but only editors and admins were named. To confirm.
-- Drag and drop on the canvas, or reorder only in the outline? (Drag and drop is nice but adds complexity.)
-- Inline text editing on the canvas, or fields in a side panel only?
-- How is the diff shown: side by side, or highlighted changes on one page?
-- Should small teams be allowed to approve their own changes (one-person organisations)?
-- Exact device widths for the preview toolbar, and whether to offer a custom width.
-- Do we build our own Vue editor from scratch, or start from an existing one (for example Gissen or Page Composer)?
-- Mobile use of the builder itself: needed, or desktop only?
-- Properties panel: under the canvas, a right-hand drawer that shares space with chat, or a popover next to the selected block?
-- Should Header and footer be editable by approvers, or admins only?
-- Does Templates belong in the main nav, or inside Settings (it is rarely used after setup)?
+- Do we build our own Vue editor from scratch, or start from an existing one (for example Gissen or Page Composer)? To settle in the Phase 1 spike.
+- Exact section toolbar actions beyond move, duplicate and remove.
+- Builder UI translation (for example Hindi for staff in India): wanted, and when?

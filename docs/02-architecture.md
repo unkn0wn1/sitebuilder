@@ -1,6 +1,6 @@
 # Architecture
 
-Draft. This is the general shape, borrowed from the research and from tools like Puck and Drupal Canvas. Details will change as the other docs fill in.
+Draft, with the v1 shape decided. The general shape is borrowed from the research and from tools like Puck and Drupal Canvas. The detail lives in [13-data-model.md](13-data-model.md), [14-api.md](14-api.md), [15-security.md](15-security.md), [16-operations.md](16-operations.md) and the [decision records](decisions/).
 
 ## Overview
 
@@ -17,10 +17,11 @@ flowchart LR
     UI["Editor UI<br/>(Nuxt app: wizard, editor,<br/>preview, AI panel, approvals)"]
     Agent["Chat agent<br/>(tool calls only)"]
     API["Nitro API<br/>(pages, versions, media,<br/>approvals, publish)"]
-    DB[("Content store<br/>SQLite or Postgres")]
+    DB[("Content store<br/>SQLite (v1)")]
+    Jobs["Job worker<br/>(jobs table)"]
     Media[("Media store<br/>originals + renditions")]
     Blocks["Block library<br/>(Vue components + schemas)<br/>+ brand pack"]
-    Gen["Static generator<br/>(nuxt generate)"]
+    Gen["Renderer<br/>(compiled render bundle,<br/>changed pages only)"]
     Advisor["Speed advisor<br/>(Lighthouse / Unlighthouse)"]
   end
 
@@ -40,10 +41,11 @@ flowchart LR
   API <--> DB
   API <--> Media
   API -- "validate against" --> Blocks
-  API -- "on approve" --> Gen
+  API -- "queue jobs" --> Jobs
+  Jobs -- "publish" --> Gen
   Gen -- "uses" --> Blocks
   Gen -- "atomic deploy" --> Nginx
-  API -- "purge changed URLs" --> CF
+  Jobs -- "purge by cache tag" --> CF
   Advisor -- "audits preview" --> API
   Visitor --> CF --> Nginx
 ```
@@ -64,46 +66,51 @@ Because pages hold content only, never styling, the look of the whole site comes
 
 ### Chat agent
 
-Talks to the AI model and can only act through a fixed set of tools (`list_blocks`, `add_block`, `update_props` and so on). Every tool call goes through the API and is validated. The agent cannot publish. See [07-ai-agent.md](07-ai-agent.md).
+Talks to the AI model and can only act through a fixed set of tools (`list_blocks`, `add_block`, `update_props` and so on), scoped to one task and one target. Every tool call goes through the same services and validation as the GUI. The agent cannot publish. See [07-ai-agent.md](07-ai-agent.md).
 
 ### Nitro API
 
-Nuxt's built-in server engine. Owns pages, versions, media, approvals and publishing. Validates every write against the block schemas and brand pack. Small and boring on purpose.
+Nuxt's built-in server engine. Owns pages, versions, media, approvals and publishing. Validates every write with Zod against the block schemas and brand pack. Small and boring on purpose. The contract is in [14-api.md](14-api.md).
 
 ### Content store
 
-SQLite by default (one file, easy backups, plenty for a typical organisation's site), Postgres as an option for larger installs. Pages are stored as JSON documents with append-only versions. Whether to support both from day one is an [open question](#open-questions).
+SQLite only in v1, through Drizzle, written so Postgres can be added later ([ADR 0009](decisions/0009-sqlite-drizzle-and-jobs.md)). Every table has a `site_id`, with one site per install in v1 ([ADR 0007](decisions/0007-single-site-install.md)). Pages are JSON documents with versions; edits are operations in an edit log, which gives per-change undo and safe concurrent editing. See [13-data-model.md](13-data-model.md).
+
+### Job worker
+
+A `jobs` table and one worker loop inside the builder process: publishing, image renditions, checks, email, cache purge, backups and scheduled work. Retries, leases and a visible error. No queue service ([ADR 0009](decisions/0009-sqlite-drizzle-and-jobs.md), [16-operations.md](16-operations.md#background-jobs)).
 
 ### Media store
 
-Original uploads plus generated renditions (several widths, AVIF and WebP), on local disk at first. See [05-image-pipeline.md](05-image-pipeline.md).
+Original uploads plus renditions made at upload time (several widths, AVIF and WebP), on local disk in a shared, append-only folder outside the release folders ([ADR 0013](decisions/0013-renditions-at-upload.md)). See [05-image-pipeline.md](05-image-pipeline.md).
 
 ### Static generator
 
-On approval, renders the changed pages to static HTML with `nuxt generate` (or a slimmer renderer built on the same components), then deploys atomically: build into a new folder, then switch a symlink. No half-published states.
+Blocks, theme and the site's own layer are **compiled once** into a render bundle (at install, upgrade, theme or token change). Each publish then **renders only the affected pages** to HTML with Vue's server renderer, into a new release folder (a hard-link copy of the last one), and switches a symlink. A dependency map decides which pages are affected. Each release has a manifest of exactly which versions it contains. See [ADR 0004](decisions/0004-incremental-publish.md) and [ADR 0005](decisions/0005-rollback-and-approval.md).
 
 ### nginx and Cloudflare
 
-nginx serves the static files. Cloudflare sits in front for edge caching, TLS and protection, and is purged for the changed URLs after each publish. No Varnish. See [08-hosting.md](08-hosting.md).
+nginx serves the static files and only accepts requests from Cloudflare. Cloudflare sits in front for edge caching, TLS and protection, and is purged by cache tag after each publish. No Varnish. See [08-hosting.md](08-hosting.md).
 
 ### Speed advisor
 
-Runs Lighthouse against the preview before approval and shows plain-English hints (heaviest image, render-blocking script, layout shift, missing alt text, page weight against a budget). A scheduled Unlighthouse scan covers the whole live site.
+Runs Lighthouse (headless Chromium, as a job) against the preview before approval and shows plain-English hints (heaviest image, render-blocking script, layout shift, missing alt text, page weight against a budget). The budgets are the same ones CI enforces ([17-testing-and-budgets.md](17-testing-and-budgets.md)). A scheduled Unlighthouse scan covers the whole live site.
 
 ## Main flows
 
 ### Create a page with the agent
 
-1. Staff member opens New page, where the AI panel appears, and asks for a page.
+1. Staff member opens New page, where the assistant appears, and asks for a page.
 2. Agent asks a handful of questions, then builds a draft through tool calls.
 3. Staff member previews it at desktop, tablet and mobile widths and iterates by chat or by editing blocks directly.
 4. Staff member submits it for review.
 5. Approver sees the preview, the diff and the speed advisor results, and approves or sends it back.
-6. On approve: generate, deploy, purge Cloudflare. Page is live.
+6. On approve: a publish job renders the affected pages, switches the release, and purges Cloudflare by tag. Page is live in seconds.
 
 ### Roll back
 
-Pick any earlier version, preview it, approve it. Same publish path as any other change.
+- **One page:** pick any earlier version, preview it, restore it as the draft, approve it. Same publish path as any other change.
+- **Whole site (emergency):** an admin switches back to an earlier release. The database pointers are reset to that release's manifest in the same step. Logged, no second approver needed ([ADR 0005](decisions/0005-rollback-and-approval.md)).
 
 ## Suggested code layout
 
@@ -111,17 +118,22 @@ Start flat and only split when it hurts:
 
 ```
 app/                  Builder UI
-server/               Nitro API
-shared/               Types and schemas shared by app and server
+server/               Nitro API, database, services, job worker
+shared/               Types, block schemas and rules shared by app and server
 layers/blocks/        (later) block library as a Nuxt layer
 layers/renderer/      (later) public site renderer as a Nuxt layer
+site/                 The organisation's own blocks and themes (ADR 0006), not part of core
 ```
 
 Nuxt layers let the block library and renderer be reused by the public site build without a separate package setup. If they need publishing to npm on their own later, they can move to `packages/`.
 
+## Decided
+
+- SQLite only in v1 ([ADR 0009](decisions/0009-sqlite-drizzle-and-jobs.md)).
+- Publishing uses a compiled render bundle and renders changed pages only ([ADR 0004](decisions/0004-incremental-publish.md)).
+- One site per install, `site_id` everywhere ([ADR 0007](decisions/0007-single-site-install.md)).
+- The builder runs on the same server as nginx, as a separate container, behind Cloudflare Access ([ADR 0007](decisions/0007-single-site-install.md)).
+
 ## Open questions
 
-- SQLite only at first, or SQLite and Postgres from day one?
-- Does the public site build reuse the whole Nuxt app, or a slimmer renderer app built from the same block layer?
-- Single site per install at first, or multi-site from the start?
-- Where does the builder itself run: same server as nginx, or separate?
+- None at this level for v1. See [open-questions.md](open-questions.md).

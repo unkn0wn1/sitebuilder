@@ -22,7 +22,7 @@ Every design decision is checked against these. When two pull in different direc
 - The AI never writes HTML, CSS or JavaScript. It can only call tools that add, edit or move approved blocks.
 - Every change is validated against the block schemas and the locked brand.
 - Nothing is published without a human approving it.
-- Every save is a new version. Anything can be rolled back.
+- Every change is recorded and can be undone, and history is kept as versions. Anything can be rolled back.
 - Third-party scripts only load from an allow-list of domains.
 
 ## 4. The AI has one remit
