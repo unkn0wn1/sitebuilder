@@ -10,7 +10,7 @@ Staff describe the page they want to a chat agent. The agent asks a few question
 
 ## Status
 
-**Pre-alpha, design phase.** The architecture is being written up in [`docs/`](docs/README.md) before any real code. The Nuxt app in this repo is a bare skeleton that builds, nothing more.
+**Pre-alpha.** The v1 design is written up in [`docs/`](docs/README.md), with decisions in [`docs/decisions/`](docs/decisions/README.md). Work on milestone M1 has started with the backend: database, services and the `/api/v1` API, with unit tests. There is no editor GUI yet, no AI model calls and no real publish renderer (publishing records releases but does not write HTML yet). See the [roadmap](docs/09-roadmap.md).
 
 The repo is private for now. The intention is to open source it once the design settles. The licence is still to be decided (see [open questions](docs/open-questions.md)), so there is no LICENSE file yet.
 
@@ -30,22 +30,28 @@ Not in scope: a plugin marketplace, payments, ecommerce, memberships or user acc
 
 ## Stack (locked in so far)
 
-- [Nuxt](https://nuxt.com) (Vue 3, Vite, TypeScript)
-- Tailwind CSS, with Flowbite / flowbite-vue planned for the builder UI
-- Static generation, served by nginx
-- Cloudflare in front (mandatory), purged on publish
+- [Nuxt](https://nuxt.com) 4 (Vue 3, Vite, TypeScript strict), Nitro for the API
+- Tailwind CSS v4 for the builder UI
+- SQLite via Drizzle ORM, with a jobs table for background work ([ADR 0009](docs/decisions/0009-sqlite-drizzle-and-jobs.md))
+- Zod schemas for blocks, page documents and API input, with versioned blocks ([ADR 0010](docs/decisions/0010-zod-versioned-blocks-structured-rich-text.md))
+- Static HTML output, served by nginx
+- Cloudflare in front (mandatory), purged by cache tag on publish ([ADR 0004](docs/decisions/0004-incremental-publish.md))
 
 ## Repo layout
 
 ```
-app/            Builder UI (Nuxt app): editor, preview, chat panel, wizard
-server/         Nitro API: pages, versions, approvals, media, publish
-shared/         Types shared by app and server (page and block model)
-public/         Static assets for the builder itself
-docs/           Architecture and design docs, plus decision records
+app/              Builder UI (Nuxt app): editor, preview, chat panel, wizard (not built yet)
+server/api/v1/    HTTP API, thin routes over the services (docs/14-api.md)
+server/services/  Business logic: auth, pages and ops, reviews, publish, jobs, AI tools
+server/db/        Drizzle schema, SQL migrations, migration runner
+server/plugins/   Start-up: Access guard, database, job worker
+shared/           Code shared by app and server: block registry, page model, ops, checks, roles
+scripts/          Seed script
+tests/            Unit tests (vitest)
+docs/             Architecture and design docs, plus decision records
 ```
 
-The layout will grow (for example a block library and renderer as Nuxt layers or packages) once the docs settle. See [docs/02-architecture.md](docs/02-architecture.md).
+See [docs/02-architecture.md](docs/02-architecture.md).
 
 ## Getting started
 
@@ -53,10 +59,26 @@ Needs Node 22 or newer.
 
 ```bash
 npm install
-npm run dev        # http://localhost:3000
-npm run generate   # static output in .output/public
+npm run seed       # creates .data/sitebuilder.db with an admin, page types and a sample page
+npm run dev        # http://localhost:3000, API at /api/v1
+npm test           # unit tests
 npm run typecheck
+npm run build      # production server in .output
 ```
+
+`npm run seed` prints a one-off admin password unless you set `SEED_ADMIN_PASSWORD` (and optionally `SEED_ADMIN_EMAIL`). Change it after signing in.
+
+Server settings (environment variables, none are committed):
+
+| Variable | What it does |
+| --- | --- |
+| `SITEBUILDER_DB_PATH` | Database file. Default `.data/sitebuilder.db`. |
+| `SITEBUILDER_SECRET_KEY` | 32 random bytes, base64. Encrypts stored secrets such as the AI key. Needed before secrets can be saved. |
+| `SITEBUILDER_ACCESS_AUD` | Cloudflare Access audience tag. Required in production. |
+| `SITEBUILDER_ALLOW_NO_ACCESS` | Set to `1` to run in production without Cloudflare Access (testing only). |
+| `SITEBUILDER_ORIGIN` | The builder's public origin, for the CSRF check, if the proxy headers are not reliable. |
+| `SITEBUILDER_WORKER` | Set to `0` to stop the in-process job worker. |
+| `SITEBUILDER_INSECURE_COOKIES` | Set to `1` to allow session cookies over plain HTTP in production (local testing only). |
 
 ## Docs
 

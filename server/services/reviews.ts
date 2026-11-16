@@ -66,7 +66,8 @@ export function submitPage(ctx: ServiceCtx, actor: ActingAs, pageId: string, inp
       if (!atLeast(actor.role, 'approver')) throw forbidden('Only approvers can submit with problems left in.')
     }
     const live = page.publishedVersionId ? readDoc(ctx, page.publishedVersionId) : null
-    const summary = summariseDiff(diffPages(live, doc), (t) => ctx.registry.get(t)?.label.toLowerCase() ?? t)
+    const changes = summariseDiff(diffPages(live, doc), (t) => ctx.registry.get(t)?.label.toLowerCase() ?? t)
+    const summary = live ? changes : `New page. ${changes}`
     const versionId = sealDraft(ctx, pageId, actor, 'submitted', summary)
     const id = newId('review', ctx.now().getTime())
     ctx.db
@@ -138,11 +139,13 @@ export function addReviewComment(ctx: ServiceCtx, actor: ActingAs, reviewId: str
   return { id }
 }
 
-export function listReviews(ctx: ServiceCtx, state?: ReviewRow['state']) {
+/** Approvers see every review; editors only see what they submitted ("My submissions"). */
+export function listReviews(ctx: ServiceCtx, actor: ActingAs, state?: ReviewRow['state']) {
+  const own = can(actor, 'review.read') ? undefined : eq(reviews.submittedBy, actor.id)
   return ctx.db
     .select()
     .from(reviews)
-    .where(and(eq(reviews.siteId, ctx.siteId), state ? eq(reviews.state, state) : undefined))
+    .where(and(eq(reviews.siteId, ctx.siteId), state ? eq(reviews.state, state) : undefined, own))
     .orderBy(desc(reviews.createdAt))
     .limit(100)
     .all()

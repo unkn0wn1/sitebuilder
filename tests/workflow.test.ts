@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { AppError } from '../server/services/errors'
 import { createPublishHandler, currentRelease, rollbackSite, unpublishPage } from '../server/services/publish'
 import { applyPageOps, createPage, getPage } from '../server/services/pages'
-import { approveReview, getReview, sendBackReview, submitPage } from '../server/services/reviews'
+import { approveReview, getReview, listReviews, sendBackReview, submitPage } from '../server/services/reviews'
 import { runJobsOnce } from '../server/services/jobs'
 import { setup, IMG, EMB } from './helpers'
 import { auditEvents, jobs, notifications } from '../server/db/schema'
@@ -160,5 +160,20 @@ describe('submit, approve, publish', () => {
     }
     expect(getPage(s.ctx, page.id).page.workflowState).toBe('in_review')
     expect(getReview(s.ctx, s.approver, sub.reviewId).review.state).toBe('pending')
+  })
+})
+
+describe('review lists', () => {
+  it('shows approvers every review and editors only their own', () => {
+    const s = setup()
+    const mine = createPage(s.ctx, s.editor, { title: 'Our team', template: 'standard' }).page
+    applyPageOps(s.ctx, s.editor, mine.id, 0, [{ op: 'set_seo', description: 'Meet the team' }])
+    submitPage(s.ctx, s.editor, mine.id)
+    const { page } = createPage(s.ctx, s.editor2, { title: 'Spring news', template: 'standard' })
+    applyPageOps(s.ctx, s.editor2, page.id, 0, [{ op: 'set_seo', description: 'News from the spring' }])
+    submitPage(s.ctx, s.editor2, page.id)
+    expect(listReviews(s.ctx, s.approver)).toHaveLength(2)
+    expect(listReviews(s.ctx, s.editor).map((r) => r.targetId)).toEqual([mine.id])
+    expect(listReviews(s.ctx, s.editor)[0]!.changeSummary).toMatch(/^New page\. /)
   })
 })
