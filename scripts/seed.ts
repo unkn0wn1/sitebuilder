@@ -15,7 +15,8 @@ import { createUser } from '../server/services/auth'
 import type { ActingAs, ServiceCtx } from '../server/services/context'
 import { createPage } from '../server/services/pages'
 import { STARTER_TEMPLATES } from '../server/services/seed-data'
-import { createEmbed, createSite, createSitePart, getOnlySite, listEmbeds } from '../server/services/site'
+import { createEmbed, createSite, getOnlySite, listEmbeds } from '../server/services/site'
+import { createSitePart } from '../server/services/site-parts'
 import { createTemplate } from '../server/services/templates'
 import { createDefaultRegistry } from '../shared/blocks/registry'
 
@@ -50,7 +51,7 @@ for (const [key, rules] of Object.entries(STARTER_TEMPLATES)) {
 const haveParts = new Set(db.select({ key: siteParts.key }).from(siteParts).all().map((p) => p.key))
 for (const [kind, key, label] of [['header', 'header', 'Header'], ['footer', 'footer', 'Footer'], ['menu', 'main', 'Main menu']] as const) {
   if (!haveParts.has(key)) {
-    createSitePart(ctx, kind, key, label)
+    createSitePart(ctx, kind, key, label, actor)
     log(`added site part ${label}`)
   }
 }

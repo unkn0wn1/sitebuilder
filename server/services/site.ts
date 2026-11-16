@@ -47,12 +47,3 @@ export function createEmbed(ctx: ServiceCtx, actor: ActingAs, input: { provider:
   return { id }
 }
 
-export function listSiteParts(ctx: ServiceCtx) {
-  return ctx.db.select().from(siteParts).where(eq(siteParts.siteId, ctx.siteId)).all()
-}
-
-export function createSitePart(ctx: ServiceCtx, kind: 'header' | 'footer' | 'menu' | 'banner', key: string, label: string) {
-  const id = newId('sitePart', ctx.now().getTime())
-  ctx.db.insert(siteParts).values({ id, siteId: ctx.siteId, kind, key, label, createdAt: iso(ctx), updatedAt: iso(ctx) }).run()
-  return id
-}

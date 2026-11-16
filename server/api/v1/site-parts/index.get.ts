@@ -1,4 +1,4 @@
-import { listSiteParts } from '../../../services/site'
+import { listSiteParts } from '../../../services/site-parts'
 import { defineApi, requireCan } from '../../../utils/api'
 
 export default defineApi((event, ctx) => {

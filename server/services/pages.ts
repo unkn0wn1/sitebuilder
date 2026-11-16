@@ -10,14 +10,15 @@ import { draftOps, pages, reviews, versions } from '../db/schema'
 import { audit } from './audit'
 import { actorKey, inTx, iso, type ActingAs, type ServiceCtx } from './context'
 import { AppError, forbidden, notFound } from './errors'
+import { sitePartsLinkingTo } from './site-parts'
 import { getTemplateRules } from './templates'
+import { getVersionRow, insertVersion as insertTargetVersion, saveDraftSnapshot, type VersionRow } from './versions'
+
+const insertVersion = (ctx: ServiceCtx, pageId: string, doc: PageDoc, actor: ActingAs, kind: VersionRow['kind'], sealed: boolean, summary?: string) =>
+  insertTargetVersion(ctx, 'page', pageId, doc, actor, kind, sealed, summary)
 
 export type PageRow = typeof pages.$inferSelect
-export type VersionRow = typeof versions.$inferSelect
-
-/** Autosave coalescing windows. See docs/13-data-model.md#versions-drafts-and-autosave. */
-export const AUTOSAVE_MAX_SPAN_MS = 5 * 60_000
-export const AUTOSAVE_MAX_GAP_MS = 2 * 60_000
+export { AUTOSAVE_MAX_GAP_MS, AUTOSAVE_MAX_SPAN_MS, getVersionRow, type VersionRow } from './versions'
 
 export function slugify(title: string): string {
   return (
@@ -36,12 +37,6 @@ export function requirePage(ctx: ServiceCtx, id: string): PageRow {
   const page = ctx.db.select().from(pages).where(and(eq(pages.id, id), eq(pages.siteId, ctx.siteId))).get()
   if (!page || page.deletedAt) throw notFound('That page')
   return page
-}
-
-export function getVersionRow(ctx: ServiceCtx, id: string): VersionRow {
-  const v = ctx.db.select().from(versions).where(and(eq(versions.id, id), eq(versions.siteId, ctx.siteId))).get()
-  if (!v) throw notFound('That version')
-  return v
 }
 
 export function readDoc(ctx: ServiceCtx, versionId: string): PageDoc {
@@ -160,35 +155,6 @@ export function getPage(ctx: ServiceCtx, id: string) {
   return { page, doc, revision: page.draftRevision, review: review ?? null }
 }
 
-/** Save the draft document as a snapshot, coalescing autosaves. Returns the head version id. */
-function saveSnapshot(ctx: ServiceCtx, page: PageRow, doc: PageDoc, actor: ActingAs): string {
-  const key = actorKey(actor)
-  const now = ctx.now()
-  const head = page.draftVersionId ? getVersionRow(ctx, page.draftVersionId) : undefined
-  if (head && !head.sealed && head.actorKey === key) {
-    const isAi = key.startsWith('ai:')
-    const withinSpan = now.getTime() - Date.parse(head.createdAt) <= AUTOSAVE_MAX_SPAN_MS
-    const withinGap = now.getTime() - Date.parse(head.updatedAt) <= AUTOSAVE_MAX_GAP_MS
-    if (isAi || (withinSpan && withinGap)) {
-      ctx.db.update(versions).set({ doc, updatedAt: now.toISOString() }).where(eq(versions.id, head.id)).run()
-      return head.id
-    }
-  }
-  if (head && !head.sealed) ctx.db.update(versions).set({ sealed: true }).where(eq(versions.id, head.id)).run()
-  return insertVersion(ctx, page.id, doc, actor, key.startsWith('ai:') ? 'ai' : 'autosave', false)
-}
-
-function insertVersion(ctx: ServiceCtx, pageId: string, doc: PageDoc, actor: ActingAs, kind: VersionRow['kind'], sealed: boolean, summary?: string): string {
-  const max = ctx.db.select({ n: sql<number>`max(${versions.number})` }).from(versions).where(and(eq(versions.targetType, 'page'), eq(versions.targetId, pageId))).get()?.n ?? 0
-  const id = newId('version', ctx.now().getTime())
-  const now = iso(ctx)
-  ctx.db
-    .insert(versions)
-    .values({ id, siteId: ctx.siteId, targetType: 'page', targetId: pageId, number: max + 1, doc, schemaVersion: doc.schemaVersion, kind, actorKey: actorKey(actor), authorId: actor.id, aiSessionId: actor.aiSessionId ?? null, summary: summary ?? null, sealed, createdAt: now, updatedAt: now })
-    .run()
-  return id
-}
-
 /**
  * Seal the draft head as a named version (checkpoint, submitted, restored...). If the head is already
  * sealed, a sealed copy is made so the kind and summary are recorded. Returns the sealed version id.
@@ -275,7 +241,7 @@ export function applyPageOps(ctx: ServiceCtx, actor: ActingAs, pageId: string, b
       assertPathFree(ctx, path, page.locale, page.id)
     }
 
-    const headId = saveSnapshot(ctx, page, valid.doc, actor)
+    const headId = saveDraftSnapshot(ctx, 'page', page.id, page.draftVersionId, valid.doc, actor)
     const now = iso(ctx)
     const opIds: string[] = []
     result.applied.forEach((a, i) => {
@@ -387,6 +353,8 @@ export function binPage(ctx: ServiceCtx, actor: ActingAs, pageId: string) {
   if (!own && !can(actor, 'page.restoreFromBin')) throw forbidden('Only approvers can delete pages made by other people.')
   const children = ctx.db.select({ id: pages.id }).from(pages).where(and(eq(pages.parentId, pageId), isNull(pages.deletedAt))).all()
   if (children.length) throw new AppError('invalid_state', 'This page has pages inside it. Move or delete those first.')
+  const linkedFrom = sitePartsLinkingTo(ctx, pageId)
+  if (linkedFrom.length) throw new AppError('invalid_state', `The ${linkedFrom.join(' and ')} link${linkedFrom.length > 1 ? '' : 's'} to this page. Remove the link first.`)
   ctx.db.update(pages).set({ deletedAt: iso(ctx), updatedAt: iso(ctx) }).where(eq(pages.id, pageId)).run()
   audit(ctx, actor, 'page.binned', { type: 'page', id: pageId })
 }

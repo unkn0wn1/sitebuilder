@@ -7,20 +7,58 @@ import { newId } from '../../shared/ids'
 import { validatePageDoc, type PageDoc } from '../../shared/page'
 import { atLeast, can } from '../../shared/roles'
 import { readSettings } from '../../shared/settings'
-import { canSubmit, restingState } from '../../shared/workflow'
-import { pages, reviewComments, reviews, sites } from '../db/schema'
+import { canSubmit, restingState, type WorkflowState } from '../../shared/workflow'
+import { pages, reviewComments, reviews, siteParts, sites } from '../db/schema'
 import { audit } from './audit'
 import { inTx, iso, type ActingAs, type ServiceCtx } from './context'
 import { AppError, forbidden, notFound } from './errors'
 import { enqueueJob } from './jobs'
 import { notify, usersWithRoles } from './notify'
 import { readDoc, requirePage, sealDraft } from './pages'
+import { readSitePartDoc, requireSitePart, sitePartChecks } from './site-parts'
 import { getTemplateRules } from './templates'
 
 export type ReviewRow = typeof reviews.$inferSelect
 
 export function siteSettings(ctx: ServiceCtx) {
   return readSettings(ctx.db.select({ settings: sites.settings }).from(sites).where(eq(sites.id, ctx.siteId)).get()?.settings)
+}
+
+/** What a review is about: a page or a site part. Both have the same draft and published pointers. */
+export interface ReviewTarget {
+  type: 'page' | 'site_part'
+  id: string
+  title: string
+  workflowState: WorkflowState
+  publishedVersionId: string | null
+  wasUnpublished: boolean
+  draftVersionId: string | null
+}
+
+export function loadReviewTarget(ctx: ServiceCtx, type: ReviewRow['targetType'], id: string): ReviewTarget {
+  if (type === 'page') {
+    const p = requirePage(ctx, id)
+    return { type, id, title: p.title, workflowState: p.workflowState, publishedVersionId: p.publishedVersionId, wasUnpublished: p.wasUnpublished, draftVersionId: p.draftVersionId }
+  }
+  if (type === 'site_part') {
+    const p = requireSitePart(ctx, id)
+    return { type, id, title: p.label, workflowState: p.workflowState, publishedVersionId: p.publishedVersionId, wasUnpublished: p.wasUnpublished, draftVersionId: p.draftVersionId }
+  }
+  throw new AppError('invalid_state', 'Reviews for this kind of change are not built yet.')
+}
+
+export function setTargetState(ctx: ServiceCtx, t: Pick<ReviewTarget, 'type' | 'id'>, workflowState: WorkflowState) {
+  const table = t.type === 'page' ? pages : siteParts
+  ctx.db.update(table).set({ workflowState, updatedAt: iso(ctx) }).where(eq(table.id, t.id)).run()
+}
+
+function targetChecks(ctx: ServiceCtx, t: ReviewTarget, versionId: string) {
+  if (t.type === 'page') {
+    const page = requirePage(ctx, t.id)
+    return checksFor(ctx, page.template, readDoc(ctx, versionId))
+  }
+  const part = requireSitePart(ctx, t.id)
+  return sitePartChecks(ctx, part.kind, readSitePartDoc(ctx, part, versionId))
 }
 
 export function requireReview(ctx: ServiceCtx, id: string): ReviewRow {
@@ -87,17 +125,16 @@ export function approveReview(ctx: ServiceCtx, actor: ActingAs, reviewId: string
   if (!can(actor, 'review.decide')) throw forbidden()
   return inTx(ctx, () => {
     const review = requireReview(ctx, reviewId)
-    if (review.state !== 'pending') throw new AppError('invalid_state', review.state === 'withdrawn' ? 'This page changed after it was submitted. It needs submitting again.' : 'This review has already been decided.')
+    if (review.state !== 'pending') throw new AppError('invalid_state', review.state === 'withdrawn' ? 'This changed after it was submitted. It needs submitting again.' : 'This review has already been decided.')
     if (input.versionId !== review.versionId) throw new AppError('invalid_state', "This isn't the version that was submitted. Reload the review.")
-    const page = requirePage(ctx, review.targetId)
+    const target = loadReviewTarget(ctx, review.targetType, review.targetId)
 
     const selfApproved = review.submittedBy === actor.id
-    if (selfApproved && !siteSettings(ctx).workflow?.selfApproval) {
+    if (selfApproved && !siteSettings(ctx).workflow.selfApproval) {
       throw forbidden("You can't approve your own changes. Ask another approver, or an admin can turn on self-approval in Settings > Workflow.")
     }
 
-    const doc = readDoc(ctx, review.versionId)
-    const checks = checksFor(ctx, page.template, doc)
+    const checks = targetChecks(ctx, target, review.versionId)
     if (checks.blocking.length && !input.overrideReason) {
       throw new AppError('validation_failed', 'There are problems to fix, or approve with a reason.', checks.blocking)
     }
@@ -108,8 +145,8 @@ export function approveReview(ctx: ServiceCtx, actor: ActingAs, reviewId: string
       .set({ state: 'approved', decidedBy: actor.id, decidedAt: iso(ctx), selfApproved, overrideReason: input.overrideReason ?? review.overrideReason, jobId })
       .where(eq(reviews.id, reviewId))
       .run()
-    ctx.db.update(pages).set({ workflowState: 'approved', updatedAt: iso(ctx) }).where(eq(pages.id, page.id)).run()
-    audit(ctx, actor, 'review.approved', { type: 'page', id: page.id }, { reviewId, versionId: review.versionId, selfApproved, overrideReason: input.overrideReason ?? null })
+    setTargetState(ctx, target, 'approved')
+    audit(ctx, actor, 'review.approved', { type: target.type, id: target.id }, { reviewId, versionId: review.versionId, selfApproved, overrideReason: input.overrideReason ?? null })
     return { jobId, selfApproved }
   })
 }
@@ -120,15 +157,11 @@ export function sendBackReview(ctx: ServiceCtx, actor: ActingAs, reviewId: strin
   return inTx(ctx, () => {
     const review = requireReview(ctx, reviewId)
     if (review.state !== 'pending') throw new AppError('invalid_state', 'This review has already been decided.')
-    const page = requirePage(ctx, review.targetId)
+    const target = loadReviewTarget(ctx, review.targetType, review.targetId)
     ctx.db.update(reviews).set({ state: 'sent_back', decidedBy: actor.id, decidedAt: iso(ctx), decisionComment: comment }).where(eq(reviews.id, reviewId)).run()
-    ctx.db
-      .update(pages)
-      .set({ workflowState: restingState({ publishedVersionId: page.publishedVersionId, wasUnpublished: page.wasUnpublished }), updatedAt: iso(ctx) })
-      .where(eq(pages.id, page.id))
-      .run()
-    audit(ctx, actor, 'review.sent_back', { type: 'page', id: page.id }, { reviewId, comment })
-    notify(ctx, [review.submittedBy], 'sent_back', `"${page.title}" was sent back: ${comment}`, { type: 'page', id: page.id })
+    setTargetState(ctx, target, restingState({ publishedVersionId: target.publishedVersionId, wasUnpublished: target.wasUnpublished }))
+    audit(ctx, actor, 'review.sent_back', { type: target.type, id: target.id }, { reviewId, comment })
+    notify(ctx, [review.submittedBy], 'sent_back', `"${target.title}" was sent back: ${comment}`, { type: target.type, id: target.id })
   })
 }
 
@@ -155,17 +188,32 @@ export function listReviews(ctx: ServiceCtx, actor: ActingAs, state?: ReviewRow[
 export function getReview(ctx: ServiceCtx, actor: ActingAs, reviewId: string) {
   const review = requireReview(ctx, reviewId)
   if (review.submittedBy !== actor.id && !can(actor, 'review.read')) throw forbidden()
+  const comments = ctx.db.select().from(reviewComments).where(eq(reviewComments.reviewId, reviewId)).all()
+  const draftChangedSinceSubmit = (t: { draftVersionId: string | null }) => t.draftVersionId !== review.versionId
+  if (review.targetType === 'site_part') {
+    const part = requireSitePart(ctx, review.targetId)
+    const doc = readSitePartDoc(ctx, part, review.versionId)
+    return {
+      review,
+      target: { type: 'site_part' as const, id: part.id, title: part.label, kind: part.kind, state: part.workflowState },
+      doc,
+      liveDoc: part.publishedVersionId ? readSitePartDoc(ctx, part, part.publishedVersionId) : null,
+      checks: sitePartChecks(ctx, part.kind, doc),
+      draftChangedSinceSubmit: draftChangedSinceSubmit(part),
+      comments,
+    }
+  }
   const page = requirePage(ctx, review.targetId)
   const doc = readDoc(ctx, review.versionId)
   const live = page.publishedVersionId ? readDoc(ctx, page.publishedVersionId) : null
-  const comments = ctx.db.select().from(reviewComments).where(eq(reviewComments.reviewId, reviewId)).all()
   return {
     review,
+    target: { type: 'page' as const, id: page.id, title: page.title, path: page.path, template: page.template, state: page.workflowState },
     page: { id: page.id, title: page.title, path: page.path, template: page.template, state: page.workflowState },
     doc,
     diff: diffPages(live, doc),
     checks: checksFor(ctx, page.template, doc),
-    draftChangedSinceSubmit: page.draftVersionId !== review.versionId,
+    draftChangedSinceSubmit: draftChangedSinceSubmit(page),
     comments,
   }
 }
