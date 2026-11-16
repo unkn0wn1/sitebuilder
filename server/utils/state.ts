@@ -1,4 +1,5 @@
 // Process-wide database handle and service context for Nitro routes.
+import { dirname, join } from 'node:path'
 import type { DbHandle } from '../db/client'
 import { createDefaultRegistry } from '../../shared/blocks/registry'
 import type { ServiceCtx } from '../services/context'
@@ -19,6 +20,11 @@ export function setDbHandle(h: DbHandle, dbFile: string) {
 
 export function dbPath(): string {
   return path
+}
+
+/** Where uploaded images and renditions live. Default: a "media" folder next to the database. */
+export function mediaDir(): string {
+  return process.env.SITEBUILDER_MEDIA_DIR ?? join(path === ':memory:' ? '.data' : dirname(path), 'media')
 }
 
 export function getDbHandle(): DbHandle {
