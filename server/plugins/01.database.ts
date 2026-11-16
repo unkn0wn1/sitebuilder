@@ -12,6 +12,6 @@ export default defineNitroPlugin(async () => {
   const keys = (await storage.getKeys()).filter((k) => k.endsWith('.sql'))
   const files: MigrationFile[] = []
   for (const key of keys) files.push({ name: key, sql: String(await storage.getItem(key)) })
-  setDbHandle(openDb(path, files))
+  setDbHandle(openDb(path, files), path)
   console.info(JSON.stringify({ level: 'info', msg: 'database ready', path, migrations: files.length }))
 })

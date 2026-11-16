@@ -1,4 +1,5 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -11,6 +12,9 @@ export default defineNuxtConfig({
   },
   typescript: {
     strict: true,
+  },
+  runtimeConfig: {
+    version: JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version as string,
   },
   nitro: {
     // SQL migrations ship inside the server build (ADR 0009).

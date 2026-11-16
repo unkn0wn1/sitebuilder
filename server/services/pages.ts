@@ -1,6 +1,6 @@
 // Pages: drafts edited through operations, autosave snapshots, conflicts, undo, history.
 // See docs/13-data-model.md (versions, autosave, concurrent edits) and docs/14-api.md#pages.
-import { and, asc, desc, eq, gt, isNull, like, ne, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, isNotNull, isNull, like, ne, or, sql } from 'drizzle-orm'
 import { newId } from '../../shared/ids'
 import { applyOps, OpError, slugSchema, touchesConflict, type InternalOp, type PageMeta } from '../../shared/ops'
 import { emptyPageDoc, migratePageDoc, validatePageDoc, type PageDoc } from '../../shared/page'
@@ -398,4 +398,44 @@ export function listOps(ctx: ServiceCtx, pageId: string, sinceRevision = 0) {
     .where(and(eq(draftOps.targetType, 'page'), eq(draftOps.targetId, pageId), gt(draftOps.revision, sinceRevision)))
     .orderBy(asc(draftOps.revision))
     .all()
+}
+
+/** Pages in the bin, newest first. */
+export function listBin(ctx: ServiceCtx) {
+  return ctx.db
+    .select({ id: pages.id, title: pages.title, path: pages.path, deletedAt: pages.deletedAt, createdBy: pages.createdBy })
+    .from(pages)
+    .where(and(eq(pages.siteId, ctx.siteId), isNotNull(pages.deletedAt)))
+    .orderBy(desc(pages.deletedAt))
+    .all()
+}
+
+/**
+ * Bring a page back from the bin as a draft. If its old address is taken, or its parent is gone,
+ * it comes back at the top level with "-restored" on the slug, and the caller is told.
+ */
+export function restoreFromBin(ctx: ServiceCtx, actor: ActingAs, pageId: string) {
+  if (actor.aiSessionId || !can(actor, 'page.restoreFromBin')) throw forbidden('Only approvers can restore pages from the bin.')
+  return inTx(ctx, () => {
+    const page = ctx.db.select().from(pages).where(and(eq(pages.id, pageId), eq(pages.siteId, ctx.siteId))).get()
+    if (!page || !page.deletedAt) throw notFound('That page in the bin')
+    const parentOk = !page.parentId || !!ctx.db.select({ id: pages.id }).from(pages).where(and(eq(pages.id, page.parentId), isNull(pages.deletedAt))).get()
+    let parentId = parentOk ? page.parentId : null
+    let slug = page.slug
+    let path = computePath(ctx, slug, parentId)
+    const taken = (p: string) => !!ctx.db.select({ id: pages.id }).from(pages).where(and(eq(pages.siteId, ctx.siteId), eq(pages.locale, page.locale), eq(pages.path, p), isNull(pages.deletedAt))).get()
+    let moved = !parentOk
+    if (taken(path)) {
+      moved = true
+      parentId = null
+      for (let n = 1; ; n++) {
+        slug = `${page.slug.slice(0, 60)}-restored${n > 1 ? `-${n}` : ''}`
+        path = computePath(ctx, slug, null)
+        if (!taken(path)) break
+      }
+    }
+    ctx.db.update(pages).set({ deletedAt: null, parentId, slug, path, updatedAt: iso(ctx) }).where(eq(pages.id, pageId)).run()
+    audit(ctx, actor, 'page.restored_from_bin', { type: 'page', id: pageId }, { path, moved })
+    return { page: requirePage(ctx, pageId), moved }
+  })
 }

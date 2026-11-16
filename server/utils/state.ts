@@ -9,9 +9,16 @@ let handle: DbHandle | null = null
 let siteId: string | null = null
 const registry = createDefaultRegistry()
 
-export function setDbHandle(h: DbHandle) {
+let path = ':memory:'
+
+export function setDbHandle(h: DbHandle, dbFile: string) {
   handle = h
+  path = dbFile
   siteId = null
+}
+
+export function dbPath(): string {
+  return path
 }
 
 export function getDbHandle(): DbHandle {

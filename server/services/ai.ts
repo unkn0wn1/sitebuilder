@@ -7,7 +7,7 @@ import { checkToolCall, canStartTask, TASKS, type TaskType } from '../../shared/
 import { runChecks } from '../../shared/checks'
 import { newId } from '../../shared/ids'
 import { opSchema, type Op } from '../../shared/ops'
-import { aiSessions, embeds, media, memoryEntries, templates } from '../db/schema'
+import { aiSessions, embeds, media, memoryEntries, pages, templates } from '../db/schema'
 import { audit } from './audit'
 import { iso, type ActingAs, type ServiceCtx } from './context'
 import { AppError, forbidden, notFound } from './errors'
@@ -153,4 +153,17 @@ function dispatch(ctx: ServiceCtx, actor: ActingAs, session: AiSession, tool: st
 export function endAiTurn(ctx: ServiceCtx, actor: ActingAs, sessionId: string) {
   const session = getAiSession(ctx, actor, sessionId)
   if (session.targetType === 'page') sealDraft(ctx, session.targetId, { ...actor, aiSessionId: session.id }, 'ai')
+}
+
+/** Stop a session (the Stop button, or closing the task). Its changes stay in the draft as one AI version. */
+export function cancelAiSession(ctx: ServiceCtx, actor: ActingAs, sessionId: string) {
+  const session = getAiSession(ctx, actor, sessionId)
+  if (session.state === 'ended') return session
+  if (session.targetType === 'page') {
+    const page = ctx.db.select({ id: pages.id, deletedAt: pages.deletedAt }).from(pages).where(eq(pages.id, session.targetId)).get()
+    if (page && !page.deletedAt) sealDraft(ctx, session.targetId, { ...actor, aiSessionId: session.id }, 'ai')
+  }
+  ctx.db.update(aiSessions).set({ state: 'ended', endedAt: iso(ctx) }).where(eq(aiSessions.id, session.id)).run()
+  audit(ctx, actor, 'ai.session_cancelled', { type: session.targetType, id: session.targetId }, { sessionId: session.id })
+  return { ...session, state: 'ended' as const, endedAt: iso(ctx) }
 }
