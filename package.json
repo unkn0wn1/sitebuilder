@@ -1,5 +1,6 @@
 {
   "name": "sitebuilder",
+  "version": "0.1.0",
   "type": "module",
   "private": true,
   "scripts": {
@@ -12,7 +13,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
-    "seed": "tsx scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts",
+    "test:api": "nuxt build && vitest run -c vitest.api.config.ts",
+    "check": "npm run typecheck && npm test && npm run test:api"
   },
   "dependencies": {
     "better-sqlite3": "^13.2.0",

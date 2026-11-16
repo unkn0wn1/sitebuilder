@@ -8,7 +8,8 @@
     "noUncheckedIndexedAccess": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["node"]
+    "types": ["node"],
+    "lib": ["ES2023", "DOM"]
   },
-  "include": ["scripts/**/*.ts", "tests/**/*.ts", "shared/**/*.ts", "server/db/**/*.ts", "server/services/**/*.ts"]
+  "include": ["scripts/**/*.ts", "tests/**/*.ts", "vitest.*.ts", "shared/**/*.ts", "server/db/**/*.ts", "server/services/**/*.ts"]
 }
