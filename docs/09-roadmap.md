@@ -23,6 +23,8 @@ Draft. Timings are rough guesses for one developer with AI help, not commitments
 - **Spike:** render one sample page with a compiled render bundle and Vue's server renderer, serve it from nginx behind Cloudflare, measure against the budgets ([17-testing-and-budgets.md](17-testing-and-budgets.md)). Test a Virtuous embed and a near full-screen video hero.
 - **Spike:** decide whether to build our own Vue editor or start from an existing one.
 
+Progress (17 November 2026): the schema, auth, block registry, rich text, pages with ops, reviews, audit, jobs, AI tool permissions and most M1 API routes are built, with unit tests and a seed script. Still to do for M1: password reset, site part ops and submit, page restore from the bin, settings, the remaining AI tools, API-level tests, Cloudflare Access JWT checks, and both spikes.
+
 ## Phase 2: Publishing and media (3 to 4 weeks)
 
 **Milestone M2: an approved page is live in seconds, and can be rolled back.**
