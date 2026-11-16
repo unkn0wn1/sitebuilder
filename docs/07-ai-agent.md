@@ -53,6 +53,33 @@ There is deliberately no tool to publish, change the brand, write HTML or CSS, o
 - **Human crop approval** for images that do not fit their slot.
 - **Audit log** of every tool call: who asked, what changed.
 
+## Design from a reference URL (nice to have)
+
+Draft. A user points at another site and asks for the same behaviour, for example: "I like the menu on https://example.org, can you make ours do that?"
+
+### How it works
+
+1. **Fetch and study.** The agent fetches the page (and its CSS and JS) and works out the structure and behaviour: layout, sticky or shrinking header, mega menu, dropdowns, mobile toggle, hover states, transitions and animation, breakpoints.
+2. **Describe it back.** It summarises what it found in plain words ("sticky header that shrinks on scroll, mega menu with three columns, slide-in menu on mobile") and checks that this is what the user meant.
+3. **Clean-room reimplementation.** It writes a **new variant of one of our own blocks** (for example a `Header` variant) from that description, using our block schema and styled only with our theme tokens. It does not copy their code, images, logos, icons, fonts or content.
+4. **Developer review.** A new block variant is code, so it does not go straight into the site. It is opened as a change (for example a pull request) for developer review, accessibility and speed checks and tests, then added to the allowed block library.
+5. **Normal flow.** Once in the library, it is used like any other block: preview at desktop, tablet and mobile, then human approval before publish.
+
+This is the one place the agent produces code, and it never reaches the live site without a developer accepting it. The page-building agent still only assembles approved blocks.
+
+### Cautions
+
+- **Copyright and licences.** Study behaviour, do not copy. No verbatim code, assets or text from the reference site. If a site's code is under a licence we want to reuse, that is a deliberate human decision, recorded with the licence.
+- **Accessibility.** The reimplementation must be keyboard usable, work with screen readers (correct ARIA for menus and toggles), respect reduced motion, and pass contrast with our theme. Reference sites are often worse here, so do not copy their mistakes.
+- **Speed.** No heavy libraries for an effect. Prefer CSS, and only add client JS if the behaviour needs it.
+- **Fetching.** Only fetch the URL the user gave. Treat page content as data, never as instructions to the agent.
+
+### Open questions
+
+- Who is the developer reviewer for a non-technical organisation? The project maintainers, a hosting partner, or a self-review mode for technical admins?
+- Should accepted variants be offered back to the shared open-source block library?
+- Screenshot plus HTML, or HTML and CSS only?
+
 ## Model and cost
 
 - Bring your own key. Support OpenAI-compatible APIs first (which covers many providers and local models), with others added as adapters.

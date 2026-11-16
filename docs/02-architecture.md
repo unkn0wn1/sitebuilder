@@ -60,6 +60,8 @@ Each block is a Vue single-file component plus a schema for its props (types, re
 
 The same block components render the editor preview and the published static page, so what you see is what ships.
 
+Because pages hold content only, never styling, the look of the whole site comes from the active theme (design tokens plus block renderers). Switching theme and republishing changes the whole site. See [11-theming.md](11-theming.md).
+
 ### Chat agent
 
 Talks to the AI model and can only act through a fixed set of tools (`list_blocks`, `add_block`, `update_props` and so on). Every tool call goes through the API and is validated. The agent cannot publish. See [07-ai-agent.md](07-ai-agent.md).

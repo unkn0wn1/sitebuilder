@@ -33,7 +33,7 @@ Draft. Timings are rough guesses for one developer with AI help, not commitments
 
 The first pilot is a demo of a charity website (Animal Aid Unlimited), built to show what the approach can do:
 
-- **Two or three alternative designs** of the whole site, built from the same content with different brand packs and templates, so people can compare and pick a favourite.
+- **Two or three alternative designs** of the whole site, built from the same content with different themes (see [11-theming.md](11-theming.md)), so people can compare and pick a favourite.
 - Real content (stories, photos, video) from the charity's existing material.
 - A near full-screen **video hero** on the home page, compressed hard and with a poster fallback, without hurting the speed scores.
 - Embedded donation forms (Virtuous).
