@@ -1,0 +1,214 @@
+// Publishing and rollback on the database side. Rendering, the release folder and the symlink
+// switch are behind ReleaseWriter (a no-op until the renderer lands, ADR 0004).
+// See ADR 0004, ADR 0005 and docs/08-hosting.md#publishing.
+import { and, desc, eq, isNotNull, ne } from 'drizzle-orm'
+import { newId } from '../../shared/ids'
+import { can } from '../../shared/roles'
+import { pages, redirects, releases, reviews, type ReleaseManifest } from '../db/schema'
+import { audit } from './audit'
+import { inTx, iso, type ActingAs, type ServiceCtx } from './context'
+import { AppError, forbidden, notFound } from './errors'
+import { enqueueJob, type Job, type JobHandler } from './jobs'
+import { notify, usersWithRoles } from './notify'
+import { requirePage } from './pages'
+import { requireReview } from './reviews'
+
+export interface ReleaseWriter {
+  /** Render the changed pages into a new release folder (hard-link copy of the previous one). */
+  writeRelease(input: { releaseId: string; previousReleaseId: string | null; manifest: ReleaseManifest; changedPageIds: string[]; removedPaths: string[] }): Promise<void> | void
+  /** Point `current` at a release folder. */
+  switchCurrent(releaseId: string): Promise<void> | void
+}
+
+export const noopReleaseWriter: ReleaseWriter = {
+  writeRelease() {},
+  switchCurrent() {},
+}
+
+export const EMPTY_MANIFEST: ReleaseManifest = { pages: {}, siteParts: {}, brandVersionId: null, theme: 'default', bundleId: 'dev' }
+
+export function currentRelease(ctx: ServiceCtx) {
+  return ctx.db
+    .select()
+    .from(releases)
+    .where(and(eq(releases.siteId, ctx.siteId), eq(releases.state, 'live')))
+    .orderBy(desc(releases.createdAt))
+    .get()
+}
+
+export function listReleases(ctx: ServiceCtx) {
+  return ctx.db.select().from(releases).where(eq(releases.siteId, ctx.siteId)).orderBy(desc(releases.createdAt)).limit(50).all()
+}
+
+interface PublishPayload {
+  reviewId?: string
+  unpublishPageId?: string
+  redirectTo?: string | null
+}
+
+/** The publish job. One at a time (publish lane). */
+export function createPublishHandler(writer: ReleaseWriter = noopReleaseWriter): JobHandler {
+  return {
+    async run(ctx, job) {
+      const payload = job.payload as PublishPayload
+      const prev = currentRelease(ctx)
+      const manifest: ReleaseManifest = structuredClone(prev?.manifest ?? EMPTY_MANIFEST)
+      const releaseId = newId('release', ctx.now().getTime())
+      let pageId: string
+      let versionId: string | null = null
+      let review: ReturnType<typeof requireReview> | null = null
+      const removedPaths: string[] = []
+
+      if (payload.reviewId) {
+        review = requireReview(ctx, payload.reviewId)
+        if (review.state !== 'approved') throw new Error(`Review ${review.id} is ${review.state}, not approved.`)
+        pageId = review.targetId
+        versionId = review.versionId
+        const page = requirePage(ctx, pageId)
+        const oldPath = manifest.pages[pageId]?.path
+        if (oldPath && oldPath !== page.path) removedPaths.push(oldPath)
+        manifest.pages[pageId] = { versionId, path: page.path }
+      } else if (payload.unpublishPageId) {
+        pageId = payload.unpublishPageId
+        const entry = manifest.pages[pageId]
+        if (entry) removedPaths.push(entry.path)
+        delete manifest.pages[pageId]
+      } else {
+        throw new Error('Publish job has nothing to do.')
+      }
+
+      ctx.db
+        .insert(releases)
+        .values({ id: releaseId, siteId: ctx.siteId, kind: 'publish', state: 'building', manifest, createdBy: job.createdBy ?? 'system', reviewId: review?.id ?? null, selfApproved: review?.selfApproved ?? false, createdAt: iso(ctx) })
+        .run()
+      try {
+        await writer.writeRelease({ releaseId, previousReleaseId: prev?.id ?? null, manifest, changedPageIds: [pageId], removedPaths })
+        await writer.switchCurrent(releaseId)
+      } catch (error) {
+        ctx.db.update(releases).set({ state: 'failed', error: error instanceof Error ? error.message : String(error), finishedAt: iso(ctx) }).where(eq(releases.id, releaseId)).run()
+        throw error
+      }
+
+      inTx(ctx, () => {
+        if (prev) ctx.db.update(releases).set({ state: 'superseded' }).where(eq(releases.id, prev.id)).run()
+        ctx.db.update(releases).set({ state: 'live', finishedAt: iso(ctx) }).where(eq(releases.id, releaseId)).run()
+        const page = requirePage(ctx, pageId)
+        if (review && versionId) {
+          ctx.db
+            .update(pages)
+            .set({ publishedVersionId: versionId, publishedPath: page.path, workflowState: 'published', wasUnpublished: false, updatedAt: iso(ctx) })
+            .where(eq(pages.id, pageId))
+            .run()
+          ctx.db.update(reviews).set({ state: 'published' }).where(eq(reviews.id, review.id)).run()
+          if (page.publishedPath && page.publishedPath !== page.path) addRedirect(ctx, page.publishedPath, page.path, 'slug_change')
+          audit(ctx, 'system', 'page.published', { type: 'page', id: pageId }, { releaseId, versionId, reviewId: review.id, selfApproved: review.selfApproved })
+          notify(ctx, [review.submittedBy], 'published', `"${page.title}" is live.`, { type: 'page', id: pageId })
+        } else {
+          ctx.db
+            .update(pages)
+            .set({ publishedVersionId: null, publishedPath: null, workflowState: 'unpublished', wasUnpublished: true, updatedAt: iso(ctx) })
+            .where(eq(pages.id, pageId))
+            .run()
+          if (payload.redirectTo && page.publishedPath) addRedirect(ctx, page.publishedPath, payload.redirectTo, 'unpublish')
+          audit(ctx, 'system', 'page.unpublished', { type: 'page', id: pageId }, { releaseId })
+        }
+        enqueueJob(ctx, 'purge_cache', { tags: [`page-${pageId}`] })
+      })
+      return { releaseId }
+    },
+
+    onFinalFailure(ctx, job: Job, error) {
+      const payload = job.payload as PublishPayload
+      const message = error instanceof Error ? error.message : String(error)
+      inTx(ctx, () => {
+        if (payload.reviewId) {
+          const review = requireReview(ctx, payload.reviewId)
+          // Back to pending, so an approver can retry by approving again.
+          ctx.db.update(reviews).set({ state: 'pending', decisionComment: `Publish failed: ${message}` }).where(eq(reviews.id, review.id)).run()
+          ctx.db.update(pages).set({ workflowState: 'in_review', updatedAt: iso(ctx) }).where(eq(pages.id, review.targetId)).run()
+          notify(ctx, [review.decidedBy ?? '', ...usersWithRoles(ctx, ['admin'])].filter(Boolean), 'publish_failed', `Publishing failed: ${message}`, { type: 'review', id: review.id })
+        } else if (payload.unpublishPageId) {
+          ctx.db.update(pages).set({ workflowState: 'published', updatedAt: iso(ctx) }).where(eq(pages.id, payload.unpublishPageId)).run()
+        }
+        audit(ctx, 'system', 'publish.failed', undefined, { jobId: job.id, error: message })
+      })
+    },
+  }
+}
+
+function addRedirect(ctx: ServiceCtx, fromPath: string, toPath: string, source: 'manual' | 'slug_change' | 'unpublish') {
+  const existing = ctx.db.select().from(redirects).where(and(eq(redirects.siteId, ctx.siteId), eq(redirects.fromPath, fromPath))).get()
+  if (existing) ctx.db.update(redirects).set({ toPath, source }).where(eq(redirects.id, existing.id)).run()
+  else ctx.db.insert(redirects).values({ id: newId('redirect', ctx.now().getTime()), siteId: ctx.siteId, fromPath, toPath, statusCode: 301, source, createdAt: iso(ctx) }).run()
+}
+
+export function unpublishPage(ctx: ServiceCtx, actor: ActingAs, pageId: string, redirectTo?: string | null) {
+  if (actor.aiSessionId || !can(actor, 'page.unpublish')) throw forbidden()
+  return inTx(ctx, () => {
+    const page = requirePage(ctx, pageId)
+    if (!page.publishedVersionId) throw new AppError('invalid_state', "This page isn't live.")
+    if (page.workflowState === 'approved') throw new AppError('invalid_state', 'This page is being published. Try again in a moment.')
+    if (page.isSystem) throw new AppError('invalid_state', "System pages can't be taken offline.")
+    const jobId = enqueueJob(ctx, 'publish', { unpublishPageId: pageId, redirectTo: redirectTo ?? null }, { createdBy: actor.id })
+    ctx.db.update(pages).set({ workflowState: 'approved', updatedAt: iso(ctx) }).where(eq(pages.id, pageId)).run()
+    audit(ctx, actor, 'page.unpublish_requested', { type: 'page', id: pageId }, { jobId, redirectTo: redirectTo ?? null })
+    return { jobId }
+  })
+}
+
+/**
+ * Emergency site rollback: switch to an earlier release AND reset the database "published" pointers
+ * to that release's manifest. Admin only, reason required, no second approver. ADR 0005.
+ */
+export async function rollbackSite(ctx: ServiceCtx, actor: ActingAs, targetReleaseId: string, reason: string, writer: ReleaseWriter = noopReleaseWriter) {
+  if (actor.aiSessionId || !can(actor, 'site.rollback')) throw forbidden('Only admins can roll back the whole site.')
+  if (!reason.trim()) throw new AppError('validation_failed', 'Say why you are rolling back.', [{ path: 'reason', message: 'Needed.' }])
+  const target = ctx.db.select().from(releases).where(and(eq(releases.id, targetReleaseId), eq(releases.siteId, ctx.siteId))).get()
+  if (!target) throw notFound('That release')
+  if (target.state !== 'superseded' && target.state !== 'live') throw new AppError('invalid_state', "That release can't be rolled back to.")
+  const prev = currentRelease(ctx)
+  if (prev?.id === target.id) throw new AppError('invalid_state', 'That release is already live.')
+
+  await writer.switchCurrent(target.id)
+
+  return inTx(ctx, () => {
+    const id = newId('release', ctx.now().getTime())
+    if (prev) ctx.db.update(releases).set({ state: 'superseded' }).where(eq(releases.id, prev.id)).run()
+    ctx.db
+      .insert(releases)
+      .values({ id, siteId: ctx.siteId, kind: 'rollback', state: 'live', manifest: target.manifest, createdBy: actor.id, rolledBackTo: target.id, reason, createdAt: iso(ctx), finishedAt: iso(ctx) })
+      .run()
+
+    const all = ctx.db.select().from(pages).where(eq(pages.siteId, ctx.siteId)).all()
+    for (const page of all) {
+      const entry = target.manifest.pages[page.id]
+      const settled = page.workflowState === 'published' || page.workflowState === 'unpublished' || page.workflowState === 'draft'
+      if (entry) {
+        ctx.db
+          .update(pages)
+          .set({ publishedVersionId: entry.versionId, publishedPath: entry.path, wasUnpublished: false, workflowState: settled ? 'published' : page.workflowState, updatedAt: iso(ctx) })
+          .where(eq(pages.id, page.id))
+          .run()
+      } else if (page.publishedVersionId) {
+        ctx.db
+          .update(pages)
+          .set({ publishedVersionId: null, publishedPath: null, wasUnpublished: true, workflowState: settled ? 'unpublished' : page.workflowState, updatedAt: iso(ctx) })
+          .where(eq(pages.id, page.id))
+          .run()
+      }
+    }
+    audit(ctx, actor, 'site.rolled_back', { type: 'release', id: target.id }, { newReleaseId: id, reason })
+    enqueueJob(ctx, 'purge_cache', { tags: ['shell'] })
+    notify(ctx, usersWithRoles(ctx, ['approver', 'admin']), 'emergency_rollback', `The site was rolled back by an admin: ${reason}`, { type: 'release', id })
+    return { releaseId: id }
+  })
+}
+
+/** Pages that have a live version, for sitemaps and checks. */
+export function livePages(ctx: ServiceCtx) {
+  return ctx.db
+    .select({ id: pages.id, path: pages.publishedPath, versionId: pages.publishedVersionId })
+    .from(pages)
+    .where(and(eq(pages.siteId, ctx.siteId), isNotNull(pages.publishedVersionId), ne(pages.workflowState, 'unpublished')))
+    .all()
+}
