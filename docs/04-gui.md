@@ -6,61 +6,86 @@ Built with Vue 3, Tailwind and Flowbite / flowbite-vue.
 
 ## GUI map (early sketch)
 
-An early sketch to help think it through, not a spec. The nav items and screens below are examples (several come from the [candidate essentials](10-essentials.md)) and may change completely.
+An early sketch to help think it through, not a spec. The nav and screens are shaped by the [CMS feature inventory](10-essentials.md) so that every **must** item has a home. All of it may change.
 
 ```mermaid
 flowchart TD
-  Login["Sign in"] --> Shell["Builder shell<br/>(left nav + top bar)"]
+  Login["Sign in"] --> Shell["Builder shell<br/>left nav + top bar<br/>(search, notifications, chat toggle, user menu)"]
   Shell --> Pages["Pages"]
-  Shell --> HF["Header and footer"]
+  Shell --> Parts["Site parts"]
   Shell --> Media["Media"]
+  Shell --> Forms["Forms and embeds"]
+  Shell --> Approvals["Approvals (badge)"]
   Shell --> Brand["Brand"]
-  Shell --> SEO["Settings / SEO"]
   Shell --> Templates["Templates"]
-  Shell --> Approvals["Approvals<br/>(badge with count)"]
+  Shell --> Settings["Settings"]
 
-  Pages --> List["Pages list<br/>search, filter, paginate"]
-  List --> Editor["Page editor<br/>canvas, blocks, chat, properties"]
-  List --> NewPage["New page<br/>(pick template, or start in chat)"]
-  NewPage --> Editor
-  HF --> Editor
-  Editor --> Preview["Preview<br/>desktop / tablet / mobile"]
+  Pages --> List["Pages list<br/>search, filter, paginate, bin"]
+  List --> NewPage["New page<br/>pick template, or start in chat"]
+  NewPage --> Editor["Page editor<br/>canvas, block panel,<br/>properties / Page tab (SEO), chat, history"]
+  List --> Editor
+  Parts --> Editor
+  Editor --> Preview["Preview<br/>desktop / tablet / mobile<br/>+ speed score"]
   Editor --> Submit["Submit for review"]
   Submit --> Approvals
-  Approvals --> Review["Review: preview, diff, speed check"]
-  Review -->|Approve and publish| Publish["Publish progress<br/>build, deploy, purge"]
+  Approvals --> Review["Review<br/>preview, diff, speed,<br/>accessibility, SEO checks"]
+  Review -->|Approve and publish| Publish["Publish progress<br/>build, deploy, Cloudflare purge"]
   Review -->|Send back| Editor
   Publish --> Live["Live page link"]
+
+  Settings --> SGeneral["General"]
+  Settings --> SSEO["SEO and redirects"]
+  Settings --> STracking["Tracking and consent"]
+  Settings --> SUsers["Users and roles"]
+  Settings --> SInteg["Integrations<br/>AI, Cloudflare"]
+  Settings --> SPub["Publishing and activity"]
+  Settings --> SBackups["Backups and export"]
 ```
 
 ### Left nav (example)
 
-| Item | What it holds | Who |
+| Item | What it holds (must items from the inventory) | Who |
 | --- | --- | --- |
-| **Pages** | Pages list (paginated, search and filter, status, last edited), new page, page editor | Editors and up |
-| **Header and footer** | The site-wide header (logo, menu, CTA) and footer blocks, edited like a page | Approvers and up |
-| **Media** | Image and video library, upload, crop, alt text | Editors and up |
-| **Brand** | Brand pack: colours, fonts, logo, shapes. Re-run wizard steps | Admins |
-| **Settings / SEO** | Site name, title pattern, default social image, robots.txt, redirects, sitemap, analytics and consent slots, integrations (AI key, Cloudflare, donation forms), users and roles | Admins |
+| **Pages** | Pages list (paginated, search, filter by status and template, last edited), page tree and slugs, new page (template or chat), page editor, system pages such as 404 | Editors and up |
+| **Site parts** | Header (logo, menu, CTA), Footer, Menus. Later: reusable blocks, site banner | Approvers and up |
+| **Media** | Library, upload, renditions status, alt text, required-size crops | Editors and up |
+| **Forms and embeds** | Registered donation forms (for example Virtuous) by name, other allowed embeds | Approvers and up |
+| **Approvals** | Drafts waiting for review, with a count badge; the review screen | Approvers and up |
+| **Brand** | Brand pack (colours, fonts, logo, shapes), contrast checks, favicon from logo, re-run wizard steps | Admins |
 | **Templates** | Allowed templates, allowed and required blocks per template | Admins |
-| **Approvals** | Drafts waiting for review, with a count badge | Approvers and up |
+| **Settings** | See below | Admins |
 
-The top bar holds the site name, a link to the live site, the chat toggle and the user menu. Items a user cannot use are hidden, not greyed out.
+**Settings sections:**
+
+| Section | Must items |
+| --- | --- |
+| General | Site name, primary domain, title pattern, favicon override |
+| SEO and redirects | robots.txt, sitemap view, default social image, redirects table |
+| Tracking and consent | Analytics or tag manager slot, cookie consent slot |
+| Users and roles | Invite, deactivate, roles (Editor, Approver, Admin) |
+| Integrations | AI provider, model and key, usage; Cloudflare zone and token for purge |
+| Security | Embed domain allow-list |
+| Publishing and activity | Publish log and releases, site rollback, audit log (including agent tool calls) |
+| Backups and export | Backup status, full export of content and media |
+
+**Top bar:** site name, link to the live site, builder search (pages, media, blocks), notifications bell (review requested, sent back, published, publish failed), chat toggle, user menu (profile, password, sign out).
+
+Items a user cannot use are hidden, not greyed out.
 
 ### Builder shell wireframe
 
 ```
 +------------------+--------------------------------------------------------+
-| sitebuilder      |  Site name  [View live site]          [Chat] [User v]  |
+| sitebuilder      | Site name [View live] [Search..] (bell) [Chat] [User v]|
 +------------------+--------------------------------------------------------+
-| > Pages          |  Pages                                     [+ New page] |
-|   Header/footer  |  [Search...........]  Status [All v]  Template [All v]  |
+| > Pages          |  Pages                          [Bin]   [+ New page]    |
+|   Site parts     |  [Search...........]  Status [All v]  Template [All v]  |
 |   Media          |  ------------------------------------------------------ |
-|   Brand          |  Title            Status      Last edited      URL      |
-|   Settings / SEO |  Home             Published   2h ago, Asha    /        |
-|   Templates      |  Winter appeal    Draft       5m ago, Sam      -        |
-|   Approvals (2)  |  About us         In review   1d ago, Priya    /about   |
-|                  |  ...                                                    |
+|   Forms/embeds   |  Title            Status      Last edited     URL       |
+|   Approvals (2)  |  Home             Published   2h ago, Asha    /         |
+|   Brand          |  Winter appeal    Draft       5m ago, Sam     -         |
+|   Templates      |  About us         In review   1d ago, Priya   /about    |
+|   Settings       |  ...                                                    |
 |                  |                                  < 1 2 3 ... 9 >        |
 +------------------+--------------------------------------------------------+
 ```
@@ -90,7 +115,7 @@ Four parts:
 - **Block panel** (left): block palette (only the blocks allowed for this template) and an outline for reordering.
 - **Canvas** (middle): the page rendered with the real block components, at a chosen width. Click a block to select it.
 - **Chat panel** (right, collapsible): the agent. Its changes appear on the canvas as they happen.
-- **Properties panel**: the selected block's fields, generated from the block schema (text, image with crop, link, options). Shown under the canvas or as a drawer; see open questions. A **Page** tab in the same panel holds page settings and SEO (title, description, social image, canonical, noindex).
+- **Properties panel**: the selected block's fields, generated from the block schema (text, image with crop, link, options). Shown under the canvas or as a drawer; see open questions. A **Page** tab in the same panel holds page settings (slug, parent, template) and SEO (title, description, social image, canonical, noindex). A **History** tab lists versions with preview and rollback.
 
 When the left nav is open the editor is cramped, so the editor collapses the nav to icons.
 

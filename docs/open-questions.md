@@ -18,5 +18,5 @@ Decisions still to make. The first seven come from the original research (Nov 20
 - Schema library for block props: JSON Schema, Zod or Valibot?
 - SQLite only at first, or SQLite and Postgres from day one?
 - Image renditions at upload time (sharp) or at generate time (Nuxt Image with IPX)?
-- What are the real v1 essentials? See [10-essentials.md](10-essentials.md).
+- Which features are really must for v1? See the [feature inventory](10-essentials.md).
 - How should the GUI work overall? See [04-gui.md](04-gui.md).

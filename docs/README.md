@@ -14,7 +14,7 @@ The design is written here first, then built. Everything in this folder is a dra
 | [07-ai-agent.md](07-ai-agent.md) | The chat agent and its guardrails |
 | [08-hosting.md](08-hosting.md) | nginx, Cloudflare, publishing |
 | [09-roadmap.md](09-roadmap.md) | Phases and the first pilot |
-| [10-essentials.md](10-essentials.md) | Candidate essential features for v1 (to discuss) |
+| [10-essentials.md](10-essentials.md) | CMS feature inventory with priorities and GUI placement (to discuss) |
 | [open-questions.md](open-questions.md) | Decisions still to make |
 | [decisions/](decisions/) | Short architecture decision records (ADRs) |
 
