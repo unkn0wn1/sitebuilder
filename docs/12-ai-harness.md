@@ -15,6 +15,28 @@
 
 Keep it simple: one agent, one remit, one small tool set.
 
+## Contextual, not global
+
+There is **no global floating chat**. The AI panel only appears on specific screens, and on each one its tools and context are scoped to that screen and the user's role.
+
+| Screen | Who sees the AI panel | What the AI can do there |
+| --- | --- | --- |
+| Pages > New page | Editors, approvers, admins | Ask the questions, pick a template, build the first draft |
+| Pages > Edit page (page editor) | Editors, approvers, admins | Edit this page's blocks, copy, SEO text and alt text |
+| Site parts (header, footer, menus) | Approvers and admins | Edit the site-wide blocks and menus |
+| Templates | Admins | Suggest and adjust allowed and required blocks per template |
+| Brand, and Design (themes) | Admins | Suggest colours, fonts and token changes, compare themes |
+| Other admin areas where it helps (to decide) | Admins | Scoped to that screen only |
+| Pages list, Media, Approvals, Settings | Nobody | No AI panel |
+
+Rules:
+
+- **Tools per screen and role.** The harness builds the tool list from the current screen and the user's role. On Edit page, an editor gets page tools only. Brand, theme and template tools exist only on those admin screens, for admins. So editors cannot change brand or theme through the AI, however they ask.
+- **Context per screen.** The model only sees what that screen needs: the current page on Edit page, the brand pack on Brand, the template rules on Templates.
+- **Same validation and approval everywhere.** Admin-screen changes also land as drafts and need approval before they go live.
+- **The server enforces it.** Scope is checked by the API on every tool call (screen, role, target), not just hidden in the UI.
+- **A conversation belongs to its screen.** Leaving the screen ends or parks that conversation; there is no cross-screen chat history.
+
 ## Parts of the harness
 
 | Part | What it does |

@@ -14,7 +14,7 @@ The builder produces the public site. If the builder is down, the public site ke
 ```mermaid
 flowchart LR
   subgraph Builder["Builder (private)"]
-    UI["Editor UI<br/>(Nuxt app: wizard, editor,<br/>preview, chat panel, approvals)"]
+    UI["Editor UI<br/>(Nuxt app: wizard, editor,<br/>preview, AI panel, approvals)"]
     Agent["Chat agent<br/>(tool calls only)"]
     API["Nitro API<br/>(pages, versions, media,<br/>approvals, publish)"]
     DB[("Content store<br/>SQLite or Postgres")]
@@ -52,7 +52,7 @@ flowchart LR
 
 ### Editor UI (Nuxt app)
 
-The builder interface: setup wizard, page list, block editor, live preview with device widths, chat panel and approval screens. Vue 3 with Tailwind and Flowbite. See [04-gui.md](04-gui.md).
+The builder interface: setup wizard, page list, block editor, live preview with device widths, a contextual AI panel (only on certain screens) and approval screens. Vue 3 with Tailwind and Flowbite. See [04-gui.md](04-gui.md).
 
 ### Block library and brand pack
 
@@ -94,7 +94,7 @@ Runs Lighthouse against the preview before approval and shows plain-English hint
 
 ### Create a page with the agent
 
-1. Staff member opens the chat panel and asks for a page.
+1. Staff member opens New page, where the AI panel appears, and asks for a page.
 2. Agent asks a handful of questions, then builds a draft through tool calls.
 3. Staff member previews it at desktop, tablet and mobile widths and iterates by chat or by editing blocks directly.
 4. Staff member submits it for review.

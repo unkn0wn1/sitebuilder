@@ -28,7 +28,7 @@ In the spirit of doing one thing well, the list is deliberately lean. Anything t
 | Feature | Description | Priority | Where in the GUI |
 | --- | --- | --- | --- |
 | Media library | Grid of images and videos with search and filter | must | Media |
-| Upload | Drag and drop upload, also from the editor and the chat | must | Media, editor image fields, chat |
+| Upload | Drag and drop upload, also from the editor and the AI panel | must | Media, editor image fields, AI panel |
 | sharp variants | Auto-resize to several widths, AVIF and WebP, strip metadata | must | Automatic (status shown in Media) |
 | Alt text | Required alt text per image (or marked decorative), agent can suggest it | must | Media item panel, editor image field |
 | Required-size crops | Crop rectangle locked to a slot's ratio, user must approve | must | Editor image field, Media item panel |
@@ -97,12 +97,13 @@ In the spirit of doing one thing well, the list is deliberately lean. Anything t
 
 | Feature | Description | Priority | Where in the GUI |
 | --- | --- | --- | --- |
-| Chat panel | Agent that asks a few questions and builds drafts from blocks | must | Page editor (right panel), top bar toggle |
+| AI panel | Contextual agent that asks a few questions and builds drafts from blocks; no global chat | must | New page and Edit page (editors); also Site parts, Templates, Brand and Design (approvers or admins) |
 | New page by chat | Start a page from a conversation instead of a blank template | must | Pages > New page |
-| Per-change undo | Undo any single agent change | must | Chat panel, page editor |
+| Per-change undo | Undo any single agent change | must | AI panel, page editor |
 | AI settings | Provider, model and key (bring your own), usage display | must | Settings > Integrations |
-| Copy help | Suggest headlines, SEO text and alt text | nice | Chat panel, field-level "suggest" buttons |
-| Site-wide agent | Ask for changes across pages ("update the phone number everywhere") | later | Chat panel |
+| Scoped tools | Tools and context depend on screen and role (editors cannot change brand or theme via AI) | must | Enforced by the API |
+| Copy help | Suggest headlines, SEO text and alt text | nice | AI panel, field-level "suggest" buttons |
+| Site-wide agent | Ask for changes across pages ("update the phone number everywhere") | later | To decide (no global chat; maybe an admin-only screen) |
 
 ## Forms and embeds
 

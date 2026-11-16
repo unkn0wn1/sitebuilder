@@ -2,6 +2,15 @@
 
 Draft. The agent is a helpful colleague who builds pages, not a free-form code generator and not a general-purpose chatbot. Its single remit and how that is enforced are in [12-ai-harness.md](12-ai-harness.md).
 
+## Where the agent appears
+
+The AI panel is **contextual, not global**. There is no floating chat on every screen.
+
+- **Editors (staff):** on **New page** and **Edit page** only.
+- **Admins:** also on **Templates**, **Brand**, **Design (themes)** and similar admin areas.
+
+The tools and context the agent gets depend on the screen and the user's role, so for example an editor cannot change the brand or theme through the AI. The tool table below is the page-editing set used on New page and Edit page. Admin screens get their own small sets. See [12-ai-harness.md](12-ai-harness.md#contextual-not-global) for the full screen and role table.
+
 ## The conversation
 
 For a new page, the agent:

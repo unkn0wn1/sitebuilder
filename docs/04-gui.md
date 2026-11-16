@@ -10,19 +10,19 @@ An early sketch to help think it through, not a spec. The nav and screens are sh
 
 ```mermaid
 flowchart TD
-  Login["Sign in"] --> Shell["Builder shell<br/>left nav + top bar<br/>(search, notifications, chat toggle, user menu)"]
+  Login["Sign in"] --> Shell["Builder shell<br/>left nav + top bar<br/>(search, notifications, user menu)<br/>no global chat"]
   Shell --> Pages["Pages"]
-  Shell --> Parts["Site parts"]
+  Shell --> Parts["Site parts 🤖"]
   Shell --> Media["Media"]
   Shell --> Forms["Forms and embeds"]
   Shell --> Approvals["Approvals (badge)"]
-  Shell --> Brand["Brand"]
-  Shell --> Templates["Templates"]
+  Shell --> Brand["Brand and Design 🤖<br/>(admins)"]
+  Shell --> Templates["Templates 🤖<br/>(admins)"]
   Shell --> Settings["Settings"]
 
   Pages --> List["Pages list<br/>search, filter, paginate, bin"]
-  List --> NewPage["New page<br/>pick template, or start in chat"]
-  NewPage --> Editor["Page editor<br/>canvas, block panel,<br/>properties / Page tab (SEO), chat, history"]
+  List --> NewPage["New page 🤖<br/>pick template, or start with the AI"]
+  NewPage --> Editor["Edit page 🤖<br/>canvas, block panel,<br/>properties / Page tab (SEO), AI panel, history"]
   List --> Editor
   Parts --> Editor
   Editor --> Preview["Preview<br/>desktop / tablet / mobile<br/>+ speed score"]
@@ -42,17 +42,19 @@ flowchart TD
   Settings --> SBackups["Backups and export"]
 ```
 
+🤖 marks the screens where the **AI panel** appears. It is contextual, not global: there is no floating chat elsewhere. Editors see it on New page and Edit page. Approvers also on Site parts. Admins also on Templates and Brand and Design (themes). Pages list, Media, Approvals and Settings have no AI panel. Tools and context are scoped per screen and role; see [12-ai-harness.md](12-ai-harness.md#contextual-not-global).
+
 ### Left nav (example)
 
 | Item | What it holds (must items from the inventory) | Who |
 | --- | --- | --- |
-| **Pages** | Pages list (paginated, search, filter by status and template, last edited), page tree and slugs, new page (template or chat), page editor, system pages such as 404 | Editors and up |
-| **Site parts** | Header (logo, menu, CTA), Footer, Menus. Later: reusable blocks, site banner | Approvers and up |
+| **Pages** | Pages list (paginated, search, filter by status and template, last edited), page tree and slugs, new page (template or AI), page editor with AI panel, page editor, system pages such as 404 | Editors and up |
+| **Site parts** 🤖 | Header (logo, menu, CTA), Footer, Menus. Later: reusable blocks, site banner | Approvers and up |
 | **Media** | Library, upload, renditions status, alt text, required-size crops | Editors and up |
 | **Forms and embeds** | Registered donation forms (for example Virtuous) by name, other allowed embeds | Approvers and up |
 | **Approvals** | Drafts waiting for review, with a count badge; the review screen | Approvers and up |
-| **Brand** | Brand pack (colours, fonts, logo, shapes), contrast checks, favicon from logo, re-run wizard steps | Admins |
-| **Templates** | Allowed templates, allowed and required blocks per template | Admins |
+| **Brand and Design** 🤖 | Brand pack (colours, fonts, logo, shapes), contrast checks, favicon from logo, re-run wizard steps; Design tab for themes ([11-theming.md](11-theming.md)) | Admins |
+| **Templates** 🤖 | Allowed templates, allowed and required blocks per template | Admins |
 | **Settings** | See below | Admins |
 
 **Settings sections:**
@@ -68,7 +70,7 @@ flowchart TD
 | Publishing and activity | Publish log and releases, site rollback, audit log (including agent tool calls) |
 | Backups and export | Backup status, full export of content and media |
 
-**Top bar:** site name, link to the live site, builder search (pages, media, blocks), notifications bell (review requested, sent back, published, publish failed), chat toggle, user menu (profile, password, sign out).
+**Top bar:** site name, link to the live site, builder search (pages, media, blocks), notifications bell (review requested, sent back, published, publish failed), user menu (profile, password, sign out).
 
 Items a user cannot use are hidden, not greyed out.
 
@@ -76,14 +78,14 @@ Items a user cannot use are hidden, not greyed out.
 
 ```
 +------------------+--------------------------------------------------------+
-| sitebuilder      | Site name [View live] [Search..] (bell) [Chat] [User v]|
+| sitebuilder      | Site name [View live] [Search..] (bell)       [User v]|
 +------------------+--------------------------------------------------------+
 | > Pages          |  Pages                          [Bin]   [+ New page]    |
 |   Site parts     |  [Search...........]  Status [All v]  Template [All v]  |
 |   Media          |  ------------------------------------------------------ |
 |   Forms/embeds   |  Title            Status      Last edited     URL       |
 |   Approvals (2)  |  Home             Published   2h ago, Asha    /         |
-|   Brand          |  Winter appeal    Draft       5m ago, Sam     -         |
+|   Brand/Design   |  Winter appeal    Draft       5m ago, Sam     -         |
 |   Templates      |  About us         In review   1d ago, Priya   /about    |
 |   Settings       |  ...                                                    |
 |                  |                                  < 1 2 3 ... 9 >        |
@@ -96,7 +98,7 @@ Items a user cannot use are hidden, not greyed out.
 +---------------------------------------------------------------------------+
 | < Pages   Winter appeal (draft)          [Preview] [Submit for review]    |
 +------------------+----------------------------------------+---------------+
-| Blocks           |                                        | Chat          |
+| Blocks           |                                        | AI panel      |
 |  + Hero          |          Live page canvas              |               |
 |  + Rich text     |   (real block components, on-brand)    | Agent: What's |
 |  + Stats         |                                        | the headline? |
@@ -114,7 +116,7 @@ Four parts:
 
 - **Block panel** (left): block palette (only the blocks allowed for this template) and an outline for reordering.
 - **Canvas** (middle): the page rendered with the real block components, at a chosen width. Click a block to select it.
-- **Chat panel** (right, collapsible): the agent. Its changes appear on the canvas as they happen.
+- **AI panel** (right, collapsible, only on New page and Edit page for editors): the agent. Its changes appear on the canvas as they happen.
 - **Properties panel**: the selected block's fields, generated from the block schema (text, image with crop, link, options). Shown under the canvas or as a drawer; see open questions. A **Page** tab in the same panel holds page settings (slug, parent, template) and SEO (title, description, social image, canonical, noindex). A **History** tab lists versions with preview and rollback.
 
 When the left nav is open the editor is cramped, so the editor collapses the nav to icons.
@@ -136,9 +138,11 @@ When the left nav is open the editor is cramped, so the editor collapses the nav
 +---------------------------------------------------------------+
 ```
 
-## Chat panel
+## AI panel
 
-- Always available in the editor, collapsible.
+- Contextual, not global: it only appears on the screens marked 🤖 in the GUI map, never as a floating chat across the builder.
+
+- Collapsible on the screens where it appears.
 - The agent asks a handful of questions for a new page, then builds a draft. See [07-ai-agent.md](07-ai-agent.md).
 - Each agent change is shown as a short line in the chat ("Added Hero", "Changed heading") and can be undone individually.
 - The person can mix chat and direct editing freely.
@@ -191,7 +195,8 @@ When an image does not fit a block's required size, the editor shows a crop rect
 ## Open questions
 
 - Is the main way in the chat, or the visual editor? Should a new page start in chat by default?
-- Where does the chat panel live: fixed right column, floating panel, or a full-screen "conversation" mode that hands over to the editor?
+- On New page, is the AI panel a full-width "conversation" step that hands over to the editor, or the same right column as Edit page?
+- Which other admin screens, if any, should get an AI panel?
 - Drag and drop on the canvas, or reorder only in the outline? (Drag and drop is nice but adds complexity.)
 - Inline text editing on the canvas, or fields in a side panel only?
 - How is the diff shown: side by side, or highlighted changes on one page?
