@@ -9,7 +9,7 @@ The AI panel is **contextual, not global**. There is no floating chat on every s
 - **Editors (staff):** on **New page** and **Edit page** only.
 - **Admins:** also on **Templates**, **Brand**, **Design (themes)** and similar admin areas.
 
-The tools and context the agent gets depend on the screen and the user's role, so for example an editor cannot change the brand or theme through the AI. The tool table below is the page-editing set used on New page and Edit page. Admin screens get their own small sets. See [12-ai-harness.md](12-ai-harness.md#contextual-not-global) for the full screen and role table.
+Each screen starts a task, and each task type gets its own tool set bound to the one thing being edited, filtered by role. A page edit session only has the page builder tools for that page, so it physically cannot change menus, templates, the header or footer, the brand or other pages. Admins get everything. The tool table below is the page builder set used on New page and Edit page. See [12-ai-harness.md](12-ai-harness.md#task-scoped-tools).
 
 ## The conversation
 

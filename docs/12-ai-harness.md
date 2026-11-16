@@ -17,7 +17,7 @@ Keep it simple: one agent, one remit, one small tool set.
 
 ## Contextual, not global
 
-There is **no global floating chat**. The AI panel only appears on specific screens, and on each one its tools and context are scoped to that screen and the user's role.
+There is **no global floating chat**. The AI panel only appears on specific screens, and on each one each screen starts its own task with tools and context scoped to that task and the user's role (see [Task-scoped tools](#task-scoped-tools)).
 
 | Screen | Who sees the AI panel | What the AI can do there |
 | --- | --- | --- |
@@ -31,33 +31,43 @@ There is **no global floating chat**. The AI panel only appears on specific scre
 
 Rules:
 
-- **Tools per screen and role.** The harness builds the tool list from the current screen and the user's role. On Edit page, an editor gets page tools only. Brand, theme and template tools exist only on those admin screens, for admins. So editors cannot change brand or theme through the AI, however they ask.
+- **Tools per task and role.** Each screen starts a task with its own tool set. On Edit page the AI gets page builder tools for that page only. Brand, theme and template tools exist only in those admin tasks. So editors cannot change brand or theme through the AI, however they ask.
 - **Context per screen.** The model only sees what that screen needs: the current page on Edit page, the brand pack on Brand, the template rules on Templates.
 - **Same validation and approval everywhere.** Admin-screen changes also land as drafts and need approval before they go live.
-- **The server enforces it.** Scope is checked by the API on every tool call (screen, role, target), not just hidden in the UI.
+- **The server enforces it.** Scope is checked by the API on every tool call (task, role, target), not just hidden in the UI.
 - **A conversation belongs to its screen.** Leaving the screen ends or parks that conversation; there is no cross-screen chat history.
 
-## Per-instance tool allowlist
+## Task-scoped tools
 
-Each install (instance) can also switch AI tools off for the whole site. Admins set this in **Settings > AI tools**. It is layered on top of role and screen scoping:
+Every AI session is **one task**, and each task type gets **its own small tool set, bound to the one object it is working on**. When the AI is editing a page, it is given only the page builder tools for that page. It physically cannot edit menus, templates, the header or footer, the brand or any other page, because those tools are simply not in its session, and the API rejects any call outside the target.
 
 ```
-effective tools = instance allowlist ∩ tools allowed for the user's role ∩ tools for the current screen
+effective tools = task tool set, bound to the target object, filtered by the user's role
+(admins: all task types and all tools)
 ```
 
-- The instance allowlist can only remove tools, never grant a role or screen something it would not otherwise have.
-- Examples: an instance can turn off AI media upload (`request_upload`), design from a reference URL, AI copywriting, or the AI on admin screens entirely.
-- If every tool for a screen is switched off, the AI panel does not appear on that screen.
-- Sensible defaults ship on; higher-risk tools (such as reference-URL design) could ship off by default. To decide.
-- Changes to the allowlist are admin-only and recorded in the audit log.
-- The API enforces the intersection on every tool call; the UI only reflects it.
+| Task type | Started from | Tool set | Bound to |
+| --- | --- | --- | --- |
+| New page | Pages > New page | Page builder tools, plus `list_templates` and `create_draft` | The new draft page |
+| Page edit | Pages > Edit page | Page builder tools (blocks, props, media, crops, SEO, preview, checks, submit) | That one page's draft |
+| Site parts | Site parts (header, footer, menus) | Site-part tools (header and footer blocks, menu items), preview, checks, submit | That one site part |
+| Template | Templates | Template tools (allowed and required blocks, starting layouts) | That one template |
+| Brand and design | Brand and Design | Brand token and theme tools, preview, contrast checks | The site's brand pack or one theme |
+
+Rules:
+
+- **One task, one target.** The session is created with a task type and a target id. Every tool call carries that target and the API checks it. A page edit session for "Winter appeal" cannot touch "About us".
+- **No escalation inside a session.** If someone asks the page-edit AI to "also change the menu", it explains that menus are edited from Site parts and offers to open that, which starts a new, separate task.
+- **Role filter.** Editors can run New page and Page edit tasks. Admins can run every task type and get every tool. (Approvers on Site parts is an open question.)
+- **Read context is scoped too.** A page edit session sees the sitemap (titles and URLs) for linking, but cannot read or change other pages' content.
+- **Audit.** Each session is logged with its task type, target, user and tool calls.
 
 ```mermaid
 flowchart LR
-  All["All AI tools"] --> I["Instance allowlist<br/>(Settings > AI tools)"]
-  I --> R["Role scope<br/>(editor, approver, admin)"]
-  R --> S["Screen scope<br/>(New page, Edit page, Brand...)"]
-  S --> E["Effective tools<br/>for this request"]
+  T["Task type<br/>(new page, page edit, site parts,<br/>template, brand and design)"] --> TS["Task tool set"]
+  TS --> B["Bound to one target<br/>(this page, this menu, this template)"]
+  B --> R["Filtered by role<br/>(admins: everything)"]
+  R --> E["Tools in this session"]
 ```
 
 ## Parts of the harness
@@ -140,7 +150,7 @@ A **fixed, typed tool set** mapped one to one onto the CMS API. Each tool has a 
 | `submit_for_review` | Hand the draft to an approver with a change summary |
 | `remember` | Propose a site or user memory entry (see Memory) |
 
-Admin screens add their own small sets (for example brand token and template tools), subject to the [allowlist](#per-instance-tool-allowlist).
+These are the page builder tools. Other task types (site parts, template, brand and design) have their own small sets; see [Task-scoped tools](#task-scoped-tools). A session only ever gets the set for its task, bound to its target.
 
 **Never:** a publish tool, code execution, arbitrary HTML, CSS or script, arbitrary web fetch (apart from the user-given reference URL feature, when enabled), email, or file system access.
 
@@ -198,7 +208,8 @@ Text from uploads, embeds, reference URLs and even existing page content is trea
 - Should "how do I use the builder" help be in scope (probably yes), and how far does it go?
 - Do we log full prompts, or summaries only, for privacy?
 - Cost cap defaults per site.
-- Which tools ship switched off by default in the instance allowlist?
+- Should an admin's page edit session still be bound to that page by default (safer), with admins switching task to go wider, or should admin sessions get every tool at once?
+- Later, maybe: a site-wide setting to switch off individual AI features (for example AI media upload or reference-URL design) for organisations that want less AI.
 - Streaming UI: stream the agent's text and tool calls live to the panel and canvas, or show progress and apply per step?
 - Should our tools also be exposed over MCP, so other agents and clients can use them (with the same scoping)?
 - Is a vision-capable model required for the screenshot self-check, or is it optional with a checks-only fallback?

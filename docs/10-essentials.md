@@ -101,8 +101,8 @@ In the spirit of doing one thing well, the list is deliberately lean. Anything t
 | New page by chat | Start a page from a conversation instead of a blank template | must | Pages > New page |
 | Per-change undo | Undo any single agent change | must | AI panel, page editor |
 | AI settings | Provider, model and key (bring your own), usage display | must | Settings > Integrations |
-| Scoped tools | Tools and context depend on screen and role (editors cannot change brand or theme via AI) | must | Enforced by the API |
-| Instance tool allowlist | Admins switch AI tools off for the whole install; effective tools = instance ∩ role ∩ screen | must | Settings > AI tools |
+| Task-scoped tools | Each AI task (new page, page edit, site parts, template, brand and design) gets its own tool set bound to its target; admins get everything | must | Enforced by the API |
+| AI feature switches | Site-wide setting to turn off individual AI features (for example AI media upload) | later / maybe | Settings > AI |
 | Copy help | Suggest headlines, SEO text and alt text | nice | AI panel, field-level "suggest" buttons |
 | Site-wide agent | Ask for changes across pages ("update the phone number everywhere") | later | To decide (no global chat; maybe an admin-only screen) |
 

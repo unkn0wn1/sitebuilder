@@ -38,12 +38,11 @@ flowchart TD
   Settings --> STracking["Tracking and consent"]
   Settings --> SUsers["Users and roles"]
   Settings --> SInteg["Integrations<br/>AI, Cloudflare"]
-  Settings --> SAITools["AI tools<br/>instance allowlist"]
   Settings --> SPub["Publishing and activity"]
   Settings --> SBackups["Backups and export"]
 ```
 
-🤖 marks the screens where the **AI panel** appears. It is contextual, not global: there is no floating chat elsewhere. Editors see it on New page and Edit page. Approvers also on Site parts. Admins also on Templates and Brand and Design (themes). Pages list, Media, Approvals and Settings have no AI panel. Tools and context are scoped per screen and role; see [12-ai-harness.md](12-ai-harness.md#contextual-not-global).
+🤖 marks the screens where the **AI panel** appears. It is contextual, not global: there is no floating chat elsewhere. Editors see it on New page and Edit page. Approvers also on Site parts. Admins also on Templates and Brand and Design (themes). Pages list, Media, Approvals and Settings have no AI panel. Each screen starts its own AI task with a tool set bound to the one thing being edited (a page edit cannot touch menus, templates or other pages), filtered by role; admins get everything. See [12-ai-harness.md](12-ai-harness.md#task-scoped-tools).
 
 ### Left nav (example)
 
@@ -68,7 +67,6 @@ flowchart TD
 | Users and roles | Invite, deactivate, roles (Editor, Approver, Admin) |
 | Integrations | AI provider, model and key, usage; Cloudflare zone and token for purge |
 | AI | Agent profile (instructions), site memory, usage and cost dashboard, caps |
-| AI tools | Per-instance allowlist of AI tools (for example turn off AI media upload or reference-URL design). Effective tools = instance allowlist ∩ role ∩ screen; see [12-ai-harness.md](12-ai-harness.md#per-instance-tool-allowlist) |
 | Security | Embed domain allow-list |
 | Publishing and activity | Publish log and releases, site rollback, audit log (including agent tool calls) |
 | Backups and export | Backup status, full export of content and media |
