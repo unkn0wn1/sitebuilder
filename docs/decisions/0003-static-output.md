@@ -17,4 +17,4 @@ Published sites are **fully static**: HTML, CSS, JS and media generated at publi
 - The public site keeps working if the builder is down.
 - Rollback is switching the symlink back to an earlier release.
 - Anything dynamic (donation forms, search, sign-ups) must come from embeds or small client-side islands, not server code on the public site.
-- Publish time grows with site size. Partial rebuilds of changed pages are needed for larger sites.
+- Publish time grows with site size. Partial rebuilds of changed pages are needed for larger sites. (Addressed by [ADR 0004](0004-incremental-publish.md): compile once, render only changed pages.)
