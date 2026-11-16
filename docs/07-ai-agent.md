@@ -46,10 +46,13 @@ The agent can only act through these. Each call is validated against the block s
 | `search_media` | Find images and videos in the library |
 | `request_upload` | Ask the user to upload or crop an image |
 | `list_embeds` | Registered donation forms and embeds |
-| `run_speed_check` | Run the speed advisor on the draft preview |
+| `set_seo` | Set the page title, description and social image |
+| `crop_media` | Propose a crop for an image slot (user approves) |
+| `preview_screenshot` | Render the draft and look at it (self-check) |
+| `run_checks` | Speed, accessibility and SEO checks on the draft |
 | `submit_for_review` | Mark the draft ready, with a summary of changes |
 
-There is deliberately no tool to publish, change the brand, write HTML or CSS, or load an arbitrary script.
+The reference list, with the agent loop and limits, is in [12-ai-harness.md](12-ai-harness.md#tools). There is deliberately no tool to publish, run code, change the brand, write HTML or CSS, or load an arbitrary script.
 
 ## Guardrails
 

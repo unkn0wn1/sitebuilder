@@ -20,3 +20,5 @@ Decisions still to make. The first seven come from the original research (Nov 20
 - Image renditions at upload time (sharp) or at generate time (Nuxt Image with IPX)?
 - Which features are really must for v1? See the [feature inventory](10-essentials.md).
 - How should the GUI work overall? See [04-gui.md](04-gui.md).
+- Should approvers get the AI panel on Site parts, or only editors (New page, Edit page) and admins? See [12-ai-harness.md](12-ai-harness.md#contextual-not-global).
+- AI harness questions (streaming UI, MCP for tools, vision model for self-check): see [12-ai-harness.md](12-ai-harness.md#open-questions).

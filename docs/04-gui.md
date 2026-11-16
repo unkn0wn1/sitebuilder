@@ -67,6 +67,7 @@ flowchart TD
 | Tracking and consent | Analytics or tag manager slot, cookie consent slot |
 | Users and roles | Invite, deactivate, roles (Editor, Approver, Admin) |
 | Integrations | AI provider, model and key, usage; Cloudflare zone and token for purge |
+| AI | Agent profile (instructions), site memory, usage and cost dashboard, caps |
 | AI tools | Per-instance allowlist of AI tools (for example turn off AI media upload or reference-URL design). Effective tools = instance allowlist ∩ role ∩ screen; see [12-ai-harness.md](12-ai-harness.md#per-instance-tool-allowlist) |
 | Security | Embed domain allow-list |
 | Publishing and activity | Publish log and releases, site rollback, audit log (including agent tool calls) |
@@ -199,6 +200,7 @@ When an image does not fit a block's required size, the editor shows a crop rect
 - Is the main way in the chat, or the visual editor? Should a new page start in chat by default?
 - On New page, is the AI panel a full-width "conversation" step that hands over to the editor, or the same right column as Edit page?
 - Which other admin screens, if any, should get an AI panel?
+- Should approvers get the AI panel on Site parts? Currently shown, but only editors and admins were named. To confirm.
 - Drag and drop on the canvas, or reorder only in the outline? (Drag and drop is nice but adds complexity.)
 - Inline text editing on the canvas, or fields in a side panel only?
 - How is the diff shown: side by side, or highlighted changes on one page?
