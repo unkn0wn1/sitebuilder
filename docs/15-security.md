@@ -14,7 +14,7 @@
 
 ## The builder
 
-- **Cloudflare Access in front** of the builder hostname, required in production ([ADR 0007](decisions/0007-single-site-install.md)). The builder checks the Access JWT on every request when configured.
+- **Cloudflare Access in front** of the builder hostname, required in production ([ADR 0007](decisions/0007-single-site-install.md)). The builder also checks the Access token (the `Cf-Access-Jwt-Assertion` header: signature against the team's published keys, issuer, audience and expiry) on every request except the health check, and refuses to start in production without the team domain and audience set.
 - **Own login as a second layer:** email and password, hashed with scrypt (Node's built-in crypto, no native add-on). Minimum 12 characters, checked against a short list of common passwords.
 - **Sessions:** random 32-byte token in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie. Only a SHA-256 hash is stored. 12-hour idle timeout, 14-day maximum. Password change or reset ends all other sessions.
 - **CSRF:** `SameSite=Strict` cookies plus an `Origin` check on every request that changes something.

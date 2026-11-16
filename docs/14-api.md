@@ -72,7 +72,8 @@ One shape for every error, written so the GUI can show `message` to a person as 
 | `POST /pages/:id/submit` | Editor+ | Submit for review: `{ note? }`. Seals a version and pins a review to it. Runs blocking checks first |
 | `POST /pages/:id/unpublish` | Approver+ | Take offline: `{ redirectTo? }`. Queues a publish |
 | `DELETE /pages/:id` | Editor+ (own drafts), Approver+ | Move to the bin. Live pages must be unpublished first |
-| `POST /pages/:id/restore` | Approver+ | Bring back from the bin |
+| `GET /pages/bin` | Approver+ | Pages in the bin |
+| `POST /pages/:id/restore` | Approver+ | Bring back from the bin as a draft. If its address is taken (or its parent is gone) it comes back at the top level with `-restored` on the slug, and `moved: true` |
 
 ### Reviews
 
@@ -86,7 +87,7 @@ One shape for every error, written so the GUI can show `message` to a person as 
 
 ### Site parts, templates, brand
 
-Same pattern as pages: `GET /site-parts`, `GET /site-parts/:id`, `POST /site-parts/:id/ops`, `POST /site-parts/:id/submit` (approvers and admins). Templates and the brand pack follow the same shape under `/templates` and `/brand` (admins only).
+Same pattern as pages: `GET /site-parts`, `GET /site-parts/:id`, `GET /site-parts/:id/versions`, `POST /site-parts/:id/ops`, `POST /site-parts/:id/submit` (edits and submit: approvers and admins). Site parts are small, so their one operation is `{ op: 'replace', doc }` with the whole document, checked against the schema for its kind (`shared/site-parts.ts`). Menu links point at page ids, so they follow page moves; a link to a page that no longer exists blocks the edit, and a link to a page that is not live yet is a warning. A page a menu links to can't be binned until the link is removed. Templates and the brand pack follow the same shape under `/templates` and `/brand` (admins only).
 
 ### Media and embeds
 
@@ -95,6 +96,7 @@ Same pattern as pages: `GET /site-parts`, `GET /site-parts/:id`, `POST /site-par
 | `GET /media` | Editor+ | List and search |
 | `POST /media` | Editor+ | Upload (multipart). Returns the media item in `processing` state and a job id |
 | `GET /media/:id` | Editor+ | Details, renditions, crops, where it is used |
+| `GET /media/:id/files/:name` | Editor+ | One rendition, for previews in the builder |
 | `PATCH /media/:id` | Editor+ | Alt text, decorative flag, focal point |
 | `POST /media/:id/crops` | Editor+ | Approve a crop: `{ ratio, rect }` |
 | `DELETE /media/:id` | Approver+ | Bin. Refused while in use on a live page |
@@ -119,6 +121,7 @@ Same pattern as pages: `GET /site-parts`, `GET /site-parts/:id`, `POST /site-par
 | `POST /ai/sessions/:id/messages` | Session owner | Send a message. Streams progress events (server-sent events): text, tool started, tool result, needs you, finished, stopped, error |
 | `POST /ai/sessions/:id/cancel` | Session owner | Stop at the next step |
 | `GET /memory`, `POST /memory`, `DELETE /memory/:id` | Site memory: admins edit, all read. User memory: own | Memory entries |
+| `POST /memory/:id/accept` | Owner (user memory), Admin (site memory) | Save an entry the assistant proposed |
 
 Tools run inside the server. They call the same services as the routes above, so they get the same validation, and on top of that every call is checked by the task scope check (task type, role, bound target) described in [12-ai-harness.md](12-ai-harness.md#task-scoped-tools).
 

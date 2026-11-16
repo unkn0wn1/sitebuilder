@@ -62,6 +62,8 @@ npm install
 npm run seed       # creates .data/sitebuilder.db with an admin, page types and a sample page
 npm run dev        # http://localhost:3000, API at /api/v1
 npm test           # unit tests
+npm run test:api   # builds, then runs HTTP tests against the built server
+npm run check      # typecheck, unit tests and API tests
 npm run typecheck
 npm run build      # production server in .output
 ```
@@ -74,7 +76,10 @@ Server settings (environment variables, none are committed):
 | --- | --- |
 | `SITEBUILDER_DB_PATH` | Database file. Default `.data/sitebuilder.db`. |
 | `SITEBUILDER_SECRET_KEY` | 32 random bytes, base64. Encrypts stored secrets such as the AI key. Needed before secrets can be saved. |
-| `SITEBUILDER_ACCESS_AUD` | Cloudflare Access audience tag. Required in production. |
+| `SITEBUILDER_ACCESS_TEAM_DOMAIN` | Cloudflare Access team domain, like `https://<team>.cloudflareaccess.com`. Required in production. |
+| `SITEBUILDER_ACCESS_AUD` | Cloudflare Access application audience (AUD) tag. Required in production. |
+| `SITEBUILDER_MEDIA_DIR` | Where uploads and renditions are stored. Default: `media` next to the database. |
+| `SITEBUILDER_MAIL_OUTBOX` | Folder where emails are written instead of sent (default `.data/outbox` outside production). SMTP sending is not built yet. |
 | `SITEBUILDER_ALLOW_NO_ACCESS` | Set to `1` to run in production without Cloudflare Access (testing only). |
 | `SITEBUILDER_ORIGIN` | The builder's public origin, for the CSRF check, if the proxy headers are not reliable. |
 | `SITEBUILDER_WORKER` | Set to `0` to stop the in-process job worker. |
