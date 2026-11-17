@@ -9,6 +9,7 @@ import { mediaFileUrl, type MediaItem } from '../../utils/media'
 import { statusLabel, type WorkflowState } from '#shared/workflow'
 import type { FieldIssue } from '#shared/issues'
 import MediaPickerModal from '../../components/media/MediaPickerModal.vue'
+import { cloneDraft } from '#shared/clone'
 
 definePageMeta({ layout: 'builder' })
 
@@ -91,13 +92,16 @@ async function flush() {
     clearTimeout(timer)
     timer = null
   }
-  if (!canEdit.value) return
+  if (!canEdit.value) {
+    if (saveStatus.value === 'saving') saveStatus.value = 'saved'
+    return
+  }
   saveStatus.value = 'saving'
   error.value = ''
   try {
     const result = await api<{ revision: number; doc: BrandDoc; warnings: FieldIssue[] }>('/brand/ops', {
       method: 'POST',
-      body: { baseRevision: revision.value, ops: [{ op: 'replace', doc: doc.value }] },
+      body: { baseRevision: revision.value, ops: [{ op: 'replace', doc: cloneDraft(doc.value) }] },
     })
     revision.value = result.revision
     warnings.value = result.warnings ?? []
@@ -107,7 +111,7 @@ async function flush() {
     pack.value = fresh.pack
     warnings.value = fresh.checks?.warnings ?? warnings.value
   } catch (err) {
-    error.value = err instanceof ApiError ? err.message : 'Could not save the brand pack.'
+    error.value = err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'Could not save the brand pack.'
     saveStatus.value = 'error'
   }
 }
@@ -160,7 +164,7 @@ onBeforeUnmount(() => {
       </div>
       <div class="flex items-center gap-3">
         <span class="sb-status" :class="pack?.workflowState === 'published' ? 'sb-status-published' : 'sb-status-draft'">{{ status }}</span>
-        <span class="text-sm text-gray-500 dark:text-gray-400">{{ saveStatus === 'saving' ? 'Saving…' : saveStatus === 'error' ? 'Not saved' : 'Saved' }}</span>
+        <span class="text-sm text-gray-500 dark:text-gray-400" data-testid="save-status">{{ saveStatus === 'saving' ? 'Saving…' : saveStatus === 'error' ? 'Not saved' : 'Saved' }}</span>
         <FwbButton v-if="canSubmitNow" size="sm" :disabled="submitting || saveStatus === 'saving'" @click="showSubmit = true">Submit for approval</FwbButton>
       </div>
     </div>

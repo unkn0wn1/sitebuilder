@@ -4,6 +4,7 @@
 import { z } from 'zod'
 import { blockIdSchema, pageTitleSchema, seoSchema, type PageDoc, type PageSeo } from './page'
 import type { BlockRegistry, StoredBlock } from './blocks/registry'
+import { cloneDraft } from './clone'
 
 export const slugSchema = z
   .string()
@@ -113,7 +114,7 @@ function clampIndex(i: number, length: number) {
  * Does not validate props against block schemas; the caller validates the whole document afterwards.
  */
 export function applyOps(state: DraftState, ops: InternalOp[], ctx: ApplyContext): { state: DraftState; applied: AppliedOp[] } {
-  let doc: PageDoc = structuredClone(state.doc)
+  let doc: PageDoc = cloneDraft(state.doc)
   let meta: PageMeta = { ...state.meta }
   const applied: AppliedOp[] = []
 
@@ -128,14 +129,14 @@ export function applyOps(state: DraftState, ops: InternalOp[], ctx: ApplyContext
         index = clampIndex(index, doc.blocks.length)
         const block: StoredBlock = { id: ctx.newBlockId(), type: op.block.type, v: def.version, props: op.block.props }
         doc.blocks.splice(index, 0, block)
-        const normalised: InternalOp = { op: 'restore_block', index, block: structuredClone(block) }
+        const normalised: InternalOp = { op: 'restore_block', index, block: cloneDraft(block) }
         applied.push({ op: normalised, inverse: { op: 'remove_block', blockId: block.id }, touches: [`block:${block.id}`] })
         break
       }
       case 'restore_block': {
         if (doc.blocks.some((b) => b.id === op.block.id)) throw new OpError('That section is already on the page.', path)
         const index = clampIndex(op.index, doc.blocks.length)
-        doc.blocks.splice(index, 0, structuredClone(op.block))
+        doc.blocks.splice(index, 0, cloneDraft(op.block))
         applied.push({ op, inverse: { op: 'remove_block', blockId: op.block.id }, touches: [`block:${op.block.id}`] })
         break
       }
@@ -146,10 +147,10 @@ export function applyOps(state: DraftState, ops: InternalOp[], ctx: ApplyContext
         const unsetBack: string[] = []
         const keys = [...Object.keys(op.props), ...(op.unset ?? [])]
         for (const key of keys) {
-          if (key in block.props) before[key] = structuredClone(block.props[key])
+          if (key in block.props) before[key] = cloneDraft(block.props[key])
           else unsetBack.push(key)
         }
-        const props = { ...block.props, ...structuredClone(op.props) }
+        const props = { ...block.props, ...cloneDraft(op.props) }
         for (const key of op.unset ?? []) delete props[key]
         doc.blocks[i] = { ...block, props }
         applied.push({

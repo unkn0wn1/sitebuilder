@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { zodIssues, type FieldIssue } from '../issues'
 import type { BlockDefinition } from './define'
 import { STARTER_BLOCKS } from './library'
+import { cloneDraft } from '../clone'
 
 export interface StoredBlock {
   id: string
@@ -47,7 +48,7 @@ export function createRegistry(defs: BlockDefinition[]): BlockRegistry {
       for (let v = block.v; v < def.version; v++) {
         const step = def.migrations?.[v]
         if (!step) throw new BlockMigrationError(`No migration for ${block.type} from v${v}.`)
-        props = step(structuredClone(props))
+        props = step(cloneDraft(props))
       }
       return props === block.props ? block : { ...block, v: def.version, props }
     },

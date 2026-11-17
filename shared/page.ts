@@ -4,6 +4,7 @@ import { zodIssues, type FieldIssue } from './issues'
 import { mediaId } from './blocks/define'
 import type { BlockRegistry, StoredBlock } from './blocks/registry'
 import { checkTemplateRules, type TemplateRules } from './templates'
+import { cloneDraft } from './clone'
 
 export const CURRENT_PAGE_SCHEMA_VERSION = 1
 
@@ -57,7 +58,7 @@ export function migratePageDoc(raw: unknown, registry: BlockRegistry): PageDoc {
   while (version < CURRENT_PAGE_SCHEMA_VERSION) {
     const step = PAGE_DOC_MIGRATIONS[version]
     if (!step) throw new PageMigrationError(`No page document migration from version ${version}.`)
-    doc = step(structuredClone(doc))
+    doc = step(cloneDraft(doc))
     version++
   }
   const parsed = pageDocSchema.safeParse({ ...doc, schemaVersion: CURRENT_PAGE_SCHEMA_VERSION })

@@ -4,6 +4,7 @@ import { canSubmit, statusLabel, type WorkflowState } from '#shared/workflow'
 import { can } from '#shared/roles'
 import type { TemplateRules } from '#shared/templates'
 import { blockCatalog, blockLabel } from '../../utils/block-fields'
+import { cloneDraft } from '#shared/clone'
 
 definePageMeta({ layout: 'builder' })
 
@@ -155,7 +156,7 @@ async function save() {
   try {
     const result = await api<{ revision: number; doc: TemplateRules; reviewWithdrawn?: boolean }>(`/templates/${id.value}/ops`, {
       method: 'POST',
-      body: { baseRevision: revision.value, ops: [{ op: 'replace', doc: doc.value }] },
+      body: { baseRevision: revision.value, ops: [{ op: 'replace', doc: cloneDraft(doc.value) }] },
     })
     revision.value = result.revision
     doc.value = result.doc
@@ -170,7 +171,7 @@ async function save() {
     saveStatus.value = 'saved'
   } catch (err) {
     saveStatus.value = 'error'
-    error.value = err instanceof ApiError ? err.message : 'Could not save this page type.'
+    error.value = err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'Could not save this page type.'
     if (err instanceof ApiError && err.code === 'conflict') await load()
   }
 }

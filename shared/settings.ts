@@ -1,6 +1,7 @@
 // Site settings stored on the sites row. One schema so reads, writes and the GUI agree.
 // See docs/04-gui.md (Settings) and ADR 0011 (named tracking integrations).
 import { z } from 'zod'
+import { cloneDraft } from './clone'
 
 const id = (re: RegExp, example: string) => z.string().trim().regex(re, `Should look like ${example}.`)
 
@@ -119,7 +120,7 @@ export function readSettings(raw: unknown): SiteSettings {
 }
 
 export function mergeSettings(current: SiteSettings, patch: Omit<SettingsPatch, 'name' | 'primaryDomain'>): SiteSettings {
-  const next: Record<string, unknown> = structuredClone(current)
+  const next: Record<string, unknown> = cloneDraft(current)
   for (const [key, value] of Object.entries(patch)) {
     if (value === undefined) continue
     const cur = next[key]

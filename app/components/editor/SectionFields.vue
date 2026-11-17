@@ -6,6 +6,7 @@ import { api } from '../../utils/api'
 import { mediaFileUrl, type MediaDetails, type MediaItem } from '../../utils/media'
 import MediaPickerModal from '../media/MediaPickerModal.vue'
 import CropDialog from '../media/CropDialog.vue'
+import { cloneDraft } from '#shared/clone'
 
 const props = defineProps<{
   type: string
@@ -21,7 +22,7 @@ function get(path: string): unknown {
 }
 
 function set(path: string, value: unknown) {
-  const next = structuredClone(props.modelValue)
+  const next = cloneDraft(props.modelValue)
   const parts = path.split('.')
   let cur: Record<string, unknown> = next
   for (const key of parts.slice(0, -1)) {
@@ -121,7 +122,7 @@ function onPicked(item: MediaItem) {
 }
 
 function pick(field: FieldSpec, item: MediaItem) {
-  const next = structuredClone(props.modelValue)
+  const next = cloneDraft(props.modelValue)
   const apply = (path: string, value: unknown) => {
     const parts = path.split('.')
     let cur: Record<string, unknown> = next

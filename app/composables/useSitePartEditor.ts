@@ -3,6 +3,7 @@ import { canSubmit as stateAllowsSubmit } from '#shared/workflow'
 import type { SitePartDoc } from '#shared/site-parts'
 import type { FieldIssue } from '#shared/issues'
 import type { SitePartDetail } from '../utils/site-parts'
+import { cloneDraft } from '#shared/clone'
 
 export type PartSaveStatus = 'saved' | 'saving' | 'error' | 'conflict'
 
@@ -35,7 +36,7 @@ export function useSitePartEditor(id: MaybeRefOrGetter<string>) {
     error.value = ''
     const data = await api<SitePartDetail>(`/site-parts/${toValue(id)}`)
     detail.value = data
-    doc.value = structuredClone(data.doc)
+    doc.value = cloneDraft(data.doc)
     revision.value = data.revision
     warnings.value = data.checks.warnings
     dirty.value = false
@@ -60,12 +61,12 @@ export function useSitePartEditor(id: MaybeRefOrGetter<string>) {
     }
     if (inflight) await inflight
     if (!doc.value || conflict.value || !dirty.value) return
-    const sending = structuredClone(doc.value)
     const base = revision.value
     saveStatus.value = 'saving'
     error.value = ''
     inflight = (async () => {
       try {
+        const sending = cloneDraft(doc.value)
         const result = await api<{ revision: number; doc: SitePartDoc; warnings: FieldIssue[] }>(`/site-parts/${toValue(id)}/ops`, {
           method: 'POST',
           body: { baseRevision: base, ops: [{ op: 'replace', doc: sending }] },
@@ -87,7 +88,7 @@ export function useSitePartEditor(id: MaybeRefOrGetter<string>) {
             return
           }
         }
-        error.value = err instanceof ApiError ? err.message : 'Could not save this change.'
+        error.value = err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'Could not save this change.'
         saveStatus.value = 'error'
       } finally {
         inflight = null
@@ -106,7 +107,7 @@ export function useSitePartEditor(id: MaybeRefOrGetter<string>) {
 
   function useTheirs() {
     if (!conflict.value) return
-    doc.value = structuredClone(conflict.value.current.doc)
+    doc.value = cloneDraft(conflict.value.current.doc)
     revision.value = conflict.value.current.revision
     conflict.value = null
     dirty.value = false

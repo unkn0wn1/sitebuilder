@@ -3,6 +3,7 @@ import { richTextFromParagraphs, richTextToPlain } from '#shared/richtext'
 import { SOCIAL_NETWORKS, type FooterDoc } from '#shared/site-parts'
 import { type SitePartListItem } from '../../utils/site-parts'
 import SocialRow from './SocialRow.vue'
+import { cloneDraft } from '#shared/clone'
 
 const props = defineProps<{
   modelValue: FooterDoc
@@ -43,7 +44,7 @@ function addSocial() {
 }
 
 function setSocial(index: number, update: { network?: (typeof SOCIAL_NETWORKS)[number]; url?: string }) {
-  const social = structuredClone(props.modelValue.social)
+  const social = cloneDraft(props.modelValue.social)
   const row = social[index]
   if (!row) return
   if (update.network) row.network = update.network

@@ -6,6 +6,7 @@ import type { TemplateRules } from '#shared/templates'
 import { canSubmit, type WorkflowState } from '#shared/workflow'
 import { ApiError } from './api'
 import { blockRegistry } from './block-fields'
+import { cloneDraft } from '#shared/clone'
 
 export const DEVICE_WIDTHS = { desktop: 1280, tablet: 768, mobile: 390 } as const
 export type Device = keyof typeof DEVICE_WIDTHS
@@ -144,14 +145,18 @@ export class PageEditor {
 
   queue(ops: Op[]) {
     if (!ops.length) return
-    this.applyLocal(ops)
-    this.pending.push(...ops)
-    this.redoStack = []
-    this.conflict = null
-    this.error = null
-    this.saveStatus = this.offline ? 'offline' : 'saving'
-    this.persist()
-    this.scheduleFlush()
+    try {
+      this.applyLocal(ops)
+      this.pending.push(...ops)
+      this.redoStack = []
+      this.conflict = null
+      this.error = null
+      this.saveStatus = this.offline ? 'offline' : 'saving'
+      this.persist()
+      this.scheduleFlush()
+    } catch (error) {
+      this.fail(error)
+    }
   }
 
   addSection(type: string, afterId?: string | null) {
@@ -160,7 +165,7 @@ export class PageEditor {
       return
     }
     const def = blockRegistry.get(type)
-    const props = structuredClone((def?.sample ?? {}) as Record<string, unknown>)
+    const props = cloneDraft((def?.sample ?? {}) as Record<string, unknown>)
     const op: Op = afterId ? { op: 'add_block', afterBlockId: afterId, block: { type, props } } : { op: 'add_block', block: { type, props } }
     this.queue([op])
     const last = this.doc.blocks.at(-1)
@@ -196,7 +201,7 @@ export class PageEditor {
   duplicateSection(id: string) {
     const block = this.doc.blocks.find((b) => b.id === id)
     if (!block) return
-    this.queue([{ op: 'add_block', afterBlockId: id, block: { type: block.type, props: structuredClone(block.props) } }])
+    this.queue([{ op: 'add_block', afterBlockId: id, block: { type: block.type, props: cloneDraft(block.props) } }])
     const idx = this.doc.blocks.findIndex((b) => b.id === id)
     const added = this.doc.blocks[idx + 1]
     if (added) this.select(added.id)

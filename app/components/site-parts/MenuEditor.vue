@@ -3,6 +3,7 @@ import { newId } from '#shared/ids'
 import type { LinkTarget, MenuDoc } from '#shared/site-parts'
 import type { PageOption } from '../../utils/site-parts'
 import LinkTargetField from './LinkTargetField.vue'
+import { cloneDraft } from '#shared/clone'
 
 const props = defineProps<{ modelValue: MenuDoc; pages: PageOption[] }>()
 const emit = defineEmits<{ 'update:modelValue': [MenuDoc] }>()
@@ -24,7 +25,7 @@ function addItem() {
 }
 
 function addChild(index: number) {
-  const items = structuredClone(props.modelValue.items)
+  const items = cloneDraft(props.modelValue.items)
   const item = items[index]
   if (!item || item.children.length >= 12) return
   item.children.push({ id: newId('block'), label: 'New item', target: defaultTarget.value })
@@ -36,7 +37,7 @@ function removeItem(index: number) {
 }
 
 function removeChild(index: number, childIndex: number) {
-  const items = structuredClone(props.modelValue.items)
+  const items = cloneDraft(props.modelValue.items)
   const item = items[index]
   if (!item) return
   item.children = item.children.filter((_, i) => i !== childIndex)
@@ -53,7 +54,7 @@ function moveItem(index: number, delta: number) {
 }
 
 function moveChild(index: number, childIndex: number, delta: number) {
-  const items = structuredClone(props.modelValue.items)
+  const items = cloneDraft(props.modelValue.items)
   const item = items[index]
   if (!item) return
   const next = childIndex + delta
@@ -64,7 +65,7 @@ function moveChild(index: number, childIndex: number, delta: number) {
 }
 
 function setItem(index: number, patch: { label?: string; target?: LinkTarget }) {
-  const items = structuredClone(props.modelValue.items)
+  const items = cloneDraft(props.modelValue.items)
   const item = items[index]
   if (!item) return
   if (patch.label !== undefined) item.label = patch.label
@@ -73,7 +74,7 @@ function setItem(index: number, patch: { label?: string; target?: LinkTarget }) 
 }
 
 function setChild(index: number, childIndex: number, patch: { label?: string; target?: LinkTarget }) {
-  const items = structuredClone(props.modelValue.items)
+  const items = cloneDraft(props.modelValue.items)
   const child = items[index]?.children[childIndex]
   if (!child) return
   if (patch.label !== undefined) child.label = patch.label
