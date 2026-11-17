@@ -22,6 +22,18 @@ describe('settings, secrets, redirects, memory, system', () => {
     expect(bad.body.error.fields[0].path).toBe('tracking.ga4')
     const ok = await admin.patch('/settings', { tracking: { ga4: 'G-ABC123XYZ' }, workflow: { selfApproval: false } })
     expect(ok.body.settings.tracking.ga4).toBe('G-ABC123XYZ')
+    const ai = await admin.patch('/settings', { ai: { provider: 'openai', model: 'gpt-4o', monthlyCapPence: 1500, sessionCapPence: 100, requestCapPence: 25, enabled: false } })
+    expect(ai.status).toBe(200)
+    expect(ai.body.settings.ai).toMatchObject({ provider: 'openai', model: 'gpt-4o', monthlyCapPence: 1500, enabled: false })
+    const restored = await admin.patch('/settings', { ai: { provider: 'xai', model: 'grok-4', monthlyCapPence: 2000, sessionCapPence: 200, requestCapPence: 50, enabled: false } })
+    expect(restored.status).toBe(200)
+  })
+
+  it('lets an admin test the assistant connection, but not an editor, and never returns the key', async () => {
+    expect((await editor.post('/settings/ai/test', {})).status).toBe(403)
+    const settings = await admin.get('/settings')
+    expect(settings.status).toBe(200)
+    expect(JSON.stringify(settings.body)).not.toContain('not-a-real-key')
   })
 
   it('secrets are write-only', async () => {

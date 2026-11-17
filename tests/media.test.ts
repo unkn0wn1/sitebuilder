@@ -75,6 +75,8 @@ describe('media', () => {
     const handlers = { media_renditions: createMediaRenditionsHandler(dir), publish: createPublishHandler(), purge_cache: { run: () => ({}) }, send_email: { run: () => ({}) } }
     await runJobsOnce(s.ctx, handlers)
     expect(updateMedia(s.ctx, s.editor, media.id, { alt: 'A volunteer walking two dogs' }).alt).toBe('A volunteer walking two dogs')
+    expect(updateMedia(s.ctx, s.editor, media.id, { focalX: 200, focalY: 100 }).focalX).toBe(200)
+    await expectCode(() => updateMedia(s.ctx, s.editor, media.id, { focalX: 2000 }), 'validation_failed')
 
     await expectCode(() => approveCrop(s.ctx, s.editor, media.id, { ratio: '1:1', rect: { x: 1000, y: 0, width: 900, height: 900 } }), 'validation_failed')
     await expectCode(() => approveCrop(s.ctx, s.editor, media.id, { ratio: '1:1', rect: { x: 0, y: 0, width: 800, height: 400 } }), 'validation_failed')

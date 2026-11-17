@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fieldsForBlock, blockLabel, headingProp, blockCatalog } from '../app/utils/block-fields'
+import { fieldsForBlock, blockLabel, headingProp, blockCatalog, imageSlotFor } from '../app/utils/block-fields'
 import { scopeThemeCss } from '../app/utils/theme-css'
 
 describe('block fields', () => {
@@ -24,6 +24,8 @@ describe('block fields', () => {
     expect(blockLabel('CallToAction')).toBe('Call to action')
     expect(headingProp('Hero')).toBe('heading')
     expect(blockCatalog().some((b) => b.type === 'VideoHero')).toBe(true)
+    expect(imageSlotFor('Hero', 'image')).toEqual({ width: 1280, height: 720, ratio: '16:9' })
+    expect(imageSlotFor('Image', 'image')?.ratio).toBe('3:2')
   })
 })
 

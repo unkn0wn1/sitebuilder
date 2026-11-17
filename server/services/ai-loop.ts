@@ -325,3 +325,48 @@ export async function collectAiTurn(
   for await (const event of runAiTurn(ctx, actor, sessionId, userText, opts)) events.push(event)
   return events
 }
+
+/** A one-shot ping used by Settings > AI. Does not start a session or count against caps. */
+export async function testAiConnection(ctx: ServiceCtx, opts: { provider?: ModelProvider } = {}): Promise<{
+  ok: true
+  model: string
+  reply: string
+  tokensIn: number
+  tokensOut: number
+}> {
+  const resolved = resolveAi(ctx)
+  const injected = opts.provider ?? ctx.aiProvider
+  if (resolved.settings.provider === 'custom' && !resolved.baseUrl && !injected) {
+    throw new AppError('ai_unavailable', 'Add a base URL for your custom provider, then try the test again.')
+  }
+  if (!resolved.settings.model) {
+    throw new AppError('ai_unavailable', 'Choose a model, then try the test again.')
+  }
+  if (!injected && process.env.SITEBUILDER_AI_PROVIDER !== 'mock' && !hasSecret(ctx, 'ai_api_key')) {
+    throw new AppError('ai_unavailable', 'Add an API key first, then try the test again.')
+  }
+  const provider = resolveProvider(ctx, resolved, injected)
+  try {
+    const result = await provider.complete({
+      model: resolved.settings.model,
+      messages: [
+        { role: 'system', content: 'You are a connection test. Reply with the single word pong.' },
+        { role: 'user', content: 'ping' },
+      ],
+    })
+    const reply = (result.message.content ?? '').trim()
+    if (!reply) throw new ProviderError('The model provider sent an empty reply.')
+    return {
+      ok: true,
+      model: resolved.settings.model,
+      reply: reply.slice(0, 240),
+      tokensIn: result.usage.tokensIn,
+      tokensOut: result.usage.tokensOut,
+    }
+  } catch (error) {
+    recordProviderFailure(ctx.now().getTime())
+    if (error instanceof AppError) throw error
+    const message = error instanceof ProviderError ? error.message : "The assistant isn't available right now. Everything else works as normal."
+    throw new AppError('ai_unavailable', /timeout|reach|provider/i.test(message) ? "The assistant isn't available right now. Everything else works as normal." : message)
+  }
+}

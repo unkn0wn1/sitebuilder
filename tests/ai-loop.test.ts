@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { eq } from 'drizzle-orm'
-import { collectAiTurn, MAX_STEPS, recordProviderFailure, requestAiCancel, resetAiCircuitBreaker, resolveAi } from '../server/services/ai-loop'
+import { collectAiTurn, MAX_STEPS, recordProviderFailure, requestAiCancel, resetAiCircuitBreaker, resolveAi, testAiConnection } from '../server/services/ai-loop'
 import { startAiSession, monthCostMicros, addAiUsage, getAiSession, listAiMessages } from '../server/services/ai'
 import { assistantText, assistantTools, mockProvider, ProviderError } from '../server/services/ai-provider'
 import { createPage } from '../server/services/pages'
@@ -168,5 +168,23 @@ describe('runAiTurn', () => {
 describe('MAX_STEPS', () => {
   it('is the documented starting point', () => {
     expect(MAX_STEPS).toBe(25)
+  })
+})
+
+describe('testAiConnection', () => {
+  it('uses an injected mock and does not need the assistant to be switched on', async () => {
+    const s = setup()
+    const provider = mockProvider([assistantText('pong', { tokensIn: 2, tokensOut: 1 })])
+    const result = await testAiConnection(s.ctx, { provider })
+    expect(result).toMatchObject({ ok: true, model: 'grok-4', reply: 'pong', tokensIn: 2, tokensOut: 1 })
+    expect(provider.calls).toHaveLength(1)
+    expect(provider.calls[0]!.messages.at(-1)).toMatchObject({ role: 'user', content: 'ping' })
+    s.sqlite.close()
+  })
+
+  it('asks for a key when none is stored and no mock is injected', async () => {
+    const s = setup()
+    await expect(testAiConnection(s.ctx)).rejects.toMatchObject({ code: 'ai_unavailable', message: /Add an API key first/ })
+    s.sqlite.close()
   })
 })

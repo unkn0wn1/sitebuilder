@@ -37,3 +37,14 @@ export function penceToMicros(pence: number): number {
 export function microsToPence(micros: number): number {
   return micros / PENCE_TO_MICROS
 }
+
+/** Pence to pounds, e.g. 2000 -> 20. */
+export function penceToPounds(pence: number): number {
+  return Math.round(pence) / 100
+}
+
+/** Pounds to whole pence, e.g. 20.5 -> 2050. */
+export function poundsToPence(pounds: number): number {
+  if (!Number.isFinite(pounds) || pounds < 0) return 0
+  return Math.round(pounds * 100)
+}

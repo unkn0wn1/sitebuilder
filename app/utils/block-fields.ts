@@ -3,6 +3,7 @@ import type { z } from 'zod'
 import { STARTER_BLOCKS } from '#shared/blocks/library'
 import type { BlockDefinition } from '#shared/blocks/define'
 import { createDefaultRegistry } from '#shared/blocks/registry'
+import { ratioFromSize } from '#shared/crop'
 
 export const blockRegistry = createDefaultRegistry()
 
@@ -140,4 +141,13 @@ export function blockLabel(type: string): string {
 
 export function headingProp(type: string): string | undefined {
   return blockRegistry.get(type)?.headingProps?.[0]
+}
+
+export function imageSlotFor(type: string, path: string): { width: number; height: number; ratio: string } | null {
+  const def = blockRegistry.get(type)
+  const slots = def?.imageSlots
+  if (!slots) return null
+  const slot = slots[path] ?? slots[path.split('.').pop() ?? '']
+  if (!slot) return null
+  return { width: slot.width, height: slot.height, ratio: ratioFromSize(slot.width, slot.height) }
 }

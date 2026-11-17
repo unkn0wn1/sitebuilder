@@ -93,7 +93,7 @@ Same pattern as pages: `GET /site-parts`, `GET /site-parts/:id`, `GET /site-part
 
 | Method and path | Who | Does |
 | --- | --- | --- |
-| `GET /media` | Editor+ | List and search |
+| `GET /media` | Editor+ | List and search, optional `kind=image` or `video`. Each item includes a `preview` filename |
 | `POST /media` | Editor+ | Upload (multipart). Returns the media item in `processing` state and a job id |
 | `GET /media/:id` | Editor+ | Details, renditions, crops, where it is used |
 | `GET /media/:id/files/:name` | Editor+ | One rendition, for previews in the builder |
@@ -131,6 +131,7 @@ Tools run inside the server. They call the same services as the routes above, so
 | Method and path | Who | Does |
 | --- | --- | --- |
 | `GET /settings`, `PATCH /settings` | Admin | Site settings, including mail and the assistant (provider, model, monthly/session/request caps in pence) |
+| `POST /settings/ai/test` | Admin | One-shot connection test. Does not start a session or count against caps. Never returns the key |
 | `PUT /settings/secrets/:name` | Admin or Operator | Write-only: AI key, Cloudflare token, Google OAuth client secret. Never readable afterwards. Gmail tokens cannot be set this way |
 | `POST /settings/mail/google/start` | Admin | Returns the Google OAuth URL to connect a Workspace account |
 | `GET /settings/mail/google/callback` | OAuth redirect | Stores the encrypted tokens and redirects to Settings |

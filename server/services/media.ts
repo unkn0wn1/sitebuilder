@@ -56,6 +56,15 @@ export function videoPublicName(row: Pick<MediaRow, 'id' | 'mime'>): string {
   return `${row.id}.${ext}`
 }
 
+/** Builder preview filename for a ready item, or null while it is still processing. */
+export function previewFileName(row: Pick<MediaRow, 'id' | 'kind' | 'mime' | 'width' | 'status'>): string | null {
+  if (row.status !== 'ready') return null
+  if (row.kind === 'video') return videoPublicName(row)
+  const widths = widthsFor(row.width ?? 0)
+  const w = widths.find((n) => n >= 320) ?? widths.at(-1)
+  return w ? `${row.id}-${w}.webp` : null
+}
+
 /** Widths to make: the standard set up to the original's width, plus the original width itself so no detail is lost. */
 export function widthsFor(width: number): number[] {
   const ws: number[] = RENDITION_WIDTHS.filter((w) => w <= width)
@@ -222,11 +231,16 @@ export function createMediaRenditionsHandler(mediaDir: string): JobHandler {
   }
 }
 
-export function listMedia(ctx: ServiceCtx, q: { search?: string; page: number; pageSize: number }) {
-  const where = and(eq(media.siteId, ctx.siteId), isNull(media.deletedAt), q.search ? or(like(media.filename, `%${q.search}%`), like(media.alt, `%${q.search}%`)) : undefined)
+export function listMedia(ctx: ServiceCtx, q: { search?: string; kind?: 'image' | 'video'; page: number; pageSize: number }) {
+  const where = and(
+    eq(media.siteId, ctx.siteId),
+    isNull(media.deletedAt),
+    q.kind ? eq(media.kind, q.kind) : undefined,
+    q.search ? or(like(media.filename, `%${q.search}%`), like(media.alt, `%${q.search}%`)) : undefined,
+  )
   const total = ctx.db.select({ n: sql<number>`count(*)` }).from(media).where(where).get()?.n ?? 0
   const items = ctx.db.select().from(media).where(where).orderBy(desc(media.createdAt)).limit(q.pageSize).offset((q.page - 1) * q.pageSize).all()
-  return { items, page: q.page, pageSize: q.pageSize, total }
+  return { items: items.map((item) => ({ ...item, preview: previewFileName(item) })), page: q.page, pageSize: q.pageSize, total }
 }
 
 /** Pages whose draft or live version uses an image. */
@@ -255,6 +269,7 @@ export function getMedia(ctx: ServiceCtx, id: string) {
   const crops = ctx.db.select().from(mediaCrops).where(eq(mediaCrops.mediaId, id)).all()
   return {
     media: row,
+    preview: previewFileName(row),
     renditions: row.status === 'ready' ? (row.kind === 'video' ? [videoPublicName(row)] : renditionNames(row)) : [],
     crops: crops.map((c) => ({ ...c, renditions: renditionNames({ id: row.id, width: c.width }, c.ratio) })),
     usedOn: mediaUsage(ctx, id),
@@ -265,14 +280,21 @@ export const mediaPatchSchema = z
   .object({
     alt: z.string().trim().max(250, { message: 'Keep alt text under 250 characters.' }).nullable().optional(),
     decorative: z.boolean().optional(),
-    focalX: z.number().int().min(0).max(100).nullable().optional(),
-    focalY: z.number().int().min(0).max(100).nullable().optional(),
+    /** Pixels on the stored, upright image (same space as crop rectangles). */
+    focalX: z.number().int().min(0).max(30_000).nullable().optional(),
+    focalY: z.number().int().min(0).max(30_000).nullable().optional(),
   })
   .strict()
 
 export function updateMedia(ctx: ServiceCtx, actor: ActingAs, id: string, patch: z.infer<typeof mediaPatchSchema>) {
   if (!can(actor, 'media.upload')) throw forbidden()
-  requireMedia(ctx, id)
+  const row = requireMedia(ctx, id)
+  if (patch.focalX != null && row.width != null && patch.focalX > row.width) {
+    throw new AppError('validation_failed', 'The focal point needs to be on the photo.', [{ path: 'focalX', message: 'Outside the photo.' }])
+  }
+  if (patch.focalY != null && row.height != null && patch.focalY > row.height) {
+    throw new AppError('validation_failed', 'The focal point needs to be on the photo.', [{ path: 'focalY', message: 'Outside the photo.' }])
+  }
   ctx.db.update(media).set(patch).where(eq(media.id, id)).run()
   audit(ctx, actor, 'media.updated', { type: 'media', id }, { fields: Object.keys(patch) })
   return requireMedia(ctx, id)

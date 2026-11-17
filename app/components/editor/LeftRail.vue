@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { blockCatalog, blockLabel } from '../../utils/block-fields'
+import AssistantPanel from './AssistantPanel.vue'
 import type { LeftTab, PageEditor } from '../../utils/page-editor'
 import type { useAssistant } from '../../composables/useAssistant'
 

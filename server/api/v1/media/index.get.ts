@@ -4,5 +4,5 @@ import { defineApi, paging, parseQuery, requireCan } from '../../../utils/api'
 
 export default defineApi((event, ctx) => {
   requireCan(event, 'page.read')
-  return listMedia(ctx, parseQuery(event, paging.extend({ search: z.string().max(200).optional() })))
+  return listMedia(ctx, parseQuery(event, paging.extend({ search: z.string().max(200).optional(), kind: z.enum(['image', 'video']).optional() })))
 })

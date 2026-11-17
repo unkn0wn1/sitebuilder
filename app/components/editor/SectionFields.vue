@@ -1,6 +1,11 @@
 <script setup lang="ts">
-import { fieldsForBlock, type FieldSpec } from '../../utils/block-fields'
+import { fieldsForBlock, imageSlotFor, type FieldSpec } from '../../utils/block-fields'
 import { richTextFromParagraphs, richTextToPlain, type RichTextDoc } from '#shared/richtext'
+import { parseRatio } from '#shared/crop'
+import { api } from '../../utils/api'
+import { mediaFileUrl, type MediaDetails, type MediaItem } from '../../utils/media'
+import MediaPickerModal from '../media/MediaPickerModal.vue'
+import CropDialog from '../media/CropDialog.vue'
 
 const props = defineProps<{
   type: string
@@ -66,6 +71,105 @@ function addItem(field: FieldSpec) {
 function removeItem(field: FieldSpec, index: number) {
   set(field.path, listItems(field).filter((_, i) => i !== index))
 }
+
+const pickerFor = ref<string | null>(null)
+const cropFor = ref<{ path: string; mediaId: string; ratio: string; title: string } | null>(null)
+const previews = ref<Record<string, { alt: string; src: string | null; width: number; height: number }>>({})
+
+async function loadPreview(id: string) {
+  if (!id || previews.value[id]) return
+  try {
+    const data = await api<MediaDetails>(`/media/${id}`)
+    const name = data.preview ?? data.renditions.find((n) => n.endsWith('.webp'))
+    previews.value[id] = {
+      alt: data.media.alt ?? '',
+      src: name ? mediaFileUrl(id, name) : data.media.placeholder,
+      width: data.media.width ?? 0,
+      height: data.media.height ?? 0,
+    }
+  } catch {
+    previews.value[id] = { alt: '', src: null, width: 0, height: 0 }
+  }
+}
+
+watch(
+  () => props.modelValue,
+  () => {
+    for (const field of fields.value) {
+      if (field.kind !== 'image') continue
+      const id = textValue(`${field.path}.media`)
+      if (id) void loadPreview(id)
+    }
+  },
+  { immediate: true, deep: true },
+)
+
+function slotOf(field: FieldSpec) {
+  return imageSlotFor(props.type, field.path)
+}
+
+function needsCrop(item: MediaItem, ratio: string) {
+  if (!item.width || !item.height) return false
+  const { w, h } = parseRatio(ratio)
+  return Math.abs(item.width / item.height - w / h) > 0.02
+}
+
+function onPicked(item: MediaItem) {
+  const field = fields.value.find((f) => f.path === pickerFor.value)
+  if (!field) return
+  pick(field, item)
+}
+
+function pick(field: FieldSpec, item: MediaItem) {
+  const next = structuredClone(props.modelValue)
+  const apply = (path: string, value: unknown) => {
+    const parts = path.split('.')
+    let cur: Record<string, unknown> = next
+    for (const key of parts.slice(0, -1)) {
+      const existing = cur[key]
+      if (!existing || typeof existing !== 'object') cur[key] = {}
+      cur = cur[key] as Record<string, unknown>
+    }
+    cur[parts.at(-1)!] = value
+  }
+  apply(`${field.path}.media`, item.id)
+  const currentAlt = textValue(`${field.path}.alt`)
+  if (!currentAlt && item.alt) apply(`${field.path}.alt`, item.alt)
+  emit('update:modelValue', next)
+  previews.value[item.id] = {
+    alt: item.alt ?? '',
+    src: item.preview ? mediaFileUrl(item.id, item.preview) : item.placeholder,
+    width: item.width ?? 0,
+    height: item.height ?? 0,
+  }
+  pickerFor.value = null
+  const slot = slotOf(field)
+  if (slot && needsCrop(item, slot.ratio)) {
+    cropFor.value = {
+      path: field.path,
+      mediaId: item.id,
+      ratio: slot.ratio,
+      title: `Crop for ${field.label} (needs ${slot.ratio}, at least ${slot.width} × ${slot.height})`,
+    }
+  }
+}
+
+function previewOf(path: string) {
+  const id = textValue(`${path}.media`)
+  return id ? previews.value[id] : undefined
+}
+
+function openCrop(field: FieldSpec) {
+  const id = textValue(`${field.path}.media`)
+  const slot = slotOf(field)
+  if (!id || !slot) return
+  cropFor.value = {
+    path: field.path,
+    mediaId: id,
+    ratio: slot.ratio,
+    title: `Crop for ${field.label} (needs ${slot.ratio}, at least ${slot.width} × ${slot.height})`,
+  }
+}
 </script>
 
 <template>
@@ -113,11 +217,19 @@ function removeItem(field: FieldSpec, index: number) {
 
       <div v-else-if="field.kind === 'image'" class="rounded-md border border-gray-200 p-3">
         <p class="mb-2 text-sm font-medium text-gray-800">{{ field.label }}</p>
-        <FwbInput :model-value="textValue(`${field.path}.media`)" label="Media id" @update:model-value="set(`${field.path}.media`, $event)" />
-        <div class="mt-2">
-          <FwbInput :model-value="textValue(`${field.path}.alt`)" label="Alt text" @update:model-value="set(`${field.path}.alt`, $event)" />
+        <img
+          v-if="previewOf(field.path)?.src"
+          :src="previewOf(field.path)!.src!"
+          :alt="textValue(`${field.path}.alt`) || previewOf(field.path)?.alt || ''"
+          class="mb-2 max-h-40 w-full rounded object-cover"
+        />
+        <p v-else-if="textValue(`${field.path}.media`)" class="mb-2 text-xs text-gray-500">Photo {{ textValue(`${field.path}.media`) }}</p>
+        <p v-else class="mb-2 text-xs text-gray-500">No photo yet.</p>
+        <div class="mb-2 flex flex-wrap gap-2">
+          <FwbButton size="sm" color="light" type="button" @click="pickerFor = field.path">Change</FwbButton>
+          <FwbButton v-if="textValue(`${field.path}.media`) && slotOf(field)" size="sm" color="light" type="button" @click="openCrop(field)">Crop</FwbButton>
         </div>
-        <p class="mt-2 text-xs text-gray-500">The media library will let you change or crop this photo later.</p>
+        <FwbInput :model-value="textValue(`${field.path}.alt`)" label="Alt text" @update:model-value="set(`${field.path}.alt`, $event)" />
       </div>
 
       <FwbInput
@@ -152,5 +264,7 @@ function removeItem(field: FieldSpec, index: number) {
         </div>
       </div>
     </div>
+    <MediaPickerModal v-if="pickerFor" :selected-id="pickerFor ? textValue(`${pickerFor}.media`) : null" @close="pickerFor = null" @pick="onPicked($event)" />
+    <CropDialog v-if="cropFor" :media-id="cropFor.mediaId" :ratio="cropFor.ratio" :title="cropFor.title" @close="cropFor = null" @approved="cropFor = null" />
   </div>
 </template>
