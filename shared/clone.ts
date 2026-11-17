@@ -12,3 +12,8 @@ export function cloneDraft<T>(value: T): T {
     throw new Error(`Could not copy this draft (${reason}).`)
   }
 }
+
+/** True when two JSON-shaped drafts have the same contents. */
+export function sameDraft(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b)
+}

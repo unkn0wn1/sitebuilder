@@ -6,6 +6,7 @@ import { brandContrastChecks, defaultBrandDoc, migrateBrandDoc, validateBrandDoc
 import { canSubmit, restingState } from '../../shared/workflow'
 import { brandPacks, draftOps, reviews, versions } from '../db/schema'
 import { audit } from './audit'
+import { sameDraft } from '../../shared/clone'
 import { actorKey, inTx, iso, type ActingAs, type ServiceCtx } from './context'
 import { AppError, forbidden, notFound } from './errors'
 import { notify, usersWithRoles } from './notify'
@@ -87,6 +88,9 @@ export function editBrand(ctx: ServiceCtx, actor: ActingAs, baseRevision: number
     const valid = validateBrandDoc(doc)
     if (!valid.ok) throw new AppError('validation_failed', valid.issues[0]!.message, valid.issues)
     const checks = brandContrastChecks(valid.doc)
+    if (sameDraft(valid.doc, current)) {
+      return { revision: pack.draftRevision, doc: current, warnings: checks.warnings, reviewWithdrawn: false }
+    }
     const headId = saveDraftSnapshot(ctx, 'brand', pack.id, pack.draftVersionId, valid.doc, actor)
     const revision = pack.draftRevision + 1
     ctx.db

@@ -3,6 +3,7 @@
 // See docs/04-gui.md#site-parts-menus and docs/14-api.md#site-parts-templates-brand.
 import { and, desc, eq, gt, inArray, ne } from 'drizzle-orm'
 import { newId } from '../../shared/ids'
+import { sameDraft } from '../../shared/clone'
 import type { FieldIssue } from '../../shared/issues'
 import { can } from '../../shared/roles'
 import { defaultSitePartDoc, migrateSitePartDoc, sitePartLinks, validateSitePartDoc, type SitePartDoc, type SitePartKind } from '../../shared/site-parts'
@@ -108,6 +109,9 @@ export function editSitePart(ctx: ServiceCtx, actor: ActingAs, id: string, baseR
     if (!valid.ok) throw new AppError('validation_failed', valid.issues[0]!.message, valid.issues)
     const checks = sitePartChecks(ctx, part.kind, valid.doc)
     if (checks.blocking.length) throw new AppError('validation_failed', checks.blocking[0]!.message, checks.blocking)
+    if (sameDraft(valid.doc, current)) {
+      return { revision: part.draftRevision, doc: current, warnings: checks.warnings, reviewWithdrawn: false }
+    }
 
     const headId = saveDraftSnapshot(ctx, 'site_part', id, part.draftVersionId, valid.doc, actor)
     const revision = part.draftRevision + 1

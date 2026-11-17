@@ -30,4 +30,28 @@ describe('brand pack', () => {
     expect(sub.reviewId).toBeTruthy()
     expect(getBrand(s.ctx).pack.workflowState).toBe('in_review')
   })
+
+  it('does not withdraw a pending review when the same draft is saved again', () => {
+    const s = setup()
+    const next = { ...defaultBrandDoc(), menuStyle: 'mega' as const }
+    const saved = editBrand(s.ctx, s.admin, 0, next)
+    submitBrand(s.ctx, s.admin)
+    expect(getBrand(s.ctx).pack.workflowState).toBe('in_review')
+    const again = editBrand(s.ctx, s.admin, saved.revision, next)
+    expect(again.reviewWithdrawn).toBe(false)
+    expect(again.revision).toBe(saved.revision)
+    expect(getBrand(s.ctx).pack.workflowState).toBe('in_review')
+    expect(getBrand(s.ctx).review).toBeTruthy()
+  })
+
+  it('withdraws a pending review only when the draft actually changes', () => {
+    const s = setup()
+    const next = { ...defaultBrandDoc(), menuStyle: 'mega' as const }
+    const saved = editBrand(s.ctx, s.admin, 0, next)
+    submitBrand(s.ctx, s.admin)
+    const changed = editBrand(s.ctx, s.admin, saved.revision, { ...next, menuStyle: 'simple' })
+    expect(changed.reviewWithdrawn).toBe(true)
+    expect(getBrand(s.ctx).pack.workflowState).not.toBe('in_review')
+    expect(getBrand(s.ctx).review).toBeNull()
+  })
 })

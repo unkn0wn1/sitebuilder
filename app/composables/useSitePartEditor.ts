@@ -67,7 +67,7 @@ export function useSitePartEditor(id: MaybeRefOrGetter<string>) {
     inflight = (async () => {
       try {
         const sending = cloneDraft(doc.value)
-        const result = await api<{ revision: number; doc: SitePartDoc; warnings: FieldIssue[] }>(`/site-parts/${toValue(id)}/ops`, {
+        const result = await api<{ revision: number; doc: SitePartDoc; warnings: FieldIssue[]; reviewWithdrawn?: boolean }>(`/site-parts/${toValue(id)}/ops`, {
           method: 'POST',
           body: { baseRevision: base, ops: [{ op: 'replace', doc: sending }] },
         })
@@ -75,7 +75,7 @@ export function useSitePartEditor(id: MaybeRefOrGetter<string>) {
         warnings.value = result.warnings ?? []
         if (detail.value) {
           detail.value.part.draftRevision = result.revision
-          if (detail.value.part.workflowState === 'in_review') detail.value.part.workflowState = detail.value.part.publishedVersionId ? 'published' : 'draft'
+          if (result.reviewWithdrawn) detail.value.part.workflowState = detail.value.part.publishedVersionId ? 'published' : 'draft'
         }
         dirty.value = false
         saveStatus.value = 'saved'

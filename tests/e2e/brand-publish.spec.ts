@@ -1,0 +1,105 @@
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { expect, test, type Page } from 'playwright/test'
+
+const email = process.env.SEED_ADMIN_EMAIL ?? 'admin@example.org'
+const password = process.env.SEED_ADMIN_PASSWORD ?? 'sb-demo-pass-17'
+
+async function signIn(page: Page) {
+  await page.goto('/login')
+  await page.getByLabel('Email').fill(email)
+  await page.getByLabel('Password').fill(password)
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await expect(page.getByRole('heading', { name: 'Pages' })).toBeVisible({ timeout: 20_000 })
+}
+
+async function expectSaved(page: Page) {
+  await expect(page.getByTestId('save-status')).toHaveText('Saved', { timeout: 15_000 })
+}
+
+async function apiJson(page: Page, method: string, path: string, body?: unknown) {
+  const origin = new URL(page.url()).origin
+  const res = await page.request.fetch(path, {
+    method,
+    headers: { Origin: origin, 'Content-Type': 'application/json' },
+    data: body,
+  })
+  const text = await res.text()
+  expect(res.ok(), `${method} ${path} ${res.status()}: ${text}`).toBeTruthy()
+  return text ? JSON.parse(text) : {}
+}
+
+function publishedHomeHtml(): string | null {
+  const roots = [process.env.SITEBUILDER_SITE_ROOT, join(process.cwd(), '.data', 'site')].filter((p): p is string => !!p)
+  for (const root of roots) {
+    const current = join(root, 'current')
+    const home = join(current, 'index.html')
+    if (existsSync(home)) return readFileSync(home, 'utf8')
+    // Seeded pages may live in a subfolder.
+    if (existsSync(current)) {
+      for (const name of readdirSync(current, { withFileTypes: true })) {
+        if (!name.isDirectory()) continue
+        const nested = join(current, name.name, 'index.html')
+        if (existsSync(nested) && readFileSync(nested, 'utf8').includes('site-header')) {
+          return readFileSync(nested, 'utf8')
+        }
+      }
+    }
+  }
+  return null
+}
+
+async function enableSelfApproval(page: Page) {
+  await apiJson(page, 'PATCH', '/api/v1/settings', { workflow: { selfApproval: true } })
+}
+
+async function publishAPage(page: Page) {
+  const list = await apiJson(page, 'GET', '/api/v1/pages?search=Winter%20appeal&page=1&pageSize=10')
+  const item = (list.items as { id: string; title: string; state: string; hasUnpublishedChanges: boolean }[])
+    .find((p) => p.title === 'Winter appeal') ?? list.items[0]
+  expect(item, 'seed should include a page to publish').toBeTruthy()
+  if (item.state === 'published' && !item.hasUnpublishedChanges) {
+    if (publishedHomeHtml()) return
+  }
+  const submitted = await apiJson(page, 'POST', `/api/v1/pages/${item.id}/submit`, {
+    overrideReason: 'Needed so the brand look can render on a live page.',
+  })
+  await apiJson(page, 'POST', `/api/v1/reviews/${submitted.reviewId}/approve`, {
+    versionId: submitted.versionId,
+    overrideReason: 'Needed so the brand look can render on a live page.',
+  })
+  await expect.poll(() => (publishedHomeHtml() ? 'ready' : 'missing'), { timeout: 60_000 }).toBe('ready')
+}
+
+test('changing the brand menu look still publishes after leaving the page for approvals', async ({ page }) => {
+  test.setTimeout(180_000)
+  await signIn(page)
+
+  // A single admin can approve their own brand change in this flow.
+  await enableSelfApproval(page)
+  await publishAPage(page)
+
+  await page.goto('/brand')
+  await expect(page.getByRole('heading', { name: 'Brand and Design' })).toBeVisible({ timeout: 20_000 })
+  await expectSaved(page)
+  await page.getByRole('radio', { name: /Hamburger/ }).check()
+  await expectSaved(page)
+
+  await page.getByRole('button', { name: 'Submit for approval' }).click()
+  await page.getByText('An approver will review this look').waitFor({ timeout: 10_000 })
+  await page.getByRole('button', { name: 'Submit', exact: true }).click()
+  await expect(page.getByTestId('brand-status')).toHaveText(/Waiting for approval/, { timeout: 15_000 })
+
+  // This is the navigation that used to flush the same draft and withdraw the review.
+  await page.goto('/approvals')
+  const reviewLink = page.locator('table a[href^="/approvals/"]').filter({ hasText: 'Brand and Design' }).first()
+  await expect(reviewLink).toBeVisible({ timeout: 15_000 })
+  await reviewLink.click()
+  await expect(page.getByRole('button', { name: 'Approve and publish' })).toBeVisible({ timeout: 20_000 })
+  await page.getByRole('button', { name: 'Approve and publish' }).click()
+
+  await expect.poll(() => {
+    const html = publishedHomeHtml()
+    return html && html.includes('site-header-hamburger') ? 'hamburger' : html ? 'other' : 'missing'
+  }, { timeout: 60_000 }).toBe('hamburger')
+})

@@ -28,7 +28,11 @@ const showSubmit = ref(false)
 const submitNote = ref('')
 const showLogo = ref(false)
 const logoPreview = ref<string | null>(null)
+const review = ref<{ id: string } | null>(null)
+const withdrawnNotice = ref('')
 let timer: ReturnType<typeof setTimeout> | null = null
+let lastSaved = ''
+let dirty = false
 
 const TOKEN_FIELDS: { key: keyof BrandTokens; label: string }[] = [
   { key: 'ink', label: 'Body text' },
@@ -42,25 +46,47 @@ const TOKEN_FIELDS: { key: keyof BrandTokens; label: string }[] = [
   { key: 'celebrate', label: 'Celebrate' },
 ]
 
+const hasUnpublishedChanges = computed(() => {
+  const p = pack.value
+  return !!p && p.draftVersionId !== p.publishedVersionId
+})
+
 const canSubmitNow = computed(() => {
   const p = pack.value
   if (!p || !canEdit.value) return false
   if (p.workflowState !== 'draft' && p.workflowState !== 'published' && p.workflowState !== 'unpublished') return false
-  return p.draftVersionId !== p.publishedVersionId
+  return hasUnpublishedChanges.value
 })
 
 const previewCss = computed(() => scopeThemeCss(themeCssFromTokens(doc.value.tokens, doc.value.fonts), '.sb-brand-preview'))
-const status = computed(() => (pack.value ? statusLabel(pack.value.workflowState, !!pack.value.publishedVersionId && pack.value.publishedVersionId !== pack.value.draftVersionId) : 'Draft'))
+const status = computed(() => (pack.value ? statusLabel(pack.value.workflowState, hasUnpublishedChanges.value) : 'Draft'))
+const statusClass = computed(() => {
+  const state = pack.value?.workflowState
+  if (state === 'in_review' || state === 'approved') return 'sb-status-in_review'
+  if (state === 'published' && !hasUnpublishedChanges.value) return 'sb-status-published'
+  return 'sb-status-draft'
+})
+
+function snapshot(value: BrandDoc) {
+  return JSON.stringify(cloneDraft(value))
+}
+
+function markClean(value: BrandDoc) {
+  lastSaved = snapshot(value)
+  dirty = false
+}
 
 async function load() {
   loading.value = true
   error.value = ''
   try {
-    const data = await api<{ pack: { id: string; workflowState: WorkflowState; publishedVersionId: string | null; draftVersionId: string | null }; doc: BrandDoc; revision: number; checks: { warnings: FieldIssue[] } }>('/brand')
+    const data = await api<{ pack: { id: string; workflowState: WorkflowState; publishedVersionId: string | null; draftVersionId: string | null }; doc: BrandDoc; revision: number; review: { id: string } | null; checks: { warnings: FieldIssue[] } }>('/brand')
     pack.value = data.pack
     doc.value = data.doc
     revision.value = data.revision
+    review.value = data.review
     warnings.value = data.checks.warnings
+    markClean(data.doc)
     if (data.doc.logoMediaId) await loadLogo(data.doc.logoMediaId)
     else logoPreview.value = null
   } catch (err) {
@@ -82,6 +108,7 @@ async function loadLogo(id: string) {
 
 function scheduleSave() {
   if (!canEdit.value) return
+  dirty = true
   saveStatus.value = 'saving'
   if (timer) clearTimeout(timer)
   timer = setTimeout(() => void flush(), 600)
@@ -96,20 +123,30 @@ async function flush() {
     if (saveStatus.value === 'saving') saveStatus.value = 'saved'
     return
   }
+  if (!dirty && snapshot(doc.value) === lastSaved) {
+    if (saveStatus.value === 'saving') saveStatus.value = 'saved'
+    return
+  }
   saveStatus.value = 'saving'
   error.value = ''
   try {
-    const result = await api<{ revision: number; doc: BrandDoc; warnings: FieldIssue[] }>('/brand/ops', {
+    const result = await api<{ revision: number; doc: BrandDoc; warnings: FieldIssue[]; reviewWithdrawn?: boolean }>('/brand/ops', {
       method: 'POST',
       body: { baseRevision: revision.value, ops: [{ op: 'replace', doc: cloneDraft(doc.value) }] },
     })
     revision.value = result.revision
     warnings.value = result.warnings ?? []
+    markClean(doc.value)
     saveStatus.value = 'saved'
-    // Reload pack pointers so Submit knows there are changes.
-    const fresh = await api<{ pack: typeof pack.value; checks: { warnings: FieldIssue[] } }>('/brand')
+    // Reload pack pointers so Submit knows there are changes, and so a
+    // withdrawn review is reflected before we leave the page.
+    const fresh = await api<{ pack: typeof pack.value; review: { id: string } | null; checks: { warnings: FieldIssue[] } }>('/brand')
     pack.value = fresh.pack
+    review.value = fresh.review
     warnings.value = fresh.checks?.warnings ?? warnings.value
+    if (result.reviewWithdrawn) {
+      withdrawnNotice.value = 'The approval was withdrawn because the draft changed. Submit it again when you are ready.'
+    }
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'Could not save the brand pack.'
     saveStatus.value = 'error'
@@ -134,8 +171,10 @@ function onLogo(item: MediaItem) {
 
 async function onSubmit() {
   await flush()
+  if (saveStatus.value === 'error') return
   submitting.value = true
   error.value = ''
+  withdrawnNotice.value = ''
   try {
     await api('/brand/submit', { method: 'POST', body: submitNote.value.trim() ? { note: submitNote.value.trim() } : {} })
     showSubmit.value = false
@@ -151,7 +190,9 @@ async function onSubmit() {
 onMounted(load)
 onBeforeUnmount(() => {
   if (timer) clearTimeout(timer)
-  void flush()
+  // A flush of an unchanged draft used to withdraw a just-submitted review
+  // as soon as the admin left the page for Approvals.
+  if (dirty) void flush()
 })
 </script>
 
@@ -163,12 +204,19 @@ onBeforeUnmount(() => {
         <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">Colours, type, the logo, and how the menu looks — without changing the links in it.</p>
       </div>
       <div class="flex items-center gap-3">
-        <span class="sb-status" :class="pack?.workflowState === 'published' ? 'sb-status-published' : 'sb-status-draft'">{{ status }}</span>
+        <span class="sb-status" data-testid="brand-status" :class="statusClass">{{ status }}</span>
         <span class="text-sm text-gray-500 dark:text-gray-400" data-testid="save-status">{{ saveStatus === 'saving' ? 'Saving…' : saveStatus === 'error' ? 'Not saved' : 'Saved' }}</span>
         <FwbButton v-if="canSubmitNow" size="sm" :disabled="submitting || saveStatus === 'saving'" @click="showSubmit = true">Submit for approval</FwbButton>
       </div>
     </div>
     <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
+    <FwbAlert v-else-if="withdrawnNotice" type="warning" class="mb-4">{{ withdrawnNotice }}</FwbAlert>
+    <p v-if="!loading && pack?.workflowState === 'in_review' && review" class="mb-4 text-sm text-gray-700 dark:text-gray-300">
+      These changes are waiting for approval.
+      <NuxtLink :to="`/approvals/${review.id}`" class="text-blue-700 no-underline hover:underline dark:text-blue-400">Open the review</NuxtLink>.
+    </p>
+    <p v-else-if="!loading && pack?.workflowState === 'approved'" class="mb-4 text-sm text-gray-700 dark:text-gray-300">Publishing. Every live page is being updated.</p>
+    <p v-else-if="!loading && hasUnpublishedChanges" class="mb-4 text-sm text-gray-700 dark:text-gray-300">The live site still has the last published look. Submit these changes when you are ready.</p>
     <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading brand and design…</p>
     <div v-else class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_24rem]">
       <div class="space-y-8">

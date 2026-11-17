@@ -99,4 +99,16 @@ describe('site parts', () => {
     sendBackReview(s.ctx, s.admin, sub2.reviewId, 'Shorter please')
     expect(getSitePart(s.ctx, id).part.workflowState).toBe('draft')
   })
+
+  it('does not withdraw a pending review when the same draft is saved again', () => {
+    const s = setup()
+    const id = createSitePart(s.ctx, 'banner', 'banner', 'Banner')
+    const doc = { schemaVersion: 1 as const, enabled: true, message: 'Winter appeal now on' }
+    const saved = editSitePart(s.ctx, s.approver, id, 0, doc)
+    submitSitePart(s.ctx, s.approver, id)
+    const again = editSitePart(s.ctx, s.approver, id, saved.revision, doc)
+    expect(again.reviewWithdrawn).toBe(false)
+    expect(again.revision).toBe(saved.revision)
+    expect(getSitePart(s.ctx, id).part.workflowState).toBe('in_review')
+  })
 })

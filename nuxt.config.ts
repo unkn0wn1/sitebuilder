@@ -22,6 +22,8 @@ export default defineNuxtConfig({
     strict: true,
   },
   routeRules: {
+    '/**': { headers: { 'cache-control': 'private, no-store' } },
+    '/_nuxt/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
     '/login': { ssr: false },
     '/pages/**': { ssr: false },
     '/site-parts/**': { ssr: false },
