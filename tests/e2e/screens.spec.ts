@@ -73,7 +73,9 @@ test('site parts list, menu, header and footer', async ({ page }) => {
   await page.goto('/site-parts')
   await page.getByRole('link', { name: 'Header', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Header' })).toBeVisible({ timeout: 20_000 })
-  await expect(page.getByLabel('Layout')).toBeVisible()
+  await expect(page.getByLabel('Menu')).toBeVisible()
+  await expect(page.getByLabel('Menu look')).toHaveCount(0)
+  await expect(page.getByText(/Menu look is set in/).getByRole('link', { name: 'Brand and Design' })).toBeVisible()
   await page.screenshot({ path: shot('header-editor.png'), fullPage: true })
 
   await page.goto('/site-parts')

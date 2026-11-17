@@ -413,6 +413,7 @@ function embedSrc(embed: EmbedCatalogEntry): string | null {
   return null
 }
 
+/** Brand pack menuStyle is the source of truth. A header-level style is only a fallback for older sites with no brand pack. */
 function menuStyleOf(site: SiteRenderContext): HeaderDoc['style'] {
   return site.brand?.menuStyle ?? site.header?.doc.style ?? 'simple'
 }

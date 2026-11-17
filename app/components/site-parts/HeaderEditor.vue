@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { HEADER_STYLE_HELP, HEADER_STYLE_LABELS, type HeaderDoc, type HeaderStyle, type LinkTarget } from '#shared/site-parts'
+import type { HeaderDoc, LinkTarget } from '#shared/site-parts'
 import type { PageOption, SitePartListItem } from '../../utils/site-parts'
 import LinkTargetField from './LinkTargetField.vue'
 
@@ -44,13 +44,10 @@ function setCtaTarget(target: LinkTarget) {
 
 <template>
   <div class="space-y-6">
-    <FwbSelect
-      :model-value="modelValue.style"
-      :options="(Object.keys(HEADER_STYLE_LABELS) as HeaderStyle[]).map((value) => ({ name: `${HEADER_STYLE_LABELS[value]} — ${HEADER_STYLE_HELP[value]}`, value }))"
-      label="Menu look"
-      @update:model-value="patch({ style: (Object.keys(HEADER_STYLE_LABELS) as HeaderStyle[]).includes($event as HeaderStyle) ? ($event as HeaderStyle) : 'simple' })"
-    />
-    <p class="text-sm text-gray-600 dark:text-gray-400">This only changes how the menu looks. The links themselves stay as they are, and are edited in the menu.</p>
+    <p class="text-sm text-gray-600 dark:text-gray-400">
+      Menu look is set in
+      <NuxtLink to="/brand" class="text-blue-700 no-underline hover:underline dark:text-blue-400">Brand and Design</NuxtLink>.
+    </p>
     <FwbSelect
       :model-value="modelValue.menuKey"
       :options="menuOptions.length ? menuOptions : [{ name: 'No menus yet', value: modelValue.menuKey }]"

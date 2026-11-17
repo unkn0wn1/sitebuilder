@@ -59,15 +59,16 @@ test('brand menu look, site parts and settings all finish saving', async ({ page
   await page.getByRole('link', { name: 'Header', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Header' })).toBeVisible({ timeout: 20_000 })
   await expectSaved(page)
-  const menuLook = page.getByLabel('Menu look')
-  const current = await menuLook.inputValue()
-  const options = ['simple', 'centred', 'mega', 'hamburger']
-  for (const value of options) {
-    await menuLook.selectOption(value)
-    await expectSaved(page)
-  }
-  if (options.includes(current)) await menuLook.selectOption(current)
+  await expect(page.getByLabel('Menu look')).toHaveCount(0)
+  const hint = page.getByText(/Menu look is set in/)
+  await expect(hint.getByRole('link', { name: 'Brand and Design' })).toBeVisible()
+  const hadCta = await page.getByRole('checkbox', { name: 'Show a button in the header' }).isChecked()
+  await page.getByRole('checkbox', { name: 'Show a button in the header' }).setChecked(!hadCta)
   await expectSaved(page)
+  await page.getByRole('checkbox', { name: 'Show a button in the header' }).setChecked(hadCta)
+  await expectSaved(page)
+  await hint.getByRole('link', { name: 'Brand and Design' }).click()
+  await expect(page.getByRole('heading', { name: 'Brand and Design' })).toBeVisible({ timeout: 20_000 })
 
   await page.goto('/site-parts')
   await page.getByRole('link', { name: 'Footer', exact: true }).click()

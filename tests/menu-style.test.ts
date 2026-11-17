@@ -77,9 +77,29 @@ describe('menu look presets', () => {
       pageId: 'pg_home',
       versionId: 'ver_1',
       path: '/',
-      site: site({ brand: { ...defaultBrandDoc(), menuStyle: 'hamburger' } }),
+      site: site({
+        brand: { ...defaultBrandDoc(), menuStyle: 'hamburger' },
+        header: { id: 'sp_header', doc: { ...(defaultSitePartDoc('header') as HeaderDoc), style: 'mega', menuKey: 'main' } },
+      }),
     })
     expect(rendered.html).toContain('nav-hamburger')
+    expect(rendered.html).not.toContain('site-header-mega')
+    expect(rendered.html).toContain('>Home</a>')
+  })
+
+  it('falls back to the header style when the site has no brand pack', async () => {
+    const doc = emptyPageDoc('Home')
+    const rendered = await renderPageHtml({
+      doc,
+      pageId: 'pg_home',
+      versionId: 'ver_1',
+      path: '/',
+      site: site({
+        brand: null,
+        header: { id: 'sp_header', doc: { ...(defaultSitePartDoc('header') as HeaderDoc), style: 'centred', menuKey: 'main' } },
+      }),
+    })
+    expect(rendered.html).toContain('site-header-centred')
     expect(rendered.html).toContain('>Home</a>')
   })
 })
