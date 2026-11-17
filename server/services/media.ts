@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { and, desc, eq, isNull, like, or, sql } from 'drizzle-orm'
 import sharp, { type Metadata } from 'sharp'
 import { z } from 'zod'
+import { cropRectError, defaultCropRect, type CropRect } from '../../shared/crop'
 import { newId } from '../../shared/ids'
 import { zodIssues } from '../../shared/issues'
 import { can } from '../../shared/roles'
@@ -220,23 +221,40 @@ export const cropInputSchema = z.object({
   rect: z.object({ x: z.number().int().min(0), y: z.number().int().min(0), width: z.number().int().min(16), height: z.number().int().min(16) }).strict(),
 })
 
-/** Approve a crop for a slot ratio. Coordinates are against the stored (upright) image. */
-export function approveCrop(ctx: ServiceCtx, actor: ActingAs, id: string, input: z.input<typeof cropInputSchema>) {
-  if (!can(actor, 'media.upload')) throw forbidden()
-  const result = cropInputSchema.safeParse(input)
+export interface ResolvedCrop {
+  media: MediaRow
+  ratio: string
+  breakpoint: 'all' | 'mobile' | 'desktop'
+  rect: CropRect
+}
+
+/** Validate a crop (or fill in a centred default) without approving it. */
+export function resolveCrop(ctx: ServiceCtx, id: string, input: { ratio: string; breakpoint?: 'all' | 'mobile' | 'desktop'; rect?: CropRect }): ResolvedCrop {
+  const row = requireMedia(ctx, id)
+  if (row.kind !== 'image') throw new AppError('validation_failed', 'Only still images can be cropped.', [{ path: 'mediaId', message: 'Not an image.' }])
+  const width = row.width ?? 0
+  const height = row.height ?? 0
+  if (width < 16 || height < 16) throw new AppError('validation_failed', "This image isn't large enough to crop.", [{ path: 'mediaId', message: 'Too small.' }])
+  const rect = input.rect ?? defaultCropRect({ width, height, focalX: row.focalX, focalY: row.focalY }, input.ratio)
+  const result = cropInputSchema.safeParse({ ratio: input.ratio, breakpoint: input.breakpoint ?? 'all', rect })
   if (!result.success) throw new AppError('validation_failed', result.error.issues[0]!.message, zodIssues(result.error))
   const parsed = result.data
-  const row = requireMedia(ctx, id)
-  const { x, y, width, height } = parsed.rect
-  if (x + width > (row.width ?? 0) || y + height > (row.height ?? 0)) throw new AppError('validation_failed', 'The crop goes outside the image.', [{ path: 'rect', message: 'Outside the image.' }])
-  const [rw, rh] = parsed.ratio.split(':').map(Number) as [number, number]
-  if (Math.abs(width / height - rw / rh) > 0.02) throw new AppError('validation_failed', `The crop isn't ${parsed.ratio}.`, [{ path: 'rect', message: 'Wrong shape.' }])
+  const err = cropRectError({ width, height }, parsed.ratio, parsed.rect)
+  if (err) throw new AppError('validation_failed', err, [{ path: 'rect', message: err }])
+  return { media: row, ratio: parsed.ratio, breakpoint: parsed.breakpoint, rect: parsed.rect }
+}
+
+/** Approve a crop for a slot ratio. Coordinates are against the stored (upright) image. The assistant cannot approve. */
+export function approveCrop(ctx: ServiceCtx, actor: ActingAs, id: string, input: z.input<typeof cropInputSchema>) {
+  if (actor.aiSessionId) throw forbidden('The assistant can propose a crop, but a person has to approve it.')
+  if (!can(actor, 'media.upload')) throw forbidden()
+  const { media: row, ratio, breakpoint, rect } = resolveCrop(ctx, id, input)
   return inTx(ctx, () => {
-    ctx.db.delete(mediaCrops).where(and(eq(mediaCrops.mediaId, id), eq(mediaCrops.ratio, parsed.ratio), eq(mediaCrops.breakpoint, parsed.breakpoint))).run()
+    ctx.db.delete(mediaCrops).where(and(eq(mediaCrops.mediaId, id), eq(mediaCrops.ratio, ratio), eq(mediaCrops.breakpoint, breakpoint))).run()
     const cropId = newId('crop', ctx.now().getTime())
-    ctx.db.insert(mediaCrops).values({ id: cropId, siteId: ctx.siteId, mediaId: id, ratio: parsed.ratio, breakpoint: parsed.breakpoint, x, y, width, height, approvedBy: actor.id, approvedAt: iso(ctx) }).run()
+    ctx.db.insert(mediaCrops).values({ id: cropId, siteId: ctx.siteId, mediaId: id, ratio, breakpoint, x: rect.x, y: rect.y, width: rect.width, height: rect.height, approvedBy: actor.id, approvedAt: iso(ctx) }).run()
     const jobId = enqueueJob(ctx, 'media_renditions', { mediaId: id, cropId }, { createdBy: actor.id })
-    audit(ctx, actor, 'media.crop_approved', { type: 'media', id }, { cropId, ratio: parsed.ratio })
+    audit(ctx, actor, 'media.crop_approved', { type: 'media', id }, { cropId, ratio })
     return { cropId, jobId }
   })
 }

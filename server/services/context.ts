@@ -8,6 +8,8 @@ export interface ServiceCtx {
   siteId: string
   registry: BlockRegistry
   now: () => Date
+  /** Optional folder for generated preview images (and tests). */
+  filesDir?: string
 }
 
 /** A person, optionally acting through an AI session they own. */

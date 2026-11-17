@@ -29,7 +29,7 @@ function code(fn: () => unknown): string {
 }
 
 describe('settings', () => {
-  it('reads defaults, merges patches, validates ids, and is admin only', () => {
+  it('reads defaults, merges patches, validates ids, and is admin only', async () => {
     const s = setup()
     expect(getSettings(s.ctx).settings.workflow.selfApproval).toBe(false)
     expect(getSettings(s.ctx).secretsSet).toEqual({ ai_api_key: false, cloudflare_token: false, smtp_password: false })
@@ -41,7 +41,7 @@ describe('settings', () => {
     expect(code(() => updateSettings(s.ctx, s.approver, { workflow: { selfApproval: true } }))).toBe('forbidden')
   })
 
-  it('self-approval setting is what approval reads', () => {
+  it('self-approval setting is what approval reads', async () => {
     const s = setup()
     const { page } = createPage(s.ctx, s.approver, { title: 'Contact', template: 'standard' })
     applyPageOps(s.ctx, s.approver, page.id, 0, [{ op: 'set_seo', description: 'How to reach us' }])
@@ -78,7 +78,7 @@ describe('redirects', () => {
 })
 
 describe('memory', () => {
-  it('site memory is admin-edited and readable by all; user memory is private', () => {
+  it('site memory is admin-edited and readable by all; user memory is private', async () => {
     const s = setup()
     const site = addMemory(s.ctx, s.admin, { scope: 'site', text: "Always say 'rescue', never 'shelter'." })
     expect(code(() => addMemory(s.ctx, s.editor, { scope: 'site', text: 'x' }))).toBe('forbidden')
@@ -90,25 +90,25 @@ describe('memory', () => {
     deleteMemory(s.ctx, s.editor, mine.id)
   })
 
-  it('the assistant only proposes; a person accepts', () => {
+  it('the assistant only proposes; a person accepts', async () => {
     const s = setup()
     const { page } = createPage(s.ctx, s.editor, { title: 'News', template: 'standard' })
     const session = startAiSession(s.ctx, s.editor, { taskType: 'page_edit', targetId: page.id })
-    const r = runTool(s.ctx, s.editor, session.id, 'remember', { scope: 'user', text: 'I write news posts.' })
+    const r = await runTool(s.ctx, s.editor, session.id, 'remember', { scope: 'user', text: 'I write news posts.' })
     expect(r.ok).toBe(true)
     const id = (r as { result: { proposedMemoryId: string } }).result.proposedMemoryId
     expect(listMemory(s.ctx, s.editor).find((m) => m.id === id)?.state).toBe('proposed')
     expect(code(() => addMemory(s.ctx, { ...s.editor, aiSessionId: session.id }, { scope: 'user', text: 'sneaky' }))).toBe('forbidden')
     expect(acceptMemory(s.ctx, s.editor, id).state).toBe('active')
 
-    const siteProposal = runTool(s.ctx, s.editor, session.id, 'remember', { scope: 'site', text: 'We were founded in 1998.' }) as { result: { proposedMemoryId: string } }
+    const siteProposal = await runTool(s.ctx, s.editor, session.id, 'remember', { scope: 'site', text: 'We were founded in 1998.' }) as { result: { proposedMemoryId: string } }
     expect(code(() => acceptMemory(s.ctx, s.editor, siteProposal.result.proposedMemoryId))).toBe('forbidden')
     expect(acceptMemory(s.ctx, s.admin, siteProposal.result.proposedMemoryId).state).toBe('active')
   })
 })
 
 describe('bin', () => {
-  it('restores a page, moving it if its address was taken', () => {
+  it('restores a page, moving it if its address was taken', async () => {
     const s = setup()
     const { page } = createPage(s.ctx, s.editor, { title: 'Events', template: 'standard' })
     binPage(s.ctx, s.editor, page.id)
@@ -125,14 +125,14 @@ describe('bin', () => {
 })
 
 describe('AI session cancel', () => {
-  it('ends the session and stops further tool calls', () => {
+  it('ends the session and stops further tool calls', async () => {
     const s = setup()
     const { page } = createPage(s.ctx, s.editor, { title: 'Volunteer', template: 'standard' })
     const session = startAiSession(s.ctx, s.editor, { taskType: 'page_edit', targetId: page.id })
-    expect(runTool(s.ctx, s.editor, session.id, 'set_seo', { description: 'Help us' }).ok).toBe(true)
+    expect((await runTool(s.ctx, s.editor, session.id, 'set_seo', { description: 'Help us' })).ok).toBe(true)
     expect(code(() => cancelAiSession(s.ctx, s.editor2, session.id))).toBe('not_found')
     expect(cancelAiSession(s.ctx, s.editor, session.id).state).toBe('ended')
-    expect(runTool(s.ctx, s.editor, session.id, 'set_seo', { description: 'Again' }).ok).toBe(false)
+    expect((await runTool(s.ctx, s.editor, session.id, 'set_seo', { description: 'Again' })).ok).toBe(false)
   })
 })
 
@@ -177,7 +177,7 @@ describe('password reset and email', () => {
 })
 
 describe('system status', () => {
-  it('reports the queue and last release', () => {
+  it('reports the queue and last release', async () => {
     const s = setup()
     const status = systemStatus(s.ctx, { version: '0.0.0', dbPath: ':memory:', dataDir: tmpdir() })
     expect(status.version).toBe('0.0.0')

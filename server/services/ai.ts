@@ -5,13 +5,16 @@
 import { and, eq, isNull, like } from 'drizzle-orm'
 import { checkToolCall, canStartTask, TASKS, type TaskType } from '../../shared/ai-tasks'
 import { runChecks } from '../../shared/checks'
+import { ratioFromSize } from '../../shared/crop'
 import { newId } from '../../shared/ids'
 import { opSchema, type Op } from '../../shared/ops'
-import { aiSessions, embeds, media, memoryEntries, pages, templates } from '../db/schema'
+import { aiMessages, aiSessions, embeds, media, memoryEntries, pages, templates } from '../db/schema'
 import { audit } from './audit'
-import { iso, type ActingAs, type ServiceCtx } from './context'
+import { inTx, iso, type ActingAs, type ServiceCtx } from './context'
 import { AppError, forbidden, notFound } from './errors'
-import { applyPageOps, createPage, getPage, requirePage, sealDraft } from './pages'
+import { resolveCrop } from './media'
+import { applyPageOps, createPage, getPage, requirePage, sealDraft, slugify } from './pages'
+import { renderSessionPreview } from './preview'
 import { submitPage } from './reviews'
 import { getTemplateRules } from './templates'
 
@@ -64,7 +67,7 @@ const PAGE_OPS = new Set(['add_block', 'update_props', 'move_block', 'remove_blo
 export type ToolResult = { ok: true; result: unknown } | { ok: false; error: string; fields?: { path: string; message: string }[] }
 
 /** Run one tool call for an AI session. Never throws for model mistakes: returns an error the model can read and fix. */
-export function runTool(ctx: ServiceCtx, actor: ActingAs, sessionId: string, tool: string, args: Record<string, unknown> = {}): ToolResult {
+export async function runTool(ctx: ServiceCtx, actor: ActingAs, sessionId: string, tool: string, args: Record<string, unknown> = {}): Promise<ToolResult> {
   const session = getAiSession(ctx, actor, sessionId)
   const callTargetId = typeof args.pageId === 'string' ? args.pageId : undefined
   const decision = checkToolCall({ role: actor.role, session, userId: actor.id, tool, callTargetType: callTargetId ? 'page' : undefined, callTargetId })
@@ -74,7 +77,7 @@ export function runTool(ctx: ServiceCtx, actor: ActingAs, sessionId: string, too
     return { ok: false, error: decision.reason }
   }
   try {
-    const result = dispatch(ctx, asAi, session, tool, args)
+    const result = await dispatch(ctx, asAi, session, tool, args)
     audit(ctx, asAi, 'ai.tool', { type: session.targetType, id: session.targetId }, { tool })
     return { ok: true, result }
   } catch (error) {
@@ -86,7 +89,7 @@ export function runTool(ctx: ServiceCtx, actor: ActingAs, sessionId: string, too
   }
 }
 
-function dispatch(ctx: ServiceCtx, actor: ActingAs, session: AiSession, tool: string, args: Record<string, unknown>): unknown {
+async function dispatch(ctx: ServiceCtx, actor: ActingAs, session: AiSession, tool: string, args: Record<string, unknown>): Promise<unknown> {
   const pageId = session.targetId
   if (PAGE_OPS.has(tool)) {
     const { op: _ignored, pageId: _p, ...rest } = args
@@ -139,14 +142,121 @@ function dispatch(ctx: ServiceCtx, actor: ActingAs, session: AiSession, tool: st
         .run()
       return { proposedMemoryId: id, note: 'Shown to the person to accept. Not saved until they do.' }
     }
-    case 'request_upload':
-    case 'crop_media':
-    case 'preview_screenshot':
     case 'create_draft':
-      return { status: 'not_available_yet', message: 'This tool is not built yet.' }
+      return createDraft(ctx, actor, session, args)
+    case 'request_upload':
+      return requestUpload(ctx, actor, session, args)
+    case 'crop_media':
+      return cropMedia(ctx, actor, session, args)
+    case 'preview_screenshot':
+      return renderSessionPreview(ctx, session, args, { filesDir: ctx.filesDir })
     default:
       throw new AppError('validation_failed', `Unknown tool "${tool}".`)
   }
+}
+
+function createDraft(ctx: ServiceCtx, actor: ActingAs, session: AiSession, args: Record<string, unknown>) {
+  const title = typeof args.title === 'string' ? args.title.trim() : ''
+  if (!title) throw new AppError('validation_failed', 'Give the page a title.', [{ path: 'title', message: 'Needed.' }])
+  const template = typeof args.template === 'string' ? args.template : undefined
+  const slugArg = typeof args.slug === 'string' ? args.slug : undefined
+  const parentId = args.parentId === null ? null : typeof args.parentId === 'string' ? args.parentId : undefined
+  return inTx(ctx, () => {
+    const page = requirePage(ctx, session.targetId)
+    if (template && template !== page.template) {
+      if (!getTemplateRules(ctx, template)) {
+        throw new AppError('validation_failed', `There is no "${template}" page type.`, [{ path: 'template', message: 'Unknown page type.' }])
+      }
+      ctx.db.update(pages).set({ template, updatedAt: iso(ctx) }).where(eq(pages.id, page.id)).run()
+    }
+    const slug = slugArg ?? (page.slug.startsWith('untitled-') ? slugify(title) : undefined)
+    const current = requirePage(ctx, page.id)
+    const result = applyPageOps(ctx, actor, page.id, current.draftRevision, [{ op: 'set_meta', title, ...(slug !== undefined ? { slug } : {}), ...(parentId !== undefined ? { parentId } : {}) }])
+    const latest = requirePage(ctx, page.id)
+    return { pageId: latest.id, title: latest.title, template: latest.template, path: latest.path, revision: result.revision }
+  })
+}
+
+function requestUpload(ctx: ServiceCtx, actor: ActingAs, session: AiSession, args: Record<string, unknown>) {
+  const purpose = typeof args.purpose === 'string' ? args.purpose.trim() : ''
+  const message = typeof args.message === 'string' ? args.message.trim() : ''
+  if (!purpose && !message) throw new AppError('validation_failed', 'Say what photo you need and what it is for.', [{ path: 'purpose', message: 'Needed.' }])
+  const blockId = typeof args.blockId === 'string' ? args.blockId : undefined
+  const slot = typeof args.slot === 'string' ? args.slot : undefined
+  let ratio = typeof args.ratio === 'string' ? args.ratio : undefined
+  if (blockId) {
+    const found = slotOnPage(ctx, session.targetId, blockId, slot)
+    ratio = ratio ?? found.ratio
+  }
+  const requestId = newId('aiMessage', ctx.now().getTime())
+  const result = {
+    needsYou: 'upload' as const,
+    requestId,
+    purpose: purpose || message,
+    message: message || purpose,
+    blockId,
+    slot,
+    ratio,
+    note: 'Shown to the person to upload. The assistant cannot upload a file for them.',
+  }
+  recordNeedsYou(ctx, actor, session, requestId, 'request_upload', result)
+  return result
+}
+
+function cropMedia(ctx: ServiceCtx, actor: ActingAs, session: AiSession, args: Record<string, unknown>) {
+  const mediaId = typeof args.mediaId === 'string' ? args.mediaId : ''
+  if (!mediaId) throw new AppError('validation_failed', 'Pick an image to crop.', [{ path: 'mediaId', message: 'Needed.' }])
+  const blockId = typeof args.blockId === 'string' ? args.blockId : undefined
+  const slot = typeof args.slot === 'string' ? args.slot : undefined
+  let ratio = typeof args.ratio === 'string' ? args.ratio : undefined
+  if (blockId) {
+    const found = slotOnPage(ctx, session.targetId, blockId, slot)
+    ratio = ratio ?? found.ratio
+  }
+  if (!ratio) throw new AppError('validation_failed', 'Say the crop ratio, or which section slot it is for.', [{ path: 'ratio', message: 'Needed.' }])
+  const rectArg = isRect(args.rect) ? args.rect : undefined
+  const breakpoint = args.breakpoint === 'mobile' || args.breakpoint === 'desktop' || args.breakpoint === 'all' ? args.breakpoint : 'all'
+  const resolved = resolveCrop(ctx, mediaId, { ratio, breakpoint, rect: rectArg })
+  const requestId = newId('aiMessage', ctx.now().getTime())
+  const result = {
+    needsYou: 'approve_crop' as const,
+    requestId,
+    mediaId: resolved.media.id,
+    ratio: resolved.ratio,
+    breakpoint: resolved.breakpoint,
+    rect: resolved.rect,
+    suggested: !rectArg,
+    blockId,
+    slot,
+    note: 'Shown to the person to approve. The crop is not applied until they do.',
+  }
+  recordNeedsYou(ctx, actor, session, requestId, 'crop_media', result)
+  return result
+}
+
+function slotOnPage(ctx: ServiceCtx, pageId: string, blockId: string, slot?: string): { ratio: string; slot: string } {
+  const { doc } = getPage(ctx, pageId)
+  const block = doc.blocks.find((b) => b.id === blockId)
+  if (!block) throw new AppError('validation_failed', "That section isn't on this page.", [{ path: 'blockId', message: 'Not on this page.' }])
+  const slots = ctx.registry.get(block.type)?.imageSlots ?? {}
+  const key = slot ?? Object.keys(slots)[0]
+  const size = key ? slots[key] : undefined
+  if (!key || !size) throw new AppError('validation_failed', "That section doesn't have an image slot.", [{ path: 'slot', message: 'No image slot.' }])
+  return { slot: key, ratio: ratioFromSize(size.width, size.height) }
+}
+
+function isRect(value: unknown): value is { x: number; y: number; width: number; height: number } {
+  if (typeof value !== 'object' || value === null) return false
+  const v = value as Record<string, unknown>
+  return [v.x, v.y, v.width, v.height].every((n) => typeof n === 'number' && Number.isInteger(n))
+}
+
+function recordNeedsYou(ctx: ServiceCtx, actor: ActingAs, session: AiSession, id: string, tool: string, content: Record<string, unknown>) {
+  ctx.db
+    .insert(aiMessages)
+    .values({ id, siteId: ctx.siteId, sessionId: session.id, role: 'tool', content: { tool, ...content }, createdAt: iso(ctx) })
+    .run()
+  audit(ctx, actor, 'ai.needs_you', { type: session.targetType, id: session.targetId }, { tool, requestId: id })
 }
 
 /** End of an AI turn: seal the AI's snapshot so it shows as one entry in History. */
