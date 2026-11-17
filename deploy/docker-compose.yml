@@ -1,0 +1,41 @@
+# Supported install: one builder container and one nginx container (ADR 0007).
+# Run from the repo: ./deploy/install.sh --dir /srv/sitebuilder
+name: sitebuilder
+
+services:
+  builder:
+    image: ${SITEBUILDER_IMAGE:-sitebuilder:local}
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    env_file:
+      - ${SITEBUILDER_ENV_FILE:-../.env}
+    environment:
+      NODE_ENV: production
+      SITEBUILDER_DB_PATH: /var/lib/sitebuilder/data/sitebuilder.db
+      SITEBUILDER_MEDIA_DIR: /var/lib/sitebuilder/media
+      SITEBUILDER_SITE_ROOT: /var/lib/sitebuilder/site
+    volumes:
+      - ${SITEBUILDER_DATA_DIR}:/var/lib/sitebuilder/data
+      - ${SITEBUILDER_MEDIA_HOST_DIR}:/var/lib/sitebuilder/media
+      - ${SITEBUILDER_SITE_DIR}:/var/lib/sitebuilder/site
+    restart: unless-stopped
+    expose:
+      - "3000"
+
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      - builder
+    ports:
+      - "${SITEBUILDER_HTTP_PORT:-80}:80"
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:-_}
+      BUILDER_HOST: ${BUILDER_HOST:-builder.localhost}
+    volumes:
+      - ${SITEBUILDER_SITE_DIR}:/var/lib/sitebuilder/site:ro
+      - ${SITEBUILDER_MEDIA_HOST_DIR}:/var/lib/sitebuilder/media:ro
+      - ./nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./nginx-entrypoint.sh:/nginx-entrypoint.sh:ro
+    entrypoint: ["/bin/sh", "/nginx-entrypoint.sh"]
+    restart: unless-stopped

@@ -1,0 +1,77 @@
+# Origin nginx for the public site and a reverse proxy for the builder (ADR 0004, ADR 0007).
+# The builder writes cache-tags.map, csp.map, redirects.map and redirect-status.map
+# into the live release. A watcher in this container reloads nginx when `current` changes.
+
+map $uri $redirect_to {
+  include /var/lib/sitebuilder/site/current/redirects.map;
+}
+
+map $uri $redirect_status {
+  include /var/lib/sitebuilder/site/current/redirect-status.map;
+  default 301;
+}
+
+map $uri $cache_tags {
+  include /var/lib/sitebuilder/site/current/cache-tags.map;
+  default "shell";
+}
+
+map $uri $content_csp {
+  include /var/lib/sitebuilder/site/current/csp.map;
+  default "default-src 'self'; frame-ancestors 'none';";
+}
+
+# Public site, served from the current release.
+server {
+  listen 80;
+  server_name ${PUBLIC_HOST};
+  root /var/lib/sitebuilder/site/current;
+  gzip on;
+  gzip_types text/html text/css application/javascript application/json image/svg+xml;
+  charset utf-8;
+
+  if ($redirect_to) {
+    return $redirect_status $redirect_to;
+  }
+
+  add_header Cache-Tag $cache_tags always;
+  add_header Content-Security-Policy $content_csp always;
+  add_header Cache-Control "public, max-age=0, s-maxage=86400" always;
+
+  location / {
+    try_files $uri $uri/ $uri/index.html =404;
+  }
+
+  location = /embed.js {
+    add_header Cache-Tag "shell" always;
+    add_header Cache-Control "public, max-age=31536000, immutable" always;
+  }
+
+  location = /analytics.js {
+    add_header Cache-Tag "shell" always;
+    add_header Cache-Control "public, max-age=0, s-maxage=3600" always;
+  }
+
+  location /media/ {
+    alias /var/lib/sitebuilder/media/renditions/;
+    add_header Cache-Tag "media" always;
+    add_header Cache-Control "public, max-age=31536000, immutable" always;
+  }
+}
+
+# Builder GUI and API. Cloudflare Access should be enabled on this hostname.
+server {
+  listen 80;
+  server_name ${BUILDER_HOST};
+  client_max_body_size 30m;
+
+  location / {
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_pass http://builder:3000;
+  }
+}
