@@ -15,7 +15,9 @@
     "db:generate": "drizzle-kit generate",
     "seed": "tsx scripts/seed.ts",
     "test:api": "nuxt build && vitest run -c vitest.api.config.ts",
-    "check": "npm run typecheck && npm test && npm run test:api"
+    "check": "npm run typecheck && npm test && npm run test:api",
+    "restore": "tsx scripts/restore.ts",
+    "install-site": "tsx scripts/install.ts"
   },
   "dependencies": {
     "better-sqlite3": "^13.2.0",

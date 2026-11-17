@@ -1,4 +1,5 @@
 // The job worker loop, inside the builder process (ADR 0009). Off with SITEBUILDER_WORKER=0.
+import { createBackupHandler, ensureBackupScheduled, resolveBackupStore } from '../services/backup'
 import { createPurgeCacheHandler } from '../services/cloudflare'
 import { createEmailHandler, resolveMailer } from '../services/email'
 import { createMediaRenditionsHandler } from '../services/media'
@@ -21,7 +22,7 @@ function buildHandlers(): JobHandlers {
   media_renditions: createMediaRenditionsHandler(mediaDir()),
   run_checks: skipped('Rendered-page checks'),
   render_preview: skipped('Preview rendering'),
-  backup: skipped('Backups'),
+  backup: createBackupHandler({ mediaDir, getStore: resolveBackupStore }),
   bin_cleanup: skipped('Bin clean-up'),
   }
 }
@@ -37,6 +38,7 @@ export default defineNitroPlugin((nitro) => {
     try {
       const ctx = useServiceCtx()
       handlers ??= buildHandlers()
+      ensureBackupScheduled(ctx)
       while (await runJobsOnce(ctx, handlers)) {}
     } catch (error) {
       if (!(error instanceof Error && error.message.includes('not been set up'))) console.error(JSON.stringify({ level: 'error', msg: 'worker', error: String(error) }))

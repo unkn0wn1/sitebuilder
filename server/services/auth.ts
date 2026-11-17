@@ -180,6 +180,28 @@ export function decryptSecret(key: Buffer, stored: string): string {
   return Buffer.concat([decipher.update(raw.subarray(28)), decipher.final()]).toString('utf8')
 }
 
+/** Binary wrapper used for off-site backups. Format: SBK1 + iv (12) + tag (16) + ciphertext. */
+export const BACKUP_MAGIC = Buffer.from('SBK1')
+
+export function encryptBytes(key: Buffer, plaintext: Buffer): Buffer {
+  const iv = randomBytes(12)
+  const cipher = createCipheriv('aes-256-gcm', key, iv)
+  const data = Buffer.concat([cipher.update(plaintext), cipher.final()])
+  return Buffer.concat([BACKUP_MAGIC, iv, cipher.getAuthTag(), data])
+}
+
+export function decryptBytes(key: Buffer, stored: Buffer): Buffer {
+  if (stored.length < 4 + 12 + 16 || !stored.subarray(0, 4).equals(BACKUP_MAGIC)) {
+    throw new AppError('validation_failed', 'That file is not a sitebuilder backup.')
+  }
+  const iv = stored.subarray(4, 16)
+  const tag = stored.subarray(16, 32)
+  const data = stored.subarray(32)
+  const decipher = createDecipheriv('aes-256-gcm', key, iv)
+  decipher.setAuthTag(tag)
+  return Buffer.concat([decipher.update(data), decipher.final()])
+}
+
 /** Secrets an admin or operator may write through PUT /settings/secrets/:name. */
 export const USER_SECRET_NAMES = ['ai_api_key', 'cloudflare_token', 'google_oauth_client_secret'] as const
 /** Refresh and access tokens, written only by the Google OAuth callback, never by the secrets API. */

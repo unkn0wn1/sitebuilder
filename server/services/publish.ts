@@ -258,3 +258,50 @@ export function livePages(ctx: ServiceCtx) {
     .where(and(eq(pages.siteId, ctx.siteId), isNotNull(pages.publishedVersionId), ne(pages.workflowState, 'unpublished')))
     .all()
 }
+
+/** Rebuild every live page into a new release. Used after restore, and later for "re-render the whole site". */
+export async function rebuildPublishedSite(ctx: ServiceCtx, writer: ReleaseWriter, actor: ActingAs | 'system' = 'system') {
+  const prev = currentRelease(ctx)
+  const manifest: ReleaseManifest = structuredClone(prev?.manifest ?? EMPTY_MANIFEST)
+  for (const page of ctx.db.select().from(pages).where(eq(pages.siteId, ctx.siteId)).all()) {
+    if (page.deletedAt || !page.publishedVersionId || !page.publishedPath || page.workflowState === 'unpublished') {
+      delete manifest.pages[page.id]
+      continue
+    }
+    manifest.pages[page.id] = { versionId: page.publishedVersionId, path: page.publishedPath }
+  }
+  for (const part of ctx.db.select().from(siteParts).where(eq(siteParts.siteId, ctx.siteId)).all()) {
+    if (part.publishedVersionId) manifest.siteParts[part.id] = part.publishedVersionId
+    else delete manifest.siteParts[part.id]
+  }
+  const releaseId = newId('release', ctx.now().getTime())
+  const changedPageIds = Object.keys(manifest.pages)
+  const createdBy = actor === 'system' ? 'system' : actor.id
+  ctx.db
+    .insert(releases)
+    .values({ id: releaseId, siteId: ctx.siteId, kind: 'full_render', state: 'building', manifest, createdBy, reviewId: null, selfApproved: false, createdAt: iso(ctx) })
+    .run()
+  try {
+    await writer.writeRelease({ ctx, releaseId, previousReleaseId: prev?.id ?? null, manifest, changedPageIds, changedSitePartIds: Object.keys(manifest.siteParts), removedPaths: [] })
+    await writer.switchCurrent(releaseId)
+  } catch (error) {
+    ctx.db
+      .update(releases)
+      .set({ state: 'failed', error: error instanceof Error ? error.message : String(error), finishedAt: iso(ctx) })
+      .where(eq(releases.id, releaseId))
+      .run()
+    throw error
+  }
+  inTx(ctx, () => {
+    if (prev) ctx.db.update(releases).set({ state: 'superseded' }).where(eq(releases.id, prev.id)).run()
+    ctx.db.update(releases).set({ state: 'live', finishedAt: iso(ctx) }).where(eq(releases.id, releaseId)).run()
+    enqueueJob(ctx, 'purge_cache', { tags: ['shell'] })
+  })
+  try {
+    await writer.refreshMaps?.(ctx, releaseId)
+  } catch (error) {
+    console.error(JSON.stringify({ level: 'error', msg: 'release.refreshMaps', releaseId, error: String(error) }))
+  }
+  return { releaseId, pages: changedPageIds.length }
+}
+
