@@ -23,6 +23,15 @@ export const siteSettingsSchema = z
     tracking: trackingSchema.default({ ga4: null, gtm: null, plausible: null, cookiebot: null }),
     seo: z.object({ defaultSocialImage: z.string().max(64).nullable().default(null), allowIndexing: z.boolean().default(true) }).strict().default({ defaultSocialImage: null, allowIndexing: true }),
     ai: z.object({ enabled: z.boolean().default(false), monthlyCapPence: z.number().int().min(0).max(1_000_000).default(2000) }).strict().default({ enabled: false, monthlyCapPence: 2000 }),
+    mail: z
+      .object({
+        from: z.string().trim().toLowerCase().max(254).nullable().default(null),
+        googleClientId: z.string().trim().max(200).nullable().default(null),
+        /** Set only by the Google OAuth callback, not by PATCH. */
+        googleAccount: z.string().trim().toLowerCase().max(254).nullable().default(null),
+      })
+      .strict()
+      .default({ from: null, googleClientId: null, googleAccount: null }),
   })
   .strict()
 
@@ -39,6 +48,20 @@ export const settingsPatchSchema = z
     tracking: trackingSchema.partial().optional(),
     seo: z.object({ defaultSocialImage: z.string().max(64).nullable(), allowIndexing: z.boolean() }).partial().strict().optional(),
     ai: z.object({ enabled: z.boolean(), monthlyCapPence: z.number().int().min(0).max(1_000_000) }).partial().strict().optional(),
+    mail: z
+      .object({
+        from: z
+          .string()
+          .trim()
+          .toLowerCase()
+          .max(254)
+          .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Use a full email address, like noreply@example.org.')
+          .nullable(),
+        googleClientId: z.string().trim().max(200).nullable(),
+      })
+      .partial()
+      .strict()
+      .optional(),
   })
   .strict()
 

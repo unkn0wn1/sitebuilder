@@ -32,6 +32,26 @@ describe('settings, secrets, redirects, memory, system', () => {
     expect(JSON.stringify(s.body)).not.toContain('not-a-real-key')
   })
 
+  it('Google Workspace is how v1 sends mail; SMTP passwords are not accepted', async () => {
+    expect((await admin.put('/settings/secrets/smtp_password', { value: 'an-app-password' })).status).toBe(404)
+    expect((await editor.post('/settings/mail/google/start', {})).status).toBe(403)
+    expect((await admin.post('/settings/mail/google/start', {})).status).toBe(503)
+    const secret = await admin.put('/settings/secrets/google_oauth_client_secret', { value: 'fake-client-secret' })
+    expect(secret.status).toBe(200)
+    const patched = await admin.patch('/settings', { mail: { googleClientId: '123.apps.googleusercontent.com', from: 'noreply@example.org' } })
+    expect(patched.status).toBe(200)
+    expect(patched.body.mail.from).toBe('noreply@example.org')
+    expect(patched.body.mail.googleConnected).toBe(false)
+    expect(JSON.stringify(patched.body)).not.toContain('fake-client-secret')
+    const start = await admin.post('/settings/mail/google/start', {})
+    expect(start.status).toBe(200)
+    expect(start.body.url).toContain('accounts.google.com')
+    expect(start.body.url).toContain('gmail.send')
+    const test = await admin.post('/settings/mail/test', { to: users.admin })
+    expect(test.status).toBe(200)
+    expect(test.body.to).toBe(users.admin)
+  })
+
   it('redirects', async () => {
     const r = await approver.post('/redirects', { fromPath: '/old-donate', toPath: '/donate' })
     expect(r.status).toBe(200)

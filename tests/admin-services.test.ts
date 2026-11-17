@@ -32,7 +32,7 @@ describe('settings', () => {
   it('reads defaults, merges patches, validates ids, and is admin only', async () => {
     const s = setup()
     expect(getSettings(s.ctx).settings.workflow.selfApproval).toBe(false)
-    expect(getSettings(s.ctx).secretsSet).toEqual({ ai_api_key: false, cloudflare_token: false, smtp_password: false })
+    expect(getSettings(s.ctx).secretsSet).toEqual({ ai_api_key: false, cloudflare_token: false, google_oauth_client_secret: false })
     const next = updateSettings(s.ctx, s.admin, { name: 'Animal rescue', tracking: { ga4: 'G-ABC123XYZ' } })
     expect(next.name).toBe('Animal rescue')
     expect(next.settings.tracking).toEqual({ ga4: 'G-ABC123XYZ', gtm: null, plausible: null, cookiebot: null })

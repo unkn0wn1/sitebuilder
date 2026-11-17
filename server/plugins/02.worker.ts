@@ -1,6 +1,5 @@
 // The job worker loop, inside the builder process (ADR 0009). Off with SITEBUILDER_WORKER=0.
-import { join } from 'node:path'
-import { createEmailHandler, outboxMailer } from '../services/email'
+import { createEmailHandler, resolveMailer } from '../services/email'
 import { createMediaRenditionsHandler } from '../services/media'
 import { createPublishHandler } from '../services/publish'
 import { runJobsOnce, type JobHandlers } from '../services/jobs'
@@ -11,9 +10,9 @@ const skipped = (what: string) => ({ run: () => ({ skipped: `${what} is not buil
 function buildHandlers(): JobHandlers {
   return {
   publish: createPublishHandler(),
-  // SMTP is not built yet. Outside production (or with SITEBUILDER_MAIL_OUTBOX set) emails go to a folder.
+  // Mail goes through resolveMailer: Gmail when connected, otherwise the file outbox in development.
   send_email: createEmailHandler({
-    mailer: process.env.SITEBUILDER_MAIL_OUTBOX || process.env.NODE_ENV !== 'production' ? outboxMailer(process.env.SITEBUILDER_MAIL_OUTBOX || join('.data', 'outbox')) : null,
+    getMailer: resolveMailer,
     baseUrl: process.env.SITEBUILDER_ORIGIN ?? 'http://localhost:3000',
   }),
   purge_cache: skipped('Cloudflare purge'),

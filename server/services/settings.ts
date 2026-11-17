@@ -6,12 +6,31 @@ import { secrets, sites } from '../db/schema'
 import { audit } from './audit'
 import { inTx, type ActingAs, type ServiceCtx } from './context'
 import { forbidden } from './errors'
-import { SECRET_NAMES } from './auth'
+import { USER_SECRET_NAMES } from './auth'
 
-export function getSettings(ctx: ServiceCtx): { name: string; primaryDomain: string | null; settings: SiteSettings; secretsSet: Record<string, boolean> } {
+export function getSettings(ctx: ServiceCtx): {
+  name: string
+  primaryDomain: string | null
+  settings: SiteSettings
+  secretsSet: Record<string, boolean>
+  mail: { transport: 'gmail' | 'outbox' | 'none'; googleConnected: boolean; googleAccount: string | null; from: string | null }
+} {
   const site = ctx.db.select().from(sites).where(eq(sites.id, ctx.siteId)).get()!
   const set = new Set(ctx.db.select({ name: secrets.name }).from(secrets).where(eq(secrets.siteId, ctx.siteId)).all().map((s) => s.name))
-  return { name: site.name, primaryDomain: site.primaryDomain, settings: readSettings(site.settings), secretsSet: Object.fromEntries(SECRET_NAMES.map((n) => [n, set.has(n)])) }
+  const settings = readSettings(site.settings)
+  const googleConnected = set.has('gmail_oauth')
+  return {
+    name: site.name,
+    primaryDomain: site.primaryDomain,
+    settings,
+    secretsSet: Object.fromEntries(USER_SECRET_NAMES.map((n) => [n, set.has(n)])),
+    mail: {
+      transport: process.env.SITEBUILDER_MAIL_OUTBOX ? 'outbox' : googleConnected ? 'gmail' : process.env.NODE_ENV === 'production' ? 'none' : 'outbox',
+      googleConnected,
+      googleAccount: settings.mail.googleAccount,
+      from: settings.mail.from ?? settings.mail.googleAccount,
+    },
+  }
 }
 
 export function updateSettings(ctx: ServiceCtx, actor: ActingAs, patch: SettingsPatch) {

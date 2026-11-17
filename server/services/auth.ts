@@ -180,16 +180,29 @@ export function decryptSecret(key: Buffer, stored: string): string {
   return Buffer.concat([decipher.update(raw.subarray(28)), decipher.final()]).toString('utf8')
 }
 
-export const SECRET_NAMES = ['ai_api_key', 'cloudflare_token', 'smtp_password'] as const
+/** Secrets an admin or operator may write through PUT /settings/secrets/:name. */
+export const USER_SECRET_NAMES = ['ai_api_key', 'cloudflare_token', 'google_oauth_client_secret'] as const
+/** Refresh and access tokens, written only by the Google OAuth callback, never by the secrets API. */
+export const INTERNAL_SECRET_NAMES = ['gmail_oauth'] as const
+export const SECRET_NAMES = [...USER_SECRET_NAMES, ...INTERNAL_SECRET_NAMES] as const
+export type SecretName = (typeof SECRET_NAMES)[number]
 
-export function setSecret(ctx: ServiceCtx, key: Buffer, name: (typeof SECRET_NAMES)[number], value: string, userId: string) {
+export function setSecret(ctx: ServiceCtx, key: Buffer, name: SecretName, value: string, userId: string) {
   const ciphertext = encryptSecret(key, value)
   const existing = ctx.db.select().from(secrets).where(and(eq(secrets.siteId, ctx.siteId), eq(secrets.name, name))).get()
   if (existing) ctx.db.update(secrets).set({ ciphertext, updatedBy: userId, updatedAt: iso(ctx) }).where(eq(secrets.id, existing.id)).run()
   else ctx.db.insert(secrets).values({ id: newId('secret', ctx.now().getTime()), siteId: ctx.siteId, name, ciphertext, updatedBy: userId, updatedAt: iso(ctx) }).run()
 }
 
-export function getSecret(ctx: ServiceCtx, key: Buffer, name: (typeof SECRET_NAMES)[number]): string | null {
+export function getSecret(ctx: ServiceCtx, key: Buffer, name: SecretName): string | null {
   const row = ctx.db.select().from(secrets).where(and(eq(secrets.siteId, ctx.siteId), eq(secrets.name, name))).get()
   return row ? decryptSecret(key, row.ciphertext) : null
+}
+
+export function deleteSecret(ctx: ServiceCtx, name: SecretName) {
+  ctx.db.delete(secrets).where(and(eq(secrets.siteId, ctx.siteId), eq(secrets.name, name))).run()
+}
+
+export function hasSecret(ctx: ServiceCtx, name: SecretName): boolean {
+  return !!ctx.db.select({ name: secrets.name }).from(secrets).where(and(eq(secrets.siteId, ctx.siteId), eq(secrets.name, name))).get()
 }

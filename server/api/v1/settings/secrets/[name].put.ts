@@ -1,13 +1,13 @@
 import { z } from 'zod'
 import { audit } from '../../../../services/audit'
-import { secretKeyFromEnv, setSecret, SECRET_NAMES } from '../../../../services/auth'
+import { secretKeyFromEnv, setSecret, USER_SECRET_NAMES } from '../../../../services/auth'
 import { AppError } from '../../../../services/errors'
 import { defineApi, param, parseBody, requireCan } from '../../../../utils/api'
 
 // Write-only: secrets are never returned by the API (docs/15-security.md#secrets).
 export default defineApi(async (event, ctx) => {
   const actor = requireCan(event, 'secrets.write')
-  const name = z.enum(SECRET_NAMES).safeParse(param(event, 'name'))
+  const name = z.enum(USER_SECRET_NAMES).safeParse(param(event, 'name'))
   if (!name.success) throw new AppError('not_found', "That setting wasn't found.")
   const { value } = await parseBody(event, z.object({ value: z.string().min(1).max(4000) }))
   let key: Buffer
