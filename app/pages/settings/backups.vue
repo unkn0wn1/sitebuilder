@@ -62,32 +62,32 @@ onMounted(load)
   <div class="p-6">
     <SettingsNav>
       <template #title>
-        <h1 class="m-0 text-2xl font-semibold text-gray-900">Backups</h1>
+        <h1 class="m-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">Backups</h1>
       </template>
     </SettingsNav>
-    <p class="mb-6 max-w-2xl text-gray-600">Nightly backups are stored where the site was set up to keep them. You can also start one now. This is a database backup, not a portable export of pages.</p>
+    <p class="mb-6 max-w-2xl text-gray-600 dark:text-gray-400">Nightly backups are stored where the site was set up to keep them. You can also start one now. This is a database backup, not a portable export of pages.</p>
     <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
     <FwbAlert v-else-if="saved" type="success" class="mb-4">{{ saved }}</FwbAlert>
-    <p v-if="loading" class="text-gray-500">Loading backups…</p>
+    <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading backups…</p>
     <div v-else class="space-y-8">
       <FwbButton :disabled="requesting" @click="requestNow">{{ requesting ? 'Starting…' : 'Back up now' }}</FwbButton>
       <section>
-        <h2 class="mb-2 text-lg font-semibold text-gray-900">Recent backup jobs</h2>
-        <p v-if="!jobs.length" class="text-sm text-gray-500">No backup jobs yet.</p>
+        <h2 class="mb-2 text-lg font-semibold text-gray-900 dark:text-gray-100">Recent backup jobs</h2>
+        <p v-if="!jobs.length" class="text-sm text-gray-500 dark:text-gray-400">No backup jobs yet.</p>
         <ul v-else class="m-0 list-none space-y-2 p-0">
-          <li v-for="job in jobs" :key="job.id" class="text-sm text-gray-700">
+          <li v-for="job in jobs" :key="job.id" class="text-sm text-gray-700 dark:text-gray-300">
             {{ timeAgo(job.createdAt) }} — {{ job.state }}<span v-if="job.lastError"> ({{ job.lastError }})</span>
           </li>
         </ul>
       </section>
       <section>
-        <h2 class="mb-2 text-lg font-semibold text-gray-900">Stored copies</h2>
-        <p v-if="!store" class="text-sm text-gray-500">No backup store is configured on this server yet.</p>
+        <h2 class="mb-2 text-lg font-semibold text-gray-900 dark:text-gray-100">Stored copies</h2>
+        <p v-if="!store" class="text-sm text-gray-500 dark:text-gray-400">No backup store is configured on this server yet.</p>
         <template v-else>
-          <p class="mb-3 text-sm text-gray-600">{{ store.kind }} — {{ store.location }}</p>
-          <p v-if="!store.items.length" class="text-sm text-gray-500">No stored copies yet.</p>
+          <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">{{ store.kind }} — {{ store.location }}</p>
+          <p v-if="!store.items.length" class="text-sm text-gray-500 dark:text-gray-400">No stored copies yet.</p>
           <ul v-else class="m-0 list-none space-y-2 p-0">
-            <li v-for="item in store.items" :key="item.key" class="text-sm text-gray-700">
+            <li v-for="item in store.items" :key="item.key" class="text-sm text-gray-700 dark:text-gray-300">
               {{ item.key }} — {{ timeAgo(item.lastModified) }}
             </li>
           </ul>

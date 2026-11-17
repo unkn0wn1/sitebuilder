@@ -55,11 +55,11 @@ onMounted(load)
   <div class="p-6">
     <SettingsNav>
       <template #title>
-        <h1 class="m-0 text-2xl font-semibold text-gray-900">Tracking</h1>
+        <h1 class="m-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">Tracking</h1>
       </template>
     </SettingsNav>
-    <p class="mb-6 max-w-2xl text-gray-600">These IDs are added to the public site when set. Tag Manager can load any script, so only add it if you trust what is in that container. Leave a field blank to turn that tool off.</p>
-    <p v-if="loading" class="text-gray-500">Loading settings…</p>
+    <p class="mb-6 max-w-2xl text-gray-600 dark:text-gray-400">These IDs are added to the public site when set. Tag Manager can load any script, so only add it if you trust what is in that container. Leave a field blank to turn that tool off.</p>
+    <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading settings…</p>
     <form v-else class="max-w-xl" @submit.prevent="save">
       <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
       <FwbAlert v-else-if="saved" type="success" class="mb-4">{{ saved }}</FwbAlert>
@@ -74,7 +74,7 @@ onMounted(load)
       </div>
       <div class="mb-6">
         <FwbInput v-model="cookiebot" label="Cookiebot domain group id" />
-        <p class="mt-1 text-sm text-gray-500">A 36-character id from Cookiebot, if you use it for consent.</p>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">A 36-character id from Cookiebot, if you use it for consent.</p>
       </div>
       <FwbButton type="submit" :disabled="saving">{{ saving ? 'Saving…' : 'Save' }}</FwbButton>
     </form>

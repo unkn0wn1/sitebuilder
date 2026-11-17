@@ -49,9 +49,9 @@ const width = computed(() => (props.device === 'phone' ? '390px' : '100%'))
 </script>
 
 <template>
-  <div class="overflow-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+  <div class="overflow-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
     <component :is="'style'">{{ SCOPED_THEME_CSS }}</component>
-    <div class="mx-auto bg-white" :class="CANVAS_SCOPE" :style="{ width, maxWidth: '100%' }">
+    <div class="mx-auto bg-white dark:bg-gray-800" :class="CANVAS_SCOPE" :style="{ width, maxWidth: '100%' }">
       <!-- Menu preview sits inside a header so it looks like the live site. -->
       <template v-if="kind === 'menu' || kind === 'header'">
         <header :class="headerClass(headerStyle)">
@@ -89,11 +89,11 @@ const width = computed(() => (props.device === 'phone' ? '390px' : '100%'))
             <a v-if="header?.cta" class="cta-btn" :href="hrefOf(header.cta.target)">{{ header.cta.label }}</a>
           </div>
         </header>
-        <main id="main" class="px-6 py-10 text-sm text-gray-500">Page content will appear here.</main>
+        <main id="main" class="px-6 py-10 text-sm text-gray-500 dark:text-gray-400">Page content will appear here.</main>
       </template>
 
       <template v-else-if="kind === 'footer' && footer">
-        <main class="px-6 py-8 text-sm text-gray-500">Page content will appear here.</main>
+        <main class="px-6 py-8 text-sm text-gray-500 dark:text-gray-400">Page content will appear here.</main>
         <footer class="site-footer">
           <div class="site-footer-inner">
             <div v-if="footer.text" class="prose">{{ richTextToPlain(footer.text) }}</div>
@@ -118,7 +118,7 @@ const width = computed(() => (props.device === 'phone' ? '390px' : '100%'))
           {{ banner.message }}
           <a v-if="banner.link" :href="hrefOf(banner.link.target)">{{ banner.link.label }}</a>
         </div>
-        <div v-else class="px-6 py-8 text-sm text-gray-500">The banner is off, so it won’t show on the site.</div>
+        <div v-else class="px-6 py-8 text-sm text-gray-500 dark:text-gray-400">The banner is off, so it won’t show on the site.</div>
         <header class="site-header">
           <div class="site-header-inner">
             <a class="site-title" href="#">{{ siteName }}</a>

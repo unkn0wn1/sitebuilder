@@ -1,6 +1,9 @@
 @import "tailwindcss";
-/* flowbite-vue 0.4.0 ships a compiled stylesheet (utilities + component CSS). */
+/* flowbite-vue 0.4.0 ships a compiled stylesheet (utilities + component CSS).
+   A Vite plugin rewrites its prefers-color-scheme dark utilities to `.dark`. */
 @import "flowbite-vue/index.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
   --font-sans: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
@@ -8,7 +11,17 @@
   --color-builder-muted: #6b7280;
   --color-builder-line: #e5e7eb;
   --color-builder-wash: #f3f4f6;
+  --color-builder-paper: #ffffff;
   --color-builder-accent: #1a56db;
+}
+
+html.dark {
+  --color-builder-ink: #f3f4f6;
+  --color-builder-muted: #9ca3af;
+  --color-builder-line: #374151;
+  --color-builder-wash: #111827;
+  --color-builder-paper: #1f2937;
+  --color-builder-accent: #60a5fa;
 }
 
 html,
@@ -22,7 +35,7 @@ body {
   font-size: 15px;
   line-height: 1.5;
   color: var(--color-builder-ink);
-  background: #fff;
+  background: var(--color-builder-paper);
 }
 
 #__nuxt {
@@ -34,7 +47,8 @@ body {
   display: grid;
   grid-template-rows: 3.25rem 1fr;
   grid-template-columns: 13.5rem 1fr;
-  background: #fff;
+  color: var(--color-builder-ink);
+  background: var(--color-builder-paper);
 }
 
 .sb-builder.is-editor {
@@ -48,19 +62,19 @@ body {
   gap: 1rem;
   padding: 0 1rem;
   border-bottom: 1px solid var(--color-builder-line);
-  background: #fff;
+  background: var(--color-builder-paper);
 }
 
 .sb-nav {
   border-right: 1px solid var(--color-builder-line);
-  background: #fafafa;
+  background: var(--color-builder-wash);
   padding: 0.75rem 0.5rem;
 }
 
 .sb-main {
   min-width: 0;
   min-height: 0;
-  background: #fff;
+  background: var(--color-builder-paper);
 }
 
 .sb-status {
@@ -79,9 +93,20 @@ body {
   color: #374151;
 }
 
+html.dark .sb-status-draft,
+html.dark .sb-status-unpublished {
+  background: #374151;
+  color: #e5e7eb;
+}
+
 .sb-status-in_review {
   background: #fef3c7;
   color: #92400e;
+}
+
+html.dark .sb-status-in_review {
+  background: #78350f;
+  color: #fde68a;
 }
 
 .sb-status-approved {
@@ -89,14 +114,29 @@ body {
   color: #1e40af;
 }
 
+html.dark .sb-status-approved {
+  background: #1e3a8a;
+  color: #bfdbfe;
+}
+
 .sb-status-published {
   background: #d1fae5;
   color: #065f46;
 }
 
+html.dark .sb-status-published {
+  background: #064e3b;
+  color: #a7f3d0;
+}
+
 .sb-status-published-changes {
   background: #ecfccb;
   color: #3f6212;
+}
+
+html.dark .sb-status-published-changes {
+  background: #3f6212;
+  color: #d9f99d;
 }
 
 .sb-canvas-frame {

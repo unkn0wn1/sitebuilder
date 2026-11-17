@@ -92,7 +92,7 @@ const states = [
 <template>
   <div class="p-6">
     <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-      <h1 class="text-2xl font-semibold text-gray-900">Pages</h1>
+      <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Pages</h1>
       <FwbButton v-if="canEdit" @click="showNew = true">New page</FwbButton>
     </div>
     <div class="mb-4 flex flex-wrap gap-3">
@@ -105,8 +105,8 @@ const states = [
       <FwbButton color="light" @click="load">Search</FwbButton>
     </div>
     <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
-    <p v-if="loading" class="text-gray-500">Loading pages…</p>
-    <p v-else-if="!items.length" class="text-gray-500">No pages yet.</p>
+    <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading pages…</p>
+    <p v-else-if="!items.length" class="text-gray-500 dark:text-gray-400">No pages yet.</p>
     <FwbTable v-else hoverable>
       <FwbTableHead>
         <FwbTableHeadCell>Title</FwbTableHeadCell>
@@ -117,17 +117,17 @@ const states = [
       <FwbTableBody>
         <FwbTableRow v-for="page in items" :key="page.id">
           <FwbTableCell>
-            <NuxtLink :to="`/pages/${page.id}`" class="font-medium text-gray-900 no-underline hover:underline">{{ page.title }}</NuxtLink>
+            <NuxtLink :to="`/pages/${page.id}`" class="font-medium text-gray-900 dark:text-gray-100 no-underline hover:underline">{{ page.title }}</NuxtLink>
           </FwbTableCell>
           <FwbTableCell>
             <BuilderStatusBadge :state="page.state" :has-unpublished-changes="page.hasUnpublishedChanges" />
           </FwbTableCell>
-          <FwbTableCell class="text-gray-600">{{ timeAgo(page.updatedAt) }}</FwbTableCell>
-          <FwbTableCell class="text-gray-600">{{ page.path || '—' }}</FwbTableCell>
+          <FwbTableCell class="text-gray-600 dark:text-gray-400">{{ timeAgo(page.updatedAt) }}</FwbTableCell>
+          <FwbTableCell class="text-gray-600 dark:text-gray-400">{{ page.path || '—' }}</FwbTableCell>
         </FwbTableRow>
       </FwbTableBody>
     </FwbTable>
-    <p v-if="total" class="mt-3 text-sm text-gray-500">{{ total }} {{ total === 1 ? 'page' : 'pages' }}</p>
+    <p v-if="total" class="mt-3 text-sm text-gray-500 dark:text-gray-400">{{ total }} {{ total === 1 ? 'page' : 'pages' }}</p>
 
     <FwbModal v-if="showNew" @close="showNew = false">
       <template #header>New page</template>

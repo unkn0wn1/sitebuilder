@@ -76,13 +76,13 @@ onMounted(load)
   <div class="p-6">
     <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h1 class="m-0 text-2xl font-semibold text-gray-900">Page types</h1>
-        <p class="mt-1 mb-0 max-w-xl text-gray-600">Rules for what sections a page may and must have. Changes go through approval before they apply to new and existing pages.</p>
+        <h1 class="m-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">Page types</h1>
+        <p class="mt-1 mb-0 max-w-xl text-gray-600 dark:text-gray-400">Rules for what sections a page may and must have. Changes go through approval before they apply to new and existing pages.</p>
       </div>
       <FwbButton v-if="canEdit" @click="showNew = true">New page type</FwbButton>
     </div>
     <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
-    <form v-if="showNew && canEdit" class="mb-6 flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-white p-4" @submit.prevent="create">
+    <form v-if="showNew && canEdit" class="mb-6 flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4" @submit.prevent="create">
       <div class="w-56">
         <FwbInput v-model="newLabel" label="Name" placeholder="Campaign" />
       </div>
@@ -91,10 +91,10 @@ onMounted(load)
       </div>
       <FwbButton type="submit" :disabled="creating">{{ creating ? 'Creating…' : 'Create' }}</FwbButton>
       <FwbButton color="light" type="button" @click="showNew = false">Cancel</FwbButton>
-      <p class="m-0 w-full text-sm text-gray-500">The key is used in the address of this type and can't be changed later. New types start as a draft and must be approved before editors can use them.</p>
+      <p class="m-0 w-full text-sm text-gray-500 dark:text-gray-400">The key is used in the address of this type and can't be changed later. New types start as a draft and must be approved before editors can use them.</p>
     </form>
-    <p v-if="loading" class="text-gray-500">Loading page types…</p>
-    <p v-else-if="!items.length" class="text-gray-500">No page types yet.</p>
+    <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading page types…</p>
+    <p v-else-if="!items.length" class="text-gray-500 dark:text-gray-400">No page types yet.</p>
     <FwbTable v-else hoverable>
       <FwbTableHead>
         <FwbTableHeadCell>Name</FwbTableHeadCell>
@@ -105,9 +105,9 @@ onMounted(load)
       <FwbTableBody>
         <FwbTableRow v-for="item in items" :key="item.id">
           <FwbTableCell>
-            <NuxtLink :to="`/templates/${item.id}`" class="font-medium text-gray-900 no-underline hover:underline">{{ item.label }}</NuxtLink>
+            <NuxtLink :to="`/templates/${item.id}`" class="font-medium text-gray-900 dark:text-gray-100 no-underline hover:underline">{{ item.label }}</NuxtLink>
           </FwbTableCell>
-          <FwbTableCell class="text-gray-600">{{ item.key }}</FwbTableCell>
+          <FwbTableCell class="text-gray-600 dark:text-gray-400">{{ item.key }}</FwbTableCell>
           <FwbTableCell>{{ statusLabel(item.state, item.hasUnpublishedChanges) }}</FwbTableCell>
           <FwbTableCell>{{ timeAgo(item.updatedAt) }}</FwbTableCell>
         </FwbTableRow>

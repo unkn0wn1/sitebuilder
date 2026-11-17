@@ -91,11 +91,11 @@ const focalStyle = computed(() => {
 </script>
 
 <template>
-  <aside class="flex h-full min-h-0 flex-col border-l border-gray-200 bg-white p-4">
-    <p v-if="!details && !error" class="text-sm text-gray-500">Loading…</p>
+  <aside class="flex h-full min-h-0 flex-col border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+    <p v-if="!details && !error" class="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
     <FwbAlert v-if="error" type="danger" class="mb-3">{{ error }}</FwbAlert>
     <template v-if="details">
-      <div class="mb-3 flex justify-center overflow-hidden rounded-md bg-gray-100">
+      <div class="mb-3 flex justify-center overflow-hidden rounded-md bg-gray-100 dark:bg-gray-800">
         <div v-if="previewUrl" class="relative inline-block max-h-64 max-w-full">
           <img
             :src="previewUrl"
@@ -110,8 +110,8 @@ const focalStyle = computed(() => {
           />
         </div>
       </div>
-      <p class="mb-1 text-sm font-medium text-gray-900">{{ details.media.filename }}</p>
-      <p class="mb-4 text-xs text-gray-500">
+      <p class="mb-1 text-sm font-medium text-gray-900 dark:text-gray-100">{{ details.media.filename }}</p>
+      <p class="mb-4 text-xs text-gray-500 dark:text-gray-400">
         <span v-if="details.media.width && details.media.height">{{ details.media.width }} × {{ details.media.height }}</span>
         <span v-else>{{ details.media.kind }}</span>
         · {{ details.media.status === 'ready' ? 'Ready' : details.media.status === 'processing' ? 'Processing' : 'Failed' }}
@@ -119,27 +119,27 @@ const focalStyle = computed(() => {
 
       <div class="mb-3">
         <FwbInput v-model="alt" label="Alt text" :disabled="decorative || saving" @blur="saveAlt" />
-        <label class="mt-2 flex items-center gap-2 text-sm text-gray-800">
+        <label class="mt-2 flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
           <input type="checkbox" :checked="decorative" :disabled="saving" @change="decorative = ($event.target as HTMLInputElement).checked; saveAlt()">
           Decorative only
         </label>
-        <p class="mt-1 text-xs text-gray-500">Click the photo to set the focal point, used when cropping.</p>
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Click the photo to set the focal point, used when cropping.</p>
       </div>
 
       <div v-if="details.crops.length" class="mb-3">
-        <p class="mb-1 text-sm font-medium text-gray-800">Crops</p>
-        <ul class="m-0 list-none p-0 text-sm text-gray-600">
+        <p class="mb-1 text-sm font-medium text-gray-800 dark:text-gray-200">Crops</p>
+        <ul class="m-0 list-none p-0 text-sm text-gray-600 dark:text-gray-400">
           <li v-for="crop in details.crops" :key="crop.id">{{ crop.ratio }} approved</li>
         </ul>
       </div>
 
       <div class="mb-4">
-        <p class="mb-1 text-sm font-medium text-gray-800">Used on</p>
-        <p v-if="!details.usedOn.length" class="text-sm text-gray-500">Not used on a page yet.</p>
+        <p class="mb-1 text-sm font-medium text-gray-800 dark:text-gray-200">Used on</p>
+        <p v-if="!details.usedOn.length" class="text-sm text-gray-500 dark:text-gray-400">Not used on a page yet.</p>
         <ul v-else class="m-0 list-none p-0 text-sm">
           <li v-for="use in details.usedOn" :key="use.pageId">
-            <NuxtLink :to="`/pages/${use.pageId}`" class="text-blue-700 no-underline hover:underline">{{ use.title }}</NuxtLink>
-            <span class="text-gray-500"> · {{ use.live ? 'Live' : 'Draft' }}</span>
+            <NuxtLink :to="`/pages/${use.pageId}`" class="text-blue-700 dark:text-blue-400 no-underline hover:underline">{{ use.title }}</NuxtLink>
+            <span class="text-gray-500 dark:text-gray-400"> · {{ use.live ? 'Live' : 'Draft' }}</span>
           </li>
         </ul>
       </div>

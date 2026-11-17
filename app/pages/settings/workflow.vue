@@ -45,17 +45,17 @@ onMounted(load)
   <div class="p-6">
     <SettingsNav>
       <template #title>
-        <h1 class="m-0 text-2xl font-semibold text-gray-900">Workflow</h1>
+        <h1 class="m-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">Workflow</h1>
       </template>
     </SettingsNav>
-    <p class="mb-6 max-w-2xl text-gray-600">Publishing still needs approval. This only controls whether the person who submitted a change can also approve it.</p>
-    <p v-if="loading" class="text-gray-500">Loading settings…</p>
+    <p class="mb-6 max-w-2xl text-gray-600 dark:text-gray-400">Publishing still needs approval. This only controls whether the person who submitted a change can also approve it.</p>
+    <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading settings…</p>
     <form v-else class="max-w-xl" @submit.prevent="save">
       <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
       <FwbAlert v-else-if="saved" type="success" class="mb-4">{{ saved }}</FwbAlert>
       <div class="mb-6">
         <FwbToggle v-model="selfApproval" label="Allow people to approve their own changes" />
-        <p class="mt-2 text-sm text-gray-500">Leave this off for a second pair of eyes. Turn it on for a small team where the same person often writes and publishes.</p>
+        <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Leave this off for a second pair of eyes. Turn it on for a small team where the same person often writes and publishes.</p>
       </div>
       <FwbButton type="submit" :disabled="saving">{{ saving ? 'Saving…' : 'Save' }}</FwbButton>
     </form>

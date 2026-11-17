@@ -36,14 +36,14 @@ const draftWarning = computed(() => selectedPage.value && selectedPage.value.sta
 
 <template>
   <div class="space-y-2">
-    <p v-if="label" class="text-sm font-medium text-gray-800">{{ label }}</p>
+    <p v-if="label" class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ label }}</p>
     <div class="flex flex-wrap gap-3 text-sm">
       <label class="inline-flex items-center gap-2">
-        <input type="radio" class="text-blue-700" :checked="mode === 'page'" @change="setMode('page')" />
+        <input type="radio" class="text-blue-700 dark:text-blue-400" :checked="mode === 'page'" @change="setMode('page')" />
         A page on this site
       </label>
       <label class="inline-flex items-center gap-2">
-        <input type="radio" class="text-blue-700" :checked="mode === 'url'" @change="setMode('url')" />
+        <input type="radio" class="text-blue-700 dark:text-blue-400" :checked="mode === 'url'" @change="setMode('url')" />
         A web address
       </label>
     </div>

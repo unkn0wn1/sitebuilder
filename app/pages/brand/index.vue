@@ -155,40 +155,40 @@ onBeforeUnmount(() => {
   <div class="p-6">
     <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h1 class="text-2xl font-semibold text-gray-900">Brand and Design</h1>
-        <p class="mt-1 text-sm text-gray-600">Colours, type, the logo, and how the menu looks — without changing the links in it.</p>
+        <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Brand and Design</h1>
+        <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">Colours, type, the logo, and how the menu looks — without changing the links in it.</p>
       </div>
       <div class="flex items-center gap-3">
         <span class="sb-status" :class="pack?.workflowState === 'published' ? 'sb-status-published' : 'sb-status-draft'">{{ status }}</span>
-        <span class="text-sm text-gray-500">{{ saveStatus === 'saving' ? 'Saving…' : saveStatus === 'error' ? 'Not saved' : 'Saved' }}</span>
+        <span class="text-sm text-gray-500 dark:text-gray-400">{{ saveStatus === 'saving' ? 'Saving…' : saveStatus === 'error' ? 'Not saved' : 'Saved' }}</span>
         <FwbButton v-if="canSubmitNow" size="sm" :disabled="submitting || saveStatus === 'saving'" @click="showSubmit = true">Submit for approval</FwbButton>
       </div>
     </div>
     <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
-    <p v-if="loading" class="text-gray-500">Loading brand and design…</p>
+    <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading brand and design…</p>
     <div v-else class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_24rem]">
       <div class="space-y-8">
         <section>
-          <h2 class="mb-3 text-lg font-semibold text-gray-900">Colours</h2>
+          <h2 class="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">Colours</h2>
           <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label v-for="field in TOKEN_FIELDS" :key="field.key" class="flex items-center gap-3 text-sm">
-              <input type="color" class="h-9 w-12 cursor-pointer rounded border border-gray-300 bg-white" :value="doc.tokens[field.key]" :disabled="!canEdit" @input="setToken(field.key, ($event.target as HTMLInputElement).value)" />
+              <input type="color" class="h-9 w-12 cursor-pointer rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800" :value="doc.tokens[field.key]" :disabled="!canEdit" @input="setToken(field.key, ($event.target as HTMLInputElement).value)" />
               <span class="flex-1">
-                <span class="block font-medium text-gray-800">{{ field.label }}</span>
-                <input class="mt-1 w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs" :value="doc.tokens[field.key]" :disabled="!canEdit" @change="setToken(field.key, ($event.target as HTMLInputElement).value)" />
+                <span class="block font-medium text-gray-800 dark:text-gray-200">{{ field.label }}</span>
+                <input class="mt-1 w-full rounded border border-gray-300 dark:border-gray-600 px-2 py-1 font-mono text-xs" :value="doc.tokens[field.key]" :disabled="!canEdit" @change="setToken(field.key, ($event.target as HTMLInputElement).value)" />
               </span>
             </label>
           </div>
         </section>
         <section>
-          <h2 class="mb-3 text-lg font-semibold text-gray-900">Type</h2>
+          <h2 class="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">Type</h2>
           <FwbInput :model-value="doc.fonts.body" label="Body font" :disabled="!canEdit" @update:model-value="patch({ fonts: { ...doc.fonts, body: String($event) } })" />
           <div class="mt-3">
             <FwbInput :model-value="doc.fonts.heading ?? ''" label="Heading font (optional)" :disabled="!canEdit" @update:model-value="patch({ fonts: { ...doc.fonts, heading: String($event).trim() || null } })" />
           </div>
         </section>
         <section>
-          <h2 class="mb-3 text-lg font-semibold text-gray-900">Logo</h2>
+          <h2 class="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">Logo</h2>
           <div class="flex flex-wrap items-center gap-3">
             <img v-if="logoPreview" :src="logoPreview" alt="Logo" class="h-12 max-w-40 object-contain" />
             <FwbButton v-if="canEdit" size="sm" color="light" @click="showLogo = true">{{ doc.logoMediaId ? 'Change logo' : 'Choose a logo' }}</FwbButton>
@@ -196,33 +196,33 @@ onBeforeUnmount(() => {
           </div>
         </section>
         <section>
-          <h2 class="mb-3 text-lg font-semibold text-gray-900">Menu look</h2>
-          <p class="mb-3 text-sm text-gray-600">Pick a look for the same menu. The links stay as they are, and are edited under Site parts.</p>
+          <h2 class="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">Menu look</h2>
+          <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">Pick a look for the same menu. The links stay as they are, and are edited under Site parts.</p>
           <fieldset class="space-y-2" :disabled="!canEdit">
-            <label v-for="(label, value) in HEADER_STYLE_LABELS" :key="value" class="flex cursor-pointer gap-3 rounded-lg border border-gray-200 p-3 text-sm has-[:checked]:border-blue-700 has-[:checked]:bg-blue-50">
-              <input type="radio" class="mt-0.5 text-blue-700" :value="value" :checked="doc.menuStyle === value" @change="patch({ menuStyle: value as HeaderStyle })" />
+            <label v-for="(label, value) in HEADER_STYLE_LABELS" :key="value" class="flex cursor-pointer gap-3 rounded-lg border border-gray-200 dark:border-gray-700 p-3 text-sm has-[:checked]:border-blue-700 has-[:checked]:bg-blue-50">
+              <input type="radio" class="mt-0.5 text-blue-700 dark:text-blue-400" :value="value" :checked="doc.menuStyle === value" @change="patch({ menuStyle: value as HeaderStyle })" />
               <span>
-                <span class="block font-medium text-gray-900">{{ label }}</span>
-                <span class="text-gray-600">{{ HEADER_STYLE_HELP[value as HeaderStyle] }}</span>
+                <span class="block font-medium text-gray-900 dark:text-gray-100">{{ label }}</span>
+                <span class="text-gray-600 dark:text-gray-400">{{ HEADER_STYLE_HELP[value as HeaderStyle] }}</span>
               </span>
             </label>
           </fieldset>
         </section>
         <section>
-          <h2 class="mb-3 text-lg font-semibold text-gray-900">Theme</h2>
-          <p class="text-sm text-gray-600">This site uses the default theme. One theme per site in v1. A later full theme can change section layouts as well as colours.</p>
+          <h2 class="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">Theme</h2>
+          <p class="text-sm text-gray-600 dark:text-gray-400">This site uses the default theme. One theme per site in v1. A later full theme can change section layouts as well as colours.</p>
         </section>
         <section v-if="warnings.length">
-          <h2 class="mb-3 text-lg font-semibold text-gray-900">Contrast</h2>
+          <h2 class="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">Contrast</h2>
           <ul class="m-0 list-disc space-y-1 pl-5 text-sm text-amber-800">
             <li v-for="(issue, i) in warnings" :key="i">{{ issue.message }}</li>
           </ul>
         </section>
-        <p v-if="!canEdit" class="text-sm text-gray-500">Only admins can change the brand and design.</p>
+        <p v-if="!canEdit" class="text-sm text-gray-500 dark:text-gray-400">Only admins can change the brand and design.</p>
       </div>
       <div>
-        <p class="mb-2 text-sm font-medium text-gray-800">Preview</p>
-        <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <p class="mb-2 text-sm font-medium text-gray-800 dark:text-gray-200">Preview</p>
+        <div class="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
           <component :is="'style'">{{ previewCss }}</component>
           <div class="sb-brand-preview">
             <header :class="doc.menuStyle === 'centred' ? 'site-header site-header-centred' : doc.menuStyle === 'hamburger' ? 'site-header site-header-hamburger' : doc.menuStyle === 'mega' ? 'site-header site-header-mega' : 'site-header'">
@@ -266,7 +266,7 @@ onBeforeUnmount(() => {
     <FwbModal v-if="showSubmit" @close="showSubmit = false">
       <template #header>Submit for approval</template>
       <template #body>
-        <p class="mb-3 text-sm text-gray-600">An approver will review this look. After it is published, every page will be updated (about a minute).</p>
+        <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">An approver will review this look. After it is published, every page will be updated (about a minute).</p>
         <FwbInput v-model="submitNote" label="Note for the approver (optional)" />
       </template>
       <template #footer>

@@ -2,14 +2,21 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
+import { THEME_BOOTSTRAP_SCRIPT } from './app/utils/theme'
+import { flowbiteClassDarkPlugin } from './build/flowbite-class-dark'
 
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
   modules: ['./modules/flowbite-vue.ts'],
   css: ['~/assets/css/main.css'],
+  app: {
+    head: {
+      script: [{ innerHTML: THEME_BOOTSTRAP_SCRIPT, tagPosition: 'head' }],
+    },
+  },
   vite: {
-    plugins: [tailwindcss()],
+    plugins: [flowbiteClassDarkPlugin(), tailwindcss()],
   },
   typescript: {
     strict: true,

@@ -81,11 +81,11 @@ async function submit() {
 
 <template>
   <div class="flex h-[calc(100vh-3.25rem)] min-h-0 flex-col">
-    <header class="flex flex-wrap items-center gap-3 border-b border-gray-200 bg-white px-4 py-2">
-      <NuxtLink to="/pages" class="text-sm text-gray-600 no-underline hover:underline">&lt; Pages</NuxtLink>
-      <h1 class="m-0 text-base font-semibold text-gray-900">{{ editor.title }}</h1>
+    <header class="flex flex-wrap items-center gap-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2">
+      <NuxtLink to="/pages" class="text-sm text-gray-600 dark:text-gray-400 no-underline hover:underline">&lt; Pages</NuxtLink>
+      <h1 class="m-0 text-base font-semibold text-gray-900 dark:text-gray-100">{{ editor.title }}</h1>
       <BuilderStatusBadge :state="editor.state" :has-unpublished-changes="editor.hasUnpublishedChanges" />
-      <span class="text-sm text-gray-500" data-testid="save-status">{{ saveLabel }}</span>
+      <span class="text-sm text-gray-500 dark:text-gray-400" data-testid="save-status">{{ saveLabel }}</span>
       <div class="ml-auto flex flex-wrap items-center gap-2">
         <FwbButtonGroup>
           <FwbButton

@@ -57,21 +57,21 @@ function changeClass(id: string): string {
 </script>
 
 <template>
-  <div ref="host" class="min-h-0 flex-1 overflow-auto rounded-xl border border-gray-200 bg-gray-100">
+  <div ref="host" class="min-h-0 flex-1 overflow-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
     <template v-if="kind === 'page' && pageDoc">
       <component :is="'style'">{{ SCOPED_THEME_CSS }}</component>
-      <p v-if="scale < 1" class="sticky top-0 z-10 m-0 bg-gray-100/90 px-4 py-1 text-center text-xs text-gray-600">Shown at {{ Math.round(scale * 100) }}%</p>
+      <p v-if="scale < 1" class="sticky top-0 z-10 m-0 bg-gray-100/90 dark:bg-gray-800/90 px-4 py-1 text-center text-xs text-gray-600 dark:text-gray-400">Shown at {{ Math.round(scale * 100) }}%</p>
       <div class="flex justify-center p-4">
         <div
           :class="CANVAS_SCOPE"
           class="origin-top bg-[var(--paper,#fffaf3)] shadow-md"
           :style="{ width: `${width}px`, transform: `scale(${scale})`, marginBottom: scale < 1 ? `${-(1 - scale) * 800}px` : undefined }"
         >
-          <p v-if="!pageDoc.blocks.length" class="p-16 text-center text-gray-500">This page has no sections yet.</p>
+          <p v-if="!pageDoc.blocks.length" class="p-16 text-center text-gray-500 dark:text-gray-400">This page has no sections yet.</p>
           <div v-for="(block, index) in pageDoc.blocks" :key="block.id" :id="`block-${block.id}`" :class="changeClass(block.id)">
             <SectionView :block="block" :first-hero="index === 0 && (block.type === 'Hero' || block.type === 'VideoHero')" />
           </div>
-          <div v-for="change in removed" :key="change.blockId" class="border-t border-red-200 bg-red-50 px-6 py-3 text-sm text-red-900">
+          <div v-for="change in removed" :key="change.blockId" class="border-t border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950 px-6 py-3 text-sm text-red-900">
             Removed: {{ change.type }}
           </div>
         </div>

@@ -28,7 +28,7 @@ function active(to: string) {
 <template>
   <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
     <div>
-      <p class="mb-1 text-sm text-gray-500"><NuxtLink to="/settings" class="text-gray-500 no-underline hover:underline">Settings</NuxtLink></p>
+      <p class="mb-1 text-sm text-gray-500 dark:text-gray-400"><NuxtLink to="/settings" class="text-gray-500 dark:text-gray-400 no-underline hover:underline">Settings</NuxtLink></p>
       <slot name="title" />
     </div>
     <nav aria-label="Settings" class="flex flex-wrap gap-1">
@@ -37,7 +37,7 @@ function active(to: string) {
         :key="section.to"
         :to="section.to"
         class="rounded-md px-3 py-1.5 text-sm no-underline"
-        :class="active(section.to) ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'"
+        :class="active(section.to) ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'"
       >
         {{ section.label }}
       </NuxtLink>

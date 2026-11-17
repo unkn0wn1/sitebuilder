@@ -36,10 +36,15 @@ async function submit() {
 </script>
 
 <template>
-  <div class="flex min-h-screen items-center justify-center bg-gray-50 p-6">
-    <div class="w-full max-w-md rounded-xl border border-gray-200 bg-white p-8 shadow-sm">
-      <h1 class="mb-1 text-2xl font-semibold text-gray-900">Sign in</h1>
-      <p class="mb-6 text-gray-600">Use your sitebuilder account.</p>
+  <div class="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900 p-6">
+    <div class="w-full max-w-md rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-8 shadow-sm">
+      <div class="mb-6 flex items-start justify-between gap-3">
+        <div>
+          <h1 class="mb-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">Sign in</h1>
+          <p class="m-0 text-gray-600 dark:text-gray-400">Use your sitebuilder account.</p>
+        </div>
+        <BuilderThemeToggle />
+      </div>
       <form class="flex flex-col gap-4" @submit.prevent="submit">
         <FwbInput v-model="email" type="email" autocomplete="username" label="Email" required />
         <FwbInput v-model="password" type="password" autocomplete="current-password" label="Password" required />

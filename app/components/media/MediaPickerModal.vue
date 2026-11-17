@@ -22,7 +22,7 @@ function useChosen() {
     <MediaGrid kind="image" :selected-id="chosen?.id ?? selectedId ?? null" @choose="choose" @uploaded="choose" />
     <template #footer>
       <div class="flex justify-end gap-2">
-        <button type="button" class="rounded-md border border-gray-200 px-3 py-2 text-sm" @click="emit('close')">Cancel</button>
+        <button type="button" class="rounded-md border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm" @click="emit('close')">Cancel</button>
         <button type="button" class="rounded-md bg-blue-700 px-3 py-2 text-sm text-white disabled:opacity-50" :disabled="!chosen" @click="useChosen">Use this photo</button>
       </div>
     </template>

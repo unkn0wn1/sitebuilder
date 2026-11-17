@@ -110,10 +110,10 @@ onMounted(load)
   <div class="p-6">
     <SettingsNav>
       <template #title>
-        <h1 class="m-0 text-2xl font-semibold text-gray-900">SEO and redirects</h1>
+        <h1 class="m-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">SEO and redirects</h1>
       </template>
     </SettingsNav>
-    <p v-if="loading" class="text-gray-500">Loading settings…</p>
+    <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading settings…</p>
     <div v-else class="max-w-3xl space-y-10">
       <FwbAlert v-if="error" type="danger">{{ error }}</FwbAlert>
       <FwbAlert v-else-if="saved" type="success">{{ saved }}</FwbAlert>
@@ -121,12 +121,12 @@ onMounted(load)
       <form class="max-w-xl" @submit.prevent="saveSeo">
         <div class="mb-4">
           <FwbToggle v-model="allowIndexing" label="Allow search engines to index this site" />
-          <p class="mt-2 text-sm text-gray-500">When this is off, pages ask search engines not to list them.</p>
+          <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">When this is off, pages ask search engines not to list them.</p>
         </div>
         <div class="mb-6">
-          <p class="mb-1 text-sm font-medium text-gray-900">Default social image</p>
-          <p class="mb-2 text-sm text-gray-500">Used when a page doesn't set its own image for shares.</p>
-          <p class="mb-2 text-sm text-gray-700">{{ defaultSocialImage ? 'An image is set.' : 'No default image yet.' }}</p>
+          <p class="mb-1 text-sm font-medium text-gray-900 dark:text-gray-100">Default social image</p>
+          <p class="mb-2 text-sm text-gray-500 dark:text-gray-400">Used when a page doesn't set its own image for shares.</p>
+          <p class="mb-2 text-sm text-gray-700 dark:text-gray-300">{{ defaultSocialImage ? 'An image is set.' : 'No default image yet.' }}</p>
           <div class="flex flex-wrap gap-2">
             <FwbButton color="light" size="sm" type="button" @click="showPicker = true">{{ defaultSocialImage ? 'Change image' : 'Choose image' }}</FwbButton>
             <FwbButton v-if="defaultSocialImage" color="light" size="sm" type="button" @click="defaultSocialImage = null">Remove</FwbButton>
@@ -136,8 +136,8 @@ onMounted(load)
       </form>
 
       <section>
-        <h2 class="mb-2 text-lg font-semibold text-gray-900">Redirects</h2>
-        <p class="mb-4 text-sm text-gray-600">Send an old address to a new one. Some are added automatically when a live page moves or is taken offline.</p>
+        <h2 class="mb-2 text-lg font-semibold text-gray-900 dark:text-gray-100">Redirects</h2>
+        <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">Send an old address to a new one. Some are added automatically when a live page moves or is taken offline.</p>
         <form class="mb-6 flex flex-wrap items-end gap-3" @submit.prevent="addRedirect">
           <div class="w-40">
             <FwbInput v-model="fromPath" label="From" placeholder="/old-page" />
@@ -150,7 +150,7 @@ onMounted(load)
           </div>
           <FwbButton type="submit" :disabled="adding">{{ adding ? 'Adding…' : 'Add redirect' }}</FwbButton>
         </form>
-        <p v-if="!redirects.length" class="text-sm text-gray-500">No redirects yet.</p>
+        <p v-if="!redirects.length" class="text-sm text-gray-500 dark:text-gray-400">No redirects yet.</p>
         <FwbTable v-else hoverable>
           <FwbTableHead>
             <FwbTableHeadCell>From</FwbTableHeadCell>

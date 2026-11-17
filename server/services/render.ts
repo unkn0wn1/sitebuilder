@@ -685,11 +685,20 @@ function firstHeroPreload(block: StoredBlock, site: SiteRenderContext): string {
   <link rel="preload" as="image" href="/media/${base}-${w}.webp" type="image/webp" media="(min-width: 641px)">`
 }
 
+/** Public origin for sitemaps, robots and canonical URLs. Falls back to PUBLIC_HOST when the site has no primary domain yet. */
+export function siteOrigin(primaryDomain: string | null | undefined, publicHost = process.env.PUBLIC_HOST): string | null {
+  const domain = primaryDomain?.trim()
+  if (domain) return `https://${domain}`
+  const host = publicHost?.trim()
+  if (host && host !== '_') return `https://${host}`
+  return null
+}
+
 /** Load the site shell, live pages, media and embeds needed to render a release. */
 export function loadSiteRenderContext(ctx: ServiceCtx, manifest: ReleaseManifest, previous?: ReleaseManifest | null): SiteRenderContext {
   const siteRow = ctx.db.select().from(sites).where(eq(sites.id, ctx.siteId)).get()!
   const settings = readSettings(siteRow.settings)
-  const origin = siteRow.primaryDomain ? `https://${siteRow.primaryDomain}` : null
+  const origin = siteOrigin(siteRow.primaryDomain)
   const pagesById: SiteRenderContext['pagesById'] = {}
   for (const [id, entry] of Object.entries(manifest.pages)) {
     const row = ctx.db.select({ title: pages.title, path: pages.path }).from(pages).where(eq(pages.id, id)).get()

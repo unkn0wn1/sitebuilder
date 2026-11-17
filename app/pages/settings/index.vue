@@ -24,13 +24,13 @@ const sections = computed(() => all.filter((s) => user.value && can(user.value, 
 
 <template>
   <div class="p-6">
-    <h1 class="mb-2 text-2xl font-semibold text-gray-900">Settings</h1>
-    <p class="mb-6 max-w-xl text-gray-600">Site-wide options. Each section saves on its own screen.</p>
+    <h1 class="mb-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">Settings</h1>
+    <p class="mb-6 max-w-xl text-gray-600 dark:text-gray-400">Site-wide options. Each section saves on its own screen.</p>
     <ul class="m-0 grid list-none gap-3 p-0 sm:grid-cols-2">
       <li v-for="section in sections" :key="section.label">
-        <NuxtLink :to="section.to" class="block rounded-lg border border-gray-200 bg-white p-4 no-underline hover:border-gray-300">
-          <h2 class="m-0 text-base font-semibold text-gray-900">{{ section.label }}</h2>
-          <p class="mt-1 mb-0 text-sm text-gray-600">{{ section.note }}</p>
+        <NuxtLink :to="section.to" class="block rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 no-underline hover:border-gray-300 dark:hover:border-gray-500">
+          <h2 class="m-0 text-base font-semibold text-gray-900 dark:text-gray-100">{{ section.label }}</h2>
+          <p class="mt-1 mb-0 text-sm text-gray-600 dark:text-gray-400">{{ section.note }}</p>
         </NuxtLink>
       </li>
     </ul>

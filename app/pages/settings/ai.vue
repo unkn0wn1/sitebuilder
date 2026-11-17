@@ -169,16 +169,16 @@ async function testConnection() {
   <div class="p-6">
     <SettingsNav>
       <template #title>
-        <h1 class="m-0 text-2xl font-semibold text-gray-900">AI</h1>
+        <h1 class="m-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">AI</h1>
       </template>
     </SettingsNav>
 
-    <p class="mb-6 max-w-2xl text-gray-600">
+    <p class="mb-6 max-w-2xl text-gray-600 dark:text-gray-400">
       The assistant uses the key and model you provide. Draft content is sent to that provider when someone uses the assistant.
       Check the provider's data policy before you switch it on. The key is stored encrypted and is never shown again after you save it.
     </p>
 
-    <p v-if="loading" class="text-gray-500">Loading settings…</p>
+    <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading settings…</p>
 
     <form v-else class="max-w-xl" @submit.prevent="save">
       <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
@@ -188,7 +188,7 @@ async function testConnection() {
 
       <div class="mb-6">
         <FwbToggle v-model="enabled" label="Switch the assistant on" />
-        <p class="mt-1 text-sm text-gray-500">When this is off, people can still edit pages by hand.</p>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">When this is off, people can still edit pages by hand.</p>
       </div>
 
       <div class="mb-4">
@@ -197,7 +197,7 @@ async function testConnection() {
 
       <div class="mb-4">
         <FwbInput v-model="baseUrl" label="Base URL" :placeholder="provider === 'custom' ? 'https://example.com/v1' : 'Leave blank to use the provider default'" />
-        <p class="mt-1 text-sm text-gray-500">Needed for a custom or local server. For the named providers, leave this blank unless you have a reason to change it.</p>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Needed for a custom or local server. For the named providers, leave this blank unless you have a reason to change it.</p>
       </div>
 
       <div class="mb-4">
@@ -215,13 +215,13 @@ async function testConnection() {
           :placeholder="keySet ? 'A key is already saved. Enter a new one to replace it.' : 'Paste your API key'"
           autocomplete="off"
         />
-        <p class="mt-1 text-sm text-gray-500">
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
           {{ keySet ? 'A key is already saved. It cannot be read back.' : 'The key is write-only: after you save it, it cannot be read back.' }}
         </p>
       </div>
 
-      <h2 class="mb-1 text-lg font-semibold text-gray-900">Cost caps</h2>
-      <p class="mb-4 text-sm text-gray-600">
+      <h2 class="mb-1 text-lg font-semibold text-gray-900 dark:text-gray-100">Cost caps</h2>
+      <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">
         Amounts are in pounds. These are estimates used to stop a run, not invoices.
         <span v-if="monthUsedPounds !== null"> About £{{ monthUsedPounds.toFixed(2) }} has been used this month.</span>
       </p>

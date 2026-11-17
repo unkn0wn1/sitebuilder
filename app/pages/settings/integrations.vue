@@ -121,20 +121,20 @@ onMounted(load)
   <div class="p-6">
     <SettingsNav>
       <template #title>
-        <h1 class="m-0 text-2xl font-semibold text-gray-900">Integrations</h1>
+        <h1 class="m-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">Integrations</h1>
       </template>
     </SettingsNav>
-    <p class="mb-6 max-w-2xl text-gray-600">Tokens and secrets are stored encrypted and are never shown again after you save them. The assistant key is under <NuxtLink to="/settings/ai">AI</NuxtLink>.</p>
-    <p v-if="loading" class="text-gray-500">Loading settings…</p>
+    <p class="mb-6 max-w-2xl text-gray-600 dark:text-gray-400">Tokens and secrets are stored encrypted and are never shown again after you save them. The assistant key is under <NuxtLink to="/settings/ai">AI</NuxtLink>.</p>
+    <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading settings…</p>
     <div v-else class="max-w-xl space-y-10">
       <FwbAlert v-if="error" type="danger">{{ error }}</FwbAlert>
       <FwbAlert v-else-if="saved" type="success">{{ saved }}</FwbAlert>
       <FwbAlert v-if="testResult" type="success">{{ testResult }}</FwbAlert>
 
       <section>
-        <h2 class="mb-2 text-lg font-semibold text-gray-900">Cloudflare</h2>
-        <p class="mb-4 text-sm text-gray-600">Used to purge the cache after a publish. The zone id is set when the site is installed.</p>
-        <p class="mb-3 text-sm text-gray-700">{{ secretsSet.cloudflare_token ? 'A token is already saved. Enter a new one only if you need to replace it.' : 'No token is saved yet.' }}</p>
+        <h2 class="mb-2 text-lg font-semibold text-gray-900 dark:text-gray-100">Cloudflare</h2>
+        <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">Used to purge the cache after a publish. The zone id is set when the site is installed.</p>
+        <p class="mb-3 text-sm text-gray-700 dark:text-gray-300">{{ secretsSet.cloudflare_token ? 'A token is already saved. Enter a new one only if you need to replace it.' : 'No token is saved yet.' }}</p>
         <div class="mb-4">
           <FwbInput v-model="cloudflareToken" type="password" label="API token" autocomplete="off" :placeholder="secretsSet.cloudflare_token ? 'Leave blank to keep the saved token' : ''" />
         </div>
@@ -142,9 +142,9 @@ onMounted(load)
       </section>
 
       <section>
-        <h2 class="mb-2 text-lg font-semibold text-gray-900">Google Workspace email</h2>
-        <p class="mb-4 text-sm text-gray-600">Used for invites and notifications. Add the OAuth client, save, then connect the mailbox.</p>
-        <p v-if="mail" class="mb-3 text-sm text-gray-700">
+        <h2 class="mb-2 text-lg font-semibold text-gray-900 dark:text-gray-100">Google Workspace email</h2>
+        <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">Used for invites and notifications. Add the OAuth client, save, then connect the mailbox.</p>
+        <p v-if="mail" class="mb-3 text-sm text-gray-700 dark:text-gray-300">
           <template v-if="mail.googleConnected">Connected as {{ mail.googleAccount ?? 'a Google account' }}.</template>
           <template v-else-if="mail.transport === 'outbox'">This site is writing mail to a local outbox (typical in development). You can still connect Google for a real mailbox.</template>
           <template v-else>Google Workspace is not connected.</template>
@@ -154,11 +154,11 @@ onMounted(load)
         </div>
         <div class="mb-4">
           <FwbInput v-model="googleSecret" type="password" label="OAuth client secret" autocomplete="off" :placeholder="secretsSet.google_oauth_client_secret ? 'Leave blank to keep the saved secret' : ''" />
-          <p v-if="secretsSet.google_oauth_client_secret" class="mt-1 text-sm text-gray-500">A client secret is already saved.</p>
+          <p v-if="secretsSet.google_oauth_client_secret" class="mt-1 text-sm text-gray-500 dark:text-gray-400">A client secret is already saved.</p>
         </div>
         <div class="mb-4">
           <FwbInput v-model="from" label="From address" placeholder="hello@example.org" />
-          <p class="mt-1 text-sm text-gray-500">Optional. If blank, mail comes from the connected Google account.</p>
+          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Optional. If blank, mail comes from the connected Google account.</p>
         </div>
         <div class="mb-6 flex flex-wrap gap-2">
           <FwbButton :disabled="saving" @click="saveMail">{{ saving ? 'Saving…' : 'Save email settings' }}</FwbButton>

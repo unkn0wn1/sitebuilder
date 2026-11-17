@@ -57,17 +57,17 @@ onMounted(load)
   <div class="p-6">
     <SettingsNav>
       <template #title>
-        <h1 class="m-0 text-2xl font-semibold text-gray-900">Security</h1>
+        <h1 class="m-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">Security</h1>
       </template>
     </SettingsNav>
-    <p class="mb-6 max-w-2xl text-gray-600">Choose which third-party embeds editors may add to a page. Unchecked providers can't be added, even if a form or video id is known.</p>
-    <p v-if="loading" class="text-gray-500">Loading settings…</p>
+    <p class="mb-6 max-w-2xl text-gray-600 dark:text-gray-400">Choose which third-party embeds editors may add to a page. Unchecked providers can't be added, even if a form or video id is known.</p>
+    <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading settings…</p>
     <form v-else class="max-w-xl" @submit.prevent="save">
       <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
       <FwbAlert v-else-if="saved" type="success" class="mb-4">{{ saved }}</FwbAlert>
       <div class="mb-6 space-y-3">
-        <label v-for="key in EMBED_PROVIDER_KEYS" :key="key" class="flex items-center gap-2 text-sm text-gray-800">
-          <input v-model="allowed[key]" type="checkbox" class="rounded border-gray-300" />
+        <label v-for="key in EMBED_PROVIDER_KEYS" :key="key" class="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
+          <input v-model="allowed[key]" type="checkbox" class="rounded border-gray-300 dark:border-gray-600" />
           {{ LABELS[key] }}
         </label>
       </div>

@@ -182,7 +182,7 @@ function openCrop(field: FieldSpec) {
         :required="!field.optional"
         @update:model-value="set(field.path, $event)"
       />
-      <p v-if="field.kind === 'text' && field.max && textValue(field.path).length > field.max - 15" class="mt-1 text-xs text-gray-500">
+      <p v-if="field.kind === 'text' && field.max && textValue(field.path).length > field.max - 15" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
         {{ textValue(field.path).length }} / {{ field.max }}
       </p>
 
@@ -202,29 +202,29 @@ function openCrop(field: FieldSpec) {
         @update:model-value="set(field.path, $event)"
       />
 
-      <label v-else-if="field.kind === 'boolean'" class="flex items-center gap-2 text-sm text-gray-800">
+      <label v-else-if="field.kind === 'boolean'" class="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
         <input type="checkbox" :checked="Boolean(get(field.path))" @change="set(field.path, ($event.target as HTMLInputElement).checked)">
         {{ field.label }}
       </label>
 
-      <div v-else-if="field.kind === 'link'" class="rounded-md border border-gray-200 p-3">
-        <p class="mb-2 text-sm font-medium text-gray-800">{{ field.label }}</p>
+      <div v-else-if="field.kind === 'link'" class="rounded-md border border-gray-200 dark:border-gray-700 p-3">
+        <p class="mb-2 text-sm font-medium text-gray-800 dark:text-gray-200">{{ field.label }}</p>
         <div class="flex flex-col gap-2">
           <FwbInput :model-value="textValue(`${field.path}.label`)" label="Label" @update:model-value="set(`${field.path}.label`, $event)" />
           <FwbInput :model-value="textValue(`${field.path}.href`)" label="Link" @update:model-value="set(`${field.path}.href`, $event)" />
         </div>
       </div>
 
-      <div v-else-if="field.kind === 'image'" class="rounded-md border border-gray-200 p-3">
-        <p class="mb-2 text-sm font-medium text-gray-800">{{ field.label }}</p>
+      <div v-else-if="field.kind === 'image'" class="rounded-md border border-gray-200 dark:border-gray-700 p-3">
+        <p class="mb-2 text-sm font-medium text-gray-800 dark:text-gray-200">{{ field.label }}</p>
         <img
           v-if="previewOf(field.path)?.src"
           :src="previewOf(field.path)!.src!"
           :alt="textValue(`${field.path}.alt`) || previewOf(field.path)?.alt || ''"
           class="mb-2 max-h-40 w-full rounded object-cover"
         />
-        <p v-else-if="textValue(`${field.path}.media`)" class="mb-2 text-xs text-gray-500">Photo {{ textValue(`${field.path}.media`) }}</p>
-        <p v-else class="mb-2 text-xs text-gray-500">No photo yet.</p>
+        <p v-else-if="textValue(`${field.path}.media`)" class="mb-2 text-xs text-gray-500 dark:text-gray-400">Photo {{ textValue(`${field.path}.media`) }}</p>
+        <p v-else class="mb-2 text-xs text-gray-500 dark:text-gray-400">No photo yet.</p>
         <div class="mb-2 flex flex-wrap gap-2">
           <FwbButton size="sm" color="light" type="button" @click="pickerFor = field.path">Change</FwbButton>
           <FwbButton v-if="textValue(`${field.path}.media`) && slotOf(field)" size="sm" color="light" type="button" @click="openCrop(field)">Crop</FwbButton>
@@ -239,12 +239,12 @@ function openCrop(field: FieldSpec) {
         @update:model-value="set(field.path, $event)"
       />
 
-      <div v-else-if="field.kind === 'list'" class="rounded-md border border-gray-200 p-3">
+      <div v-else-if="field.kind === 'list'" class="rounded-md border border-gray-200 dark:border-gray-700 p-3">
         <div class="mb-2 flex items-center justify-between">
-          <p class="text-sm font-medium text-gray-800">{{ field.label }}</p>
-          <button type="button" class="text-sm text-blue-700 hover:underline" @click="addItem(field)">Add</button>
+          <p class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ field.label }}</p>
+          <button type="button" class="text-sm text-blue-700 dark:text-blue-400 hover:underline" @click="addItem(field)">Add</button>
         </div>
-        <div v-for="(item, index) in listItems(field)" :key="index" class="mb-3 border-b border-gray-100 pb-3 last:mb-0 last:border-0 last:pb-0">
+        <div v-for="(item, index) in listItems(field)" :key="index" class="mb-3 border-b border-gray-100 dark:border-gray-800 pb-3 last:mb-0 last:border-0 last:pb-0">
           <div v-for="sub in field.item ?? []" :key="sub.name" class="mb-2">
             <FwbTextarea
               v-if="sub.kind === 'richtext' || sub.kind === 'textarea'"
@@ -260,7 +260,7 @@ function openCrop(field: FieldSpec) {
               @update:model-value="updateItem(field, index, sub.name, $event)"
             />
           </div>
-          <button type="button" class="text-xs text-red-700 hover:underline" @click="removeItem(field, index)">Remove</button>
+          <button type="button" class="text-xs text-red-700 dark:text-red-400 hover:underline" @click="removeItem(field, index)">Remove</button>
         </div>
       </div>
     </div>

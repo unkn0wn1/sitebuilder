@@ -84,12 +84,12 @@ function setChild(index: number, childIndex: number, patch: { label?: string; ta
 
 <template>
   <div class="space-y-4">
-    <p class="text-sm text-gray-600">Links point at a page on this site, so they follow if the page moves. You can nest one level of sub-items.</p>
-    <div v-if="!modelValue.items.length" class="rounded-lg border border-dashed border-gray-300 px-4 py-8 text-center text-sm text-gray-500">
+    <p class="text-sm text-gray-600 dark:text-gray-400">Links point at a page on this site, so they follow if the page moves. You can nest one level of sub-items.</p>
+    <div v-if="!modelValue.items.length" class="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
       This menu is empty. Add a link to get started.
     </div>
     <ol class="space-y-3">
-      <li v-for="(item, index) in modelValue.items" :key="item.id" class="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+      <li v-for="(item, index) in modelValue.items" :key="item.id" class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 shadow-sm">
         <div class="flex flex-col gap-3">
           <div class="flex flex-wrap items-center gap-2">
             <FwbInput :model-value="item.label" class="min-w-40 flex-1" @update:model-value="setItem(index, { label: String($event) })" />
@@ -102,8 +102,8 @@ function setChild(index: number, childIndex: number, patch: { label?: string; ta
           </div>
           <LinkTargetField :model-value="item.target" :pages="pages" @update:model-value="setItem(index, { target: $event })" />
         </div>
-        <ol v-if="item.children.length" class="mt-3 space-y-3 border-l-2 border-gray-200 pl-4">
-          <li v-for="(child, childIndex) in item.children" :key="child.id" class="rounded-md border border-gray-100 bg-gray-50 p-3">
+        <ol v-if="item.children.length" class="mt-3 space-y-3 border-l-2 border-gray-200 dark:border-gray-700 pl-4">
+          <li v-for="(child, childIndex) in item.children" :key="child.id" class="rounded-md border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-3">
             <div class="flex flex-col gap-3">
               <div class="flex flex-wrap items-center gap-2">
                 <FwbInput :model-value="child.label" class="min-w-40 flex-1" @update:model-value="setChild(index, childIndex, { label: String($event) })" />
@@ -120,6 +120,6 @@ function setChild(index: number, childIndex: number, patch: { label?: string; ta
       </li>
     </ol>
     <FwbButton size="sm" :disabled="modelValue.items.length >= 12" @click="addItem">Add item</FwbButton>
-    <p v-if="modelValue.items.length >= 12" class="text-sm text-gray-500">The menu can have 12 top-level items. Put the rest in sub-menus.</p>
+    <p v-if="modelValue.items.length >= 12" class="text-sm text-gray-500 dark:text-gray-400">The menu can have 12 top-level items. Put the rest in sub-menus.</p>
   </div>
 </template>

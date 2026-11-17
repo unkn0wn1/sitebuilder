@@ -93,10 +93,10 @@ onMounted(load)
   <div class="p-6">
     <SettingsNav>
       <template #title>
-        <h1 class="m-0 text-2xl font-semibold text-gray-900">Users</h1>
+        <h1 class="m-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">Users</h1>
       </template>
     </SettingsNav>
-    <p class="mb-6 max-w-2xl text-gray-600">Editors can work on pages. Approvers can publish. Admins can also change settings, brand and page types.</p>
+    <p class="mb-6 max-w-2xl text-gray-600 dark:text-gray-400">Editors can work on pages. Approvers can publish. Admins can also change settings, brand and page types.</p>
     <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
     <FwbAlert v-else-if="saved" type="success" class="mb-4">{{ saved }}</FwbAlert>
 
@@ -113,7 +113,7 @@ onMounted(load)
       <FwbButton type="submit" :disabled="inviting">{{ inviting ? 'Sending…' : 'Send invite' }}</FwbButton>
     </form>
 
-    <p v-if="loading" class="text-gray-500">Loading users…</p>
+    <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading users…</p>
     <FwbTable v-else hoverable>
       <FwbTableHead>
         <FwbTableHeadCell>Name</FwbTableHeadCell>
@@ -126,13 +126,13 @@ onMounted(load)
         <FwbTableRow v-for="item in items" :key="item.id">
           <FwbTableCell>
             {{ item.name }}
-            <span v-if="item.status === 'deactivated'" class="ml-2 text-xs text-gray-500">Deactivated</span>
-            <span v-if="item.isOperator" class="ml-2 text-xs text-gray-500">Operator</span>
+            <span v-if="item.status === 'deactivated'" class="ml-2 text-xs text-gray-500 dark:text-gray-400">Deactivated</span>
+            <span v-if="item.isOperator" class="ml-2 text-xs text-gray-500 dark:text-gray-400">Operator</span>
           </FwbTableCell>
           <FwbTableCell>{{ item.email }}</FwbTableCell>
           <FwbTableCell>
             <select
-              class="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm"
+              class="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-sm"
               :value="item.role"
               :disabled="item.id === me?.id"
               @change="changeRole(item, ($event.target as HTMLSelectElement).value)"

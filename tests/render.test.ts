@@ -17,6 +17,7 @@ import {
   publicUrl,
   renderPageHtml,
   robotsTxt,
+  siteOrigin,
   sitemapXml,
   type SiteRenderContext,
 } from '../server/services/render'
@@ -323,3 +324,18 @@ function lastPurgeTags(ctx: { db: ReturnType<typeof setup>['ctx']['db'] }): stri
   const row = rows.at(-1)
   return ((row?.payload as { tags?: string[] } | undefined)?.tags) ?? []
 }
+
+describe('site origin', () => {
+  it('prefers the primary domain, then PUBLIC_HOST, and ignores the compose placeholder', () => {
+    expect(siteOrigin('sb-demo.moejo.co', '_')).toBe('https://sb-demo.moejo.co')
+    expect(siteOrigin(null, 'sb-demo.moejo.co')).toBe('https://sb-demo.moejo.co')
+    expect(siteOrigin('', '_')).toBe(null)
+    expect(siteOrigin(null, '_')).toBe(null)
+    expect(siteOrigin(null, undefined)).toBe(null)
+  })
+
+  it('emits an absolute Sitemap URL once an origin is known', () => {
+    expect(robotsTxt(site({ origin: 'https://sb-demo.moejo.co' }))).toContain('Sitemap: https://sb-demo.moejo.co/sitemap.xml')
+    expect(robotsTxt(site({ origin: null }))).toContain('Sitemap: /sitemap.xml')
+  })
+})

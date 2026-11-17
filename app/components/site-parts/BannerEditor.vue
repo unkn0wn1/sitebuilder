@@ -37,8 +37,8 @@ function setLinkTarget(target: LinkTarget) {
 
 <template>
   <div class="space-y-6">
-    <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
-      <input type="checkbox" class="rounded text-blue-700" :checked="modelValue.enabled" @change="patch({ enabled: ($event.target as HTMLInputElement).checked })" />
+    <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-800 dark:text-gray-200">
+      <input type="checkbox" class="rounded text-blue-700 dark:text-blue-400" :checked="modelValue.enabled" @change="patch({ enabled: ($event.target as HTMLInputElement).checked })" />
       Show this banner on every page
     </label>
     <FwbInput :model-value="modelValue.message" label="Message" @update:model-value="patch({ message: String($event) })" />
@@ -53,11 +53,11 @@ function setLinkTarget(target: LinkTarget) {
       @update:model-value="patch({ tone: $event === 'urgent' || $event === 'celebrate' ? $event : 'info' })"
     />
     <div class="space-y-3">
-      <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
-        <input type="checkbox" class="rounded text-blue-700" :checked="!!modelValue.link" @change="setLink(($event.target as HTMLInputElement).checked)" />
+      <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-800 dark:text-gray-200">
+        <input type="checkbox" class="rounded text-blue-700 dark:text-blue-400" :checked="!!modelValue.link" @change="setLink(($event.target as HTMLInputElement).checked)" />
         Include a link
       </label>
-      <div v-if="modelValue.link" class="space-y-3 rounded-lg border border-gray-200 p-3">
+      <div v-if="modelValue.link" class="space-y-3 rounded-lg border border-gray-200 dark:border-gray-700 p-3">
         <FwbInput :model-value="modelValue.link.label" label="Link text" @update:model-value="setLinkLabel(String($event))" />
         <LinkTargetField :model-value="modelValue.link.target" :pages="pages" label="Link goes to" @update:model-value="setLinkTarget" />
       </div>

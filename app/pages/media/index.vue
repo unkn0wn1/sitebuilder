@@ -26,7 +26,7 @@ function onUpdated() {
   <div class="flex min-h-[calc(100vh-3.25rem)]">
     <div class="min-w-0 flex-1 p-6">
       <div class="mb-6 flex items-center justify-between gap-3">
-        <h1 class="m-0 text-2xl font-semibold text-gray-900">Media</h1>
+        <h1 class="m-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">Media</h1>
       </div>
       <MediaGrid ref="grid" :selected-id="selectedId" @choose="onSelect" @uploaded="onSelect" />
     </div>

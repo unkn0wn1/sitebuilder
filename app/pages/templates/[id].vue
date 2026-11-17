@@ -201,52 +201,52 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="p-6">
-    <p class="mb-1 text-sm text-gray-500"><NuxtLink to="/templates" class="text-gray-500 no-underline hover:underline">Page types</NuxtLink></p>
+    <p class="mb-1 text-sm text-gray-500 dark:text-gray-400"><NuxtLink to="/templates" class="text-gray-500 dark:text-gray-400 no-underline hover:underline">Page types</NuxtLink></p>
     <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h1 class="m-0 text-2xl font-semibold text-gray-900">{{ pack?.label ?? 'Page type' }}</h1>
-        <p v-if="pack" class="mt-1 mb-0 text-sm text-gray-600">Key: {{ pack.key }} · {{ statusLabel(pack.workflowState, hasChanges) }}<span v-if="saveStatus === 'saving'"> · Saving…</span><span v-else-if="saveStatus === 'saved'"> · Saved</span></p>
+        <h1 class="m-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">{{ pack?.label ?? 'Page type' }}</h1>
+        <p v-if="pack" class="mt-1 mb-0 text-sm text-gray-600 dark:text-gray-400">Key: {{ pack.key }} · {{ statusLabel(pack.workflowState, hasChanges) }}<span v-if="saveStatus === 'saving'"> · Saving…</span><span v-else-if="saveStatus === 'saved'"> · Saved</span></p>
       </div>
       <FwbButton v-if="canSubmitNow" size="sm" :disabled="submitting" @click="showSubmit = true">Submit for approval</FwbButton>
     </div>
     <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
     <FwbAlert v-else-if="saved" type="success" class="mb-4">{{ saved }}</FwbAlert>
-    <p v-if="review && pack?.workflowState === 'in_review'" class="mb-4 text-sm text-gray-700">This is waiting for approval. Editing it will withdraw the review so it can be submitted again. <NuxtLink :to="`/approvals/${review.id}`">Open the review</NuxtLink>.</p>
-    <p v-if="loading" class="text-gray-500">Loading…</p>
+    <p v-if="review && pack?.workflowState === 'in_review'" class="mb-4 text-sm text-gray-700 dark:text-gray-300">This is waiting for approval. Editing it will withdraw the review so it can be submitted again. <NuxtLink :to="`/approvals/${review.id}`">Open the review</NuxtLink>.</p>
+    <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading…</p>
     <form v-else-if="doc" class="max-w-3xl space-y-8" @submit.prevent>
       <div class="max-w-md">
         <FwbInput v-model="doc.label" label="Name" :disabled="!canEdit" @update:model-value="queueSave" />
       </div>
       <section>
-        <h2 class="mb-1 text-lg font-semibold text-gray-900">Allowed and required sections</h2>
-        <p class="mb-4 text-sm text-gray-600">Allowed sections can be added to a page of this type. Required sections must be present before the page can be submitted. A required Hero can also be a video hero.</p>
+        <h2 class="mb-1 text-lg font-semibold text-gray-900 dark:text-gray-100">Allowed and required sections</h2>
+        <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">Allowed sections can be added to a page of this type. Required sections must be present before the page can be submitted. A required Hero can also be a video hero.</p>
         <div v-for="[category, blocks] in grouped" :key="category" class="mb-5">
-          <h3 class="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">{{ category }}</h3>
-          <div class="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
+          <h3 class="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ category }}</h3>
+          <div class="divide-y divide-gray-100 dark:divide-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
             <div v-for="block in blocks" :key="block.type" class="flex flex-wrap items-center justify-between gap-3 px-3 py-2">
-              <span class="text-sm text-gray-900">{{ block.label }}</span>
-              <div class="flex items-center gap-4 text-sm text-gray-700">
+              <span class="text-sm text-gray-900 dark:text-gray-100">{{ block.label }}</span>
+              <div class="flex items-center gap-4 text-sm text-gray-700 dark:text-gray-300">
                 <label class="flex items-center gap-1.5">
-                  <input type="checkbox" class="rounded border-gray-300" :checked="isAllowed(block.type)" :disabled="!canEdit" @change="toggleAllowed(block.type, ($event.target as HTMLInputElement).checked)" />
+                  <input type="checkbox" class="rounded border-gray-300 dark:border-gray-600" :checked="isAllowed(block.type)" :disabled="!canEdit" @change="toggleAllowed(block.type, ($event.target as HTMLInputElement).checked)" />
                   Allowed
                 </label>
                 <label v-if="block.type !== 'VideoHero'" class="flex items-center gap-1.5">
-                  <input type="checkbox" class="rounded border-gray-300" :checked="isRequired(block.type)" :disabled="!canEdit || !isAllowed(block.type)" @change="toggleRequired(block.type, ($event.target as HTMLInputElement).checked)" />
+                  <input type="checkbox" class="rounded border-gray-300 dark:border-gray-600" :checked="isRequired(block.type)" :disabled="!canEdit || !isAllowed(block.type)" @change="toggleRequired(block.type, ($event.target as HTMLInputElement).checked)" />
                   Required
                 </label>
-                <span v-else class="text-xs text-gray-500">Counts as a Hero if Hero is required</span>
+                <span v-else class="text-xs text-gray-500 dark:text-gray-400">Counts as a Hero if Hero is required</span>
               </div>
             </div>
           </div>
         </div>
       </section>
       <section>
-        <h2 class="mb-1 text-lg font-semibold text-gray-900">Starting sections</h2>
-        <p class="mb-4 text-sm text-gray-600">A new page of this type begins with these sections, in this order. Editors can still add or remove sections afterwards, within the rules above.</p>
-        <p v-if="!doc.startingBlocks.length" class="text-sm text-gray-500">New pages will start empty.</p>
+        <h2 class="mb-1 text-lg font-semibold text-gray-900 dark:text-gray-100">Starting sections</h2>
+        <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">A new page of this type begins with these sections, in this order. Editors can still add or remove sections afterwards, within the rules above.</p>
+        <p v-if="!doc.startingBlocks.length" class="text-sm text-gray-500 dark:text-gray-400">New pages will start empty.</p>
         <ul v-else class="mb-4 list-none space-y-2 p-0">
-          <li v-for="(item, index) in doc.startingBlocks" :key="`${item.type}-${index}`" class="flex flex-wrap items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2">
-            <span class="flex-1 text-sm text-gray-900">{{ blockLabel(item.type) }}</span>
+          <li v-for="(item, index) in doc.startingBlocks" :key="`${item.type}-${index}`" class="flex flex-wrap items-center gap-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2">
+            <span class="flex-1 text-sm text-gray-900 dark:text-gray-100">{{ blockLabel(item.type) }}</span>
             <FwbButton color="light" size="sm" :disabled="!canEdit || index === 0" @click="moveStarting(index, -1)">Up</FwbButton>
             <FwbButton color="light" size="sm" :disabled="!canEdit || index === doc.startingBlocks.length - 1" @click="moveStarting(index, 1)">Down</FwbButton>
             <FwbButton color="light" size="sm" :disabled="!canEdit" @click="removeStarting(index)">Remove</FwbButton>
@@ -258,9 +258,9 @@ onBeforeUnmount(() => {
       </section>
     </form>
     <div v-if="showSubmit" class="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4">
-      <div class="w-full max-w-md rounded-lg bg-white p-5 shadow-lg">
+      <div class="w-full max-w-md rounded-lg bg-white dark:bg-gray-800 p-5 shadow-lg">
         <h2 class="mt-0 mb-2 text-lg font-semibold">Submit for approval</h2>
-        <p class="mb-4 text-sm text-gray-600">These rules will apply to pages of this type after an approver publishes them. Existing live pages are not re-rendered.</p>
+        <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">These rules will apply to pages of this type after an approver publishes them. Existing live pages are not re-rendered.</p>
         <FwbInput v-model="submitNote" label="Note for the approver (optional)" />
         <div class="mt-4 flex justify-end gap-2">
           <FwbButton color="light" :disabled="submitting" @click="showSubmit = false">Cancel</FwbButton>

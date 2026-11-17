@@ -168,10 +168,10 @@ onBeforeUnmount(stopDrag)
 <template>
   <BuilderSimpleModal :title="title || `Crop for ${ratio}`" @close="emit('close')">
     
-      <p class="mb-3 text-sm text-gray-600">Move or resize the frame to choose what shows. The shape stays {{ ratio }}.</p>
+      <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">Move or resize the frame to choose what shows. The shape stays {{ ratio }}.</p>
       <FwbAlert v-if="error" type="danger" class="mb-3">{{ error }}</FwbAlert>
       <div class="flex flex-col gap-4 md:flex-row">
-        <div ref="frame" class="relative min-h-[12rem] flex-1 bg-gray-100">
+        <div ref="frame" class="relative min-h-[12rem] flex-1 bg-gray-100 dark:bg-gray-800">
           <div v-if="src && image?.width" class="relative mx-auto" :style="{ width: `${display.width}px`, height: `${display.height}px` }">
             <img :src="src" alt="" class="block h-full w-full select-none" draggable="false" @load="measure" />
             <div
@@ -179,17 +179,17 @@ onBeforeUnmount(stopDrag)
               :style="boxStyle"
               @mousedown="startMove"
             >
-              <button type="button" class="absolute -right-1.5 -bottom-1.5 h-3 w-3 cursor-nwse-resize bg-white" aria-label="Resize crop" @mousedown="startResize" />
+              <button type="button" class="absolute -right-1.5 -bottom-1.5 h-3 w-3 cursor-nwse-resize bg-white dark:bg-gray-800" aria-label="Resize crop" @mousedown="startResize" />
             </div>
           </div>
         </div>
         <div class="w-60 shrink-0">
-          <p class="mb-1 text-xs font-medium text-gray-600">On a computer</p>
-          <div class="mb-3 overflow-hidden rounded bg-gray-100" :style="computerPreview.box">
+          <p class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-400">On a computer</p>
+          <div class="mb-3 overflow-hidden rounded bg-gray-100 dark:bg-gray-800" :style="computerPreview.box">
             <img v-if="src" :src="src" alt="" class="block" :style="computerPreview.img" />
           </div>
-          <p class="mb-1 text-xs font-medium text-gray-600">On a phone</p>
-          <div class="overflow-hidden rounded bg-gray-100" :style="phonePreview.box">
+          <p class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-400">On a phone</p>
+          <div class="overflow-hidden rounded bg-gray-100 dark:bg-gray-800" :style="phonePreview.box">
             <img v-if="src" :src="src" alt="" class="block" :style="phonePreview.img" />
           </div>
         </div>

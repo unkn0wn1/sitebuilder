@@ -59,9 +59,9 @@ function removeSocial(index: number) {
 <template>
   <div class="space-y-6">
     <div>
-      <label class="mb-2 block text-sm font-medium text-gray-800">About this organisation</label>
+      <label class="mb-2 block text-sm font-medium text-gray-800 dark:text-gray-200">About this organisation</label>
       <textarea
-        class="block w-full rounded-lg border border-gray-300 p-2.5 text-sm"
+        class="block w-full rounded-lg border border-gray-300 dark:border-gray-600 p-2.5 text-sm"
         rows="4"
         :value="modelValue.text ? richTextToPlain(modelValue.text) : ''"
         @input="setText(($event.target as HTMLTextAreaElement).value)"
@@ -78,7 +78,7 @@ function removeSocial(index: number) {
     />
     <FwbInput :model-value="modelValue.charityNumber ?? ''" label="Charity number" @update:model-value="patch({ charityNumber: String($event).trim() || null })" />
     <div class="space-y-3">
-      <p class="text-sm font-medium text-gray-800">Social links</p>
+      <p class="text-sm font-medium text-gray-800 dark:text-gray-200">Social links</p>
       <SocialRow
         v-for="(row, index) in modelValue.social"
         :key="`${row.network}-${index}`"

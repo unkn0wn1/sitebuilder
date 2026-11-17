@@ -30,12 +30,12 @@ onMounted(load)
 <template>
   <div class="p-6">
     <div class="mb-6">
-      <h1 class="text-2xl font-semibold text-gray-900">Site parts</h1>
-      <p class="mt-1 text-sm text-gray-600">The header, footer and menus appear on every page. Changes go through approval, like pages do.</p>
+      <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Site parts</h1>
+      <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">The header, footer and menus appear on every page. Changes go through approval, like pages do.</p>
     </div>
     <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
-    <p v-if="loading" class="text-gray-500">Loading site parts…</p>
-    <p v-else-if="!items.length" class="text-gray-500">No site parts yet.</p>
+    <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading site parts…</p>
+    <p v-else-if="!items.length" class="text-gray-500 dark:text-gray-400">No site parts yet.</p>
     <FwbTable v-else hoverable>
       <FwbTableHead>
         <FwbTableHeadCell>Name</FwbTableHeadCell>
@@ -46,13 +46,13 @@ onMounted(load)
       <FwbTableBody>
         <FwbTableRow v-for="part in items" :key="part.id">
           <FwbTableCell>
-            <NuxtLink :to="`/site-parts/${part.id}`" class="font-medium text-gray-900 no-underline hover:underline">{{ part.label }}</NuxtLink>
+            <NuxtLink :to="`/site-parts/${part.id}`" class="font-medium text-gray-900 dark:text-gray-100 no-underline hover:underline">{{ part.label }}</NuxtLink>
           </FwbTableCell>
-          <FwbTableCell class="text-gray-600">{{ KIND_LABELS[part.kind] }}</FwbTableCell>
+          <FwbTableCell class="text-gray-600 dark:text-gray-400">{{ KIND_LABELS[part.kind] }}</FwbTableCell>
           <FwbTableCell>
             <BuilderStatusBadge :state="part.state" :has-unpublished-changes="part.hasUnpublishedChanges" />
           </FwbTableCell>
-          <FwbTableCell class="text-gray-600">{{ timeAgo(part.updatedAt) }}</FwbTableCell>
+          <FwbTableCell class="text-gray-600 dark:text-gray-400">{{ timeAgo(part.updatedAt) }}</FwbTableCell>
         </FwbTableRow>
       </FwbTableBody>
     </FwbTable>

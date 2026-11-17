@@ -33,8 +33,8 @@ watch(filter, load, { immediate: true })
   <div class="p-6">
     <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h1 class="text-2xl font-semibold text-gray-900">Approvals</h1>
-        <p class="mt-1 text-sm text-gray-600">Review submitted pages and site parts, then publish or send them back.</p>
+        <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Approvals</h1>
+        <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">Review submitted pages and site parts, then publish or send them back.</p>
       </div>
       <FwbButtonGroup>
         <FwbButton size="sm" :color="filter === 'pending' ? 'default' : 'light'" @click="filter = 'pending'">Waiting</FwbButton>
@@ -42,8 +42,8 @@ watch(filter, load, { immediate: true })
       </FwbButtonGroup>
     </div>
     <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
-    <p v-if="loading" class="text-gray-500">Loading reviews…</p>
-    <p v-else-if="!shown.length" class="text-gray-500">{{ filter === 'pending' ? 'Nothing waiting. Nice work.' : 'No reviews yet.' }}</p>
+    <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading reviews…</p>
+    <p v-else-if="!shown.length" class="text-gray-500 dark:text-gray-400">{{ filter === 'pending' ? 'Nothing waiting. Nice work.' : 'No reviews yet.' }}</p>
     <FwbTable v-else hoverable>
       <FwbTableHead>
         <FwbTableHeadCell>Item</FwbTableHeadCell>
@@ -54,16 +54,16 @@ watch(filter, load, { immediate: true })
       <FwbTableBody>
         <FwbTableRow v-for="item in shown" :key="item.id">
           <FwbTableCell>
-            <NuxtLink :to="`/approvals/${item.id}`" class="font-medium text-gray-900 no-underline hover:underline">{{ item.title }}</NuxtLink>
-            <p class="m-0 text-sm text-gray-500">{{ item.targetType === 'site_part' ? 'Site part' : item.targetType === 'brand' ? 'Brand and Design' : item.targetType === 'template' ? 'Page type' : 'Page' }}</p>
+            <NuxtLink :to="`/approvals/${item.id}`" class="font-medium text-gray-900 dark:text-gray-100 no-underline hover:underline">{{ item.title }}</NuxtLink>
+            <p class="m-0 text-sm text-gray-500 dark:text-gray-400">{{ item.targetType === 'site_part' ? 'Site part' : item.targetType === 'brand' ? 'Brand and Design' : item.targetType === 'template' ? 'Page type' : 'Page' }}</p>
           </FwbTableCell>
           <FwbTableCell>
             <span class="sb-status" :class="item.state === 'pending' ? 'sb-status-in_review' : item.state === 'published' ? 'sb-status-published' : 'sb-status-draft'">
               {{ REVIEW_STATE_LABELS[item.state as ReviewState] }}
             </span>
           </FwbTableCell>
-          <FwbTableCell class="text-gray-600">{{ item.submittedByName }}, {{ timeAgo(item.createdAt) }}</FwbTableCell>
-          <FwbTableCell class="text-gray-600">{{ item.changeSummary || '—' }}</FwbTableCell>
+          <FwbTableCell class="text-gray-600 dark:text-gray-400">{{ item.submittedByName }}, {{ timeAgo(item.createdAt) }}</FwbTableCell>
+          <FwbTableCell class="text-gray-600 dark:text-gray-400">{{ item.changeSummary || '—' }}</FwbTableCell>
         </FwbTableRow>
       </FwbTableBody>
     </FwbTable>

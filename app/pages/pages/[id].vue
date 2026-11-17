@@ -77,7 +77,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div>
-    <p v-if="loading" class="p-8 text-gray-500">Opening the page…</p>
+    <p v-if="loading" class="p-8 text-gray-500 dark:text-gray-400">Opening the page…</p>
     <FwbAlert v-else-if="error" type="danger" class="m-6">{{ error }}</FwbAlert>
     <EditorWorkspace v-else-if="editor" :editor="editor" @submitted="load" />
   </div>

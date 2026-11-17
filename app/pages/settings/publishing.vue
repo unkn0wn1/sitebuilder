@@ -87,17 +87,17 @@ onMounted(load)
   <div class="p-6">
     <SettingsNav>
       <template #title>
-        <h1 class="m-0 text-2xl font-semibold text-gray-900">Publishing</h1>
+        <h1 class="m-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">Publishing</h1>
       </template>
     </SettingsNav>
-    <p class="mb-6 max-w-2xl text-gray-600">Recent releases of the public site. Rolling back is an emergency step for admins: it restores an earlier release and does not wait for another approver.</p>
+    <p class="mb-6 max-w-2xl text-gray-600 dark:text-gray-400">Recent releases of the public site. Rolling back is an emergency step for admins: it restores an earlier release and does not wait for another approver.</p>
     <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
     <FwbAlert v-else-if="saved" type="success" class="mb-4">{{ saved }}</FwbAlert>
-    <p v-if="loading" class="text-gray-500">Loading…</p>
+    <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading…</p>
     <div v-else class="space-y-10">
       <section>
-        <h2 class="mb-3 text-lg font-semibold text-gray-900">Releases</h2>
-        <p v-if="!releases.length" class="text-sm text-gray-500">No releases yet.</p>
+        <h2 class="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">Releases</h2>
+        <p v-if="!releases.length" class="text-sm text-gray-500 dark:text-gray-400">No releases yet.</p>
         <FwbTable v-else hoverable>
           <FwbTableHead>
             <FwbTableHeadCell>When</FwbTableHeadCell>
@@ -111,15 +111,15 @@ onMounted(load)
               <FwbTableCell>{{ timeAgo(item.createdAt) }}</FwbTableCell>
               <FwbTableCell>{{ kindLabel[item.kind] }}</FwbTableCell>
               <FwbTableCell>{{ item.state === 'live' ? 'Live' : item.state === 'superseded' ? 'Replaced' : item.state === 'building' ? 'Building' : 'Failed' }}</FwbTableCell>
-              <FwbTableCell class="text-sm text-gray-600">{{ item.error || item.reason || (item.reviewId ? 'From an approval' : '') }}</FwbTableCell>
+              <FwbTableCell class="text-sm text-gray-600 dark:text-gray-400">{{ item.error || item.reason || (item.reviewId ? 'From an approval' : '') }}</FwbTableCell>
               <FwbTableCell v-if="canRollback">
                 <FwbButton v-if="item.state !== 'live'" color="light" size="sm" @click="rollbackId = item.id">Roll back to this</FwbButton>
               </FwbTableCell>
             </FwbTableRow>
           </FwbTableBody>
         </FwbTable>
-        <form v-if="canRollback && rollbackId" class="mt-4 max-w-xl space-y-3 rounded-lg border border-gray-200 p-4" @submit.prevent="rollback">
-          <p class="m-0 text-sm text-gray-700">Explain why you're rolling back (at least a few words). This is recorded in the activity log.</p>
+        <form v-if="canRollback && rollbackId" class="mt-4 max-w-xl space-y-3 rounded-lg border border-gray-200 dark:border-gray-700 p-4" @submit.prevent="rollback">
+          <p class="m-0 text-sm text-gray-700 dark:text-gray-300">Explain why you're rolling back (at least a few words). This is recorded in the activity log.</p>
           <FwbInput v-model="rollbackReason" label="Reason" />
           <div class="flex gap-2">
             <FwbButton type="submit" :disabled="rolling || rollbackReason.trim().length < 5">{{ rolling ? 'Rolling back…' : 'Confirm rollback' }}</FwbButton>
@@ -128,11 +128,11 @@ onMounted(load)
         </form>
       </section>
       <section v-if="canAudit">
-        <h2 class="mb-3 text-lg font-semibold text-gray-900">Recent activity</h2>
-        <p v-if="!audit.length" class="text-sm text-gray-500">No activity yet.</p>
+        <h2 class="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">Recent activity</h2>
+        <p v-if="!audit.length" class="text-sm text-gray-500 dark:text-gray-400">No activity yet.</p>
         <ul v-else class="m-0 list-none space-y-2 p-0">
-          <li v-for="item in audit" :key="item.id" class="text-sm text-gray-700">
-            <span class="text-gray-500">{{ timeAgo(item.at) }}</span>
+          <li v-for="item in audit" :key="item.id" class="text-sm text-gray-700 dark:text-gray-300">
+            <span class="text-gray-500 dark:text-gray-400">{{ timeAgo(item.at) }}</span>
             — {{ item.action }}<span v-if="item.targetType"> on {{ item.targetType }}</span>
           </li>
         </ul>

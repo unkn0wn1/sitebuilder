@@ -50,7 +50,7 @@ function setCtaTarget(target: LinkTarget) {
       label="Menu look"
       @update:model-value="patch({ style: (Object.keys(HEADER_STYLE_LABELS) as HeaderStyle[]).includes($event as HeaderStyle) ? ($event as HeaderStyle) : 'simple' })"
     />
-    <p class="text-sm text-gray-600">This only changes how the menu looks. The links themselves stay as they are, and are edited in the menu.</p>
+    <p class="text-sm text-gray-600 dark:text-gray-400">This only changes how the menu looks. The links themselves stay as they are, and are edited in the menu.</p>
     <FwbSelect
       :model-value="modelValue.menuKey"
       :options="menuOptions.length ? menuOptions : [{ name: 'No menus yet', value: modelValue.menuKey }]"
@@ -58,11 +58,11 @@ function setCtaTarget(target: LinkTarget) {
       @update:model-value="patch({ menuKey: String($event) })"
     />
     <div class="space-y-3">
-      <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
-        <input type="checkbox" class="rounded text-blue-700" :checked="!!modelValue.cta" @change="setCta(($event.target as HTMLInputElement).checked)" />
+      <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-800 dark:text-gray-200">
+        <input type="checkbox" class="rounded text-blue-700 dark:text-blue-400" :checked="!!modelValue.cta" @change="setCta(($event.target as HTMLInputElement).checked)" />
         Show a button in the header
       </label>
-      <div v-if="modelValue.cta" class="space-y-3 rounded-lg border border-gray-200 p-3">
+      <div v-if="modelValue.cta" class="space-y-3 rounded-lg border border-gray-200 dark:border-gray-700 p-3">
         <FwbInput :model-value="modelValue.cta.label" label="Button text" @update:model-value="setCtaLabel(String($event))" />
         <LinkTargetField :model-value="modelValue.cta.target" :pages="pages" label="Button goes to" @update:model-value="setCtaTarget" />
       </div>

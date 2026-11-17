@@ -90,23 +90,23 @@ defineExpose({ load, items })
       <FwbButton size="sm" @click="input?.click()">Upload</FwbButton>
     </div>
     <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
-    <p v-if="uploading" class="mb-3 text-sm text-gray-600">Making web-friendly sizes…</p>
+    <p v-if="uploading" class="mb-3 text-sm text-gray-600 dark:text-gray-400">Making web-friendly sizes…</p>
 
     <div
       class="rounded-lg border border-dashed p-3"
-      :class="dragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-200'"
+      :class="dragOver ? 'border-blue-400 bg-blue-50 dark:bg-blue-950' : 'border-gray-200 dark:border-gray-700'"
       @dragover.prevent="dragOver = true"
       @dragleave="dragOver = false"
       @drop.prevent="onDrop"
     >
-      <p v-if="loading" class="p-6 text-gray-500">Loading photos…</p>
-      <p v-else-if="!items.length" class="p-6 text-center text-gray-500">No photos yet. Drag some here.</p>
+      <p v-if="loading" class="p-6 text-gray-500 dark:text-gray-400">Loading photos…</p>
+      <p v-else-if="!items.length" class="p-6 text-center text-gray-500 dark:text-gray-400">No photos yet. Drag some here.</p>
       <ul v-else class="m-0 grid list-none grid-cols-2 gap-3 p-1 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
         <li v-for="item in items" :key="item.id">
           <button
             type="button"
-            class="block w-full overflow-hidden rounded-md border bg-gray-100 text-left"
-            :class="selectedId === item.id ? 'border-blue-600 ring-2 ring-blue-200' : 'border-gray-200 hover:border-gray-300'"
+            class="block w-full overflow-hidden rounded-md border bg-gray-100 dark:bg-gray-800 text-left"
+            :class="selectedId === item.id ? 'border-blue-600 ring-2 ring-blue-200' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-500'"
             @click.stop="emit('choose', item)"
           >
             <img
@@ -115,14 +115,14 @@ defineExpose({ load, items })
               :alt="item.alt || item.filename"
               class="aspect-square h-auto w-full object-cover"
             />
-            <div v-else class="flex aspect-square items-center justify-center text-xs text-gray-500">
+            <div v-else class="flex aspect-square items-center justify-center text-xs text-gray-500 dark:text-gray-400">
               {{ item.status === 'processing' ? 'Processing…' : item.filename }}
             </div>
-            <span class="block truncate px-2 py-1 text-xs text-gray-600">{{ item.filename }}</span>
+            <span class="block truncate px-2 py-1 text-xs text-gray-600 dark:text-gray-400">{{ item.filename }}</span>
           </button>
         </li>
       </ul>
-      <p v-if="total" class="mt-3 px-1 text-sm text-gray-500">{{ total }} {{ total === 1 ? 'item' : 'items' }}</p>
+      <p v-if="total" class="mt-3 px-1 text-sm text-gray-500 dark:text-gray-400">{{ total }} {{ total === 1 ? 'item' : 'items' }}</p>
     </div>
   </div>
 </template>

@@ -89,18 +89,18 @@ async function onSubmit() {
 
 <template>
   <div>
-    <p v-if="loading" class="p-8 text-gray-500">Opening…</p>
+    <p v-if="loading" class="p-8 text-gray-500 dark:text-gray-400">Opening…</p>
     <div v-else-if="loadError" class="p-6">
       <FwbAlert type="danger">{{ loadError }}</FwbAlert>
       <NuxtLink to="/site-parts" class="mt-4 inline-block text-sm">Back to site parts</NuxtLink>
     </div>
     <div v-else-if="editor.part.value && editor.doc.value" class="flex h-[calc(100vh-3.25rem)] min-h-0 flex-col">
-      <header class="flex flex-wrap items-center gap-3 border-b border-gray-200 bg-white px-4 py-2">
-        <NuxtLink to="/site-parts" class="text-sm text-gray-600 no-underline hover:underline">&lt; Site parts</NuxtLink>
-        <h1 class="m-0 text-base font-semibold text-gray-900">{{ editor.part.value.label }}</h1>
-        <span class="text-sm text-gray-500">{{ KIND_LABELS[editor.part.value.kind] }}</span>
+      <header class="flex flex-wrap items-center gap-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2">
+        <NuxtLink to="/site-parts" class="text-sm text-gray-600 dark:text-gray-400 no-underline hover:underline">&lt; Site parts</NuxtLink>
+        <h1 class="m-0 text-base font-semibold text-gray-900 dark:text-gray-100">{{ editor.part.value.label }}</h1>
+        <span class="text-sm text-gray-500 dark:text-gray-400">{{ KIND_LABELS[editor.part.value.kind] }}</span>
         <BuilderStatusBadge :state="editor.part.value.workflowState" :has-unpublished-changes="editor.hasUnpublishedChanges.value" />
-        <span class="text-sm text-gray-500" data-testid="save-status">{{ saveLabel }}</span>
+        <span class="text-sm text-gray-500 dark:text-gray-400" data-testid="save-status">{{ saveLabel }}</span>
         <div class="ml-auto flex flex-wrap items-center gap-2">
           <FwbButtonGroup>
             <FwbButton size="sm" :color="device === 'computer' ? 'default' : 'light'" @click="device = 'computer'">Computer</FwbButton>
@@ -154,10 +154,10 @@ async function onSubmit() {
             :pages="pages"
             @update:model-value="onDoc"
           />
-          <p v-if="!canEdit" class="mt-4 text-sm text-gray-500">Only approvers and admins can change this.</p>
+          <p v-if="!canEdit" class="mt-4 text-sm text-gray-500 dark:text-gray-400">Only approvers and admins can change this.</p>
         </div>
         <div class="min-w-0">
-          <p class="mb-2 text-sm font-medium text-gray-800">Preview</p>
+          <p class="mb-2 text-sm font-medium text-gray-800 dark:text-gray-200">Preview</p>
           <PartPreview
             :kind="editor.part.value.kind"
             :doc="editor.doc.value"
@@ -173,7 +173,7 @@ async function onSubmit() {
     <FwbModal v-if="showSubmit" @close="showSubmit = false">
       <template #header>Submit for approval</template>
       <template #body>
-        <p class="mb-3 text-sm text-gray-600">An approver will review this change. After it is published, every page that uses it will be updated (about a minute).</p>
+        <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">An approver will review this change. After it is published, every page that uses it will be updated (about a minute).</p>
         <FwbInput v-model="submitNote" label="Note for the approver (optional)" />
       </template>
       <template #footer>

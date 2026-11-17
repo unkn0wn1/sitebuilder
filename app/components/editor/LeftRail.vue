@@ -37,14 +37,14 @@ function onOutlineKey(event: KeyboardEvent, id: string, index: number) {
 </script>
 
 <template>
-  <aside class="flex h-full min-h-0 flex-col border-r border-gray-200 bg-white" :class="editor.railCollapsed ? 'w-14' : 'w-72'">
-    <div class="flex items-center gap-1 border-b border-gray-200 p-1">
+  <aside class="flex h-full min-h-0 flex-col border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800" :class="editor.railCollapsed ? 'w-14' : 'w-72'">
+    <div class="flex items-center gap-1 border-b border-gray-200 dark:border-gray-700 p-1">
       <button
         v-for="tab in tabs"
         :key="tab.id"
         type="button"
         class="flex-1 rounded-md px-2 py-2 text-sm"
-        :class="editor.leftTab === tab.id ? 'bg-gray-100 font-semibold text-gray-900' : 'text-gray-600 hover:bg-gray-50'"
+        :class="editor.leftTab === tab.id ? 'bg-gray-100 dark:bg-gray-800 font-semibold text-gray-900 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'"
         :title="tab.label"
         :aria-current="editor.leftTab === tab.id ? 'page' : undefined"
         @click="editor.setLeftTab(tab.id)"
@@ -60,14 +60,14 @@ function onOutlineKey(event: KeyboardEvent, id: string, index: number) {
       </div>
 
       <div v-else-if="editor.leftTab === 'add'">
-        <p class="mb-3 text-sm text-gray-600">Add a section to this {{ editor.templateLabel.toLowerCase() }} page.</p>
+        <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">Add a section to this {{ editor.templateLabel.toLowerCase() }} page.</p>
         <div v-for="[category, items] in catalog" :key="category" class="mb-4">
-          <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">{{ category }}</h3>
+          <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ category }}</h3>
           <button
             v-for="item in items"
             :key="item.type"
             type="button"
-            class="mb-1 block w-full rounded-md px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-100"
+            class="mb-1 block w-full rounded-md px-3 py-2 text-left text-sm text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
             @click="editor.addSection(item.type, editor.selectedId)"
           >
             {{ item.label }}
@@ -76,28 +76,28 @@ function onOutlineKey(event: KeyboardEvent, id: string, index: number) {
       </div>
 
       <div v-else>
-        <p v-if="!editor.doc.blocks.length" class="text-sm text-gray-500">No sections yet. Add one from the Add tab.</p>
+        <p v-if="!editor.doc.blocks.length" class="text-sm text-gray-500 dark:text-gray-400">No sections yet. Add one from the Add tab.</p>
         <ol class="m-0 list-none p-0">
           <li v-for="(block, index) in editor.doc.blocks" :key="block.id">
             <button
               type="button"
               class="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm"
-              :class="editor.selectedId === block.id ? 'bg-blue-50 font-medium text-blue-900' : 'text-gray-800 hover:bg-gray-100'"
+              :class="editor.selectedId === block.id ? 'bg-blue-50 dark:bg-blue-950 font-medium text-blue-900' : 'text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'"
               @click="editor.select(block.id)"
               @keydown="onOutlineKey($event, block.id, index)"
             >
               <span>{{ index + 1 }}. {{ blockLabel(block.type) }}</span>
             </button>
             <div v-if="editor.selectedId === block.id" class="mb-1 flex justify-end gap-1 px-2">
-              <button type="button" class="text-xs text-gray-600 hover:underline" :disabled="index === 0" @click="editor.moveSection(block.id, index - 1)">Up</button>
-              <button type="button" class="text-xs text-gray-600 hover:underline" :disabled="index === editor.doc.blocks.length - 1" @click="editor.moveSection(block.id, index + 1)">Down</button>
+              <button type="button" class="text-xs text-gray-600 dark:text-gray-400 hover:underline" :disabled="index === 0" @click="editor.moveSection(block.id, index - 1)">Up</button>
+              <button type="button" class="text-xs text-gray-600 dark:text-gray-400 hover:underline" :disabled="index === editor.doc.blocks.length - 1" @click="editor.moveSection(block.id, index + 1)">Down</button>
             </div>
           </li>
         </ol>
       </div>
     </div>
 
-    <button type="button" class="border-t border-gray-200 px-3 py-2 text-xs text-gray-500 hover:bg-gray-50" @click="editor.toggleRail()">
+    <button type="button" class="border-t border-gray-200 dark:border-gray-700 px-3 py-2 text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800" @click="editor.toggleRail()">
       {{ editor.railCollapsed ? '»' : '« Hide' }}
     </button>
   </aside>
