@@ -51,70 +51,54 @@ export async function squareMarkFromLogo(source: Buffer, size = 512): Promise<Bu
     return sharp(source).ensureAlpha().resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer()
   }
 
-  const bw = maxX - minX + 1
-  const bh = maxY - minY + 1
-  let cropLeft = minX
-  let cropTop = minY
-  let cropW = bw
-  let cropH = bh
-  if (bw / bh > 1.35) {
-    // First low-density column gap inside the content, then a square from the left mark.
+  let markLeft = minX
+  let markTop = minY
+  let markW = maxX - minX + 1
+  let markH = maxY - minY + 1
+  if (markW / markH > 1.35) {
+    // First low-density column gap inside the content, then only the left-hand mark.
     const colCounts = new Array(width).fill(0)
     for (let y = minY; y <= maxY; y++) {
       for (let x = minX; x <= maxX; x++) {
         if (use[y * width + x]) colCounts[x]++
       }
     }
-    const threshold = Math.max(2, Math.floor(bh * 0.01))
+    const threshold = Math.max(2, Math.floor(markH * 0.01))
     let gapStart: number | null = null
     let markRight = maxX
     for (let x = minX; x <= maxX; x++) {
       if (colCounts[x] <= threshold) {
         if (gapStart === null) gapStart = x
       } else if (gapStart !== null) {
-        if (x - gapStart >= 8 && gapStart - minX >= bh * 0.5) {
+        if (x - gapStart >= 8 && gapStart - minX >= markH * 0.5) {
           markRight = gapStart - 1
           break
         }
         gapStart = null
       }
     }
-    const markW = Math.max(1, markRight - minX + 1)
-    const side = Math.max(markW, bh)
-    cropW = side
-    cropH = side
-    cropLeft = minX
-    cropTop = minY - Math.floor((side - bh) / 2)
-    if (cropTop < 0) cropTop = 0
-    if (cropTop + cropH > height) cropTop = Math.max(0, height - cropH)
-    if (cropLeft + cropW > width) cropW = width - cropLeft
-  } else if (bw !== bh) {
-    const side = Math.max(bw, bh)
-    cropW = side
-    cropH = side
-    cropLeft = minX - Math.floor((side - bw) / 2)
-    cropTop = minY - Math.floor((side - bh) / 2)
-    if (cropLeft < 0) cropLeft = 0
-    if (cropTop < 0) cropTop = 0
-    if (cropLeft + cropW > width) cropLeft = Math.max(0, width - cropW)
-    if (cropTop + cropH > height) cropTop = Math.max(0, height - cropH)
-    cropW = Math.min(cropW, width - cropLeft)
-    cropH = Math.min(cropH, height - cropTop)
+    markW = Math.max(1, markRight - minX + 1)
+    markH = maxY - minY + 1
+    markLeft = minX
+    markTop = minY
   }
 
-  // A little padding around the mark, then the requested square.
-  const pad = Math.max(2, Math.round(Math.max(cropW, cropH) * 0.08))
-  let left = Math.max(0, cropLeft - pad)
-  let top = Math.max(0, cropTop - pad)
-  let extractW = Math.min(width - left, cropW + pad * 2)
-  let extractH = Math.min(height - top, cropH + pad * 2)
-  return sharp(source)
+  // Extract only the mark, then letterbox it on a transparent square so padding
+  // cannot pull neighbouring wordmark letters into the icon.
+  const mark = await sharp(source)
     .ensureAlpha()
-    .extract({ left, top, width: extractW, height: extractH })
-    .resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .extract({ left: markLeft, top: markTop, width: markW, height: markH })
+    .png()
+    .toBuffer()
+  const pad = Math.max(2, Math.round(size * 0.08))
+  const inner = Math.max(1, size - pad * 2)
+  return sharp(mark)
+    .resize(inner, inner, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .extend({ top: pad, bottom: pad, left: pad, right: pad, background: { r: 0, g: 0, b: 0, alpha: 0 } })
     .png()
     .toBuffer()
 }
+
 
 async function readLogoSource(mediaDir: string, row: Pick<MediaRow, 'id' | 'mime'>): Promise<Buffer | null> {
   const master = masterPath(mediaDir, row)
