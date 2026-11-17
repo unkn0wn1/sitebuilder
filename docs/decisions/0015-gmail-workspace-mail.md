@@ -24,3 +24,4 @@ Spencer decided (17 November 2026) that v1 should wire in Google Workspace only,
 - The session cookie can stay `SameSite=Strict`. The OAuth callback may arrive without it; the signed, short-lived `state` parameter names the admin who started the connect.
 - Adding SMTP or Postmark later is an adapter plus a settings choice, not a rewrite of the job handler.
 - The earlier SMTP-password secret is not used in v1.
+- The OAuth `state` is signed and includes a one-time nonce stored in the database and deleted on callback, so it cannot be replayed within the 10-minute window.

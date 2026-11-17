@@ -1,8 +1,8 @@
 // Google Workspace mail via the Gmail API and OAuth (ADR 0015).
 // Tokens are stored encrypted. The assistant and the secrets API cannot write them.
-import { createHmac } from 'node:crypto'
-import { eq } from 'drizzle-orm'
-import { sites, users } from '../db/schema'
+import { createHmac, randomBytes } from 'node:crypto'
+import { eq, lt } from 'drizzle-orm'
+import { oauthStates, sites, users } from '../db/schema'
 import { audit } from './audit'
 import { deleteSecret, getSecret, hasSecret, secretKeyFromEnv, setSecret } from './auth'
 import { iso, type ActingAs, type ServiceCtx } from './context'
@@ -82,21 +82,21 @@ function signState(payload: object, key: Buffer): string {
   return `${body}.${mac}`
 }
 
-function readState(state: string, key: Buffer): { userId: string; iat: number } {
+function readState(state: string, key: Buffer): { userId: string; iat: number; nonce: string } {
   const [body, mac] = state.split('.')
   if (!body || !mac) throw new AppError('validation_failed', 'That Google sign-in link is not valid. Start again from Settings.')
   const expected = createHmac('sha256', key).update(body).digest('base64url')
   if (expected.length !== mac.length || !timingSafeEqualString(expected, mac)) {
     throw new AppError('validation_failed', 'That Google sign-in link is not valid. Start again from Settings.')
   }
-  const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as { userId?: string; iat?: number; purpose?: string }
-  if (payload.purpose !== 'gmail_oauth' || !payload.userId || !payload.iat) {
+  const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as { userId?: string; iat?: number; purpose?: string; nonce?: string }
+  if (payload.purpose !== 'gmail_oauth' || !payload.userId || !payload.iat || !payload.nonce) {
     throw new AppError('validation_failed', 'That Google sign-in link is not valid. Start again from Settings.')
   }
   if (Date.now() - payload.iat > STATE_TTL_MS) {
     throw new AppError('validation_failed', 'That Google sign-in link has expired. Start again from Settings.')
   }
-  return { userId: payload.userId, iat: payload.iat }
+  return { userId: payload.userId, iat: payload.iat, nonce: payload.nonce }
 }
 
 function timingSafeEqualString(a: string, b: string): boolean {
@@ -106,6 +106,19 @@ function timingSafeEqualString(a: string, b: string): boolean {
   let diff = 0
   for (let i = 0; i < left.length; i++) diff |= left[i]! ^ right[i]!
   return diff === 0
+}
+
+
+function pruneExpiredStates(ctx: ServiceCtx) {
+  ctx.db.delete(oauthStates).where(lt(oauthStates.expiresAt, new Date().toISOString())).run()
+}
+
+function consumeOAuthState(ctx: ServiceCtx, nonce: string, userId: string): void {
+  pruneExpiredStates(ctx)
+  const row = ctx.db.delete(oauthStates).where(eq(oauthStates.nonce, nonce)).returning().get()
+  if (!row || row.userId !== userId || row.purpose !== 'gmail_oauth') {
+    throw new AppError('validation_failed', 'That Google sign-in link has already been used. Start again from Settings.')
+  }
 }
 
 export function startGoogleConnect(ctx: ServiceCtx, actor: ActingAs): { url: string } {
@@ -119,7 +132,11 @@ export function startGoogleConnect(ctx: ServiceCtx, actor: ActingAs): { url: str
     throw new AppError('not_set_up', 'SITEBUILDER_SECRET_KEY is not set on the server, so Google Workspace cannot be connected yet.')
   }
   if (!googleClientSecret(ctx, key)) throw new AppError('not_set_up', 'Add the Google OAuth client secret in Settings first.')
-  const state = signState({ purpose: 'gmail_oauth', userId: actor.id, iat: Date.now() }, key)
+  pruneExpiredStates(ctx)
+  const nonce = randomBytes(16).toString('base64url')
+  const iat = Date.now()
+  ctx.db.insert(oauthStates).values({ nonce, siteId: ctx.siteId, userId: actor.id, purpose: 'gmail_oauth', createdAt: new Date(iat).toISOString(), expiresAt: new Date(iat + STATE_TTL_MS).toISOString() }).run()
+  const state = signState({ purpose: 'gmail_oauth', userId: actor.id, iat, nonce }, key)
   const url = new URL(AUTH_URL)
   url.searchParams.set('client_id', clientId)
   url.searchParams.set('redirect_uri', googleCallbackUrl())
@@ -147,6 +164,7 @@ export async function finishGoogleConnect(ctx: ServiceCtx, actor: ActingAs | und
     throw forbidden('That Google sign-in is no longer valid.')
   }
   if (actor && actor.id !== user.id) throw forbidden('That Google sign-in was started by someone else.')
+  consumeOAuthState(ctx, state.nonce, state.userId)
   const clientId = googleClientId(ctx)
   const clientSecret = googleClientSecret(ctx, key)
   if (!clientId || !clientSecret) throw new AppError('not_set_up', 'The Google OAuth client is not configured.')

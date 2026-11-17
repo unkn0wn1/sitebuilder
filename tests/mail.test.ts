@@ -175,6 +175,20 @@ describe('Google Workspace mail transport', () => {
     expect(gmailMailer(s.ctx)).toBeNull()
   })
 
+  it('rejects a replay of the same signed OAuth state', async () => {
+    const s = ready(setup())
+    const { url } = startGoogleConnect(s.ctx, s.admin)
+    const state = new URL(url).searchParams.get('state')!
+    setMailHttp(
+      jsonHttp({
+        'https://oauth2.googleapis.com/token': { body: { access_token: 'at', refresh_token: 'rt', expires_in: 3600 } },
+        'https://www.googleapis.com/oauth2/v2/userinfo': { body: { email: 'noreply@example.org' } },
+      }),
+    )
+    await finishGoogleConnect(s.ctx, s.admin, { code: 'auth-code', state })
+    await expect(finishGoogleConnect(s.ctx, s.admin, { code: 'auth-code-2', state })).rejects.toThrow(/already been used/)
+  })
+
   it('resolveMailer prefers the outbox folder when SITEBUILDER_MAIL_OUTBOX is set, even if Gmail is connected', async () => {
     const s = ready(setup())
     setSecret(

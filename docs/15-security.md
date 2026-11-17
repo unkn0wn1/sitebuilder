@@ -45,7 +45,7 @@
 - Secrets are write-only in the API and the GUI. They are never sent to the browser and never shown in logs.
 - **Cloudflare token scope:** Zone, Cache Purge, for the one zone only. Nothing else.
 - **AI key:** sent only to the configured provider's endpoint.
-- **Google OAuth:** the client secret and Gmail tokens never leave the server. The access token is sent only to Google, to send mail or refresh. The Gmail scopes are send-only plus the account email.
+- **Google OAuth:** the client secret and Gmail tokens never leave the server. The access token is sent only to Google, to send mail or refresh. The Gmail scopes are send-only plus the account email. The OAuth `state` is signed, expires in 10 minutes, and includes a one-time nonce that is stored and consumed so it cannot be replayed.
 
 ## The AI
 

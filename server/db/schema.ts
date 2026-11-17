@@ -389,3 +389,18 @@ export const secrets = sqliteTable(
   },
   (t) => [uniqueIndex('secrets_site_name').on(t.siteId, t.name)],
 )
+
+/** One-time Google OAuth state. The nonce is stored here and deleted when the callback runs, so the signed state cannot be replayed. */
+export const oauthStates = sqliteTable(
+  'oauth_states',
+  {
+    nonce: text('nonce').primaryKey(),
+    siteId: siteId(),
+    userId: text('user_id').notNull(),
+    purpose: text('purpose').notNull(),
+    createdAt: createdAt(),
+    expiresAt: text('expires_at').notNull(),
+  },
+  (t) => [index('oauth_states_expires_at').on(t.expiresAt)],
+)
+
