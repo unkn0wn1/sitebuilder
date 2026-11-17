@@ -1,7 +1,7 @@
 // "New page with the assistant": a short interview, a plan, then a draft page
 // created only when the person confirms Build. Reuses the existing provider,
 // caps and block schemas. Never publishes.
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
 import { can } from '../../shared/roles'
 import { costMicrosFor, penceToMicros } from '../../shared/ai-pricing'
 import { newId } from '../../shared/ids'
@@ -17,6 +17,7 @@ import {
   type PlannedSection,
 } from '../../shared/page-brief'
 import { composePageFromPlan, extractJson, planFromAnswers, type ComposeEmbed, type ComposeImage } from '../../shared/page-compose'
+import { isTrustMedia, type TrustMedia, type TrustStripSource } from '../../shared/trust-marks'
 import { enrichPlanSections, formatPlannerGuidance } from '../../shared/ai/block-guide'
 import { aiSessions, media, pageBriefs, pages } from '../db/schema'
 import { audit } from './audit'
@@ -25,7 +26,7 @@ import { resolveAi, resolveProvider, unavailableMessage, recordProviderFailure, 
 import { iso, type ActingAs, type ServiceCtx } from './context'
 import { AppError, forbidden, notFound } from './errors'
 import { listEmbeds } from './site'
-import { applyPageOps, createPage, getPage, slugify } from './pages'
+import { applyPageOps, createPage, getPage, readDoc, slugify } from './pages'
 import { createTemplateDraft, getTemplateRules, listTemplates } from './templates'
 import type { TemplateRules } from '../../shared/templates'
 import type { InternalOp } from '../../shared/ops'
@@ -127,13 +128,33 @@ function saveBrief(ctx: ServiceCtx, id: string, patch: Partial<BriefRow>) {
   ctx.db.update(pageBriefs).set({ ...patch, updatedAt: iso(ctx) }).where(eq(pageBriefs.id, id)).run()
 }
 
-function siteContext(ctx: ServiceCtx): { images: ComposeImage[]; embeds: ComposeEmbed[]; templates: string[]; allowed: Record<string, string[]> } {
-  const images = ctx.db
-    .select({ id: media.id, alt: media.alt })
-    .from(media)
-    .where(and(eq(media.siteId, ctx.siteId), eq(media.kind, 'image'), eq(media.status, 'ready'), isNull(media.deletedAt)))
-    .limit(24)
+function publishedTrustStrips(ctx: ServiceCtx): TrustStripSource[] {
+  const rows = ctx.db
+    .select({ publishedVersionId: pages.publishedVersionId })
+    .from(pages)
+    .where(and(eq(pages.siteId, ctx.siteId), isNotNull(pages.publishedVersionId), isNull(pages.deletedAt)))
     .all()
+  const out: TrustStripSource[] = []
+  for (const row of rows) {
+    if (!row.publishedVersionId) continue
+    const doc = readDoc(ctx, row.publishedVersionId)
+    for (const block of doc.blocks) {
+      if (block.type !== 'TrustStrip') continue
+      const props = block.props as TrustStripSource
+      out.push({ heading: typeof props.heading === 'string' ? props.heading : undefined, intro: typeof props.intro === 'string' ? props.intro : undefined, items: props.items ?? [] })
+    }
+  }
+  return out
+}
+
+function siteContext(ctx: ServiceCtx): { images: ComposeImage[]; embeds: ComposeEmbed[]; trustMedia: TrustMedia[]; existingTrustStrips: TrustStripSource[]; templates: string[]; allowed: Record<string, string[]> } {
+  const rows = ctx.db
+    .select({ id: media.id, alt: media.alt, filename: media.filename, kind: media.kind })
+    .from(media)
+    .where(and(eq(media.siteId, ctx.siteId), inArray(media.kind, ['image', 'svg']), eq(media.status, 'ready'), isNull(media.deletedAt)))
+    .all()
+  const trustMedia = rows.filter((row) => isTrustMedia(row))
+  const images = rows.filter((row) => row.kind !== 'svg' && !isTrustMedia(row)).slice(0, 24)
   const embeds = listEmbeds(ctx).map((e) => ({ id: e.id, name: e.name, kind: e.provider }))
   const allowed: Record<string, string[]> = {}
   const templateKeys: string[] = []
@@ -144,7 +165,7 @@ function siteContext(ctx: ServiceCtx): { images: ComposeImage[]; embeds: Compose
     templateKeys.push(row.key)
     allowed[row.key] = rules.allowedBlocks
   }
-  return { images, embeds, templates: templateKeys, allowed }
+  return { images, embeds, trustMedia, existingTrustStrips: publishedTrustStrips(ctx), templates: templateKeys, allowed }
 }
 
 function alreadyCovered(id: BriefQuestion['id'], blob: string): boolean {
@@ -444,6 +465,8 @@ export async function buildPageBrief(ctx: ServiceCtx, actor: ActingAs, id: strin
     registry: ctx.registry,
     images: info.images,
     embeds: info.embeds,
+    trustMedia: info.trustMedia,
+    existingTrustStrips: info.existingTrustStrips,
     allowedBlocksByTemplate: info.allowed,
     knownTemplates: info.templates,
   })

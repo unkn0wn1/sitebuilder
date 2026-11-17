@@ -117,7 +117,8 @@ describe('page briefs with a mocked provider', () => {
     expect(page.body.page.title).toBe('Winter blanket appeal')
     expect(page.body.doc.seo.title).toBe('Winter blanket appeal')
     const types = page.body.doc.blocks.map((b: { type: string }) => b.type)
-    expect(types).toEqual(expect.arrayContaining(['Hero', 'ImpactTiers', 'DonationProgress', 'MatchBanner', 'StoryBeforeAfter', 'TrustStrip']))
+    expect(types).toEqual(expect.arrayContaining(['Hero', 'ImpactTiers', 'DonationProgress', 'MatchBanner', 'StoryBeforeAfter']))
+    expect(types).not.toContain('TrustStrip')
 
     const template = await admin.get(`/templates/${built.body.templateId}`)
     expect(template.status).toBe(200)

@@ -59,10 +59,10 @@ describe('composePageFromPlan', () => {
       'StoryBeforeAfter',
       'ImpactTiers',
       'DonationProgress',
-      'TrustStrip',
       'DonationEmbed',
       'FAQ',
     ])
+    expect(page.blocks.some((b) => b.type === 'TrustStrip')).toBe(false)
     const hero = page.blocks[0]!.props as { heading: string; tone: string; image: { media: string } }
     expect(hero.heading).toBe('Winter blanket appeal')
     expect(hero.tone).toBe('primary')
@@ -78,7 +78,59 @@ describe('composePageFromPlan', () => {
     expect(form.embed).toBe(EMBED)
   })
 
+  it('omits TrustStrip when no real marks exist, even if the plan asked for one', () => {
+    const page = composePageFromPlan(campaignPlan(), {
+      images: [PHOTO],
+      embeds: [{ id: EMBED, name: 'Winter form', kind: 'virtuous' }],
+      knownTemplates: ['home', 'standard', 'campaign', 'story'],
+    })
+    expect(page.blocks.some((b) => b.type === 'TrustStrip')).toBe(false)
+  })
+
+  it('fills TrustStrip from existing media and published marks, without placeholders', () => {
+    const candid = { id: 'med_00000000000000000000000021', filename: 'candid-seal.svg', alt: 'Candid seal for Animal Aid Unlimited', kind: 'svg' }
+    const nav = { id: 'med_00000000000000000000000022', filename: 'charity-navigator-three-star.png', alt: 'Charity Navigator Three-Star Rating badge', kind: 'image' }
+    const page = composePageFromPlan(campaignPlan(), {
+      images: [PHOTO],
+      embeds: [{ id: EMBED, name: 'Winter form', kind: 'virtuous' }],
+      trustMedia: [candid, nav],
+      existingTrustStrips: [
+        {
+          heading: 'Give with confidence',
+          intro: 'Independent marks already used on the site.',
+          items: [
+            {
+              name: 'Candid',
+              logo: { media: candid.id, alt: candid.alt },
+              href: 'https://app.candid.org/profile/8069592/animal-aid-unlimited-71-0884843',
+              group: 'Rated by',
+            },
+          ],
+        },
+      ],
+      knownTemplates: ['home', 'standard', 'campaign', 'story'],
+    })
+    const strip = page.blocks.find((b) => b.type === 'TrustStrip')
+    expect(strip).toBeTruthy()
+    const props = strip!.props as { intro: string; items: { name: string; href?: string; logo?: { media: string } }[] }
+    expect(props.intro).toBe('Independent marks already used on the site.')
+    expect(props.items.map((i) => i.name)).toEqual(['Candid', 'Charity Navigator'])
+    expect(props.items[0]!.logo?.media).toBe(candid.id)
+    expect(props.items[0]!.href).toContain('app.candid.org')
+    expect(JSON.stringify(strip)).not.toContain(PLACEHOLDER_MARK)
+    expect(JSON.stringify(strip)).not.toMatch(/\bTBC\b/)
+    const doc = {
+      schemaVersion: 1,
+      title: page.title,
+      seo: { title: page.seoTitle, description: page.seoDescription, image: null, canonical: null, noindex: false },
+      blocks: page.blocks.map((b, i) => ({ id: `b_${String(i).padStart(26, '0')}`, type: b.type, version: 1, props: b.props })),
+    }
+    const checks = runChecks(doc as never, createDefaultRegistry(), null)
+    expect(checks.blocking.filter((i) => i.path.includes('TrustStrip') || /blocks\.\d+\.props/.test(i.path) && page.blocks[Number(i.path.split('.')[1])]?.type === 'TrustStrip')).toEqual([])
+  })
+
   it('does not invent a donation form when none is registered', () => {
+
     const page = composePageFromPlan(campaignPlan(), { embeds: [], knownTemplates: ['home', 'standard', 'campaign', 'story'] })
     expect(page.blocks.some((b) => b.type === 'DonationEmbed')).toBe(false)
     expect(page.blocks.some((b) => b.type === 'CallToAction' || b.type === 'Hero')).toBe(true)

@@ -7,6 +7,7 @@ import { PLACEHOLDER_MARK, answerText, pagePlanSchema, type BriefAnswer, type Pa
 import { enrichPlanSections, recommendedSections } from './ai/block-guide'
 import { richTextFromParagraphs } from './richtext'
 import type { StoredBlock } from './blocks/registry'
+import { collectTrustStrip, type TrustMedia, type TrustStripSource } from './trust-marks'
 
 export interface ComposeImage {
   id: string
@@ -23,6 +24,8 @@ export interface ComposeOptions {
   registry?: BlockRegistry
   images?: ComposeImage[]
   embeds?: ComposeEmbed[]
+  trustMedia?: TrustMedia[]
+  existingTrustStrips?: TrustStripSource[]
   allowedBlocksByTemplate?: Record<string, string[] | 'all'>
   knownTemplates?: string[]
 }
@@ -123,7 +126,12 @@ export function markPlaceholder(text: string): string {
 
 function imageRef(opts: ComposeOptions, alt: string, index = 0): { media: string; alt: string } {
   const img = opts.images?.[index] ?? opts.images?.[0]
-  return { media: img?.id ?? SAMPLE_MEDIA_ID, alt: markPlaceholder(img?.alt || alt) }
+  const realAlt = img?.alt?.trim()
+  return { media: img?.id ?? SAMPLE_MEDIA_ID, alt: realAlt || markPlaceholder(alt) }
+}
+
+function trustStripProps(opts: ComposeOptions) {
+  return collectTrustStrip({ media: opts.trustMedia ?? [], existing: opts.existingTrustStrips ?? [] })
 }
 
 function hasImages(opts: ComposeOptions): boolean {
@@ -310,20 +318,8 @@ function placeholderSample(type: string, sample: Record<string, unknown>, opts: 
     }
   }
   if (type === 'TrustStrip') {
-    const logo = opts.images?.[0] ? imageRef(opts, 'Organisation mark') : undefined
-    const items = logo
-      ? [
-          { name: markPlaceholder('A trusted mark'), logo, note: markPlaceholder("Use the organisation's real seal."), group: 'Rated by' },
-          { name: markPlaceholder('Another mark'), logo: imageRef(opts, 'Organisation mark', 1), note: markPlaceholder('Use the real rating or badge.'), group: 'Rated by' },
-        ]
-      : [
-          { name: markPlaceholder('A trusted mark'), badgeHtml: '<span>Add a real badge</span>', note: markPlaceholder("Add the organisation's real seal."), group: 'Rated by' },
-        ]
-    return {
-      heading: 'Give with confidence',
-      intro: markPlaceholder('Add the real ratings and partners, or remove this section.'),
-      items,
-    }
+    // Filled later from real marks, or the section is omitted.
+    return (trustStripProps(opts) ?? {}) as Record<string, unknown>
   }
   // Unknown type: return the sample with images rewritten when present.
   if (clone && typeof clone === 'object') rewriteImages(clone, opts)
@@ -453,7 +449,8 @@ export function composePageFromPlan(input: PagePlan, opts: ComposeOptions = {}):
     const unique = !['RichText', 'Image', 'Gallery', 'Quote'].includes(type)
     if (unique && seen.has(type)) continue
     seen.add(type)
-    const rawProps = section.props ?? placeholderSample(type, (registry.get(type)?.sample ?? {}) as Record<string, unknown>, opts, plan)
+    if (type === 'TrustStrip' && !trustStripProps(opts)) continue
+    const rawProps = type === 'TrustStrip' ? { ...trustStripProps(opts)! } : (section.props ?? placeholderSample(type, (registry.get(type)?.sample ?? {}) as Record<string, unknown>, opts, plan))
     const result = validateAndRepairBlock(type, rawProps, registry, opts, plan)
     if (!result) continue
     if (result.repaired) repairedCount += 1

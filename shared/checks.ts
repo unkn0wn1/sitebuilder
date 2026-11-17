@@ -12,6 +12,10 @@ export interface CheckResult {
 }
 
 const PLACEHOLDERS = [/lorem ipsum/i, /\[(headline|heading|title|text|name|image|link|placeholder)\]/i, /\bTODO\b/, /\bTBC\b/, /\bxxx+\b/i]
+
+export function looksLikePlaceholder(text: string): boolean {
+  return PLACEHOLDERS.some((re) => re.test(text))
+}
 const VAGUE_LINK_TEXT = /^(click here|here|read more|more|link)$/i
 
 function walk(value: unknown, path: string, visit: (value: unknown, path: string) => void) {
@@ -60,7 +64,7 @@ export function runChecks(doc: PageDoc, registry: BlockRegistry, rules: Template
       if (isImageRef(value) && !value.decorative && !(value.alt && value.alt.trim())) {
         blocking.push({ path, message: "This photo needs a short description (alt text), or mark it as decorative." })
       }
-      if (typeof value === 'string' && PLACEHOLDERS.some((re) => re.test(value))) {
+      if (typeof value === 'string' && looksLikePlaceholder(value)) {
         blocking.push({ path, message: 'This looks like placeholder text. Replace it before submitting.' })
       }
       if (isRichText(value)) {
@@ -87,7 +91,7 @@ export function runChecks(doc: PageDoc, registry: BlockRegistry, rules: Template
     })
   })
 
-  if (PLACEHOLDERS.some((re) => re.test(doc.title))) blocking.push({ path: 'title', message: 'The page title looks like placeholder text.' })
+  if (looksLikePlaceholder(doc.title)) blocking.push({ path: 'title', message: 'The page title looks like placeholder text.' })
   if (!doc.seo.description) warnings.push({ path: 'seo.description', message: 'Add a short description for search engines and social media.' })
   const seoTitle = doc.seo.title ?? doc.title
   if (seoTitle.length > 60) warnings.push({ path: 'seo.title', message: 'Search engines may cut off titles over 60 characters.' })
