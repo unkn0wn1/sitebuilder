@@ -1,6 +1,6 @@
 # Roadmap
 
-Draft. Timings are rough guesses for one developer with AI help, not commitments. The v1 design decisions are in [decisions/](decisions/) (ADRs 0004 to 0013).
+Draft. Timings are rough guesses for one developer with AI help, not commitments. The v1 design decisions are in [decisions/](decisions/) (ADRs 0004 to 0015).
 
 ## Phase 0: Design (done for v1)
 
@@ -23,7 +23,7 @@ Draft. Timings are rough guesses for one developer with AI help, not commitments
 - **Spike:** render one sample page with a compiled render bundle and Vue's server renderer, serve it from nginx behind Cloudflare, measure against the budgets ([17-testing-and-budgets.md](17-testing-and-budgets.md)). Test a Virtuous embed and a near full-screen video hero.
 - **Spike:** decide whether to build our own Vue editor or start from an existing one.
 
-Progress (17 November 2026): M1 is complete for the backend, the remaining AI tools, and both spikes. The content API, schema, auth, pages, site parts, reviews, settings, media, jobs, Access checks and AI tool permissions (including create draft, crop proposal, upload request and a schematic preview screenshot) are in, with unit tests and HTTP-level API tests. There are still no real model calls. The [sample-page render spike](spikes/001-render-sample.md) met the performance budgets on a Vue server-rendered page with a video hero and a Virtuous-style embed island. The [editor-base spike](spikes/002-editor-base.md) led to [ADR 0014](decisions/0014-first-party-vue-editor.md): we will build our own Vue editor. Google Workspace mail (ADR 0015) is in for milestone 2. The real publish renderer, Docker Compose install, backups, the GUI editor and real model calls are still to come.
+Progress (17 November 2026): M1 is complete for the backend, the remaining AI tools, and both spikes. The content API, schema, auth, pages, site parts, reviews, settings, media, jobs, Access checks and AI tool permissions (including create draft, crop proposal, upload request and a schematic preview screenshot) are in, with unit tests and HTTP-level API tests. There are still no real model calls. The [sample-page render spike](spikes/001-render-sample.md) met the performance budgets on a Vue server-rendered page with a video hero and a Virtuous-style embed island. The [editor-base spike](spikes/002-editor-base.md) led to [ADR 0014](decisions/0014-first-party-vue-editor.md): we will build our own Vue editor. Google Workspace mail (ADR 0015) is in for milestone 2. The publish renderer is also in: Vue server-renders only the changed pages, inlines the default theme CSS, writes Cache-Tag and per-page CSP maps, and purges Cloudflare by tag. Docker Compose install, backups, the GUI editor and real model calls are still to come.
 
 ## Phase 2: Publishing and media (3 to 4 weeks)
 

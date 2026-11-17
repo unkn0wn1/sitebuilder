@@ -19,6 +19,7 @@ From [ADR 0009](decisions/0009-sqlite-drizzle-and-jobs.md):
 - A `jobs` table and one worker loop inside the builder process. It polls every second, claims the oldest due job by setting a lease (`lease_until`), runs it, and records `done` or the error.
 - **Retries** with backoff (30 seconds, 2 minutes, 10 minutes), up to the job's maximum attempts. A job whose lease runs out (for example after a crash) is claimed again.
 - **Concurrency:** `publish`, `render_preview` and `run_checks` share one lane with concurrency 1. `media_renditions` has its own lane with concurrency 1. Light jobs (`send_email`, `purge_cache`) run in a third lane.
+- **Publish:** the worker renders only the changed pages into a new release folder (hard-link copy of the previous one), switches the `current` symlink, and enqueues a `purge_cache` job. Purge is by Cloudflare cache tag and is skipped until `SITEBUILDER_CLOUDFLARE_ZONE_ID` and a Cloudflare API token (`cloudflare_token` secret or `SITEBUILDER_CLOUDFLARE_TOKEN`) are set. Release folders live under `SITEBUILDER_SITE_ROOT` (default: next to the database).
 - **Headless Chromium** (for checks and AI screenshots) runs inside the builder container, one instance at a time. The server should have at least 2 GB of RAM; 4 GB is comfortable.
 - The GUI follows a job through `GET /api/v1/jobs/:id` (publish progress, upload processing).
 
