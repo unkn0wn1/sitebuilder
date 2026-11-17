@@ -102,3 +102,34 @@ describe('rendition widths', () => {
     expect(widthsFor(6000)).toEqual([320, 640, 960, 1280, 1920, 2560])
   })
 })
+
+function fakeMp4(): Buffer {
+  const data = Buffer.alloc(64)
+  data.writeUInt32BE(64, 0)
+  data.write('ftypisom', 4)
+  return data
+}
+
+describe('prepared video uploads', () => {
+  it('accepts a prepared MP4 under the size limit and serves it next to renditions', async () => {
+    const s = setup()
+    const dir = mkdtempSync(join(tmpdir(), 'sitebuilder-media-'))
+    const up = await uploadMedia(s.ctx, s.editor, { filename: 'hero.mp4', data: fakeMp4(), mediaDir: dir })
+    expect(up.media.kind).toBe('video')
+    expect(up.media.status).toBe('ready')
+    expect(up.jobId).toBeNull()
+    const got = getMedia(s.ctx, up.media.id)
+    expect(got.renditions).toEqual([`${up.media.id}.mp4`])
+    expect(existsSync(join(dir, 'originals', `${up.media.id}.mp4`))).toBe(true)
+    expect(existsSync(join(dir, 'renditions', `${up.media.id}.mp4`))).toBe(true)
+  })
+
+  it('refuses an oversized video', async () => {
+    const s = setup()
+    const dir = mkdtempSync(join(tmpdir(), 'sitebuilder-media-'))
+    const data = Buffer.alloc(8 * 1024 * 1024 + 8)
+    data.writeUInt32BE(data.length, 0)
+    data.write('ftypisom', 4)
+    await expectCode(uploadMedia(s.ctx, s.editor, { filename: 'huge.mp4', data, mediaDir: dir }), 'validation_failed')
+  })
+})

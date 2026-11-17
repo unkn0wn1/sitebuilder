@@ -21,7 +21,8 @@ export function checkTemplateRules(blockTypes: string[], rules: TemplateRules, o
   })
   if (opts.enforceRequired) {
     for (const required of rules.requiredBlocks) {
-      if (!blockTypes.includes(required)) issues.push({ path: 'blocks', message: `A ${rules.label} page needs a "${required}" section.` })
+      const accepted = required === 'Hero' ? ['Hero', 'VideoHero'] : [required]
+      if (!accepted.some((type) => blockTypes.includes(type))) issues.push({ path: 'blocks', message: `A ${rules.label} page needs a "${required}" section.` })
     }
   }
   return issues

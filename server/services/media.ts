@@ -17,6 +17,8 @@ import { AppError, forbidden, notFound } from './errors'
 import { enqueueJob, type JobHandler } from './jobs'
 
 export const MEDIA_MAX_BYTES = 25 * 1024 * 1024
+/** Prepared looping hero videos (transcoding is later). A few megabytes, with a little headroom. */
+export const VIDEO_MAX_BYTES = 8 * 1024 * 1024
 export const MEDIA_MAX_PIXELS = 100_000_000
 export const RENDITION_WIDTHS = [320, 640, 960, 1280, 1920, 2560] as const
 export const RENDITION_FORMATS = ['avif', 'webp'] as const
@@ -32,9 +34,26 @@ export type MediaRow = typeof media.$inferSelect
 
 export const mediaPaths = (dir: string) => ({ originals: join(dir, 'originals'), renditions: join(dir, 'renditions') })
 
+const VIDEO_TYPES: Record<string, { ext: string; mime: string }> = {
+  'video/mp4': { ext: 'mp4', mime: 'video/mp4' },
+  'video/webm': { ext: 'webm', mime: 'video/webm' },
+}
+
+export function looksLikeVideo(data: Buffer): { mime: string; ext: string } | null {
+  if (data.length >= 8 && data.subarray(4, 8).toString('ascii') === 'ftyp') return VIDEO_TYPES['video/mp4']!
+  if (data.length >= 4 && data[0] === 0x1a && data[1] === 0x45 && data[2] === 0xdf && data[3] === 0xa3) return VIDEO_TYPES['video/webm']!
+  return null
+}
+
 function masterPath(dir: string, row: Pick<MediaRow, 'id' | 'mime'>) {
-  const ext = Object.values(FORMATS).find((f) => f.mime === row.mime)?.ext ?? 'bin'
+  const ext = Object.values(FORMATS).find((f) => f.mime === row.mime)?.ext ?? VIDEO_TYPES[row.mime]?.ext ?? 'bin'
   return join(mediaPaths(dir).originals, `${row.id}.${ext}`)
+}
+
+/** Public filename of a prepared video, served from /media/ next to image renditions. */
+export function videoPublicName(row: Pick<MediaRow, 'id' | 'mime'>): string {
+  const ext = VIDEO_TYPES[row.mime]?.ext ?? 'mp4'
+  return `${row.id}.${ext}`
 }
 
 /** Widths to make: the standard set up to the original's width, plus the original width itself so no detail is lost. */
@@ -60,11 +79,18 @@ function requireMedia(ctx: ServiceCtx, id: string): MediaRow {
 
 export async function uploadMedia(ctx: ServiceCtx, actor: ActingAs, input: { filename: string; data: Buffer; mediaDir: string }) {
   if (actor.aiSessionId || !can(actor, 'media.upload')) throw forbidden()
-  if (input.data.length > MEDIA_MAX_BYTES) throw new AppError('validation_failed', 'That file is too big. The limit is 25 MB.', [{ path: 'file', message: 'Too big.' }])
   if (!input.data.length) throw new AppError('validation_failed', 'That file is empty.', [{ path: 'file', message: 'Empty.' }])
+  const videoType = looksLikeVideo(input.data)
+  if (videoType) {
+    if (input.data.length > VIDEO_MAX_BYTES) throw new AppError('validation_failed', 'That video is too big. Prepare it to under 8 MB before uploading.', [{ path: 'file', message: 'Too big.' }])
+  } else if (input.data.length > MEDIA_MAX_BYTES) {
+    throw new AppError('validation_failed', 'That file is too big. The limit is 25 MB.', [{ path: 'file', message: 'Too big.' }])
+  }
   const sha256 = createHash('sha256').update(input.data).digest('hex')
   const dup = ctx.db.select().from(media).where(and(eq(media.siteId, ctx.siteId), eq(media.sha256, sha256), isNull(media.deletedAt))).get()
   if (dup) return { media: dup, duplicate: true, jobId: null }
+
+  if (videoType) return uploadPreparedVideo(ctx, actor, input, videoType, sha256)
 
   let meta: Metadata
   try {
@@ -120,6 +146,43 @@ export async function uploadMedia(ctx: ServiceCtx, actor: ActingAs, input: { fil
     return enqueueJob(ctx, 'media_renditions', { mediaId: id }, { createdBy: actor.id })
   })
   return { media: row, duplicate: false, jobId }
+}
+
+
+function uploadPreparedVideo(ctx: ServiceCtx, actor: ActingAs, input: { filename: string; data: Buffer; mediaDir: string }, type: { ext: string; mime: string }, sha256: string) {
+  const id = newId('media', ctx.now().getTime())
+  const filename = input.filename.replace(/[^\w.() -]+/g, '_').slice(0, 120) || 'video'
+  const row: MediaRow = {
+    id,
+    siteId: ctx.siteId,
+    kind: 'video',
+    filename,
+    mime: type.mime,
+    bytes: input.data.length,
+    width: null,
+    height: null,
+    sha256,
+    alt: null,
+    decorative: false,
+    focalX: null,
+    focalY: null,
+    placeholder: null,
+    dominantColor: null,
+    status: 'ready',
+    uploadedBy: actor.id,
+    createdAt: iso(ctx),
+    deletedAt: null,
+  }
+  const paths = mediaPaths(input.mediaDir)
+  mkdirSync(paths.originals, { recursive: true })
+  mkdirSync(paths.renditions, { recursive: true })
+  writeFileSync(masterPath(input.mediaDir, row), input.data)
+  writeFileSync(join(paths.renditions, videoPublicName(row)), input.data)
+  inTx(ctx, () => {
+    ctx.db.insert(media).values(row).run()
+    audit(ctx, actor, 'media.uploaded', { type: 'media', id }, { filename, bytes: row.bytes, kind: 'video' })
+  })
+  return { media: row, duplicate: false, jobId: null }
 }
 
 /** The media_renditions job: AVIF and WebP at the standard widths, plus placeholder and colour, or one crop's set. */
@@ -192,7 +255,7 @@ export function getMedia(ctx: ServiceCtx, id: string) {
   const crops = ctx.db.select().from(mediaCrops).where(eq(mediaCrops.mediaId, id)).all()
   return {
     media: row,
-    renditions: row.status === 'ready' ? renditionNames(row) : [],
+    renditions: row.status === 'ready' ? (row.kind === 'video' ? [videoPublicName(row)] : renditionNames(row)) : [],
     crops: crops.map((c) => ({ ...c, renditions: renditionNames({ id: row.id, width: c.width }, c.ratio) })),
     usedOn: mediaUsage(ctx, id),
   }

@@ -57,6 +57,8 @@ export interface MediaCatalogEntry {
   alt: string | null
   decorative: boolean
   status: string
+  kind: string
+  mime: string
   cropRatios: string[]
 }
 
@@ -233,6 +235,26 @@ function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector
           linkButton(p.cta as { label: string; href: string } | undefined, bag),
         ]),
       ])
+    case 'VideoHero': {
+      const videoId = typeof p.video === 'string' ? p.video : ''
+      if (videoId) bag.media.add(videoId)
+      const clip = videoId ? site.media[videoId] : undefined
+      const ext = clip?.mime === 'video/webm' ? 'webm' : 'mp4'
+      const mime = clip?.mime === 'video/webm' ? 'video/webm' : 'video/mp4'
+      return h('section', { class: 'hero', 'aria-label': String(p.heading ?? '') }, [
+        pictureVNode(p.poster as ImageRef | undefined, site, bag, { slot: { width: 1280, height: 720 }, eager: firstHero, class: 'hero-media' }),
+        videoId
+          ? h('video', { class: 'hero-video', autoplay: true, muted: true, loop: true, playsinline: true, preload: 'none', 'aria-hidden': 'true' }, [
+              h('source', { src: `/media/${videoId}.${ext}`, type: mime, media: '(min-width: 641px)' }),
+            ])
+          : null,
+        h('div', { class: 'hero-inner' }, [
+          h('h1', String(p.heading ?? '')),
+          p.subheading ? h('p', String(p.subheading)) : null,
+          linkButton(p.cta as { label: string; href: string } | undefined, bag),
+        ]),
+      ])
+    }
     case 'RichText':
       return wrapSection([h('div', { class: 'prose' }, renderRichText(p.content as RichTextDoc, bag))])
     case 'TextAndImage': {
@@ -431,8 +453,8 @@ function renderShell(doc: PageDoc, site: SiteRenderContext, bag: Collector): VNo
       'main',
       { id: 'main' },
       doc.blocks.map((block) => {
-        const eager = firstHero && block.type === 'Hero'
-        if (block.type === 'Hero') firstHero = false
+        const eager = firstHero && (block.type === 'Hero' || block.type === 'VideoHero')
+        if (block.type === 'Hero' || block.type === 'VideoHero') firstHero = false
         return renderBlock(block as StoredBlock, site, bag, eager)
       }),
     ),
@@ -577,7 +599,7 @@ export async function renderPageHtml(input: {
   if (imageId) bag.media.add(imageId)
   const ogImage = imageId ? publicUrl(site.origin, `/media/${imageId}-1280.webp`) : ''
   const analytics = trackingNeedsScript(site.tracking)
-  const preload = doc.blocks[0]?.type === 'Hero' ? firstHeroPreload(doc.blocks[0] as StoredBlock, site) : ''
+  const preload = doc.blocks[0]?.type === 'Hero' || doc.blocks[0]?.type === 'VideoHero' ? firstHeroPreload(doc.blocks[0] as StoredBlock, site) : ''
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -618,7 +640,7 @@ export async function renderPageHtml(input: {
 }
 
 function firstHeroPreload(block: StoredBlock, site: SiteRenderContext): string {
-  const image = (block.props as { image?: ImageRef }).image
+  const image = (block.props as { image?: ImageRef; poster?: ImageRef }).image ?? (block.props as { poster?: ImageRef }).poster
   if (!image) return ''
   const entry = site.media[image.media]
   const ratio = '16:9'
@@ -671,6 +693,8 @@ export function loadSiteRenderContext(ctx: ServiceCtx, manifest: ReleaseManifest
       alt: row.alt,
       decorative: row.decorative,
       status: row.status,
+      kind: row.kind,
+      mime: row.mime,
       cropRatios: [...new Set(cropsByMedia.get(row.id) ?? [])],
     }
   }

@@ -54,9 +54,9 @@ For backgrounds such as a near full-screen video hero:
 
 - Short, muted, looping, no audio track.
 - Transcoded and compressed hard (for example H.264 and AV1 or VP9, under a few MB), with a poster image from the pipeline above.
-- Not loaded on mobile or when the visitor prefers reduced motion or has data saver on, where the poster is shown instead.
+- Not loaded on mobile or when the visitor prefers reduced motion, where the poster is shown instead. (Data-saver detection is later.)
 
-Transcoding (ffmpeg) is a later phase. At first, videos may need to be prepared before upload.
+Transcoding (ffmpeg) is a later phase. v1 accepts a prepared MP4 or WebM, up to 8 MB, and a VideoHero block plays it behind the poster on larger screens.
 
 ## Later: art direction and the crop wizard
 

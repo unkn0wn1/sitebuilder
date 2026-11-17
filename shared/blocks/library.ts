@@ -2,9 +2,10 @@
 // Sample media and embed ids are fixed placeholders used only by tests and seeds.
 import { z } from 'zod'
 import { richTextDoc, richTextFromParagraphs } from '../richtext'
-import { defineBlock, embedId, imageRef, linkRef, text, tone } from './define'
+import { defineBlock, embedId, imageRef, linkRef, mediaId, text, tone } from './define'
 
 export const SAMPLE_MEDIA_ID = 'med_00000000000000000000000001'
+export const SAMPLE_VIDEO_ID = 'med_00000000000000000000000002'
 export const SAMPLE_EMBED_ID = 'emb_00000000000000000000000001'
 
 const sampleImage = { media: SAMPLE_MEDIA_ID, alt: 'A rescued puppy wrapped in a blanket' }
@@ -26,6 +27,27 @@ export const Hero = defineBlock({
   imageSlots: { image: { width: 1280, height: 720 } },
   headingProps: ['heading'],
   sample: { heading: 'Keep them warm this winter', subheading: 'Your gift pays for blankets, food and treatment.', image: sampleImage, cta: { label: 'Donate now', href: '#donate' } },
+})
+
+
+export const VideoHero = defineBlock({
+  type: 'VideoHero',
+  version: 1,
+  label: 'Video hero',
+  category: 'Headers',
+  props: z
+    .object({
+      heading: text({ max: 80, required: true }),
+      subheading: text({ max: 160 }),
+      poster: imageRef,
+      video: mediaId,
+      cta: linkRef.optional(),
+      tone: tone.default('primary'),
+    })
+    .strict(),
+  imageSlots: { poster: { width: 1280, height: 720 } },
+  headingProps: ['heading'],
+  sample: { heading: 'Keep them warm this winter', subheading: 'Your gift pays for blankets, food and treatment.', poster: sampleImage, video: SAMPLE_VIDEO_ID, cta: { label: 'Donate now', href: '#donate' } },
 })
 
 export const RichText = defineBlock({
@@ -174,4 +196,4 @@ export const Embed = defineBlock({
   sample: { embed: SAMPLE_EMBED_ID, title: 'Volunteer sign-up form' },
 })
 
-export const STARTER_BLOCKS = [Hero, RichText, TextAndImage, Image, Gallery, Quote, Stats, CardGrid, CallToAction, FAQ, DonationEmbed, Embed]
+export const STARTER_BLOCKS = [Hero, VideoHero, RichText, TextAndImage, Image, Gallery, Quote, Stats, CardGrid, CallToAction, FAQ, DonationEmbed, Embed]

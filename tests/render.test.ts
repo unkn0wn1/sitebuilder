@@ -76,6 +76,32 @@ describe('public-site renderer', () => {
     expect(rendered.deps.bundleId).toBeTruthy()
   })
 
+  it('renders a video hero with a poster and a muted looping video for larger screens', async () => {
+    const doc = emptyPageDoc('Home')
+    doc.blocks = [
+      {
+        id: 'b_vhero',
+        type: 'VideoHero',
+        v: 1,
+        props: {
+          heading: 'Claire',
+          poster: IMG,
+          video: 'med_00000000000000000000000002',
+          tone: 'primary',
+        },
+      },
+    ]
+    const rendered = await renderPageHtml({ doc, pageId: 'pg_home', versionId: 'ver_1', path: '/', site: site() })
+    expect(rendered.html).toContain('<h1>Claire</h1>')
+    expect(rendered.html).toContain('class="hero-video"')
+    expect(rendered.html).toContain('autoplay')
+    expect(rendered.html).toContain('muted')
+    expect(rendered.html).toContain('/media/med_00000000000000000000000002.mp4')
+    expect(rendered.html).toContain('media="(min-width: 641px)"')
+    expect(rendered.html).toContain(`/media/${IMG.media}-1280.webp`)
+    expect(rendered.deps.media).toEqual(expect.arrayContaining([IMG.media, 'med_00000000000000000000000002']))
+  })
+
   it('marks a page noindex when asked, and omits it from the sitemap', async () => {
     const doc = emptyPageDoc('Hidden')
     doc.seo.noindex = true

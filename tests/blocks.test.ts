@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { defineBlock, text } from '../shared/blocks/define'
 import { createDefaultRegistry, createRegistry } from '../shared/blocks/registry'
-import { STARTER_BLOCKS } from '../shared/blocks/library'
+import { STARTER_BLOCKS, VideoHero } from '../shared/blocks/library'
+import { checkTemplateRules } from '../shared/templates'
 import { migratePageDoc, PageMigrationError } from '../shared/page'
 
 describe('block registry', () => {
@@ -50,5 +51,12 @@ describe('block registry', () => {
 
   it('a block without a migration path cannot be defined', () => {
     expect(() => defineBlock({ type: 'X', version: 2, label: 'X', category: 'Text', props: z.object({}), sample: {} })).toThrow(/no migration/)
+  })
+
+  it('treats a VideoHero as satisfying a required Hero on a Home page', () => {
+    const rules = { label: 'Home', allowedBlocks: ['Hero', 'VideoHero', 'RichText'], requiredBlocks: ['Hero'], startingBlocks: [] }
+    expect(checkTemplateRules(['VideoHero'], rules, { enforceRequired: true })).toEqual([])
+    expect(checkTemplateRules(['RichText'], rules, { enforceRequired: true })[0]?.message).toMatch(/needs a "Hero"/)
+    expect(VideoHero.sample.video).toBeTruthy()
   })
 })

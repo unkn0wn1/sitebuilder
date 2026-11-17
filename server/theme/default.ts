@@ -86,7 +86,7 @@ a { color: var(--accent); }
   color: #fff;
   isolation: isolate;
 }
-.hero-media, .hero img {
+.hero-media, .hero-video, .hero img {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -142,7 +142,7 @@ a { color: var(--accent); }
 .site-footer { padding: 2rem 0 3rem; color: var(--muted); font-size: 0.9rem; border-top: 1px solid var(--line); margin-top: 2rem; }
 .site-footer a { color: inherit; }
 .footer-social { display: flex; gap: 0.75rem; flex-wrap: wrap; margin: 0.75rem 0; }
-@media (prefers-reduced-motion: reduce) {
+@media (max-width: 640px), (prefers-reduced-motion: reduce) {
   .hero-video { display: none; }
 }
 `

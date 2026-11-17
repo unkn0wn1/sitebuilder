@@ -15,7 +15,8 @@ export default defineApi((event, ctx) => {
   if (![...renditions, ...crops.flatMap((c) => c.renditions)].includes(name)) throw notFound('That file')
   const file = join(mediaPaths(mediaDir()).renditions, name)
   if (!existsSync(file)) throw notFound('That file')
-  setResponseHeader(event, 'content-type', name.endsWith('.avif') ? 'image/avif' : 'image/webp')
+  const type = name.endsWith('.avif') ? 'image/avif' : name.endsWith('.mp4') ? 'video/mp4' : name.endsWith('.webm') ? 'video/webm' : 'image/webp'
+  setResponseHeader(event, 'content-type', type)
   setResponseHeader(event, 'cache-control', 'private, max-age=86400')
   setResponseHeader(event, 'x-content-type-options', 'nosniff')
   return sendStream(event, createReadStream(file))
