@@ -8,7 +8,7 @@ map $uri $redirect_to {
 
 map $uri $redirect_status {
   include /var/lib/sitebuilder/site/current/redirect-status.map;
-  default 301;
+  default 0;
 }
 
 map $uri $cache_tags {
@@ -27,11 +27,18 @@ server {
   server_name ${PUBLIC_HOST};
   root /var/lib/sitebuilder/site/current;
   gzip on;
-  gzip_types text/html text/css application/javascript application/json image/svg+xml;
+  gzip_types text/css application/javascript application/json image/svg+xml;
   charset utf-8;
+  # Stay on the visitor-facing scheme/host when adding a trailing slash.
+  absolute_redirect off;
 
-  if ($redirect_to) {
-    return $redirect_status $redirect_to;
+  # `return` only accepts a literal status code, so 301/302 are branched here
+  # rather than `return $redirect_status`. Default 0 means "no redirect".
+  if ($redirect_status = 302) {
+    return 302 $redirect_to;
+  }
+  if ($redirect_status = 301) {
+    return 301 $redirect_to;
   }
 
   add_header Cache-Tag $cache_tags always;

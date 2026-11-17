@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, lstatSync, readFileSync, statSync } from 'node:fs'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -24,6 +24,11 @@ describe('Compose install', () => {
     expect(existsSync(join(root, 'data'))).toBe(true)
     expect(existsSync(join(root, 'media', 'originals'))).toBe(true)
     expect(existsSync(join(root, 'site', 'releases'))).toBe(true)
+    expect(existsSync(join(root, 'site', 'current', 'redirects.map'))).toBe(true)
+    expect(existsSync(join(root, 'site', 'current', 'redirect-status.map'))).toBe(true)
+    expect(existsSync(join(root, 'site', 'current', 'cache-tags.map'))).toBe(true)
+    expect(existsSync(join(root, 'site', 'current', 'csp.map'))).toBe(true)
+    expect(lstatSync(join(root, 'site', 'current')).isSymbolicLink()).toBe(true)
     const env = readFileSync(prepared.envPath, 'utf8')
     expect(env).toContain(`SITEBUILDER_SECRET_KEY=${prepared.secretKey}`)
     expect(env).toContain('SITEBUILDER_ORIGIN=https://builder.example.org')

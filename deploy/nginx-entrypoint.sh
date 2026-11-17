@@ -8,7 +8,11 @@ SITE=/var/lib/sitebuilder/site
 CURRENT="$SITE/current"
 
 if [ ! -e "$CURRENT" ]; then
-  mkdir -p "$SITE/releases/.bootstrap"
+  if ! mkdir -p "$SITE/releases/.bootstrap" 2>/dev/null; then
+    echo "site/current is missing and the site volume is not writable." >&2
+    echo "The installer should create an empty bootstrap release (see prepareInstallDir)." >&2
+    exit 1
+  fi
   for f in redirects.map redirect-status.map cache-tags.map csp.map; do
     : > "$SITE/releases/.bootstrap/$f"
   done

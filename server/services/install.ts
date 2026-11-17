@@ -1,6 +1,6 @@
 // Prepare a Compose install directory: folders, a secret key, and an environment file.
 // See ADR 0007 and docs/16-operations.md#install.
-import { mkdirSync, existsSync, readFileSync, writeFileSync, chmodSync } from 'node:fs'
+import { mkdirSync, existsSync, readFileSync, writeFileSync, chmodSync, symlinkSync } from 'node:fs'
 import { isAbsolute, join, resolve } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
@@ -99,6 +99,22 @@ function hostFromOrigin(origin: string, fallback: string): string {
   }
 }
 
+const BOOTSTRAP_MAPS = ['redirects.map', 'redirect-status.map', 'cache-tags.map', 'csp.map'] as const
+
+/** Empty maps and a `current` symlink so origin nginx can start before the first publish. */
+export function writeBootstrapRelease(siteDir: string): void {
+  const bootstrap = join(siteDir, 'releases', '.bootstrap')
+  mkdirSync(bootstrap, { recursive: true })
+  for (const name of BOOTSTRAP_MAPS) {
+    const file = join(bootstrap, name)
+    if (!existsSync(file)) writeFileSync(file, '')
+  }
+  const current = join(siteDir, 'current')
+  if (!existsSync(current)) {
+    symlinkSync('releases/.bootstrap', current)
+  }
+}
+
 /** Create the install folders and write .env if it is missing (or if force is set). */
 export function prepareInstallDir(opts: InstallOptions): PreparedInstall {
   const layout = installLayout(opts.dir)
@@ -108,6 +124,9 @@ export function prepareInstallDir(opts: InstallOptions): PreparedInstall {
   mkdirSync(join(layout.mediaDir, 'originals'), { recursive: true })
   mkdirSync(join(layout.mediaDir, 'renditions'), { recursive: true })
   mkdirSync(join(layout.siteDir, 'releases'), { recursive: true })
+  // nginx mounts the site dir read-only, so the first-boot maps and current
+  // symlink must exist on the host before the container starts.
+  writeBootstrapRelease(layout.siteDir)
 
   let created = false
   let secretKey = generateSecretKey()
