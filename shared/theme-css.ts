@@ -99,7 +99,12 @@ a { color: var(--accent); }
   gap: 0.5rem;
 }
 .nav-hamburger .nav-panel details ul { position: static; border: 0; padding: 0.25rem 0 0.25rem 0.75rem; }
-.site-title { color: inherit; text-decoration: none; font-weight: 700; font-size: 1.1rem; }
+.site-title { color: inherit; text-decoration: none; font-weight: 700; font-size: 1.1rem; display: inline-flex; align-items: center; }
+.site-logo { display: block; height: 2.75rem; width: auto; max-width: min(18rem, 100%); }
+.site-header-centred .site-logo { height: 3.25rem; max-width: min(22rem, 100%); }
+@media (max-width: 640px) {
+  .site-logo, .site-header-centred .site-logo { height: 2.5rem; max-width: min(16rem, calc(100vw - 2 * var(--space))); }
+}
 .nav { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
 .nav a, .nav summary { font-weight: 500; color: var(--muted); text-decoration: none; cursor: pointer; list-style: none; }
 .nav details { position: relative; }

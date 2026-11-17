@@ -138,7 +138,7 @@ const focalStyle = computed(() => {
         <p v-if="!details.usedOn.length" class="text-sm text-gray-500 dark:text-gray-400">Not used on a page yet.</p>
         <ul v-else class="m-0 list-none p-0 text-sm">
           <li v-for="use in details.usedOn" :key="use.pageId">
-            <NuxtLink :to="`/pages/${use.pageId}`" class="text-blue-700 dark:text-blue-400 no-underline hover:underline">{{ use.title }}</NuxtLink>
+            <NuxtLink :to="use.href ?? `/pages/${use.pageId}`" class="text-blue-700 dark:text-blue-400 no-underline hover:underline">{{ use.title }}</NuxtLink>
             <span class="text-gray-500 dark:text-gray-400"> · {{ use.live ? 'Live' : 'Draft' }}</span>
           </li>
         </ul>

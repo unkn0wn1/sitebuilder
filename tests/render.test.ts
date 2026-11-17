@@ -1,10 +1,13 @@
 import { mkdtempSync, readFileSync, statSync, existsSync } from 'node:fs'
+import sharp from 'sharp'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { jobs, redirects, sites } from '../server/db/schema'
 import { createPurgeCacheHandler, setPurgeHttp } from '../server/services/cloudflare'
+import { editBrand, submitBrand } from '../server/services/brand'
+import { createMediaRenditionsHandler, updateMedia, uploadMedia } from '../server/services/media'
 import { applyPageOps, createPage, getPage } from '../server/services/pages'
 import { createPublishHandler, currentRelease, unpublishPage } from '../server/services/publish'
 import { createFileReleaseWriter, readCurrentReleaseId } from '../server/services/release'
@@ -22,6 +25,7 @@ import {
   type SiteRenderContext,
 } from '../server/services/render'
 import { emptyPageDoc } from '../shared/page'
+import { defaultBrandDoc } from '../shared/brand'
 import { richTextFromParagraphs } from '../shared/richtext'
 import { runJobsOnce } from '../server/services/jobs'
 import { IMG, setup } from './helpers'
@@ -158,6 +162,48 @@ describe('public-site renderer', () => {
     expect(rendered.deps.linkedPageIds).toContain('pg_about')
     expect(rendered.html).toContain('href="/about-us"')
   })
+
+  it('renders the brand logo in the header with the site name as alt text, and favicon links', async () => {
+    const logoId = 'med_00000000000000000000000009'
+    const rendered = await renderPageHtml({
+      doc: emptyPageDoc('Home'),
+      pageId: 'pg_home',
+      versionId: 'ver_1',
+      path: '/',
+      site: site({
+        name: 'Hope for Street Animals',
+        brand: { ...defaultBrandDoc(), logoMediaId: logoId },
+        media: {
+          [logoId]: {
+            id: logoId,
+            width: 600,
+            height: 188,
+            alt: 'Hope for Street Animals',
+            decorative: false,
+            status: 'ready',
+            kind: 'image',
+            mime: 'image/png',
+            cropRatios: [],
+          },
+        },
+      }),
+    })
+    expect(rendered.html).toContain('class="site-logo"')
+    expect(rendered.html).toContain('alt="Hope for Street Animals"')
+    expect(rendered.html).toContain(`/media/${logoId}-600.webp`)
+    expect(rendered.html).toContain('rel="icon" href="/favicon.png"')
+    expect(rendered.html).toContain('rel="apple-touch-icon" href="/apple-touch-icon.png"')
+    expect(rendered.html).not.toMatch(/>Hope for Street Animals<\/a>/)
+    expect(rendered.deps.media).toContain(logoId)
+  })
+
+  it('falls back to the site name in the header when no logo is set', async () => {
+    const rendered = await renderPageHtml({ doc: emptyPageDoc('Home'), pageId: 'pg_home', versionId: 'ver_1', path: '/', site: site() })
+    expect(rendered.html).toContain('>Test charity</a>')
+    expect(rendered.html).not.toContain('class="site-logo"')
+    expect(rendered.html).not.toContain('rel="icon" href="/favicon.png"')
+  })
+
 })
 
 async function publishStandard(s: ReturnType<typeof setup>, title: string, heading: string) {
@@ -337,5 +383,64 @@ describe('site origin', () => {
   it('emits an absolute Sitemap URL once an origin is known', () => {
     expect(robotsTxt(site({ origin: 'https://sb-demo.moejo.co' }))).toContain('Sitemap: https://sb-demo.moejo.co/sitemap.xml')
     expect(robotsTxt(site({ origin: null }))).toContain('Sitemap: /sitemap.xml')
+  })
+})
+
+async function testWordmarkPng() {
+  const mark = await sharp({ create: { width: 90, height: 90, channels: 4, background: { r: 230, g: 120, b: 40, alpha: 1 } } }).png().toBuffer()
+  const word = await sharp({ create: { width: 160, height: 40, channels: 4, background: { r: 5, g: 83, b: 103, alpha: 1 } } }).png().toBuffer()
+  return sharp({ create: { width: 400, height: 120, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+    .composite([
+      { input: mark, left: 10, top: 15 },
+      { input: word, left: 130, top: 40 },
+    ])
+    .png()
+    .toBuffer()
+}
+
+describe('published brand logo', () => {
+  it('puts the logo in the live header and writes favicon files from the mark', async () => {
+    const s = setup()
+    s.ctx.db.update(sites).set({ name: 'Hope for Street Animals', primaryDomain: 'example.org' }).where(eq(sites.id, s.ctx.siteId)).run()
+    const mediaDir = mkdtempSync(join(tmpdir(), 'sb-logo-media-'))
+    const root = mkdtempSync(join(tmpdir(), 'sb-logo-release-'))
+    const { media } = await uploadMedia(s.ctx, s.admin, { filename: 'logo.png', data: await testWordmarkPng(), mediaDir })
+    updateMedia(s.ctx, s.admin, media.id, { alt: 'Hope for Street Animals' })
+    const writer = createFileReleaseWriter(root, { keep: 10, mediaDir })
+    const handlers = {
+      media_renditions: createMediaRenditionsHandler(mediaDir),
+      publish: createPublishHandler(writer),
+      send_email: { run: () => ({ skipped: true }) },
+      purge_cache: { run: () => ({ skipped: true }) },
+    }
+    await runJobsOnce(s.ctx, handlers)
+
+    await publishStandard(s, 'Home', 'Welcome')
+    while (await runJobsOnce(s.ctx, handlers)) {}
+
+    editBrand(s.ctx, s.admin, 0, { ...defaultBrandDoc(), logoMediaId: media.id, menuStyle: 'centred' })
+    const sub = submitBrand(s.ctx, s.admin)
+    approveReview(s.ctx, s.approver, sub.reviewId, { versionId: sub.versionId })
+    while (await runJobsOnce(s.ctx, handlers)) {}
+
+    const releaseId = readCurrentReleaseId(root)!
+    const html = readFileSync(join(root, 'releases', releaseId, 'home', 'index.html'), 'utf8')
+    expect(html).toContain('class="site-logo"')
+    expect(html).toContain('alt="Hope for Street Animals"')
+    expect(html).toContain(`/media/${media.id}-`)
+    expect(html).toContain('rel="icon" href="/favicon.png"')
+    expect(html).toContain('site-header-centred')
+    expect(html).not.toMatch(/>Hope for Street Animals<\/a>/)
+
+    const favicon = join(root, 'releases', releaseId, 'favicon.png')
+    const apple = join(root, 'releases', releaseId, 'apple-touch-icon.png')
+    expect(existsSync(favicon)).toBe(true)
+    expect(existsSync(apple)).toBe(true)
+    expect((await sharp(favicon).metadata()).width).toBe(32)
+    expect((await sharp(apple).metadata()).width).toBe(180)
+    // The favicon should be the left-hand orange mark, not a tiny squeezed wordmark.
+    const { dominant } = await sharp(favicon).stats()
+    expect(dominant.r).toBeGreaterThan(dominant.b)
+    expect(dominant.r).toBeGreaterThan(100)
   })
 })

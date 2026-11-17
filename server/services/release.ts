@@ -8,6 +8,8 @@ import { eq } from 'drizzle-orm'
 import { redirects, releases, type ReleaseManifest } from '../db/schema'
 import type { ServiceCtx } from './context'
 import type { ReleaseWriter } from './publish'
+import { BRAND_ICON_FILES, buildBrandIcons } from './brand-icons'
+import { mediaDir as defaultMediaDir } from '../utils/state'
 import {
   BUNDLE_ID,
   EMBED_JS,
@@ -29,10 +31,13 @@ export const RELEASES_TO_KEEP = 10
 export interface FileReleaseWriterOptions {
   /** How many release folders to keep after a switch. The live symlink is never deleted. */
   keep?: number
+  /** Folder of original uploads and renditions, used to generate favicons from the brand logo. */
+  mediaDir?: string
 }
 
 export function createFileReleaseWriter(root: string, opts: FileReleaseWriterOptions = {}): ReleaseWriter {
   const keep = opts.keep ?? RELEASES_TO_KEEP
+  const iconsFrom = opts.mediaDir ?? defaultMediaDir()
   const releasesDir = join(root, 'releases')
   const currentLink = join(root, 'current')
 
@@ -66,6 +71,7 @@ export function createFileReleaseWriter(root: string, opts: FileReleaseWriterOpt
     }
 
     writeSiteFiles(ctx, dest, input.manifest, site, deps)
+    await writeBrandIconFiles(ctx, dest, site, iconsFrom)
   }
 
   async function refreshMaps(ctx: ServiceCtx, releaseId: string): Promise<void> {
@@ -76,6 +82,7 @@ export function createFileReleaseWriter(root: string, opts: FileReleaseWriterOpt
     if (!manifest) return
     const site = loadSiteRenderContext(ctx, manifest)
     writeSiteFiles(ctx, dest, manifest, site, readExistingDeps(dest))
+    await writeBrandIconFiles(ctx, dest, site, iconsFrom)
   }
 
   function switchCurrent(releaseId: string): void {
@@ -107,6 +114,19 @@ export function createFileReleaseWriter(root: string, opts: FileReleaseWriterOpt
   }
 
   return { writeRelease, switchCurrent, refreshMaps }
+}
+
+async function writeBrandIconFiles(ctx: ServiceCtx, dest: string, site: SiteRenderContext, mediaDir: string) {
+  const files = await buildBrandIcons(ctx, site, mediaDir)
+  if (!files) {
+    for (const name of BRAND_ICON_FILES) {
+      const path = join(dest, name)
+      if (existsSync(path)) unlinkSync(path)
+    }
+    return
+  }
+  writeNew(join(dest, 'favicon.png'), files.favicon)
+  writeNew(join(dest, 'apple-touch-icon.png'), files.appleTouch)
 }
 
 function writeSiteFiles(ctx: ServiceCtx, dest: string, manifest: ReleaseManifest, site: SiteRenderContext, deps: Record<string, PageDependencies>) {

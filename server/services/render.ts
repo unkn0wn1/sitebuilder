@@ -452,6 +452,35 @@ function renderNav(site: SiteRenderContext, bag: Collector): VNode | null {
   return h('nav', { class: style === 'mega' ? 'nav nav-mega' : 'nav', 'aria-label': 'Site' }, items)
 }
 
+function logoOrName(site: SiteRenderContext, bag: Collector): VNode | string {
+  const id = site.brand?.logoMediaId
+  if (!id) return site.name
+  const entry = site.media[id]
+  if (!entry || entry.kind === 'video') return site.name
+  bag.media.add(id)
+  const widths = widthsForMedia(entry)
+  const srcW = widths[widths.length - 1] ?? 320
+  const alt = entry.alt?.trim() || site.name
+  return h('img', {
+    class: 'site-logo',
+    src: `/media/${id}-${srcW}.webp`,
+    srcset: widths.map((w) => `/media/${id}-${w}.webp ${w}w`).join(', '),
+    sizes: '(max-width: 640px) 180px, 220px',
+    alt,
+    width: entry.width ?? undefined,
+    height: entry.height ?? undefined,
+    decoding: 'async',
+  })
+}
+
+function faviconTags(site: SiteRenderContext): string {
+  const id = site.brand?.logoMediaId
+  if (!id || !site.media[id]) return ''
+  return `<link rel="icon" href="/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  `
+}
+
 function renderShell(doc: PageDoc, site: SiteRenderContext, bag: Collector): VNode {
   const banner = site.banner
   if (banner) {
@@ -477,7 +506,7 @@ function renderShell(doc: PageDoc, site: SiteRenderContext, bag: Collector): VNo
       : null,
     h('header', { class: headerClass(menuStyleOf(site)) }, [
       h('div', { class: 'site-header-inner' }, [
-        h('a', { class: 'site-title', href: '/' }, site.name),
+        h('a', { class: 'site-title', href: '/' }, logoOrName(site, bag)),
         renderNav(site, bag),
         headerCta ? h('a', { class: 'cta-btn', href: headerCta.href }, headerCta.label) : null,
       ]),
@@ -640,7 +669,7 @@ export async function renderPageHtml(input: {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="${escapeHtml(csp)}">
   <title>${escapeHtml(title)}</title>
-  ${description ? `<meta name="description" content="${escapeHtml(description)}">` : ''}
+  ${faviconTags(site)}${description ? `<meta name="description" content="${escapeHtml(description)}">` : ''}
   ${noindex ? '<meta name="robots" content="noindex, nofollow">' : ''}
   ${canonical ? `<link rel="canonical" href="${escapeHtml(canonical)}">` : ''}
   ${ogImage ? `<meta property="og:image" content="${escapeHtml(ogImage)}">` : ''}

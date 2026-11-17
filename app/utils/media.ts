@@ -32,7 +32,7 @@ export interface MediaDetails {
   preview: string | null
   renditions: string[]
   crops: MediaCrop[]
-  usedOn: { pageId: string; title: string; inDraft: boolean; live: boolean }[]
+  usedOn: { pageId: string; title: string; inDraft: boolean; live: boolean; href?: string }[]
 }
 
 export function mediaFileUrl(id: string, name: string) {

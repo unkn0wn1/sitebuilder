@@ -9,6 +9,8 @@ import { approveCrop, binMedia, createMediaRenditionsHandler, getMedia, listMedi
 import { applyPageOps, createPage } from '../server/services/pages'
 import { createPublishHandler } from '../server/services/publish'
 import { approveReview, submitPage } from '../server/services/reviews'
+import { editBrand, submitBrand } from '../server/services/brand'
+import { defaultBrandDoc } from '../shared/brand'
 import { setup } from './helpers'
 
 async function photo(width: number, height: number, opts: { orientation?: number; gps?: boolean } = {}) {
@@ -133,5 +135,29 @@ describe('prepared video uploads', () => {
     data.writeUInt32BE(data.length, 0)
     data.write('ftypisom', 4)
     await expectCode(uploadMedia(s.ctx, s.editor, { filename: 'huge.mp4', data, mediaDir: dir }), 'validation_failed')
+  })
+})
+
+
+describe('brand logo usage', () => {
+  it('lists Brand and Design as a use, and refuses to bin a live logo', async () => {
+    const s = setup()
+    const dir = mkdtempSync(join(tmpdir(), 'sb-media-'))
+    const { media } = await uploadMedia(s.ctx, s.admin, {
+      filename: 'logo.png',
+      data: await sharp({ create: { width: 80, height: 40, channels: 4, background: { r: 200, g: 80, b: 20, alpha: 1 } } }).png().toBuffer(),
+      mediaDir: dir,
+    })
+    const handlers = { media_renditions: createMediaRenditionsHandler(dir), publish: createPublishHandler(), purge_cache: { run: () => ({}) }, send_email: { run: () => ({}) } }
+    await runJobsOnce(s.ctx, handlers)
+    editBrand(s.ctx, s.admin, 0, { ...defaultBrandDoc(), logoMediaId: media.id })
+    expect(getMedia(s.ctx, media.id).usedOn).toEqual([
+      { pageId: expect.any(String), title: 'Brand and Design', inDraft: true, live: false, href: '/brand' },
+    ])
+    const sub = submitBrand(s.ctx, s.admin)
+    approveReview(s.ctx, s.approver, sub.reviewId, { versionId: sub.versionId })
+    await runJobsOnce(s.ctx, handlers)
+    expect(getMedia(s.ctx, media.id).usedOn.some((u) => u.title === 'Brand and Design' && u.live)).toBe(true)
+    await expectCode(() => binMedia(s.ctx, s.approver, media.id), 'invalid_state')
   })
 })

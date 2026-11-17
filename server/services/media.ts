@@ -10,7 +10,7 @@ import { cropRectError, defaultCropRect, type CropRect } from '../../shared/crop
 import { newId } from '../../shared/ids'
 import { zodIssues } from '../../shared/issues'
 import { can } from '../../shared/roles'
-import { media, mediaCrops, pages, versions } from '../db/schema'
+import { brandPacks, media, mediaCrops, pages, versions } from '../db/schema'
 import { audit } from './audit'
 import { inTx, iso, type ActingAs, type ServiceCtx } from './context'
 import { AppError, forbidden, notFound } from './errors'
@@ -45,7 +45,7 @@ export function looksLikeVideo(data: Buffer): { mime: string; ext: string } | nu
   return null
 }
 
-function masterPath(dir: string, row: Pick<MediaRow, 'id' | 'mime'>) {
+export function masterPath(dir: string, row: Pick<MediaRow, 'id' | 'mime'>) {
   const ext = Object.values(FORMATS).find((f) => f.mime === row.mime)?.ext ?? VIDEO_TYPES[row.mime]?.ext ?? 'bin'
   return join(mediaPaths(dir).originals, `${row.id}.${ext}`)
 }
@@ -244,13 +244,15 @@ export function listMedia(ctx: ServiceCtx, q: { search?: string; kind?: 'image' 
 }
 
 /** Pages whose draft or live version uses an image. */
-export function mediaUsage(ctx: ServiceCtx, mediaId: string) {
+export type MediaUsage = { pageId: string; title: string; inDraft: boolean; live: boolean; href?: string }
+
+export function mediaUsage(ctx: ServiceCtx, mediaId: string): MediaUsage[] {
   const rows = ctx.db
     .select({ id: pages.id, title: pages.title, draft: pages.draftVersionId, live: pages.publishedVersionId })
     .from(pages)
     .where(and(eq(pages.siteId, ctx.siteId), isNull(pages.deletedAt)))
     .all()
-  const used: { pageId: string; title: string; inDraft: boolean; live: boolean }[] = []
+  const used: MediaUsage[] = []
   const docHas = (versionId: string | null) => {
     if (!versionId) return false
     const v = ctx.db.select({ doc: versions.doc }).from(versions).where(eq(versions.id, versionId)).get()
@@ -260,6 +262,18 @@ export function mediaUsage(ctx: ServiceCtx, mediaId: string) {
     const inDraft = docHas(r.draft)
     const live = r.live === r.draft ? inDraft : docHas(r.live)
     if (inDraft || live) used.push({ pageId: r.id, title: r.title, inDraft, live })
+  }
+  const pack = ctx.db.select().from(brandPacks).where(eq(brandPacks.siteId, ctx.siteId)).get()
+  if (pack) {
+    const brandHas = (versionId: string | null) => {
+      if (!versionId) return false
+      const v = ctx.db.select({ doc: versions.doc }).from(versions).where(eq(versions.id, versionId)).get()
+      const doc = v?.doc as { logoMediaId?: string | null } | undefined
+      return doc?.logoMediaId === mediaId
+    }
+    const inDraft = brandHas(pack.draftVersionId)
+    const live = pack.publishedVersionId === pack.draftVersionId ? inDraft : brandHas(pack.publishedVersionId)
+    if (inDraft || live) used.push({ pageId: pack.id, title: 'Brand and Design', inDraft, live, href: '/brand' })
   }
   return used
 }
