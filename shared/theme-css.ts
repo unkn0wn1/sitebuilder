@@ -1,4 +1,18 @@
 // Public theme CSS. Used by the publish renderer and the editor canvas.
+
+export const DEFAULT_THEME_TOKENS = {
+  ink: '#1f1b16',
+  paper: '#fffaf3',
+  muted: '#5c564e',
+  accent: '#b5471d',
+  accentInk: '#fffaf3',
+  line: '#e6dccf',
+  band: '#f3ebe1',
+  urgent: '#8b1e1e',
+  celebrate: '#2e5a3c',
+} as const
+export type ThemeTokens = { [K in keyof typeof DEFAULT_THEME_TOKENS]: string }
+
 export const BUNDLE_ID = "theme-default-1"
 
 export const THEME_CSS = `:root {
@@ -52,6 +66,39 @@ a { color: var(--accent); }
   flex-wrap: wrap;
 }
 .site-header-centred .site-header-inner { flex-direction: column; }
+.nav-mega details ul, .nav-mega-panel {
+  min-width: 18rem;
+  padding: 1rem 1.25rem;
+  display: grid;
+  gap: 0.35rem 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  box-shadow: 0 0.5rem 1.25rem color-mix(in srgb, var(--ink) 12%, transparent);
+}
+.nav-hamburger { position: relative; }
+.nav-hamburger > summary {
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 0.3rem;
+  padding: 0.4rem 0.8rem;
+}
+.nav-hamburger > summary::-webkit-details-marker { display: none; }
+.nav-hamburger .nav-panel {
+  position: absolute;
+  right: 0;
+  margin: 0.4rem 0 0;
+  padding: 0.75rem 1rem;
+  min-width: 14rem;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.nav-hamburger .nav-panel details ul { position: static; border: 0; padding: 0.25rem 0 0.25rem 0.75rem; }
 .site-title { color: inherit; text-decoration: none; font-weight: 700; font-size: 1.1rem; }
 .nav { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
 .nav a, .nav summary { font-weight: 500; color: var(--muted); text-decoration: none; cursor: pointer; list-style: none; }
@@ -144,3 +191,24 @@ a { color: var(--accent); }
 }
 `
 
+
+/** Build public CSS from a brand pack, keeping the default rules and swapping tokens and fonts. */
+export function themeCssFromTokens(tokens: ThemeTokens, fonts?: { body: string; heading: string | null }): string {
+  const root = `:root {
+  --ink: ${tokens.ink};
+  --paper: ${tokens.paper};
+  --muted: ${tokens.muted};
+  --accent: ${tokens.accent};
+  --accent-ink: ${tokens.accentInk};
+  --line: ${tokens.line};
+  --band: ${tokens.band};
+  --urgent: ${tokens.urgent};
+  --celebrate: ${tokens.celebrate};
+  --max: 70rem;
+  --space: 1.25rem;
+}`
+  let css = THEME_CSS.replace(/:root \{[^}]+\}/, root)
+  if (fonts?.body) css = css.replace(/font-family: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;/, `font-family: ${fonts.body};`)
+  if (fonts?.heading) css += `\nh1, h2, h3, h4, .site-title, .hero h1 { font-family: ${fonts.heading}; }\n`
+  return css
+}

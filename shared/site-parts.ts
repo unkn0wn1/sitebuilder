@@ -6,6 +6,22 @@ import { blockIdSchema } from './page'
 import { richTextDoc, safeHref } from './richtext'
 
 export const SITE_PART_KINDS = ['header', 'footer', 'menu', 'banner'] as const
+
+/** How the header presents the menu. The menu tree itself does not change. */
+export const HEADER_STYLES = ['simple', 'centred', 'mega', 'hamburger'] as const
+export type HeaderStyle = (typeof HEADER_STYLES)[number]
+export const HEADER_STYLE_LABELS: Record<HeaderStyle, string> = {
+  simple: 'Classic bar',
+  centred: 'Centred logo',
+  mega: 'Mega menu',
+  hamburger: 'Hamburger',
+}
+export const HEADER_STYLE_HELP: Record<HeaderStyle, string> = {
+  simple: 'Logo and links in a row, with dropdowns for sub-items.',
+  centred: 'Logo above the menu, centred.',
+  mega: 'Wide dropdown panels for sub-items, still from the same menu tree.',
+  hamburger: 'A Menu button on every screen, including computers.',
+}
 export type SitePartKind = (typeof SITE_PART_KINDS)[number]
 export const CURRENT_SITE_PART_SCHEMA_VERSION = 1
 
@@ -36,7 +52,7 @@ const callToAction = z.object({ label: label(30), target: linkTargetSchema }).st
 export const headerDocSchema = z
   .object({
     schemaVersion: z.literal(1),
-    style: z.enum(['simple', 'centred']).default('simple'),
+    style: z.enum(['simple', 'centred', 'mega', 'hamburger']).default('simple'),
     menuKey: z.string().min(1).max(40).default('main'),
     cta: callToAction.nullable().default(null),
   })

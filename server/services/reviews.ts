@@ -8,14 +8,16 @@ import { validatePageDoc, type PageDoc } from '../../shared/page'
 import { atLeast, can } from '../../shared/roles'
 import { readSettings } from '../../shared/settings'
 import { canSubmit, restingState, type WorkflowState } from '../../shared/workflow'
-import { pages, reviewComments, reviews, siteParts, sites, users } from '../db/schema'
+import { brandPacks, pages, reviewComments, reviews, siteParts, sites, users } from '../db/schema'
 import { audit } from './audit'
 import { inTx, iso, type ActingAs, type ServiceCtx } from './context'
 import { AppError, forbidden, notFound } from './errors'
 import { enqueueJob } from './jobs'
 import { notify, usersWithRoles } from './notify'
 import { readDoc, requirePage, sealDraft } from './pages'
+import { getOrCreateBrand, readBrandDoc } from './brand'
 import { readSitePartDoc, requireSitePart, sitePartChecks } from './site-parts'
+import { brandContrastChecks } from '../../shared/brand'
 import { getTemplateRules } from './templates'
 
 export type ReviewRow = typeof reviews.$inferSelect
@@ -26,7 +28,7 @@ export function siteSettings(ctx: ServiceCtx) {
 
 /** What a review is about: a page or a site part. Both have the same draft and published pointers. */
 export interface ReviewTarget {
-  type: 'page' | 'site_part'
+  type: 'page' | 'site_part' | 'brand'
   id: string
   title: string
   workflowState: WorkflowState
@@ -44,11 +46,16 @@ export function loadReviewTarget(ctx: ServiceCtx, type: ReviewRow['targetType'],
     const p = requireSitePart(ctx, id)
     return { type, id, title: p.label, workflowState: p.workflowState, publishedVersionId: p.publishedVersionId, wasUnpublished: p.wasUnpublished, draftVersionId: p.draftVersionId }
   }
+  if (type === 'brand') {
+    const pack = getOrCreateBrand(ctx)
+    if (pack.id !== id) throw notFound('That brand pack')
+    return { type, id, title: 'Brand and Design', workflowState: pack.workflowState, publishedVersionId: pack.publishedVersionId, wasUnpublished: pack.wasUnpublished, draftVersionId: pack.draftVersionId }
+  }
   throw new AppError('invalid_state', 'Reviews for this kind of change are not built yet.')
 }
 
 export function setTargetState(ctx: ServiceCtx, t: Pick<ReviewTarget, 'type' | 'id'>, workflowState: WorkflowState) {
-  const table = t.type === 'page' ? pages : siteParts
+  const table = t.type === 'page' ? pages : t.type === 'brand' ? brandPacks : siteParts
   ctx.db.update(table).set({ workflowState, updatedAt: iso(ctx) }).where(eq(table.id, t.id)).run()
 }
 
@@ -218,6 +225,22 @@ export function getReview(ctx: ServiceCtx, actor: ActingAs, reviewId: string) {
     comments: comments.map((c) => ({ ...c, authorName: names.get(c.authorId) ?? 'Someone' })),
   }
   const draftChangedSinceSubmit = (t: { draftVersionId: string | null }) => t.draftVersionId !== review.versionId
+  if (review.targetType === 'brand') {
+    const pack = getOrCreateBrand(ctx)
+    if (pack.id !== review.targetId) throw notFound('That brand pack')
+    const doc = readBrandDoc(ctx, pack, review.versionId)
+    const liveDoc = pack.publishedVersionId ? readBrandDoc(ctx, pack, pack.publishedVersionId) : null
+    return {
+      review,
+      target: { type: 'brand' as const, id: pack.id, title: 'Brand and Design', state: pack.workflowState },
+      doc,
+      liveDoc,
+      hasLive: !!liveDoc,
+      checks: brandContrastChecks(doc),
+      draftChangedSinceSubmit: draftChangedSinceSubmit(pack),
+      ...withNames,
+    }
+  }
   if (review.targetType === 'site_part') {
     const part = requireSitePart(ctx, review.targetId)
     const doc = readSitePartDoc(ctx, part, review.versionId)

@@ -3,7 +3,8 @@ import { api, ApiError, waitForJob } from '../../utils/api'
 import { timeAgo } from '../../utils/format'
 import { can } from '#shared/roles'
 import { REVIEW_STATE_LABELS } from '#shared/workflow'
-import type { MenuDoc } from '#shared/site-parts'
+import type { PageDoc } from '#shared/page'
+import type { MenuDoc, SitePartDoc } from '#shared/site-parts'
 import { blockRegistry } from '../../utils/block-fields'
 import { CHANGE_KIND_LABELS, type ReviewDetail } from '../../utils/reviews'
 import type { PageOption, SitePartDetail, SitePartListItem } from '../../utils/site-parts'
@@ -65,6 +66,7 @@ const liveHref = computed(() => {
   const d = detail.value
   if (!d) return null
   if (d.target.type === 'site_part') return `/site-parts/${d.target.id}`
+  if (d.target.type === 'brand') return '/brand'
   const domain = site.value?.primaryDomain
   if (domain && d.target.path) return `https://${domain}${d.target.path}`
   return `/pages/${d.target.id}`
@@ -221,7 +223,7 @@ watch(id, load, { immediate: true })
         <PublishProgress
           :job-state="job?.state ?? (detail.review.state === 'published' ? 'done' : detail.review.state === 'failed' ? 'failed' : 'running')"
           :last-error="job?.lastError"
-          :is-site-part="detail.target.type === 'site_part'"
+          :is-site-part="detail.target.type === 'site_part' || detail.target.type === 'brand'"
           :view-href="detail.review.state === 'published' || job?.state === 'done' ? liveHref : null"
           :title="detail.target.title"
         />
@@ -240,10 +242,12 @@ watch(id, load, { immediate: true })
               <FwbButton size="sm" :color="mode === 'changes' ? 'default' : 'light'" @click="mode = 'changes'">Show changes</FwbButton>
             </FwbButtonGroup>
           </div>
+          <p v-if="detail.target.type === 'brand'" class="p-8 text-sm text-gray-600">This is a brand and design change. Checks and the summary are in the right-hand column. After publish, every page is updated (about a minute).</p>
           <ReviewPreview
+            v-else
             :kind="detail.target.type"
             :site-part-kind="detail.target.type === 'site_part' ? detail.target.kind : undefined"
-            :doc="detail.doc"
+            :doc="detail.doc as PageDoc | SitePartDoc"
             :diff="detail.diff"
             :show-changes="mode === 'changes'"
             :device="device"

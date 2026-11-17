@@ -2,11 +2,12 @@ import type { ReviewState, WorkflowState } from '#shared/workflow'
 import type { FieldIssue } from '#shared/issues'
 import type { PageDiff } from '#shared/diff'
 import type { PageDoc } from '#shared/page'
+import type { BrandDoc } from '#shared/brand'
 import type { SitePartDoc, SitePartKind } from '#shared/site-parts'
 
 export interface ReviewListItem {
   id: string
-  targetType: 'page' | 'site_part'
+  targetType: 'page' | 'site_part' | 'brand'
   targetId: string
   versionId: string
   state: ReviewState
@@ -34,7 +35,7 @@ export interface ReviewComment {
 export interface ReviewDetail {
   review: {
     id: string
-    targetType: 'page' | 'site_part'
+    targetType: 'page' | 'site_part' | 'brand'
     targetId: string
     versionId: string
     state: ReviewState
@@ -51,8 +52,9 @@ export interface ReviewDetail {
   target:
     | { type: 'page'; id: string; title: string; path: string; template: string; state: WorkflowState }
     | { type: 'site_part'; id: string; title: string; kind: SitePartKind; state: WorkflowState }
-  doc: PageDoc | SitePartDoc
-  liveDoc?: SitePartDoc | null
+    | { type: 'brand'; id: string; title: string; state: WorkflowState }
+  doc: PageDoc | SitePartDoc | BrandDoc
+  liveDoc?: SitePartDoc | BrandDoc | null
   hasLive: boolean
   diff?: PageDiff
   checks: { blocking: FieldIssue[]; warnings: FieldIssue[] }

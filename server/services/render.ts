@@ -20,6 +20,8 @@ import {
   type SitePartKind,
 } from '../../shared/site-parts'
 import { BUNDLE_ID, EMBED_JS, THEME_CSS } from '../theme/default'
+import { migrateBrandDoc, validateBrandDoc, type BrandDoc } from '../../shared/brand'
+import { themeCssFromTokens } from '../../shared/theme-css'
 import { embeds, media, mediaCrops, pages, siteParts, sites, versions, type ReleaseManifest } from '../db/schema'
 import type { ServiceCtx } from './context'
 import { widthsFor } from './media'
@@ -27,7 +29,10 @@ import { readSettings, type SiteSettings } from '../../shared/settings'
 
 export { BUNDLE_ID, EMBED_JS, THEME_CSS }
 
-export const STYLE_HASH = `'sha256-${createHash('sha256').update(THEME_CSS).digest('base64')}'`
+export function styleHash(css: string = THEME_CSS): string {
+  return `'sha256-${createHash('sha256').update(css).digest('base64')}'`
+}
+export const STYLE_HASH = styleHash(THEME_CSS)
 
 const VIRTUOUS_SCRIPT = 'https://cdn.virtuoussoftware.com/virtuous.embed.min.js'
 const DEFAULT_WIDTHS = [320, 640, 960, 1280]
@@ -85,6 +90,8 @@ export interface SiteRenderContext {
   header: { id: string; doc: HeaderDoc } | null
   footer: { id: string; doc: FooterDoc } | null
   banner: { id: string; doc: BannerDoc } | null
+  brand?: BrandDoc | null
+  themeCss?: string
   menus: Record<string, { id: string; doc: MenuDoc }>
   pagesById: Record<string, { path: string; title: string }>
   media: Record<string, MediaCatalogEntry>
@@ -394,29 +401,42 @@ function embedSrc(embed: EmbedCatalogEntry): string | null {
   return null
 }
 
+function menuStyleOf(site: SiteRenderContext): HeaderDoc['style'] {
+  return site.brand?.menuStyle ?? site.header?.doc.style ?? 'simple'
+}
+
+function headerClass(style: HeaderDoc['style'] | undefined): string {
+  if (style === 'centred') return 'site-header site-header-centred'
+  if (style === 'mega') return 'site-header site-header-mega'
+  if (style === 'hamburger') return 'site-header site-header-hamburger'
+  return 'site-header'
+}
+
 function renderNav(site: SiteRenderContext, bag: Collector): VNode | null {
   const key = site.header?.doc.menuKey ?? 'main'
   const menu = site.menus[key]
   if (!menu) return null
   bag.siteParts.add(menu.id)
-  return h(
-    'nav',
-    { class: 'nav', 'aria-label': 'Site' },
-    menu.doc.items.map((item) => {
-      const link = resolveLink(item.target, item.label, site, bag)
-      if (!item.children.length) return h('a', { href: link.href }, item.label)
-      return h('details', [
-        h('summary', item.label),
-        h(
-          'ul',
-          item.children.map((child) => {
-            const c = resolveLink(child.target, child.label, site, bag)
-            return h('li', [h('a', { href: c.href }, child.label)])
-          }),
-        ),
-      ])
-    }),
-  )
+  const style = menuStyleOf(site)
+  const items = menu.doc.items.map((item) => {
+    const link = resolveLink(item.target, item.label, site, bag)
+    if (!item.children.length) return h('a', { href: link.href }, item.label)
+    return h('details', [
+      h('summary', item.label),
+      h(
+        'ul',
+        { class: style === 'mega' ? 'nav-mega-panel' : undefined },
+        item.children.map((child) => {
+          const c = resolveLink(child.target, child.label, site, bag)
+          return h('li', [h('a', { href: c.href }, child.label)])
+        }),
+      ),
+    ])
+  })
+  if (style === 'hamburger') {
+    return h('details', { class: 'nav nav-hamburger', 'aria-label': 'Site' }, [h('summary', 'Menu'), h('div', { class: 'nav-panel' }, items)])
+  }
+  return h('nav', { class: style === 'mega' ? 'nav nav-mega' : 'nav', 'aria-label': 'Site' }, items)
 }
 
 function renderShell(doc: PageDoc, site: SiteRenderContext, bag: Collector): VNode {
@@ -442,7 +462,7 @@ function renderShell(doc: PageDoc, site: SiteRenderContext, bag: Collector): VNo
           bannerLink ? [' ', h('a', { href: bannerLink.href }, bannerLink.label)] : null,
         ])
       : null,
-    h('header', { class: header?.doc.style === 'centred' ? 'site-header site-header-centred' : 'site-header' }, [
+    h('header', { class: headerClass(menuStyleOf(site)) }, [
       h('div', { class: 'site-header-inner' }, [
         h('a', { class: 'site-title', href: '/' }, site.name),
         renderNav(site, bag),
@@ -501,7 +521,7 @@ function renderFooter(site: SiteRenderContext, bag: Collector, footer: SiteRende
   ])
 }
 
-export function buildCsp(bag: Collector, tracking: SiteSettings['tracking']): string {
+export function buildCsp(bag: Collector, tracking: SiteSettings['tracking'], css: string = THEME_CSS): string {
   const scripts = new Set<string>(["'self'"])
   const frames = new Set<string>(bag.frameSrcs)
   const connect = new Set<string>(["'self'"])
@@ -531,7 +551,7 @@ export function buildCsp(bag: Collector, tracking: SiteSettings['tracking']): st
   const parts = [
     `default-src 'self'`,
     `script-src ${[...scripts].join(' ')}`,
-    `style-src 'self' ${STYLE_HASH}`,
+    `style-src 'self' ${styleHash(css)}`,
     `img-src 'self' data:`,
     `font-src 'self'`,
     `connect-src ${[...connect].join(' ')}`,
@@ -582,6 +602,7 @@ export async function renderPageHtml(input: {
 }): Promise<RenderedPage> {
   const bag = newCollector()
   const { doc, site } = input
+  const css = site.themeCss ?? THEME_CSS
   const app = createSSRApp(
     defineComponent({
       name: 'PublishedPage',
@@ -589,7 +610,7 @@ export async function renderPageHtml(input: {
     }),
   )
   const body = await renderToString(app)
-  const csp = buildCsp(bag, site.tracking)
+  const csp = buildCsp(bag, site.tracking, css)
   const pageTitle = doc.seo.title?.trim() || doc.title
   const title = applyTitlePattern(site.titlePattern, pageTitle, site.name)
   const description = doc.seo.description?.trim() || ''
@@ -612,7 +633,7 @@ export async function renderPageHtml(input: {
   ${canonical ? `<link rel="canonical" href="${escapeHtml(canonical)}">` : ''}
   ${ogImage ? `<meta property="og:image" content="${escapeHtml(ogImage)}">` : ''}
   <meta property="og:title" content="${escapeHtml(title)}">
-  <style>${THEME_CSS}</style>
+  <style>${css}</style>
   ${preload}
 </head>
 <body>
@@ -704,6 +725,14 @@ export function loadSiteRenderContext(ctx: ServiceCtx, manifest: ReleaseManifest
     embedCatalog[row.id] = { id: row.id, provider: row.provider, name: row.name, config: row.config }
   }
 
+  let brand: BrandDoc | null = null
+  if (manifest.brandVersionId) {
+    const raw = ctx.db.select({ doc: versions.doc }).from(versions).where(eq(versions.id, manifest.brandVersionId)).get()?.doc
+    const parsed = validateBrandDoc(migrateBrandDoc(raw))
+    if (parsed.ok) brand = parsed.doc
+  }
+  const themeCss = brand ? themeCssFromTokens(brand.tokens, brand.fonts) : undefined
+
   return {
     name: siteRow.name,
     origin,
@@ -714,6 +743,8 @@ export function loadSiteRenderContext(ctx: ServiceCtx, manifest: ReleaseManifest
     header,
     footer,
     banner,
+    brand,
+    themeCss,
     menus,
     pagesById,
     media: mediaCatalog,

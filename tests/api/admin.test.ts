@@ -147,3 +147,20 @@ describe('assistant sessions over HTTP', () => {
     expect((await editor.post('/ai/sessions', { taskType: 'brand_design', targetId: 'brd_x' })).status).toBe(403)
   })
 })
+
+
+describe('brand pack over HTTP', () => {
+  it('lets an admin change the menu look and colours, and forbids an editor', async () => {
+    const current = await admin.get('/brand')
+    expect(current.status).toBe(200)
+    expect(current.body.doc.menuStyle).toBe('simple')
+    expect((await editor.post('/brand/ops', { baseRevision: current.body.revision, ops: [{ op: 'replace', doc: current.body.doc }] })).status).toBe(403)
+    const doc = { ...current.body.doc, menuStyle: 'hamburger', tokens: { ...current.body.doc.tokens, accent: '#113399' } }
+    const saved = await admin.post('/brand/ops', { baseRevision: current.body.revision, ops: [{ op: 'replace', doc }] })
+    expect(saved.status).toBe(200)
+    expect(saved.body.doc.menuStyle).toBe('hamburger')
+    const sub = await admin.post('/brand/submit', { note: 'New look' })
+    expect(sub.status).toBe(200)
+    expect((await admin.get('/brand')).body.pack.workflowState).toBe('in_review')
+  })
+})

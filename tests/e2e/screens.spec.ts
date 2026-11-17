@@ -114,3 +114,18 @@ test('approvals list and review', async ({ page }) => {
   await expect(page.getByText("Ready for the winter campaign.")).toBeVisible()
   await page.screenshot({ path: shot('review.png'), fullPage: true })
 })
+
+
+test('brand and design', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/brand')
+  await expect(page.getByRole('heading', { name: 'Brand and Design' })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('heading', { name: 'Colours' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Menu look' })).toBeVisible()
+  await expect(page.getByText('Classic bar', { exact: true })).toBeVisible()
+  await expect(page.getByText('Hamburger', { exact: true })).toBeVisible()
+  await page.screenshot({ path: shot('brand.png'), fullPage: true })
+  await page.getByRole('radio', { name: /Hamburger/ }).check()
+  await expect(page.getByText('Menu', { exact: true }).first()).toBeVisible()
+  await page.screenshot({ path: shot('brand-hamburger.png'), fullPage: true })
+})

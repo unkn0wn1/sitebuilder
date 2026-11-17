@@ -3,7 +3,7 @@
 import { and, desc, eq, isNotNull, ne } from 'drizzle-orm'
 import { newId } from '../../shared/ids'
 import { can } from '../../shared/roles'
-import { pages, redirects, releases, reviews, siteParts, type ReleaseManifest } from '../db/schema'
+import { brandPacks, pages, redirects, releases, reviews, siteParts, type ReleaseManifest } from '../db/schema'
 import { audit } from './audit'
 import { inTx, iso, type ActingAs, type ServiceCtx } from './context'
 import { AppError, forbidden, notFound } from './errors'
@@ -11,6 +11,7 @@ import { enqueueJob, type Job, type JobHandler } from './jobs'
 import { notify, usersWithRoles } from './notify'
 import { requirePage } from './pages'
 import { requireReview, setTargetState } from './reviews'
+import { getOrCreateBrand, readBrandDoc } from './brand'
 import { requireSitePart } from './site-parts'
 
 export interface WriteReleaseInput {
@@ -86,6 +87,13 @@ export function createPublishHandler(writer: ReleaseWriter = noopReleaseWriter):
           changedSitePartIds.push(review.targetId)
           // The header, footer, menus and banner are on every page, so every live page is re-rendered.
           changedPageIds = Object.keys(manifest.pages)
+        } else if (review.targetType === 'brand') {
+          const pack = getOrCreateBrand(ctx)
+          if (pack.id !== review.targetId) throw new Error('Unknown brand pack')
+          manifest.brandVersionId = review.versionId
+          manifest.theme = readBrandDoc(ctx, pack, review.versionId).theme
+          // Tokens and menu look are on every page.
+          changedPageIds = Object.keys(manifest.pages)
         } else {
           throw new Error(`Publishing ${review.targetType} is not built yet.`)
         }
@@ -113,6 +121,15 @@ export function createPublishHandler(writer: ReleaseWriter = noopReleaseWriter):
       inTx(ctx, () => {
         if (prev) ctx.db.update(releases).set({ state: 'superseded' }).where(eq(releases.id, prev.id)).run()
         ctx.db.update(releases).set({ state: 'live', finishedAt: iso(ctx) }).where(eq(releases.id, releaseId)).run()
+        if (review?.targetType === 'brand') {
+          const pack = getOrCreateBrand(ctx)
+          ctx.db.update(brandPacks).set({ publishedVersionId: review.versionId, workflowState: 'published', wasUnpublished: false, updatedAt: iso(ctx) }).where(eq(brandPacks.id, pack.id)).run()
+          ctx.db.update(reviews).set({ state: 'published' }).where(eq(reviews.id, review.id)).run()
+          audit(ctx, 'system', 'brand.published', { type: 'brand', id: pack.id }, { releaseId, versionId: review.versionId, reviewId: review.id, selfApproved: review.selfApproved })
+          notify(ctx, [review.submittedBy], 'published', 'The new look is live. Every page is being updated.', { type: 'brand', id: pack.id })
+          enqueueJob(ctx, 'purge_cache', { tags: ['shell'] })
+          return
+        }
         if (review?.targetType === 'site_part') {
           const part = requireSitePart(ctx, review.targetId)
           ctx.db.update(siteParts).set({ publishedVersionId: review.versionId, workflowState: 'published', wasUnpublished: false, updatedAt: iso(ctx) }).where(eq(siteParts.id, part.id)).run()
@@ -164,7 +181,7 @@ export function createPublishHandler(writer: ReleaseWriter = noopReleaseWriter):
           const review = requireReview(ctx, payload.reviewId)
           // Back to pending, so an approver can retry by approving again.
           ctx.db.update(reviews).set({ state: 'pending', decisionComment: `Publish failed: ${message}` }).where(eq(reviews.id, review.id)).run()
-          if (review.targetType === 'page' || review.targetType === 'site_part') setTargetState(ctx, { type: review.targetType, id: review.targetId }, 'in_review')
+          if (review.targetType === 'page' || review.targetType === 'site_part' || review.targetType === 'brand') setTargetState(ctx, { type: review.targetType, id: review.targetId }, 'in_review')
           notify(ctx, [review.decidedBy ?? '', ...usersWithRoles(ctx, ['admin'])].filter(Boolean), 'publish_failed', `Publishing failed: ${message}`, { type: 'review', id: review.id })
         } else if (payload.unpublishPageId) {
           ctx.db.update(pages).set({ workflowState: 'published', updatedAt: iso(ctx) }).where(eq(pages.id, payload.unpublishPageId)).run()
@@ -243,6 +260,15 @@ export async function rollbackSite(ctx: ServiceCtx, actor: ActingAs, targetRelea
       const state = settled ? (versionId ? 'published' : 'draft') : part.workflowState
       ctx.db.update(siteParts).set({ publishedVersionId: versionId, workflowState: state, updatedAt: iso(ctx) }).where(eq(siteParts.id, part.id)).run()
     }
+    const pack = ctx.db.select().from(brandPacks).where(eq(brandPacks.siteId, ctx.siteId)).get()
+    if (pack) {
+      const versionId = target.manifest.brandVersionId ?? null
+      if (versionId !== pack.publishedVersionId) {
+        const settled = pack.workflowState === 'published' || pack.workflowState === 'unpublished' || pack.workflowState === 'draft'
+        const state = settled ? (versionId ? 'published' : 'draft') : pack.workflowState
+        ctx.db.update(brandPacks).set({ publishedVersionId: versionId, workflowState: state, updatedAt: iso(ctx) }).where(eq(brandPacks.id, pack.id)).run()
+      }
+    }
     audit(ctx, actor, 'site.rolled_back', { type: 'release', id: target.id }, { newReleaseId: id, reason })
     enqueueJob(ctx, 'purge_cache', { tags: ['shell'] })
     notify(ctx, usersWithRoles(ctx, ['approver', 'admin']), 'emergency_rollback', `The site was rolled back by an admin: ${reason}`, { type: 'release', id })
@@ -274,6 +300,8 @@ export async function rebuildPublishedSite(ctx: ServiceCtx, writer: ReleaseWrite
     if (part.publishedVersionId) manifest.siteParts[part.id] = part.publishedVersionId
     else delete manifest.siteParts[part.id]
   }
+  const pack = ctx.db.select().from(brandPacks).where(eq(brandPacks.siteId, ctx.siteId)).get()
+  manifest.brandVersionId = pack?.publishedVersionId ?? null
   const releaseId = newId('release', ctx.now().getTime())
   const changedPageIds = Object.keys(manifest.pages)
   const createdBy = actor === 'system' ? 'system' : actor.id

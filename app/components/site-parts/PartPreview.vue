@@ -36,6 +36,15 @@ const legalMenu = computed(() => {
   return props.menus[footer.value.legalMenuKey] ?? null
 })
 
+function headerClass(style: HeaderDoc['style'] | undefined): string {
+  if (style === 'centred') return 'site-header site-header-centred'
+  if (style === 'mega') return 'site-header site-header-mega'
+  if (style === 'hamburger') return 'site-header site-header-hamburger'
+  return 'site-header'
+}
+
+const headerStyle = computed(() => header.value?.style ?? (props.kind === 'menu' ? 'simple' : undefined))
+
 const width = computed(() => (props.device === 'phone' ? '390px' : '100%'))
 </script>
 
@@ -45,15 +54,31 @@ const width = computed(() => (props.device === 'phone' ? '390px' : '100%'))
     <div class="mx-auto bg-white" :class="CANVAS_SCOPE" :style="{ width, maxWidth: '100%' }">
       <!-- Menu preview sits inside a header so it looks like the live site. -->
       <template v-if="kind === 'menu' || kind === 'header'">
-        <header :class="header?.style === 'centred' ? 'site-header site-header-centred' : 'site-header'">
+        <header :class="headerClass(headerStyle)">
           <div class="site-header-inner">
             <a class="site-title" href="#">{{ siteName }}</a>
-            <nav v-if="previewMenu" class="nav" aria-label="Site">
+            <details v-if="previewMenu && headerStyle === 'hamburger'" class="nav nav-hamburger" aria-label="Site">
+              <summary>Menu</summary>
+              <div class="nav-panel">
+                <template v-for="item in previewMenu.items" :key="item.id">
+                  <a v-if="!item.children.length" :href="hrefOf(item.target)">{{ item.label }}</a>
+                  <details v-else>
+                    <summary>{{ item.label }}</summary>
+                    <ul>
+                      <li v-for="child in item.children" :key="child.id">
+                        <a :href="hrefOf(child.target)">{{ child.label }}</a>
+                      </li>
+                    </ul>
+                  </details>
+                </template>
+              </div>
+            </details>
+            <nav v-else-if="previewMenu" :class="headerStyle === 'mega' ? 'nav nav-mega' : 'nav'" aria-label="Site">
               <template v-for="item in previewMenu.items" :key="item.id">
                 <a v-if="!item.children.length" :href="hrefOf(item.target)">{{ item.label }}</a>
                 <details v-else>
                   <summary>{{ item.label }}</summary>
-                  <ul>
+                  <ul :class="headerStyle === 'mega' ? 'nav-mega-panel' : undefined">
                     <li v-for="child in item.children" :key="child.id">
                       <a :href="hrefOf(child.target)">{{ child.label }}</a>
                     </li>
