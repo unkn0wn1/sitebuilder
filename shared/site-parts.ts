@@ -81,6 +81,10 @@ export const SITE_PART_SCHEMAS = {
 } as const
 
 export type SitePartDoc = z.infer<(typeof SITE_PART_SCHEMAS)[SitePartKind]>
+export type HeaderDoc = z.infer<typeof headerDocSchema>
+export type FooterDoc = z.infer<typeof footerDocSchema>
+export type MenuDoc = z.infer<typeof menuDocSchema>
+export type BannerDoc = z.infer<typeof bannerDocSchema>
 
 export function defaultSitePartDoc(kind: SitePartKind): SitePartDoc {
   if (kind === 'menu') return { schemaVersion: 1, items: [] }

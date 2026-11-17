@@ -1,0 +1,211 @@
+import { mkdtempSync, readFileSync, statSync, existsSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { eq } from 'drizzle-orm'
+import { describe, expect, it } from 'vitest'
+import { jobs, redirects, sites } from '../server/db/schema'
+import { createPurgeCacheHandler, setPurgeHttp } from '../server/services/cloudflare'
+import { applyPageOps, createPage } from '../server/services/pages'
+import { createPublishHandler, currentRelease, unpublishPage } from '../server/services/publish'
+import { createFileReleaseWriter, readCurrentReleaseId } from '../server/services/release'
+import { approveReview, submitPage } from '../server/services/reviews'
+import {
+  STYLE_HASH,
+  THEME_CSS,
+  htmlPathFor,
+  nginxMapLines,
+  publicUrl,
+  renderPageHtml,
+  robotsTxt,
+  sitemapXml,
+  type SiteRenderContext,
+} from '../server/services/render'
+import { emptyPageDoc } from '../shared/page'
+import { richTextFromParagraphs } from '../shared/richtext'
+import { runJobsOnce } from '../server/services/jobs'
+import { IMG, setup } from './helpers'
+
+function site(overrides: Partial<SiteRenderContext> = {}): SiteRenderContext {
+  return {
+    name: 'Test charity',
+    origin: 'https://example.org',
+    titlePattern: '{page} | {site}',
+    allowIndexing: true,
+    defaultSocialImage: null,
+    tracking: { ga4: null, gtm: null, plausible: null, cookiebot: null },
+    header: null,
+    footer: null,
+    banner: null,
+    menus: {},
+    pagesById: {},
+    media: {},
+    embeds: {},
+    ...overrides,
+  }
+}
+
+describe('public-site renderer', () => {
+  it('maps site paths to release file paths', () => {
+    expect(htmlPathFor('/')).toBe('index.html')
+    expect(htmlPathFor('/about')).toBe('about/index.html')
+    expect(htmlPathFor('/news/winter')).toBe('news/winter/index.html')
+  })
+
+  it('inlines the theme CSS, sets a CSP hash, and renders a hero and text', async () => {
+    const doc = emptyPageDoc('Winter appeal')
+    doc.seo.description = 'Help us this winter.'
+    doc.blocks = [
+      { id: 'b_hero1', type: 'Hero', v: 1, props: { heading: 'Keep them warm', subheading: 'Blankets and food.', image: IMG, tone: 'primary' } },
+      { id: 'b_text1', type: 'RichText', v: 1, props: { content: richTextFromParagraphs(['Every night this winter.']) } },
+      { id: 'b_quote1', type: 'Quote', v: 1, props: { text: 'They gave him a second chance.', attribution: 'A volunteer' } },
+    ]
+    const rendered = await renderPageHtml({ doc, pageId: 'pg_winter', versionId: 'ver_1', path: '/winter-appeal', site: site() })
+    expect(rendered.html).toContain('<style>' + THEME_CSS + '</style>')
+    expect(rendered.html).toContain(STYLE_HASH)
+    expect(rendered.csp).toContain(`style-src 'self' ${STYLE_HASH}`)
+    expect(rendered.html).toContain('<h1>Keep them warm</h1>')
+    expect(rendered.html).toContain('Every night this winter.')
+    expect(rendered.html).toContain('They gave him a second chance.')
+    expect(rendered.html).toContain('Winter appeal | Test charity')
+    expect(rendered.html).toContain('Help us this winter.')
+    expect(rendered.html).toContain('rel="canonical" href="https://example.org/winter-appeal"')
+    expect(rendered.html).toContain(`/media/${IMG.media}-1280.webp`)
+    expect(rendered.html).toContain('Skip to content')
+    expect(rendered.cacheTags).toEqual(['page-pg_winter', 'shell'])
+    expect(rendered.deps.media).toContain(IMG.media)
+    expect(rendered.deps.bundleId).toBeTruthy()
+  })
+
+  it('marks a page noindex when asked, and omits it from the sitemap', async () => {
+    const doc = emptyPageDoc('Hidden')
+    doc.seo.noindex = true
+    const rendered = await renderPageHtml({ doc, pageId: 'pg_hide', versionId: 'ver_1', path: '/hidden', site: site() })
+    expect(rendered.html).toContain('noindex, nofollow')
+    const map = sitemapXml(site(), { pages: { pg_hide: { versionId: 'ver_1', path: '/hidden' }, pg_home: { versionId: 'ver_2', path: '/' } }, siteParts: {}, brandVersionId: null, theme: 'default', bundleId: 'dev' }, {
+      pg_hide: doc,
+      pg_home: emptyPageDoc('Home'),
+    })
+    expect(map).toContain('https://example.org/')
+    expect(map).not.toContain('/hidden')
+    expect(robotsTxt(site({ allowIndexing: false }))).toContain('Disallow: /')
+  })
+
+  it('lists both pretty and file URIs in an nginx map', () => {
+    const map = nginxMapLines([{ uri: '/about', value: 'page-pg_about shell' }])
+    expect(map).toContain('"/about" "page-pg_about shell";')
+    expect(map).toContain('"/about/" "page-pg_about shell";')
+    expect(map).toContain('"/about/index.html" "page-pg_about shell";')
+    expect(publicUrl('https://example.org', '/about')).toBe('https://example.org/about')
+  })
+
+  it('opens frame-src for a YouTube embed and keeps style-src hashed', async () => {
+    const doc = emptyPageDoc('Talk')
+    doc.blocks = [{ id: 'b_emb1', type: 'Embed', v: 1, props: { embed: 'emb_00000000000000000000000001', title: 'A talk' } }]
+    const rendered = await renderPageHtml({
+      doc,
+      pageId: 'pg_talk',
+      versionId: 'ver_1',
+      path: '/talk',
+      site: site({
+        embeds: {
+          emb_00000000000000000000000001: { id: 'emb_00000000000000000000000001', provider: 'youtube', name: 'A talk', config: { videoId: 'dQw4w9wgGcQ' } },
+        },
+      }),
+    })
+    expect(rendered.csp).toContain('frame-src https://www.youtube-nocookie.com')
+    expect(rendered.csp).toContain(STYLE_HASH)
+    expect(rendered.csp).not.toContain('unsafe-inline')
+    expect(rendered.html).toContain('youtube-nocookie.com/embed/dQw4w9wgGcQ')
+  })
+})
+
+async function publishStandard(s: ReturnType<typeof setup>, title: string, heading: string) {
+  const { page } = createPage(s.ctx, s.editor, { title, template: 'standard' })
+  applyPageOps(s.ctx, s.editor, page.id, 0, [{ op: 'add_block', block: { type: 'Hero', props: { heading, image: IMG } } }])
+  const sub = submitPage(s.ctx, s.editor, page.id)
+  const { jobId } = approveReview(s.ctx, s.approver, sub.reviewId, { versionId: sub.versionId })
+  return { page, jobId, versionId: sub.versionId }
+}
+
+describe('filesystem releases and Cloudflare purge', () => {
+  it('publishes only changed pages, hard-links the rest, and writes sitemap, robots and cache-tag maps', async () => {
+    const s = setup()
+    s.ctx.db.update(sites).set({ primaryDomain: 'example.org' }).where(eq(sites.id, s.ctx.siteId)).run()
+    const root = mkdtempSync(join(tmpdir(), 'sitebuilder-release-'))
+    const writer = createFileReleaseWriter(root, { keep: 10 })
+    const handlers = {
+      publish: createPublishHandler(writer),
+      send_email: { run: () => ({ skipped: true }) },
+      purge_cache: { run: () => ({ skipped: true }) },
+    }
+
+    const first = await publishStandard(s, 'Winter appeal', 'Keep them warm')
+    while (await runJobsOnce(s.ctx, handlers)) {}
+    expect(s.ctx.db.select().from(jobs).where(eq(jobs.id, first.jobId)).get()?.state).toBe('done')
+
+    const release1 = currentRelease(s.ctx)!.id
+    expect(readCurrentReleaseId(root)).toBe(release1)
+    const pageFile = join(root, 'releases', release1, 'winter-appeal', 'index.html')
+    expect(readFileSync(pageFile, 'utf8')).toContain('Keep them warm')
+    expect(readFileSync(pageFile, 'utf8')).toContain('<style>')
+    expect(readFileSync(join(root, 'releases', release1, 'sitemap.xml'), 'utf8')).toContain('https://example.org/winter-appeal')
+    expect(readFileSync(join(root, 'releases', release1, 'robots.txt'), 'utf8')).toContain('Sitemap: https://example.org/sitemap.xml')
+    const tags = readFileSync(join(root, 'releases', release1, 'cache-tags.map'), 'utf8')
+    expect(tags).toContain(`page-${first.page.id} shell`)
+    expect(tags).toContain('"/winter-appeal"')
+    expect(readFileSync(join(root, 'releases', release1, 'csp.map'), 'utf8')).toContain('style-src')
+    const inode1 = statSync(pageFile).ino
+
+    const second = await publishStandard(s, 'About us', 'Who we are')
+    while (await runJobsOnce(s.ctx, handlers)) {}
+    const release2 = currentRelease(s.ctx)!.id
+    expect(release2).not.toBe(release1)
+    const kept = join(root, 'releases', release2, 'winter-appeal', 'index.html')
+    expect(statSync(kept).ino).toBe(inode1)
+    expect(readFileSync(join(root, 'releases', release2, 'about-us', 'index.html'), 'utf8')).toContain('Who we are')
+    expect(readFileSync(join(root, 'releases', release2, 'sitemap.xml'), 'utf8')).toContain('/about-us')
+    expect(readFileSync(join(root, 'releases', release2, 'sitemap.xml'), 'utf8')).toContain('/winter-appeal')
+
+    unpublishPage(s.ctx, s.admin, second.page.id, '/')
+    while (await runJobsOnce(s.ctx, handlers)) {}
+    const release3 = currentRelease(s.ctx)!.id
+    expect(existsSync(join(root, 'releases', release3, 'about-us', 'index.html'))).toBe(false)
+    expect(readFileSync(join(root, 'releases', release3, 'sitemap.xml'), 'utf8')).not.toContain('/about-us')
+    expect(s.ctx.db.select().from(redirects).all().some((r) => r.fromPath === '/about-us' && r.toPath === '/')).toBe(true)
+    expect(readFileSync(join(root, 'releases', release3, 'redirects.map'), 'utf8')).toContain('"/about-us"')
+  })
+
+  it('skips a Cloudflare purge when the zone is not set, and purges tags when it is', async () => {
+    const s = setup()
+    const prevZone = process.env.SITEBUILDER_CLOUDFLARE_ZONE_ID
+    const prevToken = process.env.SITEBUILDER_CLOUDFLARE_TOKEN
+    delete process.env.SITEBUILDER_CLOUDFLARE_ZONE_ID
+    delete process.env.SITEBUILDER_CLOUDFLARE_TOKEN
+    const handler = createPurgeCacheHandler()
+    const skipped = await handler.run(s.ctx, { id: 'job_1', kind: 'purge_cache', payload: { tags: ['page-pg_x'] } } as never)
+    expect(skipped).toEqual({ skipped: 'Cloudflare zone or token is not configured.' })
+
+    process.env.SITEBUILDER_CLOUDFLARE_ZONE_ID = 'zone-test'
+    process.env.SITEBUILDER_CLOUDFLARE_TOKEN = 'token-test'
+    const calls: { url: string; body: unknown }[] = []
+    let attempts = 0
+    setPurgeHttp(async (url, init) => {
+      attempts++
+      if (attempts === 1) return new Response('rate limited', { status: 429, headers: { 'retry-after': '0' } })
+      calls.push({ url: String(url), body: JSON.parse(String(init?.body)) })
+      return new Response(JSON.stringify({ success: true }), { status: 200 })
+    })
+    try {
+      const result = await handler.run(s.ctx, { id: 'job_2', kind: 'purge_cache', payload: { tags: ['page-pg_x', 'shell'] } } as never)
+      expect(result).toEqual({ purged: ['page-pg_x', 'shell'] })
+      expect(calls[0]?.url).toContain('/zones/zone-test/purge_cache')
+      expect(calls[0]?.body).toEqual({ tags: ['page-pg_x', 'shell'] })
+    } finally {
+      setPurgeHttp(null)
+      if (prevZone) process.env.SITEBUILDER_CLOUDFLARE_ZONE_ID = prevZone
+      else delete process.env.SITEBUILDER_CLOUDFLARE_ZONE_ID
+      if (prevToken) process.env.SITEBUILDER_CLOUDFLARE_TOKEN = prevToken
+      else delete process.env.SITEBUILDER_CLOUDFLARE_TOKEN
+    }
+  })
+})

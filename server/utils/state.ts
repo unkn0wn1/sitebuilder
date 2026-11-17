@@ -22,9 +22,18 @@ export function dbPath(): string {
   return path
 }
 
+function dataRoot(): string {
+  return path === ':memory:' ? '.data' : dirname(path)
+}
+
 /** Where uploaded images and renditions live. Default: a "media" folder next to the database. */
 export function mediaDir(): string {
-  return process.env.SITEBUILDER_MEDIA_DIR ?? join(path === ':memory:' ? '.data' : dirname(path), 'media')
+  return process.env.SITEBUILDER_MEDIA_DIR ?? join(dataRoot(), 'media')
+}
+
+/** Site root: `releases/` and the `current` symlink live here, next to the database by default. */
+export function siteRoot(): string {
+  return process.env.SITEBUILDER_SITE_ROOT ?? dataRoot()
 }
 
 export function getDbHandle(): DbHandle {

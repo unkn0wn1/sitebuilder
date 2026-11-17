@@ -1,21 +1,23 @@
 // The job worker loop, inside the builder process (ADR 0009). Off with SITEBUILDER_WORKER=0.
+import { createPurgeCacheHandler } from '../services/cloudflare'
 import { createEmailHandler, resolveMailer } from '../services/email'
 import { createMediaRenditionsHandler } from '../services/media'
 import { createPublishHandler } from '../services/publish'
+import { createFileReleaseWriter } from '../services/release'
 import { runJobsOnce, type JobHandlers } from '../services/jobs'
-import { mediaDir, useServiceCtx } from '../utils/state'
+import { mediaDir, siteRoot, useServiceCtx } from '../utils/state'
 
 const skipped = (what: string) => ({ run: () => ({ skipped: `${what} is not built yet` }) })
 
 function buildHandlers(): JobHandlers {
   return {
-  publish: createPublishHandler(),
+  publish: createPublishHandler(createFileReleaseWriter(siteRoot())),
   // Mail goes through resolveMailer: Gmail when connected, otherwise the file outbox in development.
   send_email: createEmailHandler({
     getMailer: resolveMailer,
     baseUrl: process.env.SITEBUILDER_ORIGIN ?? 'http://localhost:3000',
   }),
-  purge_cache: skipped('Cloudflare purge'),
+  purge_cache: createPurgeCacheHandler(),
   media_renditions: createMediaRenditionsHandler(mediaDir()),
   run_checks: skipped('Rendered-page checks'),
   render_preview: skipped('Preview rendering'),

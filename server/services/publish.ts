@@ -1,6 +1,5 @@
-// Publishing and rollback on the database side. Rendering, the release folder and the symlink
-// switch are behind ReleaseWriter (a no-op until the renderer lands, ADR 0004).
-// See ADR 0004, ADR 0005 and docs/08-hosting.md#publishing.
+// Publishing and rollback. The filesystem renderer and symlink switch are behind ReleaseWriter
+// (a no-op in tests that only care about the database). See ADR 0004, ADR 0005 and docs/08-hosting.md#publishing.
 import { and, desc, eq, isNotNull, ne } from 'drizzle-orm'
 import { newId } from '../../shared/ids'
 import { can } from '../../shared/roles'
@@ -14,11 +13,23 @@ import { requirePage } from './pages'
 import { requireReview, setTargetState } from './reviews'
 import { requireSitePart } from './site-parts'
 
+export interface WriteReleaseInput {
+  ctx: ServiceCtx
+  releaseId: string
+  previousReleaseId: string | null
+  manifest: ReleaseManifest
+  changedPageIds: string[]
+  changedSitePartIds: string[]
+  removedPaths: string[]
+}
+
 export interface ReleaseWriter {
   /** Render the changed pages into a new release folder (hard-link copy of the previous one). */
-  writeRelease(input: { releaseId: string; previousReleaseId: string | null; manifest: ReleaseManifest; changedPageIds: string[]; changedSitePartIds: string[]; removedPaths: string[] }): Promise<void> | void
+  writeRelease(input: WriteReleaseInput): Promise<void> | void
   /** Point `current` at a release folder. */
   switchCurrent(releaseId: string): Promise<void> | void
+  /** Rewrite sitemap, robots and redirects after the database pointers are updated. */
+  refreshMaps?(ctx: ServiceCtx, releaseId: string): Promise<void> | void
 }
 
 export const noopReleaseWriter: ReleaseWriter = {
@@ -92,7 +103,7 @@ export function createPublishHandler(writer: ReleaseWriter = noopReleaseWriter):
         .values({ id: releaseId, siteId: ctx.siteId, kind: 'publish', state: 'building', manifest, createdBy: job.createdBy ?? 'system', reviewId: review?.id ?? null, selfApproved: review?.selfApproved ?? false, createdAt: iso(ctx) })
         .run()
       try {
-        await writer.writeRelease({ releaseId, previousReleaseId: prev?.id ?? null, manifest, changedPageIds, changedSitePartIds, removedPaths })
+        await writer.writeRelease({ ctx, releaseId, previousReleaseId: prev?.id ?? null, manifest, changedPageIds, changedSitePartIds, removedPaths })
         await writer.switchCurrent(releaseId)
       } catch (error) {
         ctx.db.update(releases).set({ state: 'failed', error: error instanceof Error ? error.message : String(error), finishedAt: iso(ctx) }).where(eq(releases.id, releaseId)).run()
@@ -136,6 +147,12 @@ export function createPublishHandler(writer: ReleaseWriter = noopReleaseWriter):
         }
         enqueueJob(ctx, 'purge_cache', { tags: [`page-${pageId}`] })
       })
+      // Maps were written during writeRelease; refresh so slug-change and unpublish redirects are included.
+      try {
+        await writer.refreshMaps?.(ctx, releaseId)
+      } catch (error) {
+        console.error(JSON.stringify({ level: 'error', msg: 'release.refreshMaps', releaseId, error: String(error) }))
+      }
       return { releaseId }
     },
 
