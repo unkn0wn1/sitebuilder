@@ -82,3 +82,35 @@ test('site parts list, menu, header and footer', async ({ page }) => {
   await expect(page.getByLabel('Email')).toBeVisible()
   await page.screenshot({ path: shot('footer-editor.png'), fullPage: true })
 })
+
+
+test('approvals list and review', async ({ page }) => {
+  await signIn(page)
+
+  const list = await page.request.get('/api/v1/pages?search=Winter%20appeal&page=1&pageSize=10')
+  expect(list.ok()).toBeTruthy()
+  const winter = ((await list.json()) as { items: { id: string; title: string }[] }).items.find((p) => p.title === 'Winter appeal')
+  expect(winter).toBeTruthy()
+  const submitted = await page.evaluate(async (pageId) => {
+    const res = await fetch(`/api/v1/pages/${pageId}/submit`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note: 'Ready for the winter campaign.', overrideReason: 'The demo page has no donation form yet.' }),
+    })
+    return { ok: res.ok, status: res.status, body: await res.json() }
+  }, winter!.id)
+  expect(submitted.ok, JSON.stringify(submitted.body)).toBeTruthy()
+
+  await page.goto('/approvals')
+  await expect(page.getByRole('heading', { name: 'Approvals' })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('link', { name: 'Winter appeal' })).toBeVisible()
+  await page.screenshot({ path: shot('approvals.png'), fullPage: true })
+
+  await page.getByRole('link', { name: 'Winter appeal' }).click()
+  await expect(page.getByRole('heading', { name: /Review: Winter appeal/ })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('button', { name: 'Approve and publish' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Send back' })).toBeVisible()
+  await expect(page.getByText("Ready for the winter campaign.")).toBeVisible()
+  await page.screenshot({ path: shot('review.png'), fullPage: true })
+})

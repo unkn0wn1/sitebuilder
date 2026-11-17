@@ -1,6 +1,6 @@
 // Submitting, approving and sending back. Approval is pinned to one version.
 // See ADR 0005 and docs/13-data-model.md#reviews-pin-a-version.
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import { runChecks } from '../../shared/checks'
 import { diffPages, type PageDiff } from '../../shared/diff'
 import { newId } from '../../shared/ids'
@@ -8,7 +8,7 @@ import { validatePageDoc, type PageDoc } from '../../shared/page'
 import { atLeast, can } from '../../shared/roles'
 import { readSettings } from '../../shared/settings'
 import { canSubmit, restingState, type WorkflowState } from '../../shared/workflow'
-import { pages, reviewComments, reviews, siteParts, sites } from '../db/schema'
+import { pages, reviewComments, reviews, siteParts, sites, users } from '../db/schema'
 import { audit } from './audit'
 import { inTx, iso, type ActingAs, type ServiceCtx } from './context'
 import { AppError, forbidden, notFound } from './errors'
@@ -174,33 +174,63 @@ export function addReviewComment(ctx: ServiceCtx, actor: ActingAs, reviewId: str
 }
 
 /** Approvers see every review; editors only see what they submitted ("My submissions"). */
+
+function namesById(ctx: ServiceCtx, ids: string[]): Map<string, string> {
+  const unique = [...new Set(ids.filter(Boolean))]
+  if (!unique.length) return new Map()
+  return new Map(ctx.db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, unique)).all().map((u) => [u.id, u.name]))
+}
+
+function targetTitle(ctx: ServiceCtx, type: ReviewRow['targetType'], id: string): string {
+  try {
+    return loadReviewTarget(ctx, type, id).title
+  } catch {
+    return 'Unknown'
+  }
+}
+
 export function listReviews(ctx: ServiceCtx, actor: ActingAs, state?: ReviewRow['state']) {
   const own = can(actor, 'review.read') ? undefined : eq(reviews.submittedBy, actor.id)
-  return ctx.db
+  const rows = ctx.db
     .select()
     .from(reviews)
     .where(and(eq(reviews.siteId, ctx.siteId), state ? eq(reviews.state, state) : undefined, own))
     .orderBy(desc(reviews.createdAt))
     .limit(100)
     .all()
+  const names = namesById(ctx, rows.flatMap((r) => [r.submittedBy, r.decidedBy ?? '']))
+  return rows.map((r) => ({
+    ...r,
+    title: targetTitle(ctx, r.targetType, r.targetId),
+    submittedByName: names.get(r.submittedBy) ?? 'Someone',
+    decidedByName: r.decidedBy ? (names.get(r.decidedBy) ?? 'Someone') : null,
+  }))
 }
 
 export function getReview(ctx: ServiceCtx, actor: ActingAs, reviewId: string) {
   const review = requireReview(ctx, reviewId)
   if (review.submittedBy !== actor.id && !can(actor, 'review.read')) throw forbidden()
   const comments = ctx.db.select().from(reviewComments).where(eq(reviewComments.reviewId, reviewId)).all()
+  const names = namesById(ctx, [review.submittedBy, review.decidedBy ?? '', ...comments.map((c) => c.authorId)])
+  const withNames = {
+    submittedByName: names.get(review.submittedBy) ?? 'Someone',
+    decidedByName: review.decidedBy ? (names.get(review.decidedBy) ?? 'Someone') : null,
+    comments: comments.map((c) => ({ ...c, authorName: names.get(c.authorId) ?? 'Someone' })),
+  }
   const draftChangedSinceSubmit = (t: { draftVersionId: string | null }) => t.draftVersionId !== review.versionId
   if (review.targetType === 'site_part') {
     const part = requireSitePart(ctx, review.targetId)
     const doc = readSitePartDoc(ctx, part, review.versionId)
+    const liveDoc = part.publishedVersionId ? readSitePartDoc(ctx, part, part.publishedVersionId) : null
     return {
       review,
       target: { type: 'site_part' as const, id: part.id, title: part.label, kind: part.kind, state: part.workflowState },
       doc,
-      liveDoc: part.publishedVersionId ? readSitePartDoc(ctx, part, part.publishedVersionId) : null,
+      liveDoc,
+      hasLive: !!liveDoc,
       checks: sitePartChecks(ctx, part.kind, doc),
       draftChangedSinceSubmit: draftChangedSinceSubmit(part),
-      comments,
+      ...withNames,
     }
   }
   const page = requirePage(ctx, review.targetId)
@@ -211,9 +241,10 @@ export function getReview(ctx: ServiceCtx, actor: ActingAs, reviewId: string) {
     target: { type: 'page' as const, id: page.id, title: page.title, path: page.path, template: page.template, state: page.workflowState },
     page: { id: page.id, title: page.title, path: page.path, template: page.template, state: page.workflowState },
     doc,
+    hasLive: !!live,
     diff: diffPages(live, doc),
     checks: checksFor(ctx, page.template, doc),
     draftChangedSinceSubmit: draftChangedSinceSubmit(page),
-    comments,
+    ...withNames,
   }
 }

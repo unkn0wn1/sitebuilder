@@ -1,10 +1,28 @@
 <script setup lang="ts">
 import { can } from '#shared/roles'
+import { api } from '../../utils/api'
 
 defineProps<{ editor?: boolean }>()
 
 const route = useRoute()
 const { user, site, logout } = useSession()
+const pendingCount = ref(0)
+
+async function loadPendingCount() {
+  const actor = user.value
+  if (!actor || !can(actor, 'review.read')) return
+  try {
+    const data = await api<{ items: { id: string }[] }>('/reviews?state=pending')
+    pendingCount.value = data.items.length
+  } catch {
+    pendingCount.value = 0
+  }
+}
+
+onMounted(loadPendingCount)
+watch(() => route.path, (path) => {
+  if (path.startsWith('/approvals')) void loadPendingCount()
+})
 
 const items = computed(() => {
   const actor = user.value
@@ -54,6 +72,7 @@ const liveHref = computed(() => {
             :class="active(item.to) ? 'bg-white font-semibold text-gray-900 shadow-sm' : 'text-gray-600 hover:bg-white hover:text-gray-900'"
           >
             {{ item.label }}
+            <span v-if="item.to === '/approvals' && pendingCount" class="ml-1 rounded-full bg-blue-700 px-1.5 text-xs font-medium text-white">{{ pendingCount }}</span>
           </NuxtLink>
         </li>
       </ul>

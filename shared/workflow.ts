@@ -6,6 +6,17 @@ export type WorkflowState = (typeof WORKFLOW_STATES)[number]
 export const REVIEW_STATES = ['pending', 'sent_back', 'withdrawn', 'approved', 'published', 'failed'] as const
 export type ReviewState = (typeof REVIEW_STATES)[number]
 
+/** Plain words for the Approvals list and review screen. */
+export const REVIEW_STATE_LABELS: Record<ReviewState, string> = {
+  pending: 'Waiting for approval',
+  sent_back: 'Sent back',
+  withdrawn: 'Withdrawn',
+  approved: 'Publishing',
+  published: 'Live',
+  failed: 'Failed to publish',
+}
+
+
 /** Plain words for the GUI (docs/04-gui.md#glossary). */
 export const STATE_LABELS: Record<WorkflowState, string> = {
   draft: 'Draft',
