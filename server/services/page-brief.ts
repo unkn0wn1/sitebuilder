@@ -271,7 +271,7 @@ async function callModel(ctx: ServiceCtx, actor: ActingAs, sessionId: string, sy
   if (requestCap > 0 && cost > requestCap) {
     return { error: "That's as far as I can go in one go. You can still start a page yourself." }
   }
-  return { text: result.message.content ?? '' }
+  return { text: typeof result.message.content === 'string' ? result.message.content : '' }
 }
 
 async function nextTurn(ctx: ServiceCtx, actor: ActingAs, row: BriefRow, warning?: string): Promise<PageBriefView> {

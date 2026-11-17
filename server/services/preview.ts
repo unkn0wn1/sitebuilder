@@ -61,7 +61,7 @@ export function parsePreviewWidths(args: Record<string, unknown>): number[] {
 export interface PreviewSession {
   id: string
   taskType: string
-  targetType: 'page' | 'template' | 'brand'
+  targetType: 'page' | 'template' | 'brand' | 'media'
   targetId: string
 }
 

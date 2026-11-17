@@ -76,7 +76,7 @@ function onDrop(event: DragEvent) {
   if (files?.length) void uploadFiles(files)
 }
 
-defineExpose({ load, items })
+defineExpose({ load, items: () => items.value })
 </script>
 
 <template>

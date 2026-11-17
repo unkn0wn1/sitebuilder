@@ -33,6 +33,8 @@ export function startAiSession(ctx: ServiceCtx, actor: ActingAs, input: { taskTy
     requirePage(ctx, targetId)
   } else if (input.taskType === 'template') {
     if (!targetId || !ctx.db.select().from(templates).where(and(eq(templates.id, targetId), eq(templates.siteId, ctx.siteId))).get()) throw notFound('That page type')
+  } else if (input.taskType === 'alt_text') {
+    if (!targetId || !ctx.db.select().from(media).where(and(eq(media.id, targetId), eq(media.siteId, ctx.siteId))).get()) throw notFound('That photo')
   } else if (!targetId) {
     throw new AppError('validation_failed', 'Say which brand pack or theme.', [{ path: 'targetId', message: 'Needed.' }])
   }

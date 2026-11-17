@@ -15,6 +15,10 @@ const error = ref('')
 const saving = ref(false)
 const alt = ref('')
 const decorative = ref(false)
+const suggestion = ref<string | null>(null)
+const suggestMessage = ref('')
+const suggesting = ref(false)
+const aiAvailable = ref(false)
 
 async function load() {
   error.value = ''
@@ -29,7 +33,22 @@ async function load() {
   }
 }
 
-watch(() => props.itemId, load, { immediate: true })
+async function loadAiStatus() {
+  try {
+    const data = await api<{ available: boolean }>('/ai/status')
+    aiAvailable.value = data.available
+  } catch {
+    aiAvailable.value = false
+  }
+}
+
+watch(() => props.itemId, () => {
+  suggestion.value = null
+  suggestMessage.value = ''
+  void load()
+}, { immediate: true })
+
+onMounted(loadAiStatus)
 
 async function patch(body: Record<string, unknown>) {
   if (!details.value) return
@@ -48,6 +67,45 @@ async function patch(body: Record<string, unknown>) {
 
 async function saveAlt() {
   await patch({ alt: decorative.value ? null : alt.value.trim() || null, decorative: decorative.value })
+}
+
+const canSuggest = computed(() => {
+  const media = details.value?.media
+  if (!media || decorative.value) return false
+  if (media.kind !== 'image' && media.kind !== 'svg') return false
+  return aiAvailable.value
+})
+
+async function suggestAlt() {
+  if (!canSuggest.value) return
+  suggesting.value = true
+  suggestMessage.value = ''
+  suggestion.value = null
+  error.value = ''
+  try {
+    const data = await api<{ suggestion: string | null; message?: string }>(`/media/${props.itemId}/suggest-alt`, { method: 'POST', body: {} })
+    suggestion.value = data.suggestion
+    suggestMessage.value = data.message ?? (data.suggestion ? '' : 'No suggestion was returned.')
+  } catch (err) {
+    error.value = err instanceof ApiError ? err.message : 'Could not suggest alt text.'
+  } finally {
+    suggesting.value = false
+  }
+}
+
+async function acceptSuggestion() {
+  if (!suggestion.value) return
+  alt.value = suggestion.value
+  suggestion.value = null
+  suggestMessage.value = ''
+  await saveAlt()
+}
+
+function editSuggestion() {
+  if (!suggestion.value) return
+  alt.value = suggestion.value
+  suggestion.value = null
+  suggestMessage.value = ''
 }
 
 function onFocal(event: MouseEvent) {
@@ -91,7 +149,7 @@ const focalStyle = computed(() => {
 </script>
 
 <template>
-  <aside class="flex h-full min-h-0 flex-col border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+  <aside class="flex h-full min-h-0 flex-col border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800 lg:border-l">
     <p v-if="!details && !error" class="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
     <FwbAlert v-if="error" type="danger" class="mb-3">{{ error }}</FwbAlert>
     <template v-if="details">
@@ -123,6 +181,22 @@ const focalStyle = computed(() => {
           <input type="checkbox" :checked="decorative" :disabled="saving" @change="decorative = ($event.target as HTMLInputElement).checked; saveAlt()">
           Decorative only
         </label>
+        <div v-if="canSuggest" class="mt-2 flex flex-wrap items-center gap-2">
+          <FwbButton size="sm" color="light" :disabled="suggesting || saving" data-testid="suggest-alt" @click="suggestAlt">
+            {{ suggesting ? 'Suggesting…' : 'Suggest alt text' }}
+          </FwbButton>
+        </div>
+        <div v-if="suggestion" class="mt-2 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-gray-900 dark:border-blue-800 dark:bg-blue-950 dark:text-gray-100" data-testid="alt-suggestion">
+          <p class="m-0 font-medium">Suggested</p>
+          <p class="mb-2 mt-1">{{ suggestion }}</p>
+          <p class="mb-2 mt-0 text-xs text-gray-600 dark:text-gray-400">Check this before using it. The assistant must not invent names or places.</p>
+          <div class="flex flex-wrap gap-2">
+            <FwbButton size="sm" :disabled="saving" data-testid="accept-alt" @click="acceptSuggestion">Use this</FwbButton>
+            <FwbButton size="sm" color="light" @click="editSuggestion">Edit</FwbButton>
+            <FwbButton size="sm" color="light" @click="suggestion = null">Discard</FwbButton>
+          </div>
+        </div>
+        <p v-else-if="suggestMessage" class="mt-2 text-sm text-gray-600 dark:text-gray-400">{{ suggestMessage }}</p>
         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Click the photo to set the focal point, used when cropping.</p>
       </div>
 

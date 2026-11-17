@@ -3,10 +3,10 @@
 // See docs/12-ai-harness.md#task-scoped-tools and ADR 0012.
 import { atLeast, type Role } from './roles'
 
-export const TASK_TYPES = ['new_page', 'page_edit', 'template', 'brand_design'] as const
+export const TASK_TYPES = ['new_page', 'page_edit', 'template', 'brand_design', 'alt_text'] as const
 export type TaskType = (typeof TASK_TYPES)[number]
 
-export type TargetType = 'page' | 'template' | 'brand'
+export type TargetType = 'page' | 'template' | 'brand' | 'media'
 
 const PAGE_TOOLS = [
   'list_blocks',
@@ -31,6 +31,7 @@ export const TASKS: Record<TaskType, { targetType: TargetType; minRole: Role; to
   page_edit: { targetType: 'page', minRole: 'editor', tools: [...PAGE_TOOLS, 'set_meta'] },
   template: { targetType: 'template', minRole: 'admin', tools: ['get_template', 'list_blocks', 'set_template_rules', 'preview_screenshot', 'submit_for_review', 'remember'] },
   brand_design: { targetType: 'brand', minRole: 'admin', tools: ['get_brand', 'set_brand_tokens', 'list_themes', 'preview_screenshot', 'run_contrast_checks', 'submit_for_review', 'remember'] },
+  alt_text: { targetType: 'media', minRole: 'editor', tools: [] },
 }
 
 /** Tools that do not exist in any task, by design. Listed so tests can prove they are never granted. */
@@ -82,5 +83,7 @@ function describeTask(task: TaskType): string {
       return 'editing a page type'
     case 'brand_design':
       return 'editing the brand and design'
+    case 'alt_text':
+      return 'suggesting alt text'
   }
 }

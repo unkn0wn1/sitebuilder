@@ -313,7 +313,7 @@ export async function* runAiTurn(
           })
           continue
         }
-        const text = (reply.content ?? '').trim() || 'Done.'
+        const text = (typeof reply.content === 'string' ? reply.content : '').trim() || 'Done.'
         appendAiMessage(ctx, session.id, 'assistant', { text })
         endAiTurn(ctx, asAi, session.id)
         yield { type: 'text', text }
@@ -321,8 +321,9 @@ export async function* runAiTurn(
         return
       }
 
-      appendAiMessage(ctx, session.id, 'assistant', { text: reply.content, tool_calls: calls })
-      if (reply.content?.trim()) yield { type: 'text', text: reply.content }
+      const callText = typeof reply.content === 'string' ? reply.content : ''
+      appendAiMessage(ctx, session.id, 'assistant', { text: callText, tool_calls: calls })
+      if (callText.trim()) yield { type: 'text', text: callText }
 
       for (const call of calls) {
         steps++
@@ -397,7 +398,7 @@ export async function testAiConnection(ctx: ServiceCtx, opts: { provider?: Model
         { role: 'user', content: 'ping' },
       ],
     })
-    const reply = (result.message.content ?? '').trim()
+    const reply = (typeof result.message.content === 'string' ? result.message.content : '').trim()
     if (!reply) throw new ProviderError('The model provider sent an empty reply.')
     return {
       ok: true,
