@@ -7,6 +7,7 @@ import { runChecks } from '../../shared/checks'
 import { ratioFromSize } from '../../shared/crop'
 import { newId } from '../../shared/ids'
 import { opSchema, type Op } from '../../shared/ops'
+import { blockAiSummary } from '../../shared/ai/block-guide'
 import { aiMessages, aiSessions, embeds, media, memoryEntries, pages, templates } from '../db/schema'
 import { audit } from './audit'
 import { inTx, iso, type ActingAs, type ServiceCtx } from './context'
@@ -160,7 +161,27 @@ async function dispatch(ctx: ServiceCtx, actor: ActingAs, session: AiSession, to
     case 'list_blocks': {
       const page = requirePage(ctx, pageId)
       const rules = getTemplateRules(ctx, page.template)
-      return (rules?.allowedBlocks ?? []).map((type) => ({ type, label: ctx.registry.get(type)?.label, schema: ctx.registry.jsonSchema(type), required: rules?.requiredBlocks.includes(type) ?? false }))
+      return (rules?.allowedBlocks ?? []).map((type) => {
+        const def = ctx.registry.get(type)
+        const guide = def ? blockAiSummary(def) : null
+        return {
+          type,
+          label: def?.label,
+          schema: ctx.registry.jsonSchema(type),
+          required: rules?.requiredBlocks.includes(type) ?? false,
+          ...(guide
+            ? {
+                purpose: guide.purpose,
+                useWhen: guide.useWhen,
+                pairsWith: guide.pairsWith,
+                avoidWhen: guide.avoidWhen,
+                fields: guide.fields,
+                good: guide.good,
+                bad: guide.bad,
+              }
+            : {}),
+        }
+      })
     }
     case 'list_templates':
       return ctx.db.select({ key: templates.key, label: templates.label }).from(templates).where(eq(templates.siteId, ctx.siteId)).all()

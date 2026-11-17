@@ -14,8 +14,10 @@ import {
   type BriefAnswer,
   type BriefQuestion,
   type PagePlan,
+  type PlannedSection,
 } from '../../shared/page-brief'
 import { composePageFromPlan, extractJson, planFromAnswers, type ComposeEmbed, type ComposeImage } from '../../shared/page-compose'
+import { enrichPlanSections, formatPlannerGuidance } from '../../shared/ai/block-guide'
 import { aiSessions, media, pageBriefs, pages } from '../db/schema'
 import { audit } from './audit'
 import { addAiUsage, monthCostMicros } from './ai'
@@ -189,6 +191,11 @@ function parseTurn(raw: unknown, asked: Set<string>): { kind: 'question'; questi
   return null
 }
 
+function finalisePlan(plan: PagePlan, row: BriefRow): PagePlan {
+  const answers = (row.answers ?? []) as BriefAnswer[]
+  return enrichPlanSections(plan, { prompt: row.prompt, answers })
+}
+
 function interviewSystemPrompt(ctxInfo: { templates: string[]; embeds: ComposeEmbed[] }, asked: string[], questionCount: number): string {
   const embedList = ctxInfo.embeds.length
     ? ctxInfo.embeds.map((e) => `${e.name} (${e.id}${e.kind ? `, ${e.kind}` : ''})`).join('; ')
@@ -209,7 +216,9 @@ Use only these block types: Hero, RichText, TextAndImage, Image, Gallery, Quote,
 Prefer the campaign blocks (ImpactTiers, DonationProgress, MatchBanner, StoryBeforeAfter, TrustStrip) on a fundraising campaign.
 Registered donation forms: ${embedList}.
 Do not invent statistics, totals, ratings, deadlines or quotes as if they were facts. If a figure is unknown, leave it out of the plan so placeholders can be used.
-The page will stay a draft and will not be published.`
+The page will stay a draft and will not be published.
+
+${formatPlannerGuidance()}`
 }
 
 async function callModel(ctx: ServiceCtx, actor: ActingAs, sessionId: string, system: string, user: string): Promise<{ text: string } | { error: string }> {
@@ -263,6 +272,7 @@ async function nextTurn(ctx: ServiceCtx, actor: ActingAs, row: BriefRow, warning
       }
     }
     if (!plan) plan = planFromAnswers(row.prompt, answers, { embeds: info.embeds })
+    else plan = finalisePlan(plan, row)
     saveBrief(ctx, row.id, { state: 'planned', plan })
     const updated = requireBrief(ctx, actor, row.id)
     const warn = warning ?? ('error' in called ? "I couldn't reach the assistant just then, so I've drafted a plan from what you've already told me." : undefined)
@@ -275,7 +285,7 @@ async function nextTurn(ctx: ServiceCtx, actor: ActingAs, row: BriefRow, warning
     try {
       const parsed = parseTurn(extractJson(called.text), new Set(asked))
       if (parsed?.kind === 'plan') {
-        saveBrief(ctx, row.id, { state: 'planned', plan: parsed.plan })
+        saveBrief(ctx, row.id, { state: 'planned', plan: finalisePlan(parsed.plan, row) })
         return toView(requireBrief(ctx, actor, row.id), { warning })
       }
       if (parsed?.kind === 'question') {
@@ -419,12 +429,16 @@ function uniqueTemplateKey(ctx: ServiceCtx, title: string): string {
   return `${base.slice(0, 30)}-${ctx.now().getTime().toString(36)}`.slice(0, 40)
 }
 
-export async function buildPageBrief(ctx: ServiceCtx, actor: ActingAs, id: string, input: { saveAsTemplate?: boolean } = {}): Promise<PageBriefView> {
+export async function buildPageBrief(ctx: ServiceCtx, actor: ActingAs, id: string, input: { saveAsTemplate?: boolean; sections?: PlannedSection[] } = {}): Promise<PageBriefView> {
   requireEdit(actor)
   const row = requireBrief(ctx, actor, id)
   if (row.state === 'built' && row.pageId) return toView(row)
   if (row.state !== 'planned' || !row.plan) throw new AppError('invalid_state', 'Finish the questions and confirm the plan before building.')
-  const plan = pagePlanSchema.parse(row.plan)
+  let plan = pagePlanSchema.parse(row.plan)
+  if (input.sections) {
+    // Honour the person's checked list. Do not re-add sections they unchecked.
+    plan = pagePlanSchema.parse({ ...plan, sections: input.sections })
+  }
   const info = siteContext(ctx)
   const composed = composePageFromPlan(plan, {
     registry: ctx.registry,

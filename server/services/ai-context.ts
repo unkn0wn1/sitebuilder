@@ -6,6 +6,8 @@ import { memoryEntries, pages } from '../db/schema'
 import type { ActingAs, ServiceCtx } from './context'
 import { getPage } from './pages'
 import type { AiSession } from './ai'
+import { formatBlockAiCatalog, recommendedSections } from '../../shared/ai/block-guide'
+import type { PageUsage } from '../../shared/page-brief'
 
 const SYSTEM = `You are the sitebuilder assistant. You help charity staff write and edit pages in this builder.
 
@@ -42,7 +44,16 @@ function contextBlock(ctx: ServiceCtx, actor: ActingAs, session: AiSession): str
     try {
       const { page, doc, revision, template } = getPage(ctx, session.targetId)
       parts.push(`Page: title ${page.title}, type ${template.label} (${page.template}), address ${page.path || '(none yet)'}, revision ${revision}.`)
-      if (template.rules) parts.push(`Allowed sections: ${template.rules.allowedBlocks.join(', ')}. Required: ${template.rules.requiredBlocks.join(', ') || 'none'}.`)
+      if (template.rules) {
+        parts.push(`Allowed sections: ${template.rules.allowedBlocks.join(', ')}. Required: ${template.rules.requiredBlocks.join(', ') || 'none'}.`)
+        const usage = usageForTemplate(page.template)
+        if (usage) {
+          const rec = recommendedSections(usage)
+          parts.push(`Recommended structure for a ${usage} page (adjust if this draft is already different): ${rec.map((s) => s.type).join(', ')}.`)
+        }
+        const catalog = formatBlockAiCatalog(template.rules.allowedBlocks)
+        if (catalog) parts.push(`Section guide:\n${catalog}`)
+      }
       parts.push(`Current draft JSON:\n${JSON.stringify({ title: doc.title, seo: doc.seo, blocks: doc.blocks })}`)
     } catch {
       parts.push('The bound page could not be read.')
@@ -68,4 +79,9 @@ function contextBlock(ctx: ServiceCtx, actor: ActingAs, session: AiSession): str
   const tools = TASKS[session.taskType as keyof typeof TASKS]?.tools ?? []
   parts.push(`Tools you may call: ${tools.join(', ')}.`)
   return parts.join('\n\n')
+}
+
+function usageForTemplate(template: string): PageUsage | undefined {
+  if (template === 'campaign' || template === 'story' || template === 'home') return template
+  return undefined
 }

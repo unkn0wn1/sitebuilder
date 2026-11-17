@@ -4,6 +4,7 @@
 import { createDefaultRegistry, type BlockRegistry } from './blocks/registry'
 import { SAMPLE_EMBED_ID, SAMPLE_MEDIA_ID } from './blocks/library'
 import { PLACEHOLDER_MARK, answerText, pagePlanSchema, type BriefAnswer, type PagePlan, type PageUsage, type PlannedSection } from './page-brief'
+import { enrichPlanSections, recommendedSections } from './ai/block-guide'
 import { richTextFromParagraphs } from './richtext'
 import type { StoredBlock } from './blocks/registry'
 
@@ -149,19 +150,6 @@ export function resolveBlockType(raw: string): string | null {
   const registry = createDefaultRegistry()
   if (registry.get(trimmed)) return trimmed
   return null
-}
-
-function defaultSections(usage: PageUsage, hasDonation: boolean): PlannedSection[] {
-  const ctaType = hasDonation ? 'DonationEmbed' : 'CallToAction'
-  const sets: Record<PageUsage, string[]> = {
-    campaign: ['Hero', 'MatchBanner', 'StoryBeforeAfter', 'ImpactTiers', 'DonationProgress', 'TrustStrip', ctaType, 'FAQ'],
-    event: ['Hero', 'MatchBanner', 'RichText', 'FAQ', ctaType],
-    evergreen: ['Hero', 'RichText', 'ImpactTiers', 'TrustStrip', ctaType, 'FAQ'],
-    story: ['Hero', 'RichText', 'StoryBeforeAfter', 'Quote', 'TrustStrip', 'CallToAction'],
-    standard: ['Hero', 'RichText', 'TextAndImage', 'CallToAction'],
-    home: ['Hero', 'CardGrid', 'Stats', 'TrustStrip', 'CallToAction'],
-  }
-  return sets[usage].map((type) => ({ type, purpose: '' }))
 }
 
 function templateFor(plan: PagePlan, opts: ComposeOptions): string {
@@ -447,7 +435,7 @@ export function composePageFromPlan(input: PagePlan, opts: ComposeOptions = {}):
   const template = templateFor(plan, opts)
   const allowed = allowedFor(template, opts)
   const hasDonation = plan.cta.kind === 'donation' && !!pickEmbed(plan, opts)
-  let sections = plan.sections.length ? plan.sections : defaultSections(plan.usage, hasDonation)
+  let sections = plan.sections.length ? plan.sections : recommendedSections(plan.usage, { hasDonation })
   sections = ensureRequired(template, sections, plan, opts)
 
   const blocks: { type: string; props: Record<string, unknown> }[] = []
@@ -505,9 +493,7 @@ export function planFromAnswers(prompt: string, answers: BriefAnswer[], extras: 
   const contentNotes = findAnswer(answers, 'content') || undefined
   const embed = extras.embeds?.[0]
   const template = usage === 'home' ? 'home' : usage === 'story' ? 'story' : usage === 'campaign' || (usage === 'event' && ctaKind === 'donation') ? 'campaign' : 'standard'
-  const sections = defaultSections(usage, ctaKind === 'donation' && !!embed)
-  const labels = sections.map((s) => s.type).join(', ')
-  return pagePlanSchema.parse({
+  const draft = pagePlanSchema.parse({
     title,
     slug: slugifyTitle(title),
     template,
@@ -522,11 +508,17 @@ export function planFromAnswers(prompt: string, answers: BriefAnswer[], extras: 
       href: '#donate',
     },
     tone,
-    sections,
+    sections: [],
     seoTitle: title.slice(0, 70),
     seoDescription: (purpose || title).slice(0, 160),
-    summary: `Here's what I'll build: ${labels}. It will use the current brand pack, with a ${tone} tone on the opening and the ask. I'll leave a draft only — nothing is published. Where a figure isn't known, you'll see ${PLACEHOLDER_MARK} copy to replace.`,
+    summary: "Here's what I'll build.",
   })
+  const plan = enrichPlanSections(draft, { prompt, answers, hasDonation: ctaKind === 'donation' && !!embed })
+  const labels = plan.sections.map((s) => s.type).join(', ')
+  return {
+    ...plan,
+    summary: `Here's what I'll build: ${labels}. It will use the current brand pack, with a ${tone} tone on the opening and the ask. I'll leave a draft only — nothing is published. Where a figure isn't known, you'll see ${PLACEHOLDER_MARK} copy to replace.`,
+  }
 }
 
 function findAnswer(answers: BriefAnswer[], id: string): string {

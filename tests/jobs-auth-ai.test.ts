@@ -134,7 +134,15 @@ describe('AI sessions and tools', () => {
     const session = startAiSession(s.ctx, s.editor, { taskType: 'page_edit', targetId: a.id })
     const res = await runTool(s.ctx, s.editor, session.id, 'list_blocks')
     expect(res.ok).toBe(true)
-    if (res.ok) expect((res.result as { type: string }[]).map((b) => b.type)).toEqual(getTemplateRules(s.ctx, 'story')!.allowedBlocks)
+    if (res.ok) {
+      const blocks = res.result as { type: string; purpose?: string; good?: { note: string }; bad?: { note: string } }[]
+      expect(blocks.map((b) => b.type)).toEqual(getTemplateRules(s.ctx, 'story')!.allowedBlocks)
+      for (const block of blocks) {
+        expect(block.purpose, block.type).toBeTruthy()
+        expect(block.good?.note, block.type).toBeTruthy()
+        expect(block.bad?.note, block.type).toBeTruthy()
+      }
+    }
     await runTool(s.ctx, s.editor, session.id, 'remember', { text: 'Always say rescue, never shelter' })
     expect(s.ctx.db.select().from(memoryEntries).get()?.state).toBe('proposed')
   })

@@ -18,9 +18,11 @@ From **Pages**, **New page with the assistant** runs a short structured intervie
 
 1. The person describes what they want.
 2. The assistant asks **three to five questions**, one at a time, with suggested answers as chips plus a free-text box, covering purpose, audience, how the page will be used (campaign, evergreen, story, event…), content they already have, the call to action or donation (including a Virtuous form if one is registered), and look and feel (tone, within the current brand pack).
-3. It shows a short plan ("Here's what I'll build: sections…") and a **Build** button. Optionally, an admin can also save the structure as a reusable page type (a draft, not published).
-4. On confirm, the server composes a **draft** page from existing block types (including the campaign blocks when they fit), validates each block against its schema (repairing or retrying invalid ones), fills slug, title and SEO, and marks unknown facts as `[placeholder]` or `TBC`. It never publishes, and it does not invent live statistics.
+3. It shows a short plan ("Here's what I'll build: sections…") and a **Build** button. The plan starts from a recommended outline for the page type (for a campaign: hero, match or countdown, impact tiers, donation progress, a story, the donation form, a trust strip, and a closing ask). The person can uncheck any section before building. Optionally, an admin can also save the structure as a reusable page type (a draft, not published).
+4. On confirm, the server composes a **draft** page from the checked sections (including the campaign blocks when they fit), validates each block against its schema (repairing or retrying invalid ones), fills slug, title and SEO, and marks unknown facts as `[placeholder]` or `TBC`. It never publishes, and it does not invent live statistics.
 5. The person is redirected to that page in the editor, where they can keep editing by hand or with the ordinary assistant tab.
+
+The planner and the editor assistant share one catalogue: every starter block has a purpose, when to use it, what it pairs with, when to avoid it, field guidance, a good example and a bad anti-pattern (see `shared/ai/block-guide.ts`). The planner also sees a worked example page for a campaign, a story, an evergreen/about page and an event. After the model returns a plan, the server fills in any missing recommended sections so a campaign is not left as only a hero, a story and a form. Unchecked sections are not added back at Build.
 
 The older "start a new_page chat session" path still exists on the editor and still cannot publish.
 
@@ -33,7 +35,7 @@ The agent can only act through these. Each call is validated against the block s
 | Tool | Does |
 | --- | --- |
 | `list_templates` | Templates allowed on this site |
-| `list_blocks` | Blocks allowed in a template, with their prop schemas |
+| `list_blocks` | Blocks allowed in a template, with their prop schemas and a short guide (purpose, when to use, what they pair with, when to avoid, fields, a good example and a bad example) |
 | `get_page` | Current draft as JSON |
 | `create_draft` | Start a new page or a new draft of an existing one |
 | `add_block` | Add a block at a position |

@@ -70,7 +70,7 @@ Notes:
 
 ## Block definition (sketch)
 
-Each block type has a Vue component and a definition with its prop schema and rules:
+Each block type has a Vue component and a definition with its prop schema, rules, and a short `ai` guide (purpose, when to use, what it pairs with, when to avoid, fields, a good example and a bad anti-pattern). The page assistant and `list_blocks` read that catalogue from `shared/ai/block-guide.ts`. The definition looks like this:
 
 ```ts
 defineBlock({

@@ -13,7 +13,7 @@ const blockInput = object({ type: { type: 'string' }, props: { type: 'object' } 
 
 const SCHEMAS: Record<string, { description: string; parameters: Record<string, unknown> }> = {
   list_templates: { description: 'List the page types this site allows.', parameters: object({}) },
-  list_blocks: { description: 'List sections allowed on this page, with their prop schemas.', parameters: object({}) },
+  list_blocks: { description: 'List sections allowed on this page, with their prop schemas and guidance (purpose, when to use, what they pair with, when to avoid, fields, a good example and a bad example).', parameters: object({}) },
   get_page: { description: 'Read the current draft of this page.', parameters: object({}) },
   create_draft: {
     description: 'Set the title, page type and address on this new page.',

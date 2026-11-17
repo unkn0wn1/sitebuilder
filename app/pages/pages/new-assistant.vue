@@ -40,6 +40,7 @@ const selectedChip = ref('')
 const brief = ref<BriefView | null>(null)
 const saveAsTemplate = ref(false)
 const building = ref(false)
+const included = ref<boolean[]>([])
 
 const step = computed(() => {
   if (!status.value?.available || !status.value.enabled) return 'unavailable'
@@ -58,6 +59,7 @@ async function loadStatus() {
     if (id && status.value.available && status.value.enabled) {
       brief.value = await api<BriefView>(`/ai/page-briefs/${id}`)
       warning.value = brief.value.warning ?? ''
+      included.value = brief.value.plan?.sections?.map(() => true) ?? []
     }
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : 'Could not check the assistant just then.'
@@ -71,6 +73,7 @@ async function setBrief(next: BriefView) {
   warning.value = next.warning ?? ''
   answer.value = ''
   selectedChip.value = ''
+  included.value = next.plan?.sections?.map(() => true) ?? []
   if (route.query.brief !== next.id) {
     await navigateTo({ path: '/pages/new-assistant', query: { brief: next.id } }, { replace: true })
   }
@@ -131,9 +134,14 @@ async function build() {
   building.value = true
   error.value = ''
   try {
+    const sections = (brief.value.plan?.sections ?? []).filter((_, i) => included.value[i] !== false)
+    if (!sections.length) {
+      error.value = 'Keep at least one section.'
+      return
+    }
     const next = await api<BriefView>(`/ai/page-briefs/${brief.value.id}/build`, {
       method: 'POST',
-      body: { saveAsTemplate: canSaveTemplate.value && saveAsTemplate.value },
+      body: { saveAsTemplate: canSaveTemplate.value && saveAsTemplate.value, sections },
     })
     await setBrief(next)
     if (next.pageId) await navigateTo(`/pages/${next.pageId}`)
@@ -238,11 +246,15 @@ onMounted(loadStatus)
             </div>
           </dl>
           <p class="mt-4 text-sm font-medium text-gray-700 dark:text-gray-200">Sections</p>
-          <ol class="mt-2 list-decimal space-y-1 pl-5 text-gray-800 dark:text-gray-200">
+          <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">Uncheck any you don't want. A match banner or progress bar can stay in the plan until you know you don't have one.</p>
+          <ul class="mt-2 space-y-2 text-gray-800 dark:text-gray-200">
             <li v-for="(section, i) in brief.plan.sections" :key="`${section.type}-${i}`">
-              {{ section.type }}<span v-if="section.purpose"> — {{ section.purpose }}</span>
+              <label class="flex items-start gap-2">
+                <input v-model="included[i]" type="checkbox" class="mt-1 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-800">
+                <span><span class="font-medium">{{ section.type }}</span><span v-if="section.purpose"> — {{ section.purpose }}</span></span>
+              </label>
             </li>
-          </ol>
+          </ul>
         </div>
         <label v-if="canSaveTemplate" class="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-200">
           <input v-model="saveAsTemplate" type="checkbox" class="mt-1 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-800">

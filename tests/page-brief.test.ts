@@ -122,4 +122,46 @@ describe('page brief interview', () => {
     expect(template.doc.label).toContain('assistant')
     s.sqlite.close()
   })
+
+  it('enriches a lean plan and honours unchecked sections at Build', async () => {
+    const s = setup()
+    enableAi(s.ctx)
+    const lean = {
+      ...PLAN,
+      plan: {
+        ...PLAN.plan,
+        sections: [
+          { type: 'Hero', purpose: 'Open the appeal' },
+          { type: 'StoryBeforeAfter', purpose: 'Story' },
+          { type: 'DonationEmbed', purpose: 'The form' },
+        ],
+        summary: 'A short draft.',
+      },
+    }
+    s.ctx.aiProvider = mockProvider([assistantText(JSON.stringify(lean))])
+    const started = await startPageBrief(s.ctx, s.editor, 'A winter blanket appeal, campaign, use the donation form, I have a story and photos, warm tone.')
+    expect(started.state).toBe('planned')
+    const types = started.plan?.sections.map((s) => s.type) ?? []
+    expect(types).toEqual([
+      'Hero',
+      'MatchBanner',
+      'ImpactTiers',
+      'DonationProgress',
+      'StoryBeforeAfter',
+      'DonationEmbed',
+      'TrustStrip',
+      'CallToAction',
+    ])
+
+    const built = await buildPageBrief(s.ctx, s.editor, started.id, {
+      sections: [
+        { type: 'Hero', purpose: 'Open the appeal' },
+        { type: 'StoryBeforeAfter', purpose: 'Story' },
+        { type: 'CallToAction', purpose: 'A short closing ask' },
+      ],
+    })
+    const pack = getPage(s.ctx, built.pageId!)
+    expect(pack.doc.blocks.map((b) => b.type)).toEqual(['Hero', 'StoryBeforeAfter', 'CallToAction'])
+    s.sqlite.close()
+  })
 })

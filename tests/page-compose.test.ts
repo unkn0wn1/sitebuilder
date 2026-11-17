@@ -137,7 +137,16 @@ describe('composePageFromPlan', () => {
     expect(plan.template).toBe('campaign')
     expect(plan.tone).toBe('primary')
     expect(plan.cta.kind).toBe('donation')
-    expect(plan.sections.map((s) => s.type)).toContain('ImpactTiers')
+    expect(plan.sections.map((s) => s.type)).toEqual([
+      'Hero',
+      'MatchBanner',
+      'ImpactTiers',
+      'DonationProgress',
+      'StoryBeforeAfter',
+      'DonationEmbed',
+      'TrustStrip',
+      'CallToAction',
+    ])
     expect(plan.summary.startsWith("Here's what I'll build:")).toBe(true)
   })
 })

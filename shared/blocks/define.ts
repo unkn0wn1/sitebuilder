@@ -8,6 +8,24 @@ export interface ImageSlot {
   height: number
 }
 
+/** Short guidance shown to the page assistant and included in list_blocks. */
+export interface BlockAiExample {
+  /** Why this is a good use, or what is wrong with the anti-pattern. */
+  note: string
+  /** Realistic (or deliberately poor) sample props. Media ids may be placeholders. */
+  props?: Record<string, unknown>
+}
+
+export interface BlockAiGuide {
+  purpose: string
+  useWhen: string
+  pairsWith: string[]
+  avoidWhen: string
+  fields: string
+  good: BlockAiExample
+  bad: BlockAiExample
+}
+
 export type PropsMigration = (props: Record<string, unknown>) => Record<string, unknown>
 
 export interface BlockDefinition<TProps extends z.ZodObject = z.ZodObject> {
@@ -27,6 +45,8 @@ export interface BlockDefinition<TProps extends z.ZodObject = z.ZodObject> {
   migrations?: Record<number, PropsMigration>
   /** Valid sample props, used by tests and the starter content. */
   sample: z.input<TProps>
+  /** How the assistant should use this section. */
+  ai?: BlockAiGuide
 }
 
 export function defineBlock<TProps extends z.ZodObject>(def: BlockDefinition<TProps>): BlockDefinition<TProps> {
