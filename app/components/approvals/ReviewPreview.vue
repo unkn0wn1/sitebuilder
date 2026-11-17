@@ -57,7 +57,7 @@ function changeClass(id: string): string {
 </script>
 
 <template>
-  <div ref="host" class="min-h-0 flex-1 overflow-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
+  <div ref="host" class="min-h-0 min-w-0 flex-1 overflow-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
     <template v-if="kind === 'page' && pageDoc">
       <component :is="'style'">{{ SCOPED_THEME_CSS }}</component>
       <p v-if="scale < 1" class="sticky top-0 z-10 m-0 bg-gray-100/90 dark:bg-gray-800/90 px-4 py-1 text-center text-xs text-gray-600 dark:text-gray-400">Shown at {{ Math.round(scale * 100) }}%</p>

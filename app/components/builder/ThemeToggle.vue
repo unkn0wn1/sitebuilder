@@ -11,18 +11,19 @@ const options: { id: ThemePreference; label: string; title: string }[] = [
 </script>
 
 <template>
-  <div class="inline-flex rounded-md border border-gray-200 p-0.5 dark:border-gray-600" role="group" aria-label="Colour theme">
+  <div class="inline-flex shrink-0 rounded-md border border-gray-200 p-0.5 dark:border-gray-600" role="group" aria-label="Colour theme">
     <button
       v-for="option in options"
       :key="option.id"
       type="button"
-      class="rounded px-2 py-0.5 text-xs"
+      class="rounded px-1.5 py-0.5 text-xs sm:px-2"
       :class="preference === option.id ? 'bg-gray-900 font-medium text-white dark:bg-gray-100 dark:text-gray-900' : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100'"
       :aria-pressed="preference === option.id"
       :title="option.title"
       @click="setPreference(option.id)"
     >
-      {{ option.label }}
+      <span class="hidden sm:inline">{{ option.label }}</span>
+      <span class="sm:hidden">{{ option.id === 'system' ? 'Sys' : option.label }}</span>
     </button>
   </div>
 </template>

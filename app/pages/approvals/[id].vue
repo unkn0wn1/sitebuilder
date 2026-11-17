@@ -197,13 +197,13 @@ watch(id, load, { immediate: true })
       <FwbAlert type="danger">{{ loadError }}</FwbAlert>
       <NuxtLink to="/approvals" class="mt-4 inline-block text-sm">Back to approvals</NuxtLink>
     </div>
-    <div v-else-if="detail" class="flex h-[calc(100vh-3.25rem)] min-h-0 flex-col">
-      <header class="flex flex-wrap items-center gap-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2">
+    <div v-else-if="detail" class="flex min-h-0 min-w-0 flex-col md:h-[calc(100vh-3.25rem)]">
+      <header class="flex min-w-0 flex-wrap items-center gap-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 sm:px-4">
         <NuxtLink to="/approvals" class="text-sm text-gray-600 dark:text-gray-400 no-underline hover:underline">&lt; Approvals</NuxtLink>
-        <h1 class="m-0 text-base font-semibold text-gray-900 dark:text-gray-100">Review: {{ detail.target.title }}</h1>
+        <h1 class="m-0 min-w-0 break-words text-base font-semibold text-gray-900 dark:text-gray-100">Review: {{ detail.target.title }}</h1>
         <span class="text-sm text-gray-500 dark:text-gray-400">by {{ detail.submittedByName }}, {{ timeAgo(detail.review.createdAt) }}</span>
         <span class="sb-status sb-status-in_review">{{ REVIEW_STATE_LABELS[detail.review.state] }}</span>
-        <div class="ml-auto flex flex-wrap items-center gap-2">
+        <div class="flex w-full min-w-0 flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
           <FwbButton v-if="canDecide && isPending" size="sm" color="light" :disabled="deciding || detail.draftChangedSinceSubmit" @click="showSendBack = true">
             Send back
           </FwbButton>

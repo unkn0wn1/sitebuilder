@@ -4,7 +4,8 @@ import AssistantPanel from './AssistantPanel.vue'
 import type { LeftTab, PageEditor } from '../../utils/page-editor'
 import type { useAssistant } from '../../composables/useAssistant'
 
-const props = defineProps<{ editor: PageEditor; assistant: ReturnType<typeof useAssistant> }>()
+const props = defineProps<{ editor: PageEditor; assistant: ReturnType<typeof useAssistant>; overlay?: boolean }>()
+const emit = defineEmits<{ close: [] }>()
 
 const tabs: { id: LeftTab; label: string }[] = [
   { id: 'assistant', label: 'Assistant' },
@@ -37,7 +38,13 @@ function onOutlineKey(event: KeyboardEvent, id: string, index: number) {
 </script>
 
 <template>
-  <aside class="flex h-full min-h-0 flex-col border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800" :class="editor.railCollapsed ? 'w-14' : 'w-72'">
+  <aside
+    class="h-full min-h-0 flex-col border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+    :class="[
+      overlay ? 'fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] shadow-xl' : 'hidden md:flex',
+      !overlay && (editor.railCollapsed ? 'w-14' : 'w-72'),
+    ]"
+  >
     <div class="flex items-center gap-1 border-b border-gray-200 dark:border-gray-700 p-1">
       <button
         v-for="tab in tabs"
@@ -83,7 +90,7 @@ function onOutlineKey(event: KeyboardEvent, id: string, index: number) {
               type="button"
               class="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm"
               :class="editor.selectedId === block.id ? 'bg-blue-50 dark:bg-blue-950 font-medium text-blue-900' : 'text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'"
-              @click="editor.select(block.id)"
+              @click="editor.select(block.id); if (overlay) emit('close')"
               @keydown="onOutlineKey($event, block.id, index)"
             >
               <span>{{ index + 1 }}. {{ blockLabel(block.type) }}</span>
@@ -97,7 +104,15 @@ function onOutlineKey(event: KeyboardEvent, id: string, index: number) {
       </div>
     </div>
 
-    <button type="button" class="border-t border-gray-200 dark:border-gray-700 px-3 py-2 text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800" @click="editor.toggleRail()">
+    <button
+      v-if="overlay"
+      type="button"
+      class="border-t border-gray-200 dark:border-gray-700 px-3 py-2 text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
+      @click="emit('close')"
+    >
+      Close
+    </button>
+    <button v-else type="button" class="border-t border-gray-200 dark:border-gray-700 px-3 py-2 text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800" @click="editor.toggleRail()">
       {{ editor.railCollapsed ? '»' : '« Hide' }}
     </button>
   </aside>

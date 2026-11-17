@@ -101,7 +101,7 @@ async function restore(id: string) {
 </script>
 
 <template>
-  <aside v-if="editor.selected || editor.inspectorTab !== 'section'" class="hidden h-full w-80 min-h-0 flex-col border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 lg:flex">
+  <aside class="hidden h-full w-80 min-h-0 flex-col border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 lg:flex">
     <div class="flex border-b border-gray-200 dark:border-gray-700 p-1">
       <button
         v-for="tab in tabs"
@@ -117,7 +117,8 @@ async function restore(id: string) {
     </div>
 
     <div class="min-h-0 flex-1 overflow-y-auto p-4">
-      <div v-if="editor.inspectorTab === 'section' && editor.selected">
+      <p v-if="editor.inspectorTab === 'section' && !editor.selected" class="text-sm text-gray-500 dark:text-gray-400">Select a section to edit its fields.</p>
+      <div v-else-if="editor.inspectorTab === 'section' && editor.selected">
                 <EditorSectionFields
           :type="editor.selected.type"
           :model-value="editor.selected.props"

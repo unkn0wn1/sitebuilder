@@ -14,6 +14,7 @@ const submitting = ref(false)
 const submitError = ref('')
 const submitIssues = ref<FieldIssue[]>([])
 const showMobileFields = ref(false)
+const showMobileRail = ref(false)
 
 const blockLabels = computed(() => Object.fromEntries(blockCatalog().map((item) => [item.type, item.label])))
 const labelledIssues = computed(() =>
@@ -133,13 +134,15 @@ async function submit() {
 </script>
 
 <template>
-  <div class="flex h-[calc(100vh-3.25rem)] min-h-0 flex-col">
-    <header class="flex flex-wrap items-center gap-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2">
+  <div class="flex h-[calc(100dvh-3.25rem)] min-h-0 min-w-0 flex-col md:h-[calc(100vh-3.25rem)]">
+    <header class="flex min-w-0 flex-wrap items-center gap-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 sm:gap-3 sm:px-4">
       <NuxtLink to="/pages" class="text-sm text-gray-600 dark:text-gray-400 no-underline hover:underline">&lt; Pages</NuxtLink>
-      <h1 class="m-0 text-base font-semibold text-gray-900 dark:text-gray-100">{{ editor.title }}</h1>
+      <h1 class="m-0 min-w-0 break-words text-base font-semibold text-gray-900 dark:text-gray-100">{{ editor.title }}</h1>
       <BuilderStatusBadge :state="editor.state" :has-unpublished-changes="editor.hasUnpublishedChanges" />
       <span class="text-sm text-gray-500 dark:text-gray-400" data-testid="save-status">{{ saveLabel }}</span>
-      <div class="ml-auto flex flex-wrap items-center gap-2">
+      <div class="flex w-full min-w-0 flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
+        <div class="md:hidden"><FwbButton size="sm" color="light" data-testid="mobile-sections" @click="showMobileRail = true">Sections</FwbButton></div>
+        <div v-if="editor.selected" class="lg:hidden"><FwbButton size="sm" color="light" data-testid="mobile-edit-fields" @click="showMobileFields = true">Edit fields</FwbButton></div>
         <FwbButtonGroup>
           <FwbButton
             v-for="device in devices"
@@ -189,8 +192,10 @@ async function submit() {
       You're offline. Your changes will save when you're back.
     </div>
     <EditorConflictBanner v-if="editor.conflict" :editor="editor" />
-    <div class="flex min-h-0 flex-1">
-      <EditorLeftRail :editor="editor" :assistant="assistant" />
+    <div class="relative flex min-h-0 min-w-0 flex-1">
+      <div v-if="showMobileRail" class="fixed inset-0 z-30 bg-black/40 md:hidden" data-testid="mobile-rail-backdrop" @click="showMobileRail = false" />
+      <EditorLeftRail v-if="showMobileRail" :editor="editor" :assistant="assistant" overlay @close="showMobileRail = false" />
+      <EditorLeftRail class="max-md:hidden" :editor="editor" :assistant="assistant" />
       <EditorCanvas :editor="editor" :issues="submitIssues" />
       <EditorInspectorPanel :editor="editor" :issues="submitIssues" />
     </div>

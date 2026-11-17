@@ -53,7 +53,7 @@ const liveHref = computed(() => {
 <template>
   <div class="sb-builder" :class="{ 'is-editor': editor }">
     <header class="sb-topbar">
-      <NuxtLink to="/pages" class="font-semibold text-gray-900 dark:text-gray-100 no-underline">sitebuilder</NuxtLink>
+      <NuxtLink to="/pages" class="shrink-0 font-semibold text-gray-900 dark:text-gray-100 no-underline">sitebuilder</NuxtLink>
       <div class="flex min-w-0 flex-1 items-center gap-3">
         <span class="truncate text-gray-800 dark:text-gray-200">{{ site?.name ?? 'Site' }}</span>
         <a v-if="liveHref" :href="liveHref" target="_blank" rel="noreferrer" class="text-sm text-blue-700 dark:text-blue-400 no-underline hover:underline">View live</a>
@@ -78,7 +78,7 @@ const liveHref = computed(() => {
         </li>
       </ul>
     </nav>
-    <div v-else class="border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900" aria-hidden="true" />
+    <div v-else class="hidden border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 md:block" aria-hidden="true" />
     <main class="sb-main">
       <slot />
     </main>

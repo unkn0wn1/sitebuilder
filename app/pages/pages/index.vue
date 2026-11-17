@@ -90,7 +90,7 @@ const states = [
 </script>
 
 <template>
-  <div class="p-6">
+  <div class="min-w-0 p-4 sm:p-6">
     <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
       <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Pages</h1>
       <div v-if="canEdit" class="flex flex-wrap gap-2">
@@ -98,11 +98,11 @@ const states = [
         <FwbButton @click="showNew = true">New page</FwbButton>
       </div>
     </div>
-    <div class="mb-4 flex flex-wrap gap-3">
-      <div class="w-72">
+    <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+      <div class="w-full min-w-0 sm:w-72">
         <FwbInput v-model="search" placeholder="Search pages" @keyup.enter="load" />
       </div>
-      <div class="w-56">
+      <div class="w-full min-w-0 sm:w-56">
         <FwbSelect v-model="state" :options="states" @change="load" />
       </div>
       <FwbButton color="light" @click="load">Search</FwbButton>
@@ -110,7 +110,18 @@ const states = [
     <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
     <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading pages…</p>
     <p v-else-if="!items.length" class="text-gray-500 dark:text-gray-400">No pages yet.</p>
-    <FwbTable v-else hoverable>
+    <ul v-else class="m-0 flex list-none flex-col gap-3 p-0 md:hidden">
+      <li v-for="page in items" :key="page.id" class="min-w-0 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+        <NuxtLink :to="`/pages/${page.id}`" class="block break-words font-medium text-gray-900 no-underline hover:underline dark:text-gray-100">{{ page.title }}</NuxtLink>
+        <div class="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+          <BuilderStatusBadge :state="page.state" :has-unpublished-changes="page.hasUnpublishedChanges" />
+          <span>{{ timeAgo(page.updatedAt) }}</span>
+          <span class="break-all">{{ page.path || '—' }}</span>
+        </div>
+      </li>
+    </ul>
+    <div v-if="!loading && items.length" class="hidden min-w-0 md:block">
+    <FwbTable hoverable>
       <FwbTableHead>
         <FwbTableHeadCell>Title</FwbTableHeadCell>
         <FwbTableHeadCell>Status</FwbTableHeadCell>
@@ -130,6 +141,7 @@ const states = [
         </FwbTableRow>
       </FwbTableBody>
     </FwbTable>
+    </div>
     <p v-if="total" class="mt-3 text-sm text-gray-500 dark:text-gray-400">{{ total }} {{ total === 1 ? 'page' : 'pages' }}</p>
 
     <FwbModal v-if="showNew" @close="showNew = false">

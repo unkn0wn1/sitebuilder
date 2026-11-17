@@ -30,7 +30,7 @@ watch(filter, load, { immediate: true })
 </script>
 
 <template>
-  <div class="p-6">
+  <div class="min-w-0 p-4 sm:p-6">
     <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
       <div>
         <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Approvals</h1>
@@ -44,7 +44,21 @@ watch(filter, load, { immediate: true })
     <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
     <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading reviews…</p>
     <p v-else-if="!shown.length" class="text-gray-500 dark:text-gray-400">{{ filter === 'pending' ? 'Nothing waiting. Nice work.' : 'No reviews yet.' }}</p>
-    <FwbTable v-else hoverable>
+    <ul v-else class="m-0 flex list-none flex-col gap-3 p-0 md:hidden">
+      <li v-for="item in shown" :key="item.id" class="min-w-0 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+        <NuxtLink :to="`/approvals/${item.id}`" class="block break-words font-medium text-gray-900 no-underline hover:underline dark:text-gray-100">{{ item.title }}</NuxtLink>
+        <p class="m-0 mt-1 text-sm text-gray-500 dark:text-gray-400">{{ item.targetType === 'site_part' ? 'Site part' : item.targetType === 'brand' ? 'Brand and Design' : item.targetType === 'template' ? 'Page type' : 'Page' }}</p>
+        <div class="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+          <span class="sb-status" :class="item.state === 'pending' ? 'sb-status-in_review' : item.state === 'published' ? 'sb-status-published' : 'sb-status-draft'">
+            {{ REVIEW_STATE_LABELS[item.state as ReviewState] }}
+          </span>
+          <span>{{ item.submittedByName }}, {{ timeAgo(item.createdAt) }}</span>
+        </div>
+        <p class="mb-0 mt-2 break-words text-sm text-gray-600 dark:text-gray-400">{{ item.changeSummary || '—' }}</p>
+      </li>
+    </ul>
+    <div v-if="!loading && shown.length" class="hidden min-w-0 md:block">
+    <FwbTable hoverable>
       <FwbTableHead>
         <FwbTableHeadCell>Item</FwbTableHeadCell>
         <FwbTableHeadCell>Status</FwbTableHeadCell>
@@ -67,5 +81,6 @@ watch(filter, load, { immediate: true })
         </FwbTableRow>
       </FwbTableBody>
     </FwbTable>
+    </div>
   </div>
 </template>

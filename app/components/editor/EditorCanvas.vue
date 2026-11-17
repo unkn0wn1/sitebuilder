@@ -31,7 +31,7 @@ const scale = computed(() => canvasScale(Math.max(available.value - 48, 160), wi
 </script>
 
 <template>
-  <div ref="host" class="sb-canvas-frame relative min-h-0 flex-1 overflow-auto" @click="editor.select(null)">
+  <div ref="host" class="sb-canvas-frame relative min-h-0 min-w-0 flex-1 overflow-auto" @click="editor.select(null)">
     <component :is="'style'">{{ SCOPED_THEME_CSS }}</component>
     <p v-if="scale < 1" class="sticky top-0 z-10 m-0 bg-gray-100/90 dark:bg-gray-800/90 px-4 py-1 text-center text-xs text-gray-600 dark:text-gray-400">Shown at {{ Math.round(scale * 100) }}%</p>
     <div class="flex justify-center p-6" :style="{ minHeight: '100%' }">
@@ -59,7 +59,7 @@ const scale = computed(() => canvasScale(Math.max(available.value - 48, 160), wi
           </div>
           <div
             v-if="editor.selectedId === block.id"
-            class="absolute right-3 top-3 z-10 flex gap-1 rounded-md bg-white/95 dark:bg-gray-800/95 p-1 shadow"
+            class="absolute right-3 top-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap gap-1 rounded-md bg-white/95 dark:bg-gray-800/95 p-1 shadow"
             @click.stop
           >
             <button type="button" class="px-2 py-1 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800" :disabled="index === 0" @click="editor.moveSection(block.id, index - 1)">Up</button>

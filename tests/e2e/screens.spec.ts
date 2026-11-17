@@ -89,10 +89,21 @@ test('site parts list, menu, header and footer', async ({ page }) => {
 test('approvals list and review', async ({ page }) => {
   await signIn(page)
 
-  const list = await page.request.get('/api/v1/pages?search=Winter%20appeal&page=1&pageSize=10')
-  expect(list.ok()).toBeTruthy()
-  const winter = ((await list.json()) as { items: { id: string; title: string }[] }).items.find((p) => p.title === 'Winter appeal')
-  expect(winter).toBeTruthy()
+  const origin = new URL(page.url()).origin
+  const created = await page.request.post('/api/v1/pages', {
+    headers: { Origin: origin },
+    data: { title: 'Winter appeal review', template: 'standard' },
+  })
+  expect(created.ok(), await created.text()).toBeTruthy()
+  const createdBody = (await created.json()) as { page: { id: string; draftRevision: number }; revision: number }
+  const ops = await page.request.post(`/api/v1/pages/${createdBody.page.id}/ops`, {
+    headers: { Origin: origin, 'Content-Type': 'application/json' },
+    data: {
+      baseRevision: createdBody.revision ?? createdBody.page.draftRevision,
+      ops: [{ op: 'add_block', block: { type: 'Quote', props: { text: 'A review sample', attribution: 'A volunteer' } } }],
+    },
+  })
+  expect(ops.ok(), await ops.text()).toBeTruthy()
   const submitted = await page.evaluate(async (pageId) => {
     const res = await fetch(`/api/v1/pages/${pageId}/submit`, {
       method: 'POST',
@@ -101,16 +112,16 @@ test('approvals list and review', async ({ page }) => {
       body: JSON.stringify({ note: 'Ready for the winter campaign.', overrideReason: 'The demo page has no donation form yet.' }),
     })
     return { ok: res.ok, status: res.status, body: await res.json() }
-  }, winter!.id)
+  }, createdBody.page.id)
   expect(submitted.ok, JSON.stringify(submitted.body)).toBeTruthy()
 
   await page.goto('/approvals')
   await expect(page.getByRole('heading', { name: 'Approvals' })).toBeVisible({ timeout: 20_000 })
-  await expect(page.getByRole('link', { name: 'Winter appeal' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Winter appeal review' })).toBeVisible()
   await page.screenshot({ path: shot('approvals.png'), fullPage: true })
 
-  await page.getByRole('link', { name: 'Winter appeal' }).click()
-  await expect(page.getByRole('heading', { name: /Review: Winter appeal/ })).toBeVisible({ timeout: 20_000 })
+  await page.getByRole('link', { name: 'Winter appeal review' }).click()
+  await expect(page.getByRole('heading', { name: /Review: Winter appeal review/ })).toBeVisible({ timeout: 20_000 })
   await expect(page.getByRole('button', { name: 'Approve and publish' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Send back' })).toBeVisible()
   await expect(page.getByText("Ready for the winter campaign.")).toBeVisible()
