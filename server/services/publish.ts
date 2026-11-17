@@ -3,7 +3,10 @@
 import { and, desc, eq, isNotNull, ne } from 'drizzle-orm'
 import { newId } from '../../shared/ids'
 import { can } from '../../shared/roles'
-import { brandPacks, pages, redirects, releases, reviews, siteParts, templates, type ReleaseManifest } from '../db/schema'
+import { brandPacks, pages, redirects, releases, reviews, siteParts, sites, templates, versions, type ReleaseManifest } from '../db/schema'
+import { aliasesFromRedirects, collectLinkedPageIds, pageIdByPath, pathAliases } from '../../shared/internal-links'
+import { migratePageDoc } from '../../shared/page'
+import { migrateSitePartDoc } from '../../shared/site-parts'
 import { audit } from './audit'
 import { inTx, iso, type ActingAs, type ServiceCtx } from './context'
 import { AppError, forbidden, notFound } from './errors'
@@ -39,7 +42,7 @@ export const noopReleaseWriter: ReleaseWriter = {
   switchCurrent() {},
 }
 
-export const EMPTY_MANIFEST: ReleaseManifest = { pages: {}, siteParts: {}, brandVersionId: null, theme: 'default', bundleId: 'dev' }
+export const EMPTY_MANIFEST: ReleaseManifest = { pages: {}, siteParts: {}, templates: {}, brandVersionId: null, theme: 'default', bundleId: 'dev' }
 
 export function currentRelease(ctx: ServiceCtx) {
   return ctx.db
@@ -72,6 +75,8 @@ export function createPublishHandler(writer: ReleaseWriter = noopReleaseWriter):
       let changedPageIds: string[] = []
       const changedSitePartIds: string[] = []
       const removedPaths: string[] = []
+      let purgeTags: string[] | null = null
+      const previousManifest = prev?.manifest ?? EMPTY_MANIFEST
 
       if (payload.reviewId) {
         review = requireReview(ctx, payload.reviewId)
@@ -80,8 +85,17 @@ export function createPublishHandler(writer: ReleaseWriter = noopReleaseWriter):
           const page = requirePage(ctx, review.targetId)
           const oldPath = manifest.pages[page.id]?.path
           if (oldPath && oldPath !== page.path) removedPaths.push(oldPath)
+          const nextTitle = pageTitleOf(ctx, review.versionId) ?? page.title
+          const identityChanged = pageIdentityChanged(ctx, previousManifest, page.id, { path: page.path, title: nextTitle })
           manifest.pages[page.id] = { versionId: review.versionId, path: page.path }
           changedPageIds = [page.id]
+          if (identityChanged) {
+            const inbound = pagesLinkingTo(ctx, previousManifest, page.id)
+            changedPageIds = uniqueIds([page.id, ...inbound.pageIds])
+            purgeTags = inbound.viaShell ? ['shell'] : changedPageIds.map((id) => `page-${id}`)
+          } else {
+            purgeTags = [`page-${page.id}`]
+          }
         } else if (review.targetType === 'site_part') {
           requireSitePart(ctx, review.targetId)
           manifest.siteParts[review.targetId] = review.versionId
@@ -99,17 +113,23 @@ export function createPublishHandler(writer: ReleaseWriter = noopReleaseWriter):
           requireTemplate(ctx, review.targetId)
           // Page-type rules apply to later page edits. Live HTML does not change.
           changedPageIds = []
+          purgeTags = []
         } else {
           throw new Error(`Publishing ${review.targetType} is not built yet.`)
         }
       } else if (payload.unpublishPageId) {
         const entry = manifest.pages[payload.unpublishPageId]
         if (entry) removedPaths.push(entry.path)
+        const inbound = pagesLinkingTo(ctx, previousManifest, payload.unpublishPageId)
         delete manifest.pages[payload.unpublishPageId]
-        changedPageIds = [payload.unpublishPageId]
+        changedPageIds = uniqueIds([payload.unpublishPageId, ...inbound.pageIds])
+        purgeTags = inbound.viaShell ? ['shell'] : uniqueIds([payload.unpublishPageId, ...inbound.pageIds]).map((id) => `page-${id}`)
       } else {
         throw new Error('Publish job has nothing to do.')
       }
+
+      stampTemplates(ctx, manifest, review?.targetType === 'template' ? { id: review.targetId, versionId: review.versionId } : undefined)
+      stampLinkedPageIds(ctx, manifest, previousManifest)
 
       ctx.db
         .insert(releases)
@@ -176,7 +196,7 @@ export function createPublishHandler(writer: ReleaseWriter = noopReleaseWriter):
           if (payload.redirectTo && page.publishedPath) addRedirect(ctx, page.publishedPath, payload.redirectTo, 'unpublish')
           audit(ctx, 'system', 'page.unpublished', { type: 'page', id: pageId }, { releaseId })
         }
-        enqueueJob(ctx, 'purge_cache', { tags: [`page-${pageId}`] })
+        enqueueJob(ctx, 'purge_cache', { tags: purgeTags ?? [`page-${pageId}`] })
       })
       // Maps were written during writeRelease; refresh so slug-change and unpublish redirects are included.
       try {
@@ -283,6 +303,16 @@ export async function rollbackSite(ctx: ServiceCtx, actor: ActingAs, targetRelea
         ctx.db.update(brandPacks).set({ publishedVersionId: versionId, workflowState: state, updatedAt: iso(ctx) }).where(eq(brandPacks.id, pack.id)).run()
       }
     }
+    if (target.manifest.templates) {
+      for (const row of ctx.db.select().from(templates).where(eq(templates.siteId, ctx.siteId)).all()) {
+        const versionId = target.manifest.templates[row.id] ?? null
+        if (versionId === row.publishedVersionId) continue
+        const settled = row.workflowState === 'published' || row.workflowState === 'unpublished' || row.workflowState === 'draft'
+        const state = settled ? (versionId ? 'published' as const : 'draft' as const) : row.workflowState
+        const label = versionId ? (pageTypeLabel(ctx, versionId) ?? row.label) : row.label
+        ctx.db.update(templates).set({ publishedVersionId: versionId, label, workflowState: state, updatedAt: iso(ctx) }).where(eq(templates.id, row.id)).run()
+      }
+    }
     audit(ctx, actor, 'site.rolled_back', { type: 'release', id: target.id }, { newReleaseId: id, reason })
     enqueueJob(ctx, 'purge_cache', { tags: ['shell'] })
     notify(ctx, usersWithRoles(ctx, ['approver', 'admin']), 'emergency_rollback', `The site was rolled back by an admin: ${reason}`, { type: 'release', id })
@@ -316,6 +346,8 @@ export async function rebuildPublishedSite(ctx: ServiceCtx, writer: ReleaseWrite
   }
   const pack = ctx.db.select().from(brandPacks).where(eq(brandPacks.siteId, ctx.siteId)).get()
   manifest.brandVersionId = pack?.publishedVersionId ?? null
+  stampTemplates(ctx, manifest)
+  stampLinkedPageIds(ctx, manifest, prev?.manifest)
   const releaseId = newId('release', ctx.now().getTime())
   const changedPageIds = Object.keys(manifest.pages)
   const createdBy = actor === 'system' ? 'system' : actor.id
@@ -347,3 +379,116 @@ export async function rebuildPublishedSite(ctx: ServiceCtx, writer: ReleaseWrite
   return { releaseId, pages: changedPageIds.length }
 }
 
+
+
+function uniqueIds(ids: string[]): string[] {
+  return [...new Set(ids)]
+}
+
+function siteOrigin(ctx: ServiceCtx): string | null {
+  const domain = ctx.db.select({ primaryDomain: sites.primaryDomain }).from(sites).where(eq(sites.id, ctx.siteId)).get()?.primaryDomain
+  return domain ? `https://${domain}` : null
+}
+
+function versionDoc(ctx: ServiceCtx, versionId: string): unknown {
+  return ctx.db.select({ doc: versions.doc }).from(versions).where(eq(versions.id, versionId)).get()?.doc
+}
+
+function pageTitleOf(ctx: ServiceCtx, versionId: string): string | null {
+  const raw = versionDoc(ctx, versionId)
+  if (!raw) return null
+  return migratePageDoc(raw, ctx.registry).title
+}
+
+function pageTypeLabel(ctx: ServiceCtx, versionId: string): string | null {
+  const raw = versionDoc(ctx, versionId)
+  if (!raw || typeof raw !== 'object' || !('label' in raw)) return null
+  const label = (raw as { label?: unknown }).label
+  return typeof label === 'string' ? label : null
+}
+
+function linkAliases(ctx: ServiceCtx, manifest: ReleaseManifest, previous?: ReleaseManifest | null): Map<string, string> {
+  const aliases = previous ? pathAliases(previous.pages, manifest.pages) : new Map<string, string>()
+  const rows = ctx.db.select({ fromPath: redirects.fromPath, toPath: redirects.toPath }).from(redirects).where(eq(redirects.siteId, ctx.siteId)).all()
+  for (const [from, id] of aliasesFromRedirects(rows, pageIdByPath(manifest.pages))) {
+    if (!aliases.has(from)) aliases.set(from, id)
+  }
+  return aliases
+}
+
+function stampLinkedPageIds(ctx: ServiceCtx, manifest: ReleaseManifest, previous?: ReleaseManifest | null) {
+  const pagesMap = pageIdByPath(manifest.pages)
+  const origin = siteOrigin(ctx)
+  const aliases = linkAliases(ctx, manifest, previous)
+  for (const entry of Object.values(manifest.pages)) {
+    const raw = versionDoc(ctx, entry.versionId)
+    entry.linkedPageIds = raw ? collectLinkedPageIds(migratePageDoc(raw, ctx.registry), pagesMap, origin, aliases) : []
+  }
+}
+
+function stampTemplates(ctx: ServiceCtx, manifest: ReleaseManifest, override?: { id: string; versionId: string }) {
+  const next: Record<string, string> = {}
+  for (const row of ctx.db.select().from(templates).where(eq(templates.siteId, ctx.siteId)).all()) {
+    if (row.publishedVersionId) next[row.id] = row.publishedVersionId
+  }
+  if (override) next[override.id] = override.versionId
+  manifest.templates = next
+}
+
+function shellLinkedPageIds(ctx: ServiceCtx, manifest: ReleaseManifest): Set<string> {
+  const pagesMap = pageIdByPath(manifest.pages)
+  const origin = siteOrigin(ctx)
+  const ids = new Set<string>()
+  const parts = ctx.db.select().from(siteParts).where(eq(siteParts.siteId, ctx.siteId)).all()
+  const loaded: { kind: string; key: string; doc: unknown }[] = []
+  for (const part of parts) {
+    const versionId = manifest.siteParts[part.id]
+    if (!versionId) continue
+    loaded.push({ kind: part.kind, key: part.key, doc: migrateSitePartDoc(part.kind, versionDoc(ctx, versionId)) })
+  }
+  const menus = Object.fromEntries(loaded.filter((p) => p.kind === 'menu').map((p) => [p.key, p.doc]))
+  const header = loaded.find((p) => p.kind === 'header')
+  const footer = loaded.find((p) => p.kind === 'footer')
+  const banner = loaded.find((p) => p.kind === 'banner')
+
+  const add = (doc: unknown) => {
+    for (const id of collectLinkedPageIds(doc, pagesMap, origin)) ids.add(id)
+  }
+  // The renderer uses the header's menu, or the "main" menu if there is no header.
+  const menuKey = (header?.doc as { menuKey?: string } | undefined)?.menuKey ?? 'main'
+  if (menus[menuKey]) add(menus[menuKey])
+  if (header) add(header.doc)
+  if (footer) {
+    add(footer.doc)
+    const key = (footer.doc as { legalMenuKey?: string | null } | null)?.legalMenuKey
+    if (key && menus[key]) add(menus[key])
+  }
+  if (banner && (banner.doc as { enabled?: boolean } | null)?.enabled) add(banner.doc)
+  return ids
+}
+
+/** Pages whose current (previous-release) HTML would change if this page's title, address or live state changed. */
+export function pagesLinkingTo(ctx: ServiceCtx, manifest: ReleaseManifest, targetId: string): { viaShell: boolean; pageIds: string[] } {
+  if (shellLinkedPageIds(ctx, manifest).has(targetId)) {
+    return { viaShell: true, pageIds: Object.keys(manifest.pages).filter((id) => id !== targetId) }
+  }
+  const pagesMap = pageIdByPath(manifest.pages)
+  const origin = siteOrigin(ctx)
+  const aliases = linkAliases(ctx, manifest)
+  const inbound: string[] = []
+  for (const [id, entry] of Object.entries(manifest.pages)) {
+    if (id === targetId) continue
+    const raw = versionDoc(ctx, entry.versionId)
+    const ids = raw ? collectLinkedPageIds(migratePageDoc(raw, ctx.registry), pagesMap, origin, aliases) : (entry.linkedPageIds ?? [])
+    if (ids.includes(targetId)) inbound.push(id)
+  }
+  return { viaShell: false, pageIds: inbound }
+}
+
+function pageIdentityChanged(ctx: ServiceCtx, previous: ReleaseManifest, pageId: string, next: { path: string; title: string }): boolean {
+  const prevEntry = previous.pages[pageId]
+  if (!prevEntry) return true
+  if (prevEntry.path !== next.path) return true
+  const prevTitle = pageTitleOf(ctx, prevEntry.versionId)
+  return prevTitle !== next.title
+}

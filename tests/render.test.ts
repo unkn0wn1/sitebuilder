@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { jobs, redirects, sites } from '../server/db/schema'
 import { createPurgeCacheHandler, setPurgeHttp } from '../server/services/cloudflare'
-import { applyPageOps, createPage } from '../server/services/pages'
+import { applyPageOps, createPage, getPage } from '../server/services/pages'
 import { createPublishHandler, currentRelease, unpublishPage } from '../server/services/publish'
 import { createFileReleaseWriter, readCurrentReleaseId } from '../server/services/release'
 import { approveReview, submitPage } from '../server/services/reviews'
@@ -143,6 +143,20 @@ describe('public-site renderer', () => {
     expect(rendered.csp).not.toContain('unsafe-inline')
     expect(rendered.html).toContain('youtube-nocookie.com/embed/dQw4w9wgGcQ')
   })
+
+  it('records ids of internal pages a CTA or path link points to', async () => {
+    const doc = emptyPageDoc('Home')
+    doc.blocks = [{ id: 'b_cta1', type: 'CallToAction', v: 1, props: { heading: 'Read more', button: { label: 'About us', href: '/about-us' }, tone: 'accent' } }]
+    const rendered = await renderPageHtml({
+      doc,
+      pageId: 'pg_home',
+      versionId: 'ver_1',
+      path: '/',
+      site: site({ pagesById: { pg_about: { path: '/about-us', title: 'About us' }, pg_home: { path: '/', title: 'Home' } } }),
+    })
+    expect(rendered.deps.linkedPageIds).toContain('pg_about')
+    expect(rendered.html).toContain('href="/about-us"')
+  })
 })
 
 async function publishStandard(s: ReturnType<typeof setup>, title: string, heading: string) {
@@ -201,6 +215,74 @@ describe('filesystem releases and Cloudflare purge', () => {
     expect(readFileSync(join(root, 'releases', release3, 'redirects.map'), 'utf8')).toContain('"/about-us"')
   })
 
+  it('re-renders live pages that link to a page when its address, title or live state changes', async () => {
+    const s = setup()
+    s.ctx.db.update(sites).set({ primaryDomain: 'example.org' }).where(eq(sites.id, s.ctx.siteId)).run()
+    const root = mkdtempSync(join(tmpdir(), 'sitebuilder-links-'))
+    const writer = createFileReleaseWriter(root, { keep: 10 })
+    const handlers = {
+      publish: createPublishHandler(writer),
+      send_email: { run: () => ({ skipped: true }) },
+      purge_cache: { run: () => ({ skipped: true }) },
+    }
+
+    const about = await publishStandard(s, 'About us', 'Who we are')
+    while (await runJobsOnce(s.ctx, handlers)) {}
+
+    const { page: home } = createPage(s.ctx, s.editor, { title: 'Home', template: 'standard', slug: 'home' })
+    applyPageOps(s.ctx, s.editor, home.id, 0, [
+      { op: 'add_block', block: { type: 'CallToAction', props: { heading: 'Learn more', button: { label: 'About us', href: '/about-us' }, tone: 'accent' } } },
+      { op: 'set_seo', description: 'Welcome' },
+    ])
+    const homeSub = submitPage(s.ctx, s.editor, home.id)
+    approveReview(s.ctx, s.approver, homeSub.reviewId, { versionId: homeSub.versionId })
+    while (await runJobsOnce(s.ctx, handlers)) {}
+
+    const afterHome = currentRelease(s.ctx)!
+    expect(afterHome.manifest.pages[home.id]?.linkedPageIds).toContain(about.page.id)
+    const homeFile = join(root, 'releases', afterHome.id, 'home', 'index.html')
+    expect(readFileSync(homeFile, 'utf8')).toContain('href="/about-us"')
+    const homeInode = statSync(homeFile).ino
+
+    applyPageOps(s.ctx, s.editor, about.page.id, getPage(s.ctx, about.page.id).revision, [{ op: 'set_meta', slug: 'who-we-are' }])
+    const moved = submitPage(s.ctx, s.editor, about.page.id)
+    approveReview(s.ctx, s.approver, moved.reviewId, { versionId: moved.versionId })
+    while (await runJobsOnce(s.ctx, handlers)) {}
+
+    const afterMove = currentRelease(s.ctx)!
+    const movedHome = join(root, 'releases', afterMove.id, 'home', 'index.html')
+    expect(readFileSync(movedHome, 'utf8')).toContain('href="/who-we-are"')
+    expect(readFileSync(movedHome, 'utf8')).not.toContain('href="/about-us"')
+    expect(statSync(movedHome).ino).not.toBe(homeInode)
+    expect(lastPurgeTags(s.ctx)).toEqual(expect.arrayContaining([`page-${about.page.id}`, `page-${home.id}`]))
+    expect(lastPurgeTags(s.ctx)).not.toContain('shell')
+
+    const inodeAfterMove = statSync(movedHome).ino
+    applyPageOps(s.ctx, s.editor, about.page.id, getPage(s.ctx, about.page.id).revision, [{ op: 'set_seo', description: 'A longer about page' }])
+    const bodyOnly = submitPage(s.ctx, s.editor, about.page.id)
+    approveReview(s.ctx, s.approver, bodyOnly.reviewId, { versionId: bodyOnly.versionId })
+    while (await runJobsOnce(s.ctx, handlers)) {}
+    const afterBody = currentRelease(s.ctx)!
+    expect(statSync(join(root, 'releases', afterBody.id, 'home', 'index.html')).ino).toBe(inodeAfterMove)
+    expect(lastPurgeTags(s.ctx)).toEqual([`page-${about.page.id}`])
+
+    applyPageOps(s.ctx, s.editor, about.page.id, getPage(s.ctx, about.page.id).revision, [{ op: 'set_meta', title: 'Our story' }])
+    const renamed = submitPage(s.ctx, s.editor, about.page.id)
+    approveReview(s.ctx, s.approver, renamed.reviewId, { versionId: renamed.versionId })
+    while (await runJobsOnce(s.ctx, handlers)) {}
+    const afterTitle = currentRelease(s.ctx)!
+    expect(statSync(join(root, 'releases', afterTitle.id, 'home', 'index.html')).ino).not.toBe(inodeAfterMove)
+    expect(lastPurgeTags(s.ctx)).toEqual(expect.arrayContaining([`page-${about.page.id}`, `page-${home.id}`]))
+
+    const inodeBeforeOff = statSync(join(root, 'releases', afterTitle.id, 'home', 'index.html')).ino
+    unpublishPage(s.ctx, s.admin, about.page.id, '/')
+    while (await runJobsOnce(s.ctx, handlers)) {}
+    const afterOff = currentRelease(s.ctx)!
+    // The stored link is still the old path (a redirect now covers it), but the page is rewritten and purged.
+    expect(statSync(join(root, 'releases', afterOff.id, 'home', 'index.html')).ino).not.toBe(inodeBeforeOff)
+    expect(lastPurgeTags(s.ctx)).toEqual(expect.arrayContaining([`page-${about.page.id}`, `page-${home.id}`]))
+  })
+
   it('skips a Cloudflare purge when the zone is not set, and purges tags when it is', async () => {
     const s = setup()
     const prevZone = process.env.SITEBUILDER_CLOUDFLARE_ZONE_ID
@@ -235,3 +317,9 @@ describe('filesystem releases and Cloudflare purge', () => {
     }
   })
 })
+
+function lastPurgeTags(ctx: { db: ReturnType<typeof setup>['ctx']['db'] }): string[] {
+  const rows = ctx.db.select().from(jobs).where(eq(jobs.kind, 'purge_cache')).all()
+  const row = rows.at(-1)
+  return ((row?.payload as { tags?: string[] } | undefined)?.tags) ?? []
+}

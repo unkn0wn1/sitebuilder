@@ -47,7 +47,10 @@ export function createFileReleaseWriter(root: string, opts: FileReleaseWriterOpt
     if (prev && existsSync(prev)) hardLinkCopy(prev, dest)
     else mkdirSync(dest, { recursive: true })
 
-    const site = loadSiteRenderContext(ctx, input.manifest)
+    const previous = input.previousReleaseId
+      ? ctx.db.select({ manifest: releases.manifest }).from(releases).where(eq(releases.id, input.previousReleaseId)).get()?.manifest
+      : null
+    const site = loadSiteRenderContext(ctx, input.manifest, previous)
     const deps = readExistingDeps(dest)
 
     for (const path of input.removedPaths) removePublishedPath(dest, path)

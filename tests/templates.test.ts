@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { AppError } from '../server/services/errors'
 import { runJobsOnce } from '../server/services/jobs'
 import { createPage } from '../server/services/pages'
-import { createPublishHandler } from '../server/services/publish'
+import { createPublishHandler, currentRelease, rollbackSite } from '../server/services/publish'
 import { approveReview } from '../server/services/reviews'
 import { createTemplateDraft, editTemplate, getTemplate, getTemplateRules, listTemplates, submitTemplate } from '../server/services/templates'
 import { setup } from './helpers'
@@ -60,5 +60,31 @@ describe('page types', () => {
     const listed = listTemplates(s.ctx).find((t) => t.key === 'briefing')
     expect(listed?.live).toBe(true)
     expect(getTemplate(s.ctx, created.id).template.workflowState).toBe('published')
+  })
+
+  it('stores page-type versions on the release and restores them on rollback', async () => {
+    const s = setup()
+    const campaign = listTemplates(s.ctx).find((t) => t.key === 'campaign')!
+    const originalRequired = getTemplateRules(s.ctx, 'campaign')!.requiredBlocks
+    const first = getTemplate(s.ctx, campaign.id)
+    editTemplate(s.ctx, s.admin, campaign.id, first.revision, { ...first.doc, requiredBlocks: ['Hero'] })
+    const sub = submitTemplate(s.ctx, s.admin, campaign.id)
+    approveReview(s.ctx, s.approver, sub.reviewId, { versionId: sub.versionId })
+    await runJobsOnce(s.ctx, handlers)
+    const firstRelease = currentRelease(s.ctx)!
+    expect(firstRelease.manifest.templates?.[campaign.id]).toBe(sub.versionId)
+    expect(getTemplateRules(s.ctx, 'campaign')?.requiredBlocks).toEqual(['Hero'])
+
+    const second = getTemplate(s.ctx, campaign.id)
+    editTemplate(s.ctx, s.admin, campaign.id, second.revision, { ...second.doc, requiredBlocks: ['Hero', 'DonationEmbed', 'RichText'] })
+    const sub2 = submitTemplate(s.ctx, s.admin, campaign.id)
+    approveReview(s.ctx, s.approver, sub2.reviewId, { versionId: sub2.versionId })
+    await runJobsOnce(s.ctx, handlers)
+    expect(getTemplateRules(s.ctx, 'campaign')?.requiredBlocks).toEqual(['Hero', 'DonationEmbed', 'RichText'])
+
+    await rollbackSite(s.ctx, s.admin, firstRelease.id, 'The campaign type was tightened by mistake')
+    expect(getTemplateRules(s.ctx, 'campaign')?.requiredBlocks).toEqual(['Hero'])
+    expect(currentRelease(s.ctx)?.manifest.templates?.[campaign.id]).toBe(sub.versionId)
+    expect(originalRequired).toEqual(['Hero', 'DonationEmbed'])
   })
 })

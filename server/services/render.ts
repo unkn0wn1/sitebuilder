@@ -22,10 +22,11 @@ import {
 import { BUNDLE_ID, EMBED_JS, THEME_CSS } from '../theme/default'
 import { migrateBrandDoc, validateBrandDoc, type BrandDoc } from '../../shared/brand'
 import { themeCssFromTokens } from '../../shared/theme-css'
-import { embeds, media, mediaCrops, pages, siteParts, sites, versions, type ReleaseManifest } from '../db/schema'
+import { embeds, media, mediaCrops, pages, redirects, siteParts, sites, versions, type ReleaseManifest } from '../db/schema'
 import type { ServiceCtx } from './context'
 import { widthsFor } from './media'
 import { readSettings, type SiteSettings } from '../../shared/settings'
+import { aliasesFromRedirects, pageIdByPath, pageIdForHref, pathForPageId } from '../../shared/internal-links'
 
 export { BUNDLE_ID, EMBED_JS, THEME_CSS }
 
@@ -94,6 +95,8 @@ export interface SiteRenderContext {
   themeCss?: string
   menus: Record<string, { id: string; doc: MenuDoc }>
   pagesById: Record<string, { path: string; title: string }>
+  /** Former paths of pages that have moved, so stored hrefs still resolve to the live address. */
+  pathAliases?: Map<string, string>
   media: Record<string, MediaCatalogEntry>
   embeds: Record<string, EmbedCatalogEntry>
 }
@@ -106,10 +109,22 @@ interface Collector {
   scriptSrcs: Set<string>
   frameSrcs: Set<string>
   needsEmbedJs: boolean
+  pageIdByPath: Map<string, string>
+  origin: string | null
+  aliases: Map<string, string>
 }
 
-function newCollector(): Collector {
-  return { media: new Set(), links: new Set(), linkedPageIds: new Set(), siteParts: new Set(), scriptSrcs: new Set(), frameSrcs: new Set(), needsEmbedJs: false }
+function newCollector(site: SiteRenderContext): Collector {
+  return { media: new Set(), links: new Set(), linkedPageIds: new Set(), siteParts: new Set(), scriptSrcs: new Set(), frameSrcs: new Set(), needsEmbedJs: false, pageIdByPath: pageIdByPath(site.pagesById), origin: site.origin, aliases: site.pathAliases ?? new Map() }
+}
+
+/** Record an internal target and return the href that should be written (the live path, if known). */
+function resolvedHref(href: string, bag: Collector): string {
+  bag.links.add(href)
+  const id = pageIdForHref(href, bag.pageIdByPath, bag.origin, bag.aliases)
+  if (!id) return href
+  bag.linkedPageIds.add(id)
+  return pathForPageId(bag.pageIdByPath, id) ?? href
 }
 
 export function escapeHtml(s: string): string {
@@ -133,8 +148,7 @@ function applyTitlePattern(pattern: string, page: string, site: string): string 
 
 export function resolveLink(target: LinkTarget, label: string, site: SiteRenderContext, bag: Collector): ResolvedLink {
   if (target.type === 'url') {
-    bag.links.add(target.url)
-    return { href: target.url, label }
+    return { href: resolvedHref(target.url, bag), label }
   }
   bag.linkedPageIds.add(target.pageId)
   const page = site.pagesById[target.pageId]
@@ -150,8 +164,7 @@ function textNodes(nodes: TextNode[] | undefined, bag: Collector): VNode[] {
       if (mark.type === 'bold') child = h('strong', [child])
       else if (mark.type === 'italic') child = h('em', [child])
       else if (mark.type === 'link') {
-        bag.links.add(mark.href)
-        child = h('a', { href: mark.href }, [child])
+        child = h('a', { href: resolvedHref(mark.href, bag) }, [child])
       }
     }
     return typeof child === 'string' ? h('span', child) : child
@@ -222,8 +235,7 @@ function gcd(a: number, b: number): number {
 
 function linkButton(link: { label: string; href: string } | undefined, bag: Collector, className = 'btn'): VNode | null {
   if (!link) return null
-  bag.links.add(link.href)
-  return h('a', { class: className, href: link.href }, link.label)
+  return h('a', { class: className, href: resolvedHref(link.href, bag) }, link.label)
 }
 
 function wrapSection(children: VNode | null | Array<VNode | null>, className = 'section'): VNode {
@@ -501,8 +513,7 @@ function renderFooter(site: SiteRenderContext, bag: Collector, footer: SiteRende
             'div',
             { class: 'footer-social' },
             doc.social.map((s) => {
-              bag.links.add(s.url)
-              return h('a', { href: s.url, rel: 'me noopener' }, s.network)
+              return h('a', { href: resolvedHref(s.url, bag), rel: 'me noopener' }, s.network)
             }),
           )
         : null,
@@ -600,7 +611,7 @@ export async function renderPageHtml(input: {
   path: string
   site: SiteRenderContext
 }): Promise<RenderedPage> {
-  const bag = newCollector()
+  const bag = newCollector(input.site)
   const { doc, site } = input
   const css = site.themeCss ?? THEME_CSS
   const app = createSSRApp(
@@ -675,7 +686,7 @@ function firstHeroPreload(block: StoredBlock, site: SiteRenderContext): string {
 }
 
 /** Load the site shell, live pages, media and embeds needed to render a release. */
-export function loadSiteRenderContext(ctx: ServiceCtx, manifest: ReleaseManifest): SiteRenderContext {
+export function loadSiteRenderContext(ctx: ServiceCtx, manifest: ReleaseManifest, previous?: ReleaseManifest | null): SiteRenderContext {
   const siteRow = ctx.db.select().from(sites).where(eq(sites.id, ctx.siteId)).get()!
   const settings = readSettings(siteRow.settings)
   const origin = siteRow.primaryDomain ? `https://${siteRow.primaryDomain}` : null
@@ -684,6 +695,7 @@ export function loadSiteRenderContext(ctx: ServiceCtx, manifest: ReleaseManifest
     const row = ctx.db.select({ title: pages.title, path: pages.path }).from(pages).where(eq(pages.id, id)).get()
     pagesById[id] = { path: entry.path, title: row?.title ?? entry.path }
   }
+  const pathAliases = pathAliasesFor(ctx, manifest, previous)
 
   const header = loadPart<HeaderDoc>(ctx, manifest, 'header')
   const footer = loadPart<FooterDoc>(ctx, manifest, 'footer')
@@ -747,6 +759,7 @@ export function loadSiteRenderContext(ctx: ServiceCtx, manifest: ReleaseManifest
     themeCss,
     menus,
     pagesById,
+    pathAliases,
     media: mediaCatalog,
     embeds: embedCatalog,
   }
@@ -820,3 +833,20 @@ export function redirectsMap(rows: { fromPath: string; toPath: string; statusCod
   return { uri: nginxMapLines(dest), status: nginxMapLines(status) }
 }
 
+
+function pathAliasesFor(ctx: ServiceCtx, manifest: ReleaseManifest, previous?: ReleaseManifest | null): Map<string, string> {
+  const aliases = new Map<string, string>()
+  const liveByPath = new Map(Object.entries(manifest.pages).map(([id, entry]) => [entry.path, id]))
+  if (previous) {
+    for (const [id, prev] of Object.entries(previous.pages)) {
+      if (manifest.pages[id] && prev.path !== manifest.pages[id]!.path) aliases.set(prev.path, id)
+    }
+  }
+  for (const [from, id] of aliasesFromRedirects(
+    ctx.db.select({ fromPath: redirects.fromPath, toPath: redirects.toPath }).from(redirects).where(eq(redirects.siteId, ctx.siteId)).all(),
+    liveByPath,
+  )) {
+    if (!aliases.has(from)) aliases.set(from, id)
+  }
+  return aliases
+}

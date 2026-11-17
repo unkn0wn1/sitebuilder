@@ -264,9 +264,11 @@ export const redirects = sqliteTable(
 )
 
 export interface ReleaseManifest {
-  pages: Record<string, { versionId: string; path: string }>
+  pages: Record<string, { versionId: string; path: string; linkedPageIds?: string[] }>
   siteParts: Record<string, string>
   brandVersionId: string | null
+  /** Live page-type versions. Missing on releases made before this field existed. */
+  templates?: Record<string, string>
   theme: string
   bundleId: string
 }

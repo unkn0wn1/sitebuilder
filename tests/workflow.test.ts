@@ -71,7 +71,7 @@ describe('submit, approve, publish', () => {
     const p = getPage(s.ctx, page.id).page
     expect(p.workflowState).toBe('published')
     expect(p.publishedVersionId).toBe(sub.versionId)
-    expect(currentRelease(s.ctx)?.manifest.pages[page.id]).toEqual({ versionId: sub.versionId, path: '/winter-appeal' })
+    expect(currentRelease(s.ctx)?.manifest.pages[page.id]).toMatchObject({ versionId: sub.versionId, path: '/winter-appeal' })
     const kinds = s.ctx.db.select().from(notifications).all().map((n) => n.kind)
     expect(kinds).toContain('review_requested')
     expect(kinds).toContain('published')
