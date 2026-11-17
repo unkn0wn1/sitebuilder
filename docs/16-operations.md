@@ -9,8 +9,10 @@
   - `nginx`: serves `current/` and media to Cloudflare,
   - volumes: `data/` (SQLite database), `media/` (originals and renditions), `releases/` (release folders and the `current` symlink),
   - an environment file with `SITEBUILDER_SECRET_KEY`, the builder origin and the Cloudflare Access audience tag. Google Workspace mail is connected in the setup wizard or Settings, not with SMTP host settings.
-- An install script creates the environment file and secret key, checks the Cloudflare setup (zone, token, Access, origin lock), and starts the containers.
-- A plain systemd install is documented for people who prefer it, but is not the tested path.
+- An install script (`deploy/install.sh --dir /srv/sitebuilder`) creates the data, media and site folders, writes an environment file and a secret key, then prints the `docker compose` command to build and start the containers. Fill in the Cloudflare Access audience and zone id in `.env` before starting. The public hostname and the builder hostname share the nginx container; Access should be enabled only on the builder hostname.
+- Back up `SITEBUILDER_SECRET_KEY` separately, at install. It is not included in site backups.
+- A plain systemd install is documented in `deploy/systemd.md` for people who prefer it, but is not the tested path.
+
 
 ## Background jobs
 
@@ -55,8 +57,9 @@ Outbound email is needed for invites, password resets and approvals, so it is pa
 - **The secret key is not in the backup.** It is backed up once, separately, at install (the installer prints instructions). See [15-security.md](15-security.md#secrets).
 - **When:** nightly as a `backup` job, kept 14 nightly and 8 weekly copies.
 - **Where:** off-site, to any S3-compatible bucket (for example Cloudflare R2 or Backblaze B2). Encrypted before upload.
-- **Restore:** a documented command that downloads a backup, restores the database and originals, regenerates renditions, recompiles the render bundle and re-renders the whole site. Tested in CI on every release, and the docs ask operators to do a test restore twice a year.
-- **Export** (Settings > Backups, for "own your site"): one archive with all content as JSON (pages, versions, site parts, templates, brand, media metadata) plus media originals. The export format has its own version number and is documented.
+- **Restore:** stop the builder, then `npx tsx scripts/restore.ts --file path.sbk` (or `--name` to fetch from the configured store). The command restores the database and originals, remakes image renditions, and re-renders the whole site into a new release. Operators should do a test restore twice a year. The secret key must already be in the environment.
+- **On demand:** an operator or admin can start a backup with `POST /api/v1/backups`. `GET /api/v1/backups` lists recent jobs and stored archives.
+- **Export** (Settings > Backups, for "own your site"): still to come. The backup archive is already enough to restore this install; a portable JSON export will follow.
 
 ## Monitoring
 

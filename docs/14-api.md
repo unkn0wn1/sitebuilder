@@ -139,6 +139,7 @@ Tools run inside the server. They call the same services as the routes above, so
 | `GET /notifications` | Signed in | Your latest 50 notifications |
 | `GET /health` | Anyone | Liveness (no details) |
 | `GET /system` | Operator | Version, disk, last publish, last backup, job queue |
+| `GET /backups`, `POST /backups` | Operator or admin | List recent backup jobs and stored archives, or queue a backup now |
 
 ## Operations format
 

@@ -10,7 +10,7 @@ Staff describe the page they want to a chat agent. The agent asks a few question
 
 ## Status
 
-**Pre-alpha.** The v1 design is written up in [`docs/`](docs/README.md), with decisions in [`docs/decisions/`](docs/decisions/README.md). Milestone M1 is in: the backend, the page-builder AI tools (no model calls yet), and the two Phase 1 spikes. There is no production editor GUI yet, no AI model calls and no production publish renderer (publishing records releases but does not write HTML yet). See the [roadmap](docs/09-roadmap.md).
+**Pre-alpha.** The v1 design is written up in [`docs/`](docs/README.md), with decisions in [`docs/decisions/`](docs/decisions/README.md). Milestone 1 is in, and milestone 2 has Google Workspace mail, the publish renderer, a Docker Compose install and backup/restore. There is no production editor GUI yet and no AI model calls. See the [roadmap](docs/09-roadmap.md).
 
 The repo is private for now. The intention is to open source it once the design settles. The licence is still to be decided (see [open questions](docs/open-questions.md)), so there is no LICENSE file yet.
 
@@ -46,7 +46,8 @@ server/services/  Business logic: auth, pages and ops, reviews, publish, jobs, A
 server/db/        Drizzle schema, SQL migrations, migration runner
 server/plugins/   Start-up: Access guard, database, job worker
 shared/           Code shared by app and server: block registry, page model, ops, checks, roles
-scripts/          Seed script
+scripts/          Seed, install and restore scripts
+deploy/           Docker Compose install, nginx origin config
 spikes/           Phase 1 prototypes (sample render, editor base). Not the production app
 tests/            Unit tests (vitest)
 docs/             Architecture and design docs, plus decision records
@@ -57,6 +58,8 @@ See [docs/02-architecture.md](docs/02-architecture.md).
 ## Getting started
 
 Needs Node 22 or newer.
+
+Production installs use Docker Compose (see [`deploy/install.sh`](deploy/install.sh) and [operations](docs/16-operations.md#install)).
 
 ```bash
 npm install
@@ -90,6 +93,13 @@ Server settings (environment variables, none are committed):
 | `SITEBUILDER_ORIGIN` | The builder's public origin, for the CSRF check, if the proxy headers are not reliable. |
 | `SITEBUILDER_WORKER` | Set to `0` to stop the in-process job worker. |
 | `SITEBUILDER_INSECURE_COOKIES` | Set to `1` to allow session cookies over plain HTTP in production (local testing only). |
+| `SITEBUILDER_BACKUP_DIR` | Local folder for backup archives (tests and a last-resort dev path). |
+| `SITEBUILDER_BACKUP_S3_ENDPOINT` | S3-compatible endpoint for off-site backups (R2, B2, AWS S3). |
+| `SITEBUILDER_BACKUP_S3_BUCKET` | Backup bucket. |
+| `SITEBUILDER_BACKUP_S3_REGION` | Backup region (use `auto` for R2). |
+| `SITEBUILDER_BACKUP_S3_ACCESS_KEY_ID` | Backup access key. |
+| `SITEBUILDER_BACKUP_S3_SECRET_ACCESS_KEY` | Backup secret key. |
+| `SITEBUILDER_BACKUP_S3_PREFIX` | Optional key prefix inside the bucket. |
 
 ## Docs
 
