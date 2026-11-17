@@ -1,8 +1,7 @@
-// AI sessions and the server side of the page builder tools. No model calls here: the harness
-// (Phase 4) will call runTool for each tool call the model makes. Every call goes through
+// AI sessions and the server side of the page builder tools. Every call goes through
 // checkToolCall (task, role, owner, bound target) and then the same services as the GUI.
-// See docs/12-ai-harness.md#task-scoped-tools.
-import { and, eq, isNull, like } from 'drizzle-orm'
+// The model loop lives in ai-loop.ts. See docs/12-ai-harness.md#task-scoped-tools.
+import { and, asc, eq, gte, isNull, like, sql } from 'drizzle-orm'
 import { checkToolCall, canStartTask, TASKS, type TaskType } from '../../shared/ai-tasks'
 import { runChecks } from '../../shared/checks'
 import { ratioFromSize } from '../../shared/crop'
@@ -36,6 +35,13 @@ export function startAiSession(ctx: ServiceCtx, actor: ActingAs, input: { taskTy
   } else if (!targetId) {
     throw new AppError('validation_failed', 'Say which brand pack or theme.', [{ path: 'targetId', message: 'Needed.' }])
   }
+  const existing = ctx.db
+    .select()
+    .from(aiSessions)
+    .where(and(eq(aiSessions.siteId, ctx.siteId), eq(aiSessions.userId, actor.id), eq(aiSessions.taskType, input.taskType), eq(aiSessions.targetId, targetId!), eq(aiSessions.state, 'active')))
+    .get()
+  if (existing) return existing
+
   const session: AiSession = {
     id: newId('aiSession', ctx.now().getTime()),
     siteId: ctx.siteId,
@@ -60,6 +66,53 @@ export function getAiSession(ctx: ServiceCtx, actor: ActingAs, id: string): AiSe
   const s = ctx.db.select().from(aiSessions).where(and(eq(aiSessions.id, id), eq(aiSessions.siteId, ctx.siteId))).get()
   if (!s || s.userId !== actor.id) throw notFound('That assistant session')
   return s
+}
+
+export function findActiveAiSession(ctx: ServiceCtx, actor: ActingAs, taskType: TaskType, targetId: string): AiSession | null {
+  return (
+    ctx.db
+      .select()
+      .from(aiSessions)
+      .where(and(eq(aiSessions.siteId, ctx.siteId), eq(aiSessions.userId, actor.id), eq(aiSessions.taskType, taskType), eq(aiSessions.targetId, targetId), eq(aiSessions.state, 'active')))
+      .get() ?? null
+  )
+}
+
+export function listAiMessages(ctx: ServiceCtx, sessionId: string) {
+  return ctx.db.select().from(aiMessages).where(eq(aiMessages.sessionId, sessionId)).orderBy(asc(aiMessages.createdAt)).all()
+}
+
+export function appendAiMessage(ctx: ServiceCtx, sessionId: string, role: 'user' | 'assistant' | 'tool', content: Record<string, unknown>) {
+  const id = newId('aiMessage', ctx.now().getTime())
+  ctx.db.insert(aiMessages).values({ id, siteId: ctx.siteId, sessionId, role, content, createdAt: iso(ctx) }).run()
+  return id
+}
+
+export function addAiUsage(ctx: ServiceCtx, sessionId: string, tokensIn: number, tokensOut: number, costMicros: number, model?: string) {
+  const session = ctx.db.select().from(aiSessions).where(eq(aiSessions.id, sessionId)).get()
+  if (!session) return
+  ctx.db
+    .update(aiSessions)
+    .set({
+      tokensIn: session.tokensIn + tokensIn,
+      tokensOut: session.tokensOut + tokensOut,
+      costMicros: session.costMicros + costMicros,
+      ...(model ? { model } : {}),
+    })
+    .where(eq(aiSessions.id, sessionId))
+    .run()
+}
+
+/** Sum of costMicros for sessions created in the current UTC month. */
+export function monthCostMicros(ctx: ServiceCtx): number {
+  const now = ctx.now()
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()
+  const row = ctx.db
+    .select({ n: sql<number>`coalesce(sum(${aiSessions.costMicros}), 0)` })
+    .from(aiSessions)
+    .where(and(eq(aiSessions.siteId, ctx.siteId), gte(aiSessions.createdAt, start)))
+    .get()
+  return Number(row?.n ?? 0)
 }
 
 const PAGE_OPS = new Set(['add_block', 'update_props', 'move_block', 'remove_block', 'set_seo', 'set_meta'])

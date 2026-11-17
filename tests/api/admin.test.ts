@@ -112,9 +112,21 @@ describe('media over HTTP', () => {
 
 describe('assistant sessions over HTTP', () => {
   it('starts, says the model is not on yet, and cancels', async () => {
+    const status = await editor.get('/ai/status')
+    expect(status.status).toBe(200)
+    expect(status.body.enabled).toBe(false)
+    expect(status.body.available).toBe(false)
+    expect(status.body.reason).toBe('off')
+    expect(status.body.message).toMatch(/isn't switched on yet/)
+
     const page = (await editor.post('/pages', { title: 'News', template: 'standard' })).body.page
     const s = await editor.post('/ai/sessions', { taskType: 'page_edit', targetId: page.id })
     expect(s.status).toBe(200)
+    const again = await editor.post('/ai/sessions', { taskType: 'page_edit', targetId: page.id })
+    expect(again.body.session.id).toBe(s.body.session.id)
+    const history = await editor.get(`/ai/sessions/${s.body.session.id}`)
+    expect(history.status).toBe(200)
+    expect(history.body.messages).toEqual([])
     const m = await editor.post(`/ai/sessions/${s.body.session.id}/messages`, { text: 'hello' })
     expect(m.status).toBe(503)
     expect(m.body.error.code).toBe('ai_unavailable')

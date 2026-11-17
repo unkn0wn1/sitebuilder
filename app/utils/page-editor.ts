@@ -296,6 +296,17 @@ export class PageEditor {
     this.persist(true)
   }
 
+  /** Adopt a fresh document from the server (after the assistant changes the draft). */
+  replaceFromServer(input: { doc: PageDoc; revision: number; meta?: PageMeta; path?: string; title?: string; state?: WorkflowState }) {
+    this.doc = input.doc
+    this.revision = input.revision
+    if (input.meta) this.meta = input.meta
+    if (input.path) this.path = input.path
+    if (input.title) this.title = input.title
+    if (input.state) this.state = input.state
+    this.reselect()
+  }
+
   dispose() {
     if (this.timer) clearTimeout(this.timer)
   }

@@ -22,7 +22,31 @@ export const siteSettingsSchema = z
     allowedEmbedProviders: z.array(z.enum(EMBED_PROVIDER_KEYS)).optional(),
     tracking: trackingSchema.default({ ga4: null, gtm: null, plausible: null, cookiebot: null }),
     seo: z.object({ defaultSocialImage: z.string().max(64).nullable().default(null), allowIndexing: z.boolean().default(true) }).strict().default({ defaultSocialImage: null, allowIndexing: true }),
-    ai: z.object({ enabled: z.boolean().default(false), monthlyCapPence: z.number().int().min(0).max(1_000_000).default(2000) }).strict().default({ enabled: false, monthlyCapPence: 2000 }),
+    ai: z
+      .object({
+        enabled: z.boolean().default(false),
+        /** openai, xai, anthropic or custom — all talk the OpenAI-compatible chat API. */
+        provider: z.enum(['openai', 'xai', 'anthropic', 'custom']).default('xai'),
+        /** Override the provider's default base URL (required for custom). */
+        baseUrl: z.string().trim().url().max(300).nullable().default(null),
+        model: z.string().trim().min(1).max(120).default('grok-4'),
+        /** Optional cheaper model for small jobs such as alt text. */
+        smallModel: z.string().trim().min(1).max(120).nullable().default(null),
+        monthlyCapPence: z.number().int().min(0).max(1_000_000).default(2000),
+        sessionCapPence: z.number().int().min(0).max(1_000_000).default(200),
+        requestCapPence: z.number().int().min(0).max(1_000_000).default(50),
+      })
+      .strict()
+      .default({
+        enabled: false,
+        provider: 'xai',
+        baseUrl: null,
+        model: 'grok-4',
+        smallModel: null,
+        monthlyCapPence: 2000,
+        sessionCapPence: 200,
+        requestCapPence: 50,
+      }),
     mail: z
       .object({
         from: z.string().trim().toLowerCase().max(254).nullable().default(null),
@@ -47,7 +71,20 @@ export const settingsPatchSchema = z
     allowedEmbedProviders: z.array(z.enum(EMBED_PROVIDER_KEYS)).optional(),
     tracking: trackingSchema.partial().optional(),
     seo: z.object({ defaultSocialImage: z.string().max(64).nullable(), allowIndexing: z.boolean() }).partial().strict().optional(),
-    ai: z.object({ enabled: z.boolean(), monthlyCapPence: z.number().int().min(0).max(1_000_000) }).partial().strict().optional(),
+    ai: z
+      .object({
+        enabled: z.boolean(),
+        provider: z.enum(['openai', 'xai', 'anthropic', 'custom']),
+        baseUrl: z.string().trim().url().max(300).nullable(),
+        model: z.string().trim().min(1).max(120),
+        smallModel: z.string().trim().min(1).max(120).nullable(),
+        monthlyCapPence: z.number().int().min(0).max(1_000_000),
+        sessionCapPence: z.number().int().min(0).max(1_000_000),
+        requestCapPence: z.number().int().min(0).max(1_000_000),
+      })
+      .partial()
+      .strict()
+      .optional(),
     mail: z
       .object({
         from: z

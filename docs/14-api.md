@@ -116,10 +116,11 @@ Same pattern as pages: `GET /site-parts`, `GET /site-parts/:id`, `GET /site-part
 
 | Method and path | Who | Does |
 | --- | --- | --- |
-| `POST /ai/sessions` | By task type and role | Start a task: `{ taskType, targetId }`. The server binds the session to that one target |
-| `GET /ai/sessions/:id` | Session owner | Messages and state |
-| `POST /ai/sessions/:id/messages` | Session owner | Send a message. Streams progress events (server-sent events): text, tool started, tool result, needs you, finished, stopped, error |
-| `POST /ai/sessions/:id/cancel` | Session owner | Stop at the next step |
+| `GET /ai/status` | Signed in | Whether the assistant is on and available, why not if it isn't, and the current caps |
+| `POST /ai/sessions` | By task type and role | Start a task: `{ taskType, targetId }`. Reuses the caller's active session for the same task and target |
+| `GET /ai/sessions/:id` | Session owner | Session and messages |
+| `POST /ai/sessions/:id/messages` | Session owner | Send `{ text }`. Streams progress events (server-sent events): text, tool started, tool result, needs you, finished, error |
+| `POST /ai/sessions/:id/cancel` | Session owner | Stop the current turn at the next step. `{ endSession: false }` leaves the session open; the default ends it |
 | `GET /memory`, `POST /memory`, `DELETE /memory/:id` | Site memory: admins edit, all read. User memory: own | Memory entries |
 | `POST /memory/:id/accept` | Owner (user memory), Admin (site memory) | Save an entry the assistant proposed |
 
@@ -129,7 +130,7 @@ Tools run inside the server. They call the same services as the routes above, so
 
 | Method and path | Who | Does |
 | --- | --- | --- |
-| `GET /settings`, `PATCH /settings` | Admin | Site settings, including whether Google Workspace mail is connected |
+| `GET /settings`, `PATCH /settings` | Admin | Site settings, including mail and the assistant (provider, model, monthly/session/request caps in pence) |
 | `PUT /settings/secrets/:name` | Admin or Operator | Write-only: AI key, Cloudflare token, Google OAuth client secret. Never readable afterwards. Gmail tokens cannot be set this way |
 | `POST /settings/mail/google/start` | Admin | Returns the Google OAuth URL to connect a Workspace account |
 | `GET /settings/mail/google/callback` | OAuth redirect | Stores the encrypted tokens and redirects to Settings |

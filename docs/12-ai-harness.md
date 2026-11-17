@@ -153,7 +153,7 @@ A **fixed, typed tool set** mapped one to one onto the CMS API. Each tool has a 
 
 These are the page builder tools. Other task types (template, brand and design) have their own small sets; see [Task-scoped tools](#task-scoped-tools). A session only ever gets the set for its task, bound to its target.
 
-As of 17 November 2026 the page builder tools are implemented as server functions, including `create_draft`, `crop_media` (proposes a crop; a person still has to approve it), `request_upload` and `preview_screenshot`. `preview_screenshot` returns a schematic wireframe until the real renderer exists. There are no model calls yet.
+As of 17 November 2026 the page builder tools, the model loop and the Assistant tab are in. The site brings its own key (encrypted as `ai_api_key`) and talks to an OpenAI-compatible chat API, so OpenAI, Anthropic, xAI (the default) or a custom base URL can be plugged in. Per-site monthly, session and request cost caps apply; sessions stay bound to their task and target; a forced self-check (`preview_screenshot` and `run_checks`) runs after mutations; the Assistant tab streams SSE events. Tests use a mock provider and make no paid calls. `preview_screenshot` still returns a schematic wireframe until the real renderer is used for previews. Settings > AI is still a placeholder — caps, provider, model and the key are set through the settings and secrets APIs.
 
 
 **Never:** a publish tool, code execution, arbitrary HTML, CSS or script, arbitrary web fetch (apart from the user-given reference URL feature, when enabled), email, or file system access.

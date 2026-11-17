@@ -10,6 +10,8 @@ export interface ServiceCtx {
   now: () => Date
   /** Optional folder for generated preview images (and tests). */
   filesDir?: string
+  /** Tests inject a mock provider. Production resolves one from settings and the encrypted key. */
+  aiProvider?: import('./ai-provider').ModelProvider
 }
 
 /** A person, optionally acting through an AI session they own. */

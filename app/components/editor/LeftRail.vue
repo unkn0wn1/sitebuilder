@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { blockCatalog, blockLabel } from '../../utils/block-fields'
 import type { LeftTab, PageEditor } from '../../utils/page-editor'
+import type { useAssistant } from '../../composables/useAssistant'
 
-const props = defineProps<{ editor: PageEditor }>()
+const props = defineProps<{ editor: PageEditor; assistant: ReturnType<typeof useAssistant> }>()
 
 const tabs: { id: LeftTab; label: string }[] = [
   { id: 'assistant', label: 'Assistant' },
@@ -53,18 +54,8 @@ function onOutlineKey(event: KeyboardEvent, id: string, index: number) {
     </div>
 
     <div v-if="!editor.railCollapsed" class="min-h-0 flex-1 overflow-y-auto p-3">
-      <div v-if="editor.leftTab === 'assistant'" class="flex h-full flex-col">
-        <p class="mb-3 text-sm text-gray-600">The assistant can help you write and change this page. A model isn't connected yet, so you can still edit by hand.</p>
-        <p class="mb-2 text-sm font-medium text-gray-800">Suggested prompts</p>
-        <ul class="m-0 mb-4 list-none space-y-2 p-0">
-          <li class="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-700">Shorten the hero heading</li>
-          <li class="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-700">Add a quote from a volunteer</li>
-          <li class="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-700">Draft a call to action</li>
-        </ul>
-        <div class="mt-auto">
-          <FwbTextarea placeholder="Ask the assistant…" disabled />
-          <p class="mt-2 text-xs text-gray-500">The assistant isn't available right now. Everything else works as normal.</p>
-        </div>
+      <div v-if="editor.leftTab === 'assistant'" class="flex h-full min-h-0 flex-col">
+        <AssistantPanel :assistant="assistant" />
       </div>
 
       <div v-else-if="editor.leftTab === 'add'">

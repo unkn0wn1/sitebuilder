@@ -5,6 +5,8 @@ import type { Device, PageEditor } from '../../utils/page-editor'
 const props = defineProps<{ editor: PageEditor }>()
 const emit = defineEmits<{ submitted: [] }>()
 
+const assistant = useAssistant(() => props.editor)
+
 const submitting = ref(false)
 const submitError = ref('')
 
@@ -51,6 +53,7 @@ onMounted(() => {
   window.addEventListener('online', onOnline)
   window.addEventListener('offline', onOffline)
   if (typeof navigator !== 'undefined' && !navigator.onLine) props.editor.setOnline(false)
+  void assistant.refreshStatus()
 })
 
 onBeforeUnmount(() => {
@@ -108,7 +111,7 @@ async function submit() {
     </div>
     <EditorConflictBanner v-if="editor.conflict" :editor="editor" />
     <div class="flex min-h-0 flex-1">
-      <EditorLeftRail :editor="editor" />
+      <EditorLeftRail :editor="editor" :assistant="assistant" />
       <EditorCanvas :editor="editor" />
       <EditorInspectorPanel :editor="editor" />
     </div>
