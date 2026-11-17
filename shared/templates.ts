@@ -48,3 +48,22 @@ export function templateChecks(rules: TemplateRules): { blocking: FieldIssue[]; 
   if (!rules.startingBlocks.length) warnings.push({ path: 'startingBlocks', message: 'New pages of this type will start empty. You can add starting sections if you want.' })
   return { blocking, warnings }
 }
+
+/** Block types added after the first starter library shipped. Existing templates that already allowed the original set gain these on read. */
+export const NEW_LIBRARY_BLOCKS = ['ImpactTiers', 'DonationProgress', 'MatchBanner', 'StoryBeforeAfter', 'TrustStrip'] as const
+
+const PREVIOUS_ALL = ['Hero', 'VideoHero', 'RichText', 'TextAndImage', 'Image', 'Gallery', 'Quote', 'Stats', 'CardGrid', 'CallToAction', 'FAQ', 'DonationEmbed', 'Embed']
+const PREVIOUS_STORY = ['Hero', 'VideoHero', 'RichText', 'TextAndImage', 'Image', 'Gallery', 'Quote', 'CallToAction', 'DonationEmbed']
+
+/** Widen stored template rules so upgrades can add new sections without rewriting sealed versions. */
+export function withLibraryBlockUpdates(rules: TemplateRules): TemplateRules {
+  const have = new Set(rules.allowedBlocks)
+  const add: string[] = []
+  if (PREVIOUS_ALL.every((type) => have.has(type))) {
+    for (const type of NEW_LIBRARY_BLOCKS) if (!have.has(type)) add.push(type)
+  } else if (PREVIOUS_STORY.every((type) => have.has(type))) {
+    for (const type of ['StoryBeforeAfter', 'TrustStrip'] as const) if (!have.has(type)) add.push(type)
+  }
+  if (!add.length) return rules
+  return { ...rules, allowedBlocks: [...rules.allowedBlocks, ...add] }
+}

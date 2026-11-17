@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { defineBlock, text } from '../shared/blocks/define'
 import { createDefaultRegistry, createRegistry } from '../shared/blocks/registry'
 import { STARTER_BLOCKS, VideoHero } from '../shared/blocks/library'
-import { checkTemplateRules } from '../shared/templates'
+import { checkTemplateRules, withLibraryBlockUpdates } from '../shared/templates'
 import { migratePageDoc, PageMigrationError } from '../shared/page'
 
 describe('block registry', () => {
@@ -58,5 +58,27 @@ describe('block registry', () => {
     expect(checkTemplateRules(['VideoHero'], rules, { enforceRequired: true })).toEqual([])
     expect(checkTemplateRules(['RichText'], rules, { enforceRequired: true })[0]?.message).toMatch(/needs a "Hero"/)
     expect(VideoHero.sample.video).toBeTruthy()
+  })
+})
+
+describe('template library updates', () => {
+  it('adds the new campaign blocks to older broad and story templates', () => {
+    const broad = withLibraryBlockUpdates({
+      schemaVersion: 1,
+      label: 'Standard',
+      allowedBlocks: ['Hero', 'VideoHero', 'RichText', 'TextAndImage', 'Image', 'Gallery', 'Quote', 'Stats', 'CardGrid', 'CallToAction', 'FAQ', 'DonationEmbed', 'Embed'],
+      requiredBlocks: [],
+      startingBlocks: [],
+    })
+    expect(broad.allowedBlocks).toEqual(expect.arrayContaining(['ImpactTiers', 'DonationProgress', 'MatchBanner', 'StoryBeforeAfter', 'TrustStrip']))
+    const story = withLibraryBlockUpdates({
+      schemaVersion: 1,
+      label: 'Story',
+      allowedBlocks: ['Hero', 'VideoHero', 'RichText', 'TextAndImage', 'Image', 'Gallery', 'Quote', 'CallToAction', 'DonationEmbed'],
+      requiredBlocks: ['RichText'],
+      startingBlocks: [],
+    })
+    expect(story.allowedBlocks).toEqual(expect.arrayContaining(['StoryBeforeAfter', 'TrustStrip']))
+    expect(story.allowedBlocks).not.toContain('ImpactTiers')
   })
 })

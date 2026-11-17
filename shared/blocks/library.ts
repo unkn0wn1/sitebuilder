@@ -2,6 +2,8 @@
 // Sample media and embed ids are fixed placeholders used only by tests and seeds.
 import { z } from 'zod'
 import { richTextDoc, richTextFromParagraphs } from '../richtext'
+import { safeHref } from '../richtext'
+import { sanitizeBadgeHtml } from '../badge-html'
 import { defineBlock, embedId, imageRef, linkRef, mediaId, text, tone } from './define'
 
 export const SAMPLE_MEDIA_ID = 'med_00000000000000000000000001'
@@ -9,6 +11,17 @@ export const SAMPLE_VIDEO_ID = 'med_00000000000000000000000002'
 export const SAMPLE_EMBED_ID = 'emb_00000000000000000000000001'
 
 const sampleImage = { media: SAMPLE_MEDIA_ID, alt: 'A rescued puppy wrapped in a blanket' }
+
+
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: 'Use a date like 2026-12-01.' })
+
+const badgeHtml = z
+  .string()
+  .trim()
+  .max(4000, { message: 'Keep the badge snippet under 4,000 characters.' })
+  .refine((value) => value.length === 0 || sanitizeBadgeHtml(value).html.length > 0, {
+    message: 'This badge snippet could not be used. Use a logo, or a script from a known organisation such as Charity Navigator, Candid or TripAdvisor.',
+  })
 
 export const Hero = defineBlock({
   type: 'Hero',
@@ -196,4 +209,177 @@ export const Embed = defineBlock({
   sample: { embed: SAMPLE_EMBED_ID, title: 'Volunteer sign-up form' },
 })
 
-export const STARTER_BLOCKS = [Hero, VideoHero, RichText, TextAndImage, Image, Gallery, Quote, Stats, CardGrid, CallToAction, FAQ, DonationEmbed, Embed]
+
+export const ImpactTiers = defineBlock({
+  type: 'ImpactTiers',
+  version: 1,
+  label: 'Impact tiers',
+  category: 'Calls to action',
+  props: z
+    .object({
+      heading: text({ max: 80 }),
+      intro: text({ max: 240 }),
+      items: z
+        .array(
+          z
+            .object({
+              amount: text({ max: 24, required: true }),
+              title: text({ max: 80 }),
+              explanation: text({ max: 200 }),
+              image: imageRef.optional(),
+            })
+            .strict(),
+        )
+        .min(1, { message: 'Add at least one amount.' })
+        .max(8, { message: 'Show at most 8 amounts.' }),
+      otherAmount: text({ max: 80 }),
+      cta: linkRef.optional(),
+    })
+    .strict(),
+  imageSlots: { 'items.image': { width: 640, height: 480 } },
+  headingProps: ['heading'],
+  sample: {
+    heading: 'What your gift can do',
+    intro: 'These are example amounts for this demo, not a live appeal.',
+    items: [
+      { amount: '₹500', title: 'A warm meal', explanation: 'Helps feed an animal in our care for a day.' },
+      { amount: '₹2,000', title: 'Urgent treatment', explanation: 'Goes towards pain relief and a first medical check.' },
+      { amount: '₹5,000', title: 'A hospital day', explanation: 'Helps cover a day of inpatient care and food.' },
+    ],
+    otherAmount: 'Or give a different amount',
+    cta: { label: 'Donate now', href: '#donate' },
+  },
+})
+
+export const DonationProgress = defineBlock({
+  type: 'DonationProgress',
+  version: 1,
+  label: 'Donation progress',
+  category: 'Calls to action',
+  props: z
+    .object({
+      heading: text({ max: 80 }),
+      raised: text({ max: 24, required: true }),
+      goal: text({ max: 24, required: true }),
+      currency: text({ max: 8 }),
+      label: text({ max: 80 }),
+      endDate: isoDate.optional(),
+      matchLine: text({ max: 160 }),
+      cta: linkRef.optional(),
+    })
+    .strict(),
+  headingProps: ['heading'],
+  sample: {
+    heading: 'Winter appeal progress',
+    raised: '87,400',
+    goal: '2,50,000',
+    currency: '₹',
+    label: 'raised so far (sample figures for this demo)',
+    endDate: '2026-12-13',
+    matchLine: 'Sample campaign only — not live totals.',
+    cta: { label: 'Give now', href: '#donate' },
+  },
+})
+
+export const MatchBanner = defineBlock({
+  type: 'MatchBanner',
+  version: 1,
+  label: 'Match or countdown',
+  category: 'Calls to action',
+  props: z
+    .object({
+      message: text({ max: 200, required: true }),
+      endDate: isoDate.optional(),
+      matchLine: text({ max: 160 }),
+      tone: tone.default('neutral'),
+      hideWhenPassed: z.boolean().default(true),
+      cta: linkRef.optional(),
+    })
+    .strict(),
+  clientJs: true,
+  sample: {
+    message: 'A sample match: gifts in this demo are shown as doubled until Giving Tuesday.',
+    endDate: '2026-12-01',
+    matchLine: 'This is demonstration copy, not a live match offer.',
+    tone: 'neutral',
+    hideWhenPassed: true,
+    cta: { label: 'Donate now', href: '#donate' },
+  },
+})
+
+export const StoryBeforeAfter = defineBlock({
+  type: 'StoryBeforeAfter',
+  version: 1,
+  label: 'Story with before and after',
+  category: 'Text',
+  props: z
+    .object({
+      eyebrow: text({ max: 80 }),
+      heading: text({ max: 80 }),
+      content: richTextDoc,
+      quote: text({ max: 400 }),
+      attribution: text({ max: 80 }),
+      before: imageRef,
+      beforeCaption: text({ max: 200 }),
+      after: imageRef,
+      afterCaption: text({ max: 200 }),
+      cta: linkRef.optional(),
+    })
+    .strict(),
+  imageSlots: { before: { width: 960, height: 720 }, after: { width: 960, height: 720 } },
+  headingProps: ['heading'],
+  sample: {
+    eyebrow: 'A rescue story',
+    heading: 'From the roadside to recovery',
+    content: richTextFromParagraphs(['This is a sample story for the demo, written in the voice of a rescue page. Replace it with a real animal’s intake and recovery photos before publishing a campaign.']),
+    quote: 'We did not know if she would make it through the night.',
+    attribution: 'A hospital volunteer (sample quote)',
+    before: sampleImage,
+    beforeCaption: 'Before: arriving at the hospital (sample photo)',
+    after: sampleImage,
+    afterCaption: 'After: recovering in care (sample photo)',
+    cta: { label: 'Help the next rescue', href: '#donate' },
+  },
+})
+
+export const TrustStrip = defineBlock({
+  type: 'TrustStrip',
+  version: 1,
+  label: 'Trust marks',
+  category: 'Lists',
+  props: z
+    .object({
+      heading: text({ max: 80 }),
+      intro: text({ max: 240 }),
+      items: z
+        .array(
+          z
+            .object({
+              name: text({ max: 80, required: true }),
+              logo: imageRef.optional(),
+              note: text({ max: 120 }),
+              href: safeHref.optional(),
+              badgeHtml: badgeHtml.optional(),
+              group: text({ max: 40 }),
+            })
+            .strict()
+            .refine((item) => Boolean(item.logo?.media || (item.badgeHtml && item.badgeHtml.trim())), {
+              message: 'Add a logo or a badge snippet.',
+            }),
+        )
+        .min(1, { message: 'Add at least one mark.' })
+        .max(8, { message: 'Show at most 8 marks.' }),
+    })
+    .strict(),
+  headingProps: ['heading'],
+  sample: {
+    heading: 'Give with confidence',
+    intro: 'Quiet marks, grouped so regulator ratings stay separate from travel recommendations.',
+    items: [
+      { name: 'Candid Platinum', logo: sampleImage, note: 'Sample layout — use the organisation’s real seal.', group: 'Rated by' },
+      { name: 'Charity Navigator', logo: sampleImage, note: 'Sample layout — use the organisation’s real rating.', group: 'Rated by' },
+    ],
+  },
+})
+
+export const STARTER_BLOCKS = [Hero, VideoHero, RichText, TextAndImage, Image, Gallery, Quote, Stats, CardGrid, CallToAction, FAQ, DonationEmbed, Embed, ImpactTiers, DonationProgress, MatchBanner, StoryBeforeAfter, TrustStrip]

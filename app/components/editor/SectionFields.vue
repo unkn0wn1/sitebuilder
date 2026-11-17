@@ -93,17 +93,35 @@ async function loadPreview(id: string) {
   }
 }
 
+function collectMediaIds(value: unknown, acc: string[]) {
+  if (Array.isArray(value)) {
+    for (const item of value) collectMediaIds(item, acc)
+    return
+  }
+  if (!value || typeof value !== 'object') return
+  const record = value as Record<string, unknown>
+  if (typeof record.media === 'string' && record.media) acc.push(record.media)
+  else for (const item of Object.values(record)) collectMediaIds(item, acc)
+}
+
 watch(
   () => props.modelValue,
   () => {
-    for (const field of fields.value) {
-      if (field.kind !== 'image') continue
-      const id = textValue(`${field.path}.media`)
-      if (id) void loadPreview(id)
-    }
+    const ids: string[] = []
+    collectMediaIds(props.modelValue, ids)
+    for (const id of ids) void loadPreview(id)
   },
   { immediate: true, deep: true },
 )
+
+function fieldAtPath(path: string): FieldSpec | undefined {
+  const top = fields.value.find((f) => f.path === path)
+  if (top) return top
+  const match = path.match(/^([^.]+)\.(\d+)\.([^.]+)$/)
+  if (!match) return undefined
+  const list = fields.value.find((f) => f.path === match[1] && f.kind === 'list')
+  return list?.item?.find((sub) => sub.name === match[3])
+}
 
 function slotOf(field: FieldSpec) {
   return imageSlotFor(props.type, field.path)
@@ -116,9 +134,9 @@ function needsCrop(item: MediaItem, ratio: string) {
 }
 
 function onPicked(item: MediaItem) {
-  const field = fields.value.find((f) => f.path === pickerFor.value)
-  if (!field) return
-  pick(field, item)
+  const field = pickerFor.value ? fieldAtPath(pickerFor.value) : undefined
+  if (!field || !pickerFor.value) return
+  pick({ ...field, path: pickerFor.value }, item)
 }
 
 function pick(field: FieldSpec, item: MediaItem) {
@@ -251,9 +269,36 @@ function openCrop(field: FieldSpec) {
               v-if="sub.kind === 'richtext' || sub.kind === 'textarea'"
               :model-value="sub.kind === 'richtext' ? richTextToPlain((item[sub.name] as RichTextDoc) ?? { type: 'doc', content: [] }) : String(item[sub.name] ?? '')"
               :label="sub.label"
-              :rows="3"
+              :rows="sub.name === 'badgeHtml' ? 5 : 3"
               @update:model-value="updateItem(field, index, sub.name, sub.kind === 'richtext' ? richTextFromParagraphs(String($event).split(/\n+/)) : $event)"
             />
+            <p v-if="sub.name === 'badgeHtml'" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Optional. Only scripts and images from known hosts (Charity Navigator, Candid, TripAdvisor and similar) are kept. Inline scripts are removed. Prefer an uploaded logo when you can.
+            </p>
+            <label v-else-if="sub.kind === 'boolean'" class="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
+              <input type="checkbox" :checked="Boolean(item[sub.name])" @change="updateItem(field, index, sub.name, ($event.target as HTMLInputElement).checked)">
+              {{ sub.label }}
+            </label>
+            <div v-else-if="sub.kind === 'link'" class="rounded-md border border-gray-200 dark:border-gray-700 p-2">
+              <p class="mb-2 text-sm font-medium text-gray-800 dark:text-gray-200">{{ sub.label }}</p>
+              <FwbInput :model-value="String((item[sub.name] as { label?: string } | undefined)?.label ?? '')" label="Label" @update:model-value="updateItem(field, index, sub.name, { ...((item[sub.name] as object) ?? {}), label: $event, href: (item[sub.name] as { href?: string } | undefined)?.href ?? '' })" />
+              <FwbInput class="mt-2" :model-value="String((item[sub.name] as { href?: string } | undefined)?.href ?? '')" label="Link" @update:model-value="updateItem(field, index, sub.name, { ...((item[sub.name] as object) ?? {}), href: $event, label: (item[sub.name] as { label?: string } | undefined)?.label ?? '' })" />
+            </div>
+            <div v-else-if="sub.kind === 'image'" class="rounded-md border border-gray-200 dark:border-gray-700 p-2">
+              <p class="mb-2 text-sm font-medium text-gray-800 dark:text-gray-200">{{ sub.label }}</p>
+              <img
+                v-if="previewOf(`${field.path}.${index}.${sub.name}`)?.src"
+                :src="previewOf(`${field.path}.${index}.${sub.name}`)!.src!"
+                :alt="String((item[sub.name] as { alt?: string } | undefined)?.alt ?? '')"
+                class="mb-2 max-h-24 w-auto rounded object-contain bg-gray-50 dark:bg-gray-900"
+              >
+              <p v-else class="mb-2 text-xs text-gray-500 dark:text-gray-400">No logo or photo yet.</p>
+              <div class="mb-2 flex flex-wrap gap-2">
+                <FwbButton size="sm" color="light" type="button" @click="pickerFor = `${field.path}.${index}.${sub.name}`">Change</FwbButton>
+                <FwbButton v-if="textValue(`${field.path}.${index}.${sub.name}.media`) && slotOf({ ...sub, path: `${field.path}.${index}.${sub.name}` })" size="sm" color="light" type="button" @click="openCrop({ ...sub, path: `${field.path}.${index}.${sub.name}` })">Crop</FwbButton>
+              </div>
+              <FwbInput :model-value="String((item[sub.name] as { alt?: string } | undefined)?.alt ?? '')" label="Alt text" @update:model-value="updateItem(field, index, sub.name, { ...((item[sub.name] as object) ?? {}), alt: $event, media: (item[sub.name] as { media?: string } | undefined)?.media ?? '' })" />
+            </div>
             <FwbInput
               v-else
               :model-value="String(item[sub.name] ?? '')"

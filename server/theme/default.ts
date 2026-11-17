@@ -37,4 +37,26 @@ for (const root of document.querySelectorAll("[data-embed=virtuous]")) {
     load();
   }
 }
+
+for (const root of document.querySelectorAll("[data-countdown]")) {
+  if (!(root instanceof HTMLElement)) continue;
+  const end = Date.parse(root.getAttribute("data-countdown") || "");
+  if (!end) continue;
+  const label = root.querySelector("[data-countdown-label]");
+  const update = () => {
+    const ms = end - Date.now();
+    if (ms <= 0) {
+      if (root.dataset.hideWhenPassed === "true") root.hidden = true;
+      if (label instanceof HTMLElement) label.textContent = "This offer has ended.";
+      return;
+    }
+    if (!(label instanceof HTMLElement)) return;
+    const days = Math.floor(ms / 86400000);
+    const hours = Math.floor((ms % 86400000) / 3600000);
+    const minutes = Math.floor((ms % 3600000) / 60000);
+    label.textContent = days > 0 ? days + " day" + (days === 1 ? "" : "s") + " left" : hours + "h " + minutes + "m left";
+  };
+  update();
+  setInterval(update, 60000);
+}
 `

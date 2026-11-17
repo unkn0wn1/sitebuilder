@@ -13,7 +13,7 @@ export const DEFAULT_THEME_TOKENS = {
 } as const
 export type ThemeTokens = { [K in keyof typeof DEFAULT_THEME_TOKENS]: string }
 
-export const BUNDLE_ID = "theme-default-1"
+export const BUNDLE_ID = "theme-default-2"
 
 export const THEME_CSS = `:root {
   --ink: #1f1b16;
@@ -194,6 +194,36 @@ a { color: var(--accent); }
 @media (max-width: 640px), (prefers-reduced-motion: reduce) {
   .hero-video { display: none; }
 }
+
+.lede { color: var(--muted); max-width: 40rem; margin: 0 0 1.25rem; }
+.eyebrow { text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.8rem; font-weight: 600; color: var(--muted); margin: 0 0 0.5rem; }
+.tiers { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+.tier { border: 1px solid var(--line); border-radius: 0.5rem; overflow: hidden; background: var(--paper); }
+.tier-body { padding: 1rem; }
+.tier-amount { font-size: 1.5rem; font-weight: 700; margin: 0 0 0.25rem; }
+.tier-other { color: var(--muted); margin: 1rem 0 0; }
+.goal-progress { width: 100%; height: 0.75rem; accent-color: var(--accent); }
+.progress-meta { margin: 0.75rem 0 0; font-weight: 600; }
+.progress-match, .progress-date { color: var(--muted); margin: 0.35rem 0 0; }
+.match-banner { background: var(--band); padding: 1.25rem 0; }
+.match-banner.tone-primary, .match-banner.tone-accent { background: var(--accent); color: var(--accent-ink); }
+.match-banner.tone-primary a.btn, .match-banner.tone-accent a.btn { background: var(--paper); color: var(--ink); }
+.match-message { font-size: 1.15rem; font-weight: 600; margin: 0 0 0.35rem; }
+.match-line, .match-countdown { margin: 0 0 0.35rem; }
+.before-after { display: grid; gap: 1rem; margin: 1.5rem 0; }
+@media (min-width: 700px) { .before-after { grid-template-columns: 1fr 1fr; } }
+.before-after figure { margin: 0; }
+.before-after figcaption { color: var(--muted); font-size: 0.9rem; margin-top: 0.5rem; }
+.trust-groups { display: grid; gap: 2rem; }
+@media (min-width: 700px) { .trust-groups { grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); align-items: start; } }
+.trust-group-label { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 0.75rem; }
+.trust-strip { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 1.25rem 1.75rem; align-items: flex-start; }
+.trust-item, .trust-link { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; text-align: center; text-decoration: none; color: inherit; max-width: 10rem; }
+.trust-logo, .trust-item picture, .trust-item img { max-height: 3.5rem; width: auto; }
+.trust-name { font-size: 0.9rem; font-weight: 600; }
+.trust-note { font-size: 0.8rem; color: var(--muted); }
+.trust-badge { max-width: 8.5rem; }
+.trust-badge img, .trust-badge iframe { max-width: 100%; height: auto; }
 `
 
 

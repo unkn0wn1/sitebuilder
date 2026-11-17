@@ -41,6 +41,32 @@ function asImage(value: unknown): ImageRef | undefined {
 function asItems<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : []
 }
+
+function progressValue(raised: unknown, goal: unknown): number {
+  const r = Number(String(raised ?? '').replace(/[^0-9.]/g, ''))
+  const g = Number(String(goal ?? '').replace(/[^0-9.]/g, ''))
+  if (!Number.isFinite(r) || !Number.isFinite(g) || g <= 0) return 0
+  return Math.max(0, Math.min(100, Math.round((r / g) * 100)))
+}
+
+interface TrustPreviewItem {
+  name: string
+  logo?: ImageRef
+  note?: string
+  badgeHtml?: string
+  group?: string
+}
+
+function trustGroups(value: unknown): { label: string; items: TrustPreviewItem[] }[] {
+  const groups: { label: string; items: TrustPreviewItem[] }[] = []
+  for (const item of asItems<TrustPreviewItem>(value)) {
+    const label = item.group?.trim() ?? ''
+    const last = groups[groups.length - 1]
+    if (last && last.label === label) last.items.push(item)
+    else groups.push({ label, items: [item] })
+  }
+  return groups
+}
 </script>
 
 <template>
@@ -184,6 +210,90 @@ function asItems<T>(value: unknown): T[] {
         <h2 v-if="p.heading || p.title" class="sb-inline" contenteditable="true" @blur="onInline(p.heading ? 'heading' : 'title', $event)">{{ String(p.heading ?? p.title ?? '') }}</h2>
         <div class="donate-box">
           <p class="embed-fallback">The form or embed shows here when the page is live.</p>
+        </div>
+      </div>
+    </section>
+
+    <section v-else-if="block.type === 'ImpactTiers'" class="section">
+      <div class="wrap">
+        <h2 v-if="p.heading" class="sb-inline" contenteditable="true" @blur="onInline('heading', $event)">{{ String(p.heading) }}</h2>
+        <p v-if="p.intro" class="lede sb-inline" contenteditable="true" @blur="onInline('intro', $event)">{{ String(p.intro) }}</p>
+        <div class="tiers">
+          <article v-for="(item, i) in asItems<{ amount: string; title?: string; explanation?: string; image?: ImageRef }>(p.items)" :key="i" class="tier">
+            <img v-if="item.image" :src="imageSrc(item.image, 640)" :alt="item.image.alt ?? ''" @error="($event.target as HTMLImageElement).style.opacity = '0.2'">
+            <div class="tier-body">
+              <p class="tier-amount">{{ item.amount }}</p>
+              <h3 v-if="item.title">{{ item.title }}</h3>
+              <p v-if="item.explanation">{{ item.explanation }}</p>
+            </div>
+          </article>
+        </div>
+        <p v-if="p.otherAmount" class="tier-other">{{ String(p.otherAmount) }}</p>
+        <a v-if="asLink(p.cta)" class="btn" :href="asLink(p.cta)!.href" @click.prevent>{{ asLink(p.cta)!.label }}</a>
+      </div>
+    </section>
+
+    <section v-else-if="block.type === 'DonationProgress'" class="section">
+      <div class="wrap">
+        <h2 v-if="p.heading" class="sb-inline" contenteditable="true" @blur="onInline('heading', $event)">{{ String(p.heading) }}</h2>
+        <progress class="goal-progress" max="100" :value="progressValue(p.raised, p.goal)">{{ progressValue(p.raised, p.goal) }}%</progress>
+        <p class="progress-meta">{{ String(p.currency ?? '') }}{{ String(p.raised ?? '') }} {{ String(p.label || 'raised so far') }} of {{ String(p.currency ?? '') }}{{ String(p.goal ?? '') }}</p>
+        <p v-if="p.matchLine" class="progress-match">{{ String(p.matchLine) }}</p>
+        <p v-if="p.endDate" class="progress-date">Until {{ String(p.endDate) }}</p>
+        <a v-if="asLink(p.cta)" class="btn" :href="asLink(p.cta)!.href" @click.prevent>{{ asLink(p.cta)!.label }}</a>
+      </div>
+    </section>
+
+    <section v-else-if="block.type === 'MatchBanner'" class="match-banner" :class="`tone-${String(p.tone ?? 'neutral')}`">
+      <div class="wrap">
+        <p class="match-message sb-inline" contenteditable="true" @blur="onInline('message', $event)">{{ String(p.message ?? '') }}</p>
+        <p v-if="p.matchLine" class="match-line">{{ String(p.matchLine) }}</p>
+        <p v-if="p.endDate" class="match-countdown">Until {{ String(p.endDate) }}</p>
+        <a v-if="asLink(p.cta)" class="btn" :href="asLink(p.cta)!.href" @click.prevent>{{ asLink(p.cta)!.label }}</a>
+      </div>
+    </section>
+
+    <section v-else-if="block.type === 'StoryBeforeAfter'" class="section">
+      <div class="wrap">
+        <p v-if="p.eyebrow" class="eyebrow">{{ String(p.eyebrow) }}</p>
+        <h2 v-if="p.heading" class="sb-inline" contenteditable="true" @blur="onInline('heading', $event)">{{ String(p.heading) }}</h2>
+        <div class="prose">
+          <EditorRichTextView :doc="p.content" />
+        </div>
+        <div class="before-after">
+          <figure>
+            <img v-if="asImage(p.before)" :src="imageSrc(asImage(p.before), 960)" :alt="asImage(p.before)?.alt ?? ''" @error="($event.target as HTMLImageElement).style.opacity = '0.2'">
+            <figcaption>{{ String(p.beforeCaption ?? 'Before') }}</figcaption>
+          </figure>
+          <figure>
+            <img v-if="asImage(p.after)" :src="imageSrc(asImage(p.after), 960)" :alt="asImage(p.after)?.alt ?? ''" @error="($event.target as HTMLImageElement).style.opacity = '0.2'">
+            <figcaption>{{ String(p.afterCaption ?? 'After') }}</figcaption>
+          </figure>
+        </div>
+        <blockquote v-if="p.quote" class="quote">
+          <p>{{ String(p.quote) }}</p>
+          <footer v-if="p.attribution">{{ String(p.attribution) }}</footer>
+        </blockquote>
+        <a v-if="asLink(p.cta)" class="btn" :href="asLink(p.cta)!.href" @click.prevent>{{ asLink(p.cta)!.label }}</a>
+      </div>
+    </section>
+
+    <section v-else-if="block.type === 'TrustStrip'" class="section">
+      <div class="wrap">
+        <h2 v-if="p.heading" class="sb-inline" contenteditable="true" @blur="onInline('heading', $event)">{{ String(p.heading) }}</h2>
+        <p v-if="p.intro" class="lede">{{ String(p.intro) }}</p>
+        <div class="trust-groups">
+          <div v-for="(group, gi) in trustGroups(p.items)" :key="gi" class="trust-group">
+            <h3 v-if="group.label" class="trust-group-label">{{ group.label }}</h3>
+            <ul class="trust-strip">
+              <li v-for="(item, i) in group.items" :key="i" class="trust-item">
+                <p v-if="item.badgeHtml" class="trust-note">A badge snippet will appear on the published page.</p>
+                <img v-if="item.logo" :src="imageSrc(item.logo, 640)" :alt="item.logo.alt ?? item.name" class="trust-logo" @error="($event.target as HTMLImageElement).style.opacity = '0.2'">
+                <span class="trust-name">{{ item.name }}</span>
+                <span v-if="item.note" class="trust-note">{{ item.note }}</span>
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
     </section>

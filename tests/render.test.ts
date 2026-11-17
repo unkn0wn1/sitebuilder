@@ -204,6 +204,111 @@ describe('public-site renderer', () => {
     expect(rendered.html).not.toContain('rel="icon" href="/favicon.png"')
   })
 
+  it('renders impact tiers, a manual progress bar, and a match banner with a countdown hook', async () => {
+    const doc = emptyPageDoc('Campaign')
+    doc.blocks = [
+      {
+        id: 'b_tiers',
+        type: 'ImpactTiers',
+        v: 1,
+        props: {
+          heading: 'What your gift can do',
+          intro: 'These are example amounts for this demo, not a live appeal.',
+          items: [
+            { amount: '₹500', title: 'A warm meal', explanation: 'Helps feed an animal in our care for a day.' },
+            { amount: '₹2,000', title: 'Urgent treatment', explanation: 'Goes towards pain relief.' },
+          ],
+          cta: { label: 'Donate now', href: '#donate' },
+        },
+      },
+      {
+        id: 'b_prog',
+        type: 'DonationProgress',
+        v: 1,
+        props: { heading: 'Sample progress', raised: '87,400', goal: '2,50,000', currency: '₹', label: 'raised so far (sample figures for this demo)' },
+      },
+      {
+        id: 'b_match',
+        type: 'MatchBanner',
+        v: 1,
+        props: { message: 'Sample match until the date below.', endDate: '2099-12-01', matchLine: 'Demonstration copy only.', tone: 'neutral', hideWhenPassed: true, cta: { label: 'Give now', href: '#donate' } },
+      },
+    ]
+    const rendered = await renderPageHtml({ doc, pageId: 'pg_camp', versionId: 'ver_1', path: '/sample-blocks', site: site() })
+    expect(rendered.html).toContain('class="tiers"')
+    expect(rendered.html).toContain('₹500')
+    expect(rendered.html).toContain('example amounts for this demo')
+    expect(rendered.html).toContain('<progress')
+    expect(rendered.html).toContain('value="35"')
+    expect(rendered.html).toContain('₹87,400')
+    expect(rendered.html).toContain('sample figures for this demo')
+    expect(rendered.html).toContain('data-countdown="2099-12-01T23:59:59.000Z"')
+    expect(rendered.html).toContain('src="/embed.js"')
+    expect(rendered.html).toContain('href="#donate"')
+  })
+
+  it('hides a match banner after its end date and renders a before-and-after story', async () => {
+    const doc = emptyPageDoc('Story')
+    doc.blocks = [
+      { id: 'b_ended', type: 'MatchBanner', v: 1, props: { message: 'This should not be visible.', endDate: '2020-01-01', tone: 'neutral', hideWhenPassed: true } },
+      {
+        id: 'b_story',
+        type: 'StoryBeforeAfter',
+        v: 1,
+        props: {
+          eyebrow: 'A rescue story',
+          heading: 'From the roadside to recovery',
+          content: richTextFromParagraphs(['Sample story for the demo.']),
+          quote: 'We did not know if she would make it.',
+          attribution: 'A volunteer (sample quote)',
+          before: IMG,
+          beforeCaption: 'Before: arriving (sample photo)',
+          after: IMG,
+          afterCaption: 'After: recovering (sample photo)',
+        },
+      },
+    ]
+    const rendered = await renderPageHtml({ doc, pageId: 'pg_story', versionId: 'ver_1', path: '/sample-story', site: site() })
+    expect(rendered.html).toContain('class="match-banner is-ended"')
+    expect(rendered.html).not.toContain('This should not be visible.')
+    expect(rendered.html).toContain('class="before-after"')
+    expect(rendered.html).toContain('From the roadside to recovery')
+    expect(rendered.html).toContain('Before: arriving (sample photo)')
+    expect(rendered.deps.media).toContain(IMG.media)
+  })
+
+  it('renders grouped trust marks, opens CSP for a TripAdvisor badge script, and keeps logos quiet', async () => {
+    const badge = '<div id="TA_rated696" class="TA_rated"><ul class="TA_links"><li><a href="https://www.tripadvisor.in/Attraction_Review-g297672-d12501287-Reviews-Animal_Aid_Unlimited-Udaipur_Udaipur_District_Rajasthan.html"><img src="https://static.tacdn.com/img2/brand_refresh/Tripadvisor_lockup_horizontal_registered.png" alt="TripAdvisor"></a></li></ul></div><script async src="https://www.jscache.com/wejs?wtype=rated&uniq=696&locationId=12501287"></script>'
+    const doc = emptyPageDoc('Trust')
+    doc.blocks = [
+      {
+        id: 'b_trust',
+        type: 'TrustStrip',
+        v: 1,
+        props: {
+          heading: 'Give with confidence',
+          intro: 'Regulator ratings and travel recommendations are grouped separately.',
+          items: [
+            { name: 'Candid', logo: IMG, href: 'https://app.candid.org/profile/8069592/animal-aid-unlimited-71-0884843', group: 'Rated by' },
+            { name: 'TripAdvisor', badgeHtml: badge, group: 'Recommended on' },
+          ],
+        },
+      },
+    ]
+    const rendered = await renderPageHtml({ doc, pageId: 'pg_trust', versionId: 'ver_1', path: '/trust', site: site() })
+    expect(rendered.html).toContain('Rated by')
+    expect(rendered.html).toContain('Recommended on')
+    expect(rendered.html).toContain('class="trust-strip"')
+    expect(rendered.html).toContain('id="TA_rated696"')
+    expect(rendered.html).toContain('www.jscache.com/wejs')
+    expect(rendered.csp).toContain('script-src')
+    expect(rendered.csp).toContain('https://www.jscache.com')
+    expect(rendered.csp).toContain('https://static.tacdn.com')
+    expect(rendered.csp).toContain("img-src 'self' data: https://static.tacdn.com")
+    expect(rendered.csp).not.toContain('unsafe-inline')
+    expect(rendered.deps.media).toContain(IMG.media)
+  })
+
 })
 
 async function publishStandard(s: ReturnType<typeof setup>, title: string, heading: string) {

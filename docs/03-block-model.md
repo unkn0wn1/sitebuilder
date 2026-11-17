@@ -131,7 +131,7 @@ A template is a set of rules, not a fixed layout:
 
 ## Starter blocks (MVP)
 
-Hero, VideoHero (poster plus a muted looping video), RichText, Image, Gallery, Quote, Stats, CardGrid, CallToAction, Video, FAQ, DonationEmbed, Embed (allow-listed), plus the header and footer from the shell.
+Hero, VideoHero (poster plus a muted looping video), RichText, TextAndImage, Image, Gallery, Quote, Stats, CardGrid, CallToAction, FAQ, DonationEmbed, Embed (allow-listed), ImpactTiers, DonationProgress, MatchBanner, StoryBeforeAfter, TrustStrip, plus the header and footer from the shell.
 
 ## Open questions
 

@@ -1,7 +1,7 @@
 // Templates (page types). Rules live in the template's version document. See docs/03-block-model.md#templates-page-types.
 import { and, desc, eq, gt, ne } from 'drizzle-orm'
 import { newId } from '../../shared/ids'
-import { templateRulesSchema, type TemplateRules } from '../../shared/templates'
+import { templateRulesSchema, withLibraryBlockUpdates, type TemplateRules } from '../../shared/templates'
 import { can } from '../../shared/roles'
 import { canSubmit, restingState } from '../../shared/workflow'
 import { draftOps, reviews, templates, versions } from '../db/schema'
@@ -17,7 +17,7 @@ export function getTemplateRules(ctx: ServiceCtx, key: string): TemplateRules | 
   const versionId = row?.publishedVersionId
   if (!versionId) return null
   const version = ctx.db.select().from(versions).where(eq(versions.id, versionId)).get()
-  return version ? templateRulesSchema.parse(version.doc) : null
+  return version ? withLibraryBlockUpdates(templateRulesSchema.parse(version.doc)) : null
 }
 
 export function listTemplates(ctx: ServiceCtx) {

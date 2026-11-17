@@ -6,6 +6,8 @@ import { createHash } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { createSSRApp, defineComponent, h, type VNode } from 'vue'
 import { renderToString } from 'vue/server-renderer'
+import { sanitizeBadgeHtml } from '../../shared/badge-html'
+import { formatMoney, hasEnded, progressPercent, endOfUtcDay } from '../../shared/amounts'
 import type { ImageRef } from '../../shared/blocks/define'
 import type { StoredBlock } from '../../shared/blocks/registry'
 import { migratePageDoc, type PageDoc } from '../../shared/page'
@@ -108,6 +110,8 @@ interface Collector {
   siteParts: Set<string>
   scriptSrcs: Set<string>
   frameSrcs: Set<string>
+  imgSrcs: Set<string>
+  connectSrcs: Set<string>
   needsEmbedJs: boolean
   pageIdByPath: Map<string, string>
   origin: string | null
@@ -115,7 +119,7 @@ interface Collector {
 }
 
 function newCollector(site: SiteRenderContext): Collector {
-  return { media: new Set(), links: new Set(), linkedPageIds: new Set(), siteParts: new Set(), scriptSrcs: new Set(), frameSrcs: new Set(), needsEmbedJs: false, pageIdByPath: pageIdByPath(site.pagesById), origin: site.origin, aliases: site.pathAliases ?? new Map() }
+  return { media: new Set(), links: new Set(), linkedPageIds: new Set(), siteParts: new Set(), scriptSrcs: new Set(), frameSrcs: new Set(), imgSrcs: new Set(), connectSrcs: new Set(), needsEmbedJs: false, pageIdByPath: pageIdByPath(site.pagesById), origin: site.origin, aliases: site.pathAliases ?? new Map() }
 }
 
 /** Record an internal target and return the href that should be written (the live path, if known). */
@@ -355,9 +359,176 @@ function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector
     case 'DonationEmbed':
     case 'Embed':
       return renderEmbed(block.type, p, site, bag)
+    case 'ImpactTiers':
+      return renderImpactTiers(p, site, bag)
+    case 'DonationProgress':
+      return renderDonationProgress(p, bag)
+    case 'MatchBanner':
+      return renderMatchBanner(p, bag)
+    case 'StoryBeforeAfter':
+      return renderStoryBeforeAfter(p, site, bag)
+    case 'TrustStrip':
+      return renderTrustStrip(p, site, bag)
     default:
       throw new Error(`Unknown section type "${block.type}" cannot be published.`)
   }
+}
+
+
+function asLink(value: unknown): { label: string; href: string } | undefined {
+  if (value && typeof value === 'object' && 'label' in value && 'href' in value) {
+    const link = value as { label: string; href: string }
+    if (link.label && link.href) return link
+  }
+  return undefined
+}
+
+function addCspOrigin(set: Set<string>, src: string) {
+  try {
+    const url = new URL(src)
+    set.add(`${url.protocol}//${url.host}`)
+  } catch {
+    /* ignore */
+  }
+}
+
+function applyBadgeHtml(raw: string, bag: Collector): string {
+  const sanitized = sanitizeBadgeHtml(raw)
+  for (const src of sanitized.scriptSrcs) {
+    bag.scriptSrcs.add(src)
+    addCspOrigin(bag.connectSrcs, src)
+  }
+  for (const src of sanitized.imgSrcs) addCspOrigin(bag.imgSrcs, src)
+  for (const src of sanitized.frameSrcs) addCspOrigin(bag.frameSrcs, src)
+  return sanitized.html
+}
+
+function renderImpactTiers(p: Record<string, unknown>, site: SiteRenderContext, bag: Collector): VNode {
+  const items = (p.items as { amount: string; title?: string; explanation?: string; image?: ImageRef }[] | undefined) ?? []
+  return wrapSection([
+    p.heading ? h('h2', String(p.heading)) : null,
+    p.intro ? h('p', { class: 'lede' }, String(p.intro)) : null,
+    h(
+      'div',
+      { class: 'tiers' },
+      items.map((item) =>
+        h('article', { class: 'tier' }, [
+          pictureVNode(item.image, site, bag, { slot: { width: 640, height: 480 } }),
+          h('div', { class: 'tier-body' }, [
+            h('p', { class: 'tier-amount' }, item.amount),
+            item.title ? h('h3', item.title) : null,
+            item.explanation ? h('p', item.explanation) : null,
+          ]),
+        ]),
+      ),
+    ),
+    p.otherAmount ? h('p', { class: 'tier-other' }, String(p.otherAmount)) : null,
+    linkButton(asLink(p.cta), bag),
+  ])
+}
+
+function renderDonationProgress(p: Record<string, unknown>, bag: Collector): VNode {
+  const raised = String(p.raised ?? '')
+  const goal = String(p.goal ?? '')
+  const currency = typeof p.currency === 'string' ? p.currency : ''
+  const percent = progressPercent(raised, goal)
+  const raisedLabel = formatMoney(currency, raised)
+  const goalLabel = formatMoney(currency, goal)
+  const label = typeof p.label === 'string' && p.label ? p.label : 'raised so far'
+  return wrapSection([
+    p.heading ? h('h2', String(p.heading)) : null,
+    percent !== null
+      ? h('progress', { class: 'goal-progress', max: 100, value: percent, 'aria-label': `${percent}% of the goal` }, `${percent}%`)
+      : null,
+    h('p', { class: 'progress-meta' }, `${raisedLabel} ${label} of ${goalLabel}`),
+    p.matchLine ? h('p', { class: 'progress-match' }, String(p.matchLine)) : null,
+    p.endDate ? h('p', { class: 'progress-date' }, `Until ${String(p.endDate)}`) : null,
+    linkButton(asLink(p.cta), bag),
+  ])
+}
+
+function renderMatchBanner(p: Record<string, unknown>, bag: Collector): VNode {
+  const endDate = typeof p.endDate === 'string' ? p.endDate : undefined
+  const hideWhenPassed = p.hideWhenPassed !== false
+  if (endDate && hideWhenPassed && hasEnded(endDate)) {
+    return h('section', { class: 'match-banner is-ended', hidden: true, 'aria-hidden': 'true' })
+  }
+  const end = endDate ? endOfUtcDay(endDate) : null
+  if (end) bag.needsEmbedJs = true
+  const toneName = String(p.tone ?? 'neutral')
+  return h('section', { class: `match-banner tone-${toneName}`, 'data-countdown': end ? end.toISOString() : undefined, 'data-hide-when-passed': end && hideWhenPassed ? 'true' : undefined }, [
+    h('div', { class: 'wrap' }, [
+      h('p', { class: 'match-message' }, String(p.message ?? '')),
+      p.matchLine ? h('p', { class: 'match-line' }, String(p.matchLine)) : null,
+      endDate ? h('p', { class: 'match-countdown' }, [h('time', { datetime: endDate, 'data-countdown-label': 'true' }, `Until ${endDate}`)]) : null,
+      linkButton(asLink(p.cta), bag),
+    ]),
+  ])
+}
+
+function renderStoryBeforeAfter(p: Record<string, unknown>, site: SiteRenderContext, bag: Collector): VNode {
+  return wrapSection([
+    p.eyebrow ? h('p', { class: 'eyebrow' }, String(p.eyebrow)) : null,
+    p.heading ? h('h2', String(p.heading)) : null,
+    h('div', { class: 'prose' }, renderRichText(p.content as RichTextDoc, bag)),
+    h('div', { class: 'before-after' }, [
+      h('figure', [pictureVNode(p.before as ImageRef | undefined, site, bag, { slot: { width: 960, height: 720 } }), h('figcaption', String(p.beforeCaption ?? 'Before'))]),
+      h('figure', [pictureVNode(p.after as ImageRef | undefined, site, bag, { slot: { width: 960, height: 720 } }), h('figcaption', String(p.afterCaption ?? 'After'))]),
+    ]),
+    p.quote ? h('blockquote', { class: 'quote' }, [h('p', String(p.quote)), p.attribution ? h('footer', String(p.attribution)) : null]) : null,
+    linkButton(asLink(p.cta), bag),
+  ])
+}
+
+interface TrustItem {
+  name: string
+  logo?: ImageRef
+  note?: string
+  href?: string
+  badgeHtml?: string
+  group?: string
+}
+
+function renderTrustStrip(p: Record<string, unknown>, site: SiteRenderContext, bag: Collector): VNode {
+  const items = (p.items as TrustItem[] | undefined) ?? []
+  const groups: { label: string; items: TrustItem[] }[] = []
+  for (const item of items) {
+    const label = item.group?.trim() ?? ''
+    const last = groups[groups.length - 1]
+    if (last && last.label === label) last.items.push(item)
+    else groups.push({ label, items: [item] })
+  }
+  return wrapSection([
+    p.heading ? h('h2', String(p.heading)) : null,
+    p.intro ? h('p', { class: 'lede' }, String(p.intro)) : null,
+    h(
+      'div',
+      { class: 'trust-groups' },
+      groups.map((group) =>
+        h('div', { class: 'trust-group' }, [
+          group.label ? h('h3', { class: 'trust-group-label' }, group.label) : null,
+          h(
+            'ul',
+            { class: 'trust-strip' },
+            group.items.map((item) => {
+              const badge = item.badgeHtml ? applyBadgeHtml(item.badgeHtml, bag) : ''
+              const logo = pictureVNode(item.logo, site, bag, { class: 'trust-logo' })
+              const inner: Array<VNode | string | null> = [
+                badge ? h('div', { class: 'trust-badge', innerHTML: badge }) : null,
+                logo,
+                h('span', { class: 'trust-name' }, item.name),
+                item.note ? h('span', { class: 'trust-note' }, item.note) : null,
+              ]
+              const children = inner.filter(Boolean)
+              return h('li', { class: 'trust-item' }, [
+                item.href && !badge ? h('a', { href: resolvedHref(item.href, bag), class: 'trust-link' }, children) : children,
+              ])
+            }),
+          ),
+        ]),
+      ),
+    ),
+  ])
 }
 
 function renderEmbed(type: string, p: Record<string, unknown>, site: SiteRenderContext, bag: Collector): VNode {
@@ -565,12 +736,15 @@ function renderFooter(site: SiteRenderContext, bag: Collector, footer: SiteRende
 export function buildCsp(bag: Collector, tracking: SiteSettings['tracking'], css: string = THEME_CSS): string {
   const scripts = new Set<string>(["'self'"])
   const frames = new Set<string>(bag.frameSrcs)
-  const connect = new Set<string>(["'self'"])
+  const connect = new Set<string>(["'self'", ...bag.connectSrcs])
+  const images = new Set<string>(["'self'", 'data:', ...bag.imgSrcs])
   if (bag.needsEmbedJs) scripts.add(VIRTUOUS_SCRIPT.replace(/\/[^/]+$/, ''))
   for (const src of bag.scriptSrcs) {
     try {
       const u = new URL(src)
-      scripts.add(`${u.protocol}//${u.host}`)
+      const origin = `${u.protocol}//${u.host}`
+      scripts.add(origin)
+      connect.add(origin)
     } catch {
       /* ignore */
     }
@@ -593,7 +767,7 @@ export function buildCsp(bag: Collector, tracking: SiteSettings['tracking'], css
     `default-src 'self'`,
     `script-src ${[...scripts].join(' ')}`,
     `style-src 'self' ${styleHash(css)}`,
-    `img-src 'self' data:`,
+    `img-src ${[...images].join(' ')}`,
     `font-src 'self'`,
     `connect-src ${[...connect].join(' ')}`,
     `frame-src ${frames.size ? [...frames].join(' ') : "'none'"}`,

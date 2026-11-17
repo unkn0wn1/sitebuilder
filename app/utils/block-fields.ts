@@ -50,6 +50,27 @@ function labelize(name: string): string {
     value: 'Number',
     question: 'Question',
     answer: 'Answer',
+    intro: 'Introduction',
+    amount: 'Amount',
+    explanation: 'What this does',
+    otherAmount: 'Other amount label',
+    raised: 'Raised so far',
+    goal: 'Goal',
+    currency: 'Currency',
+    endDate: 'Ends on',
+    matchLine: 'Match line',
+    hideWhenPassed: 'Hide after the end date',
+    message: 'Message',
+    eyebrow: 'Eyebrow',
+    quote: 'Pull quote',
+    before: 'Before photo',
+    beforeCaption: 'Before caption',
+    after: 'After photo',
+    afterCaption: 'After caption',
+    logo: 'Logo',
+    note: 'Note',
+    badgeHtml: 'Badge script or HTML',
+    group: 'Group label',
   }
   return words[name] ?? name.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase())
 }
@@ -147,7 +168,10 @@ export function imageSlotFor(type: string, path: string): { width: number; heigh
   const def = blockRegistry.get(type)
   const slots = def?.imageSlots
   if (!slots) return null
-  const slot = slots[path] ?? slots[path.split('.').pop() ?? '']
+  const parts = path.split('.')
+  const last = parts.at(-1) ?? ''
+  const fromIndex = parts.length >= 3 && /^\d+$/.test(parts.at(-2) ?? '') ? `${parts[0]}.${last}` : ''
+  const slot = slots[path] ?? (fromIndex ? slots[fromIndex] : undefined) ?? slots[last]
   if (!slot) return null
   return { width: slot.width, height: slot.height, ratio: ratioFromSize(slot.width, slot.height) }
 }

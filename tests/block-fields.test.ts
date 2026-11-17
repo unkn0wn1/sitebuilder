@@ -27,6 +27,22 @@ describe('block fields', () => {
     expect(imageSlotFor('Hero', 'image')).toEqual({ width: 1280, height: 720, ratio: '16:9' })
     expect(imageSlotFor('Image', 'image')?.ratio).toBe('3:2')
   })
+
+  it('describes the new campaign blocks, including grouped trust marks and badge snippets', () => {
+    expect(blockLabel('ImpactTiers')).toBe('Impact tiers')
+    expect(blockLabel('DonationProgress')).toBe('Donation progress')
+    expect(blockLabel('MatchBanner')).toBe('Match or countdown')
+    expect(blockLabel('StoryBeforeAfter')).toBe('Story with before and after')
+    expect(blockLabel('TrustStrip')).toBe('Trust marks')
+    expect(blockCatalog().map((b) => b.type)).toEqual(expect.arrayContaining(['ImpactTiers', 'DonationProgress', 'MatchBanner', 'StoryBeforeAfter', 'TrustStrip']))
+    const trustItems = fieldsForBlock('TrustStrip').find((f) => f.name === 'items')
+    expect(trustItems?.kind).toBe('list')
+    expect(trustItems?.item?.map((f) => f.name)).toEqual(expect.arrayContaining(['name', 'logo', 'href', 'badgeHtml', 'group']))
+    expect(trustItems?.item?.find((f) => f.name === 'badgeHtml')?.kind).toBe('textarea')
+    expect(trustItems?.item?.find((f) => f.name === 'group')?.label).toBe('Group label')
+    expect(imageSlotFor('StoryBeforeAfter', 'before')).toEqual({ width: 960, height: 720, ratio: '4:3' })
+    expect(imageSlotFor('ImpactTiers', 'items.0.image')).toEqual({ width: 640, height: 480, ratio: '4:3' })
+  })
 })
 
 describe('scoped theme CSS', () => {
