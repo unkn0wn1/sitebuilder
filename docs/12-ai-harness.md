@@ -153,6 +153,9 @@ A **fixed, typed tool set** mapped one to one onto the CMS API. Each tool has a 
 
 These are the page builder tools. Other task types (template, brand and design) have their own small sets; see [Task-scoped tools](#task-scoped-tools). A session only ever gets the set for its task, bound to its target.
 
+As of 17 November 2026 the page builder tools are implemented as server functions, including `create_draft`, `crop_media` (proposes a crop; a person still has to approve it), `request_upload` and `preview_screenshot`. `preview_screenshot` returns a schematic wireframe until the real renderer exists. There are no model calls yet.
+
+
 **Never:** a publish tool, code execution, arbitrary HTML, CSS or script, arbitrary web fetch (apart from the user-given reference URL feature, when enabled), email, or file system access.
 
 The tool list in [07-ai-agent.md](07-ai-agent.md) is the conversation-level view; this table is the reference.

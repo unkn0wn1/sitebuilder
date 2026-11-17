@@ -17,3 +17,4 @@ Short records of decisions that are locked in. Each has a status, the context, t
 | [0011](0011-named-tracking-integrations.md) | Tracking through named integrations, not a raw script slot | Accepted |
 | [0012](0012-ai-panel-screens-v1.md) | Where the AI panel appears in v1 | Accepted |
 | [0013](0013-renditions-at-upload.md) | Image renditions are made at upload time with sharp | Accepted |
+| [0014](0014-first-party-vue-editor.md) | Build our own Vue editor, do not depend on Gissen or Page Composer in v1 | Accepted |

@@ -1,6 +1,6 @@
 # Open questions
 
-Decisions still to make. v1 decisions made on 17 Nov 2026 are recorded as ADRs 0004 to 0013 in [decisions/](decisions/). Each doc also has its own "Open questions" section.
+Decisions still to make. v1 decisions made on 17 Nov 2026 are recorded as ADRs 0004 to 0014 in [decisions/](decisions/). Each doc also has its own "Open questions" section.
 
 ## Still open
 
@@ -9,11 +9,9 @@ Decisions still to make. v1 decisions made on 17 Nov 2026 are recorded as ADRs 0
 3. **Pilot coexistence:** does the pilot site need to run alongside the existing WordPress site (some pages on a subpath or subdomain), or is a full switch the goal? Affects redirects and import.
 4. **AI costs:** who pays model costs during the pilot, and the default monthly cap.
 5. **Languages:** which languages beyond English for the pilot, and when? Also whether the builder UI itself needs translating for staff.
-6. **Editor base:** build our own Vue editor, or start from an existing one (for example Gissen or Page Composer)? Settled in the Phase 1 spike.
-7. **Spike scope:** is Puck's paid AI layer acceptable for a quick comparison, or should the spike stay fully open source?
-8. **Developer reviewer** for code changes to a site's `site/` layer (reference URL feature, custom blocks): project maintainers, a hosting partner, or the organisation's own technical admin?
-9. **Must list length:** is the v1 must list in [10-essentials.md](10-essentials.md) still too long?
-10. **News or posts** in v1, or soon after?
+6. **Developer reviewer** for code changes to a site's `site/` layer (reference URL feature, custom blocks): project maintainers, a hosting partner, or the organisation's own technical admin?
+7. **Must list length:** is the v1 must list in [10-essentials.md](10-essentials.md) still too long?
+8. **News or posts** in v1, or soon after?
 
 ## Answered
 
@@ -30,5 +28,7 @@ Decisions still to make. v1 decisions made on 17 Nov 2026 are recorded as ADRs 0
 - **Tracking slot** ([ADR 0011](decisions/0011-named-tracking-integrations.md)).
 - **AI panel for approvers on Site parts:** no; Site parts have no AI panel ([ADR 0012](decisions/0012-ai-panel-screens-v1.md)).
 - **Renditions at upload or generate time:** upload time ([ADR 0013](decisions/0013-renditions-at-upload.md)).
+- **Editor base:** build our own Vue editor ([ADR 0014](decisions/0014-first-party-vue-editor.md), spike write-up in [spikes/002-editor-base.md](spikes/002-editor-base.md)).
+- **Puck's paid AI layer for the editor spike:** no. The spike stayed fully open source.
 - **Streaming UI for the assistant:** tool calls applied live, progress streamed ([04-gui.md](04-gui.md#assistant-states)).
 - **Cloudflare purge by tag on cheaper plans:** available on all plans since April 2025 ([08-hosting.md](08-hosting.md#cloudflare-purge-plans-and-limits)).

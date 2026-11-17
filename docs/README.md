@@ -24,6 +24,7 @@ The design is written here first, then built. Everything in this folder is a dra
 | [17-testing-and-budgets.md](17-testing-and-budgets.md) | Test layers, performance budgets, checks before review, AI evals |
 | [18-user-journeys.md](18-user-journeys.md) | The ten core journeys the GUI must make easy |
 | [open-questions.md](open-questions.md) | Decisions still to make |
+| [spikes/](spikes/) | Phase 1 spike write-ups (sample render, editor base) |
 | [decisions/](decisions/) | Short architecture decision records (ADRs) |
 
 ## What is locked in
@@ -43,6 +44,7 @@ Each with an ADR in [decisions/](decisions/):
 - Named tracking integrations: [ADR 0011](decisions/0011-named-tracking-integrations.md)
 - Where the AI panel appears: [ADR 0012](decisions/0012-ai-panel-screens-v1.md)
 - Renditions at upload time: [ADR 0013](decisions/0013-renditions-at-upload.md)
+- Build our own Vue editor: [ADR 0014](decisions/0014-first-party-vue-editor.md)
 
 Everything else in these docs is a draft, but 13 to 18 are the working basis for the v1 code.
 

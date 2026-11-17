@@ -407,6 +407,6 @@ The builder itself meets **WCAG 2.2 AA**: everything works by keyboard, focus is
 
 ## Open questions
 
-- Do we build our own Vue editor from scratch, or start from an existing one (for example Gissen or Page Composer)? To settle in the Phase 1 spike.
+- Editor base: build our own, decided in [ADR 0014](decisions/0014-first-party-vue-editor.md).
 - Exact section toolbar actions beyond move, duplicate and remove.
 - Builder UI translation (for example Hindi for staff in India): wanted, and when?

@@ -10,7 +10,7 @@ Staff describe the page they want to a chat agent. The agent asks a few question
 
 ## Status
 
-**Pre-alpha.** The v1 design is written up in [`docs/`](docs/README.md), with decisions in [`docs/decisions/`](docs/decisions/README.md). Work on milestone M1 has started with the backend: database, services and the `/api/v1` API, with unit tests. There is no editor GUI yet, no AI model calls and no real publish renderer (publishing records releases but does not write HTML yet). See the [roadmap](docs/09-roadmap.md).
+**Pre-alpha.** The v1 design is written up in [`docs/`](docs/README.md), with decisions in [`docs/decisions/`](docs/decisions/README.md). Milestone M1 is in: the backend, the page-builder AI tools (no model calls yet), and the two Phase 1 spikes. There is no production editor GUI yet, no AI model calls and no production publish renderer (publishing records releases but does not write HTML yet). See the [roadmap](docs/09-roadmap.md).
 
 The repo is private for now. The intention is to open source it once the design settles. The licence is still to be decided (see [open questions](docs/open-questions.md)), so there is no LICENSE file yet.
 
@@ -47,6 +47,7 @@ server/db/        Drizzle schema, SQL migrations, migration runner
 server/plugins/   Start-up: Access guard, database, job worker
 shared/           Code shared by app and server: block registry, page model, ops, checks, roles
 scripts/          Seed script
+spikes/           Phase 1 prototypes (sample render, editor base). Not the production app
 tests/            Unit tests (vitest)
 docs/             Architecture and design docs, plus decision records
 ```
