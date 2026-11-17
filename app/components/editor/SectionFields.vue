@@ -7,11 +7,18 @@ import { mediaFileUrl, type MediaDetails, type MediaItem } from '../../utils/med
 import MediaPickerModal from '../media/MediaPickerModal.vue'
 import CropDialog from '../media/CropDialog.vue'
 import { cloneDraft } from '#shared/clone'
+import type { FieldIssue } from '#shared/issues'
+import FieldErrors from './FieldErrors.vue'
 
-const props = defineProps<{
-  type: string
-  modelValue: Record<string, unknown>
-}>()
+const props = withDefaults(
+  defineProps<{
+    type: string
+    modelValue: Record<string, unknown>
+    issues?: FieldIssue[]
+    basePath?: string
+  }>(),
+  { issues: () => [], basePath: '' },
+)
 
 const emit = defineEmits<{ 'update:modelValue': [Record<string, unknown>] }>()
 
@@ -19,6 +26,10 @@ const fields = computed(() => fieldsForBlock(props.type))
 
 function get(path: string): unknown {
   return path.split('.').reduce<unknown>((acc, key) => (acc && typeof acc === 'object' ? (acc as Record<string, unknown>)[key] : undefined), props.modelValue)
+}
+
+function issuePath(path: string): string {
+  return props.basePath ? `${props.basePath}.${path}` : path
 }
 
 function set(path: string, value: unknown) {
@@ -204,6 +215,7 @@ function openCrop(field: FieldSpec) {
       <p v-if="field.kind === 'text' && field.max && textValue(field.path).length > field.max - 15" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
         {{ textValue(field.path).length }} / {{ field.max }}
       </p>
+      <FieldErrors v-if="field.kind === 'text'" :issues="issues" :path="issuePath(field.path)" />
 
       <FwbTextarea
         v-else-if="field.kind === 'textarea' || field.kind === 'richtext'"
@@ -212,6 +224,7 @@ function openCrop(field: FieldSpec) {
         :rows="field.kind === 'richtext' ? 6 : 3"
         @update:model-value="field.kind === 'richtext' ? setRich(field.path, String($event)) : set(field.path, $event)"
       />
+      <FieldErrors v-if="field.kind === 'textarea' || field.kind === 'richtext'" :issues="issues" :path="issuePath(field.path)" include-children />
 
       <FwbSelect
         v-else-if="field.kind === 'enum'"
@@ -220,11 +233,13 @@ function openCrop(field: FieldSpec) {
         :options="(field.options ?? []).map((o) => ({ value: o, name: o.replace(/-/g, ' ') }))"
         @update:model-value="set(field.path, $event)"
       />
+      <FieldErrors v-if="field.kind === 'enum'" :issues="issues" :path="issuePath(field.path)" />
 
       <label v-else-if="field.kind === 'boolean'" class="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
         <input type="checkbox" :checked="Boolean(get(field.path))" @change="set(field.path, ($event.target as HTMLInputElement).checked)">
         {{ field.label }}
       </label>
+      <FieldErrors v-if="field.kind === 'boolean'" :issues="issues" :path="issuePath(field.path)" />
 
       <div v-else-if="field.kind === 'link'" class="rounded-md border border-gray-200 dark:border-gray-700 p-3">
         <p class="mb-2 text-sm font-medium text-gray-800 dark:text-gray-200">{{ field.label }}</p>
@@ -232,6 +247,7 @@ function openCrop(field: FieldSpec) {
           <FwbInput :model-value="textValue(`${field.path}.label`)" label="Label" @update:model-value="set(`${field.path}.label`, $event)" />
           <FwbInput :model-value="textValue(`${field.path}.href`)" label="Link" @update:model-value="set(`${field.path}.href`, $event)" />
         </div>
+        <FieldErrors :issues="issues" :path="issuePath(field.path)" include-children />
       </div>
 
       <div v-else-if="field.kind === 'image'" class="rounded-md border border-gray-200 dark:border-gray-700 p-3">
@@ -249,6 +265,8 @@ function openCrop(field: FieldSpec) {
           <FwbButton v-if="textValue(`${field.path}.media`) && slotOf(field)" size="sm" color="light" type="button" @click="openCrop(field)">Crop</FwbButton>
         </div>
         <FwbInput :model-value="textValue(`${field.path}.alt`)" label="Alt text" @update:model-value="set(`${field.path}.alt`, $event)" />
+        <FieldErrors :issues="issues" :path="issuePath(`${field.path}.alt`)" />
+        <FieldErrors :issues="issues" :path="issuePath(field.path)" />
       </div>
 
       <FwbInput
@@ -257,13 +275,16 @@ function openCrop(field: FieldSpec) {
         :label="field.label"
         @update:model-value="set(field.path, $event)"
       />
+      <FieldErrors v-if="field.kind === 'media' || field.kind === 'embed'" :issues="issues" :path="issuePath(field.path)" />
 
       <div v-else-if="field.kind === 'list'" class="rounded-md border border-gray-200 dark:border-gray-700 p-3">
         <div class="mb-2 flex items-center justify-between">
           <p class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ field.label }}</p>
           <button type="button" class="text-sm text-blue-700 dark:text-blue-400 hover:underline" @click="addItem(field)">Add</button>
         </div>
+        <FieldErrors :issues="issues" :path="issuePath(field.path)" />
         <div v-for="(item, index) in listItems(field)" :key="index" class="mb-3 border-b border-gray-100 dark:border-gray-800 pb-3 last:mb-0 last:border-0 last:pb-0">
+          <FieldErrors :issues="issues" :path="issuePath(`${field.path}.${index}`)" />
           <div v-for="sub in field.item ?? []" :key="sub.name" class="mb-2">
             <FwbTextarea
               v-if="sub.kind === 'richtext' || sub.kind === 'textarea'"
@@ -298,6 +319,8 @@ function openCrop(field: FieldSpec) {
                 <FwbButton v-if="textValue(`${field.path}.${index}.${sub.name}.media`) && slotOf({ ...sub, path: `${field.path}.${index}.${sub.name}` })" size="sm" color="light" type="button" @click="openCrop({ ...sub, path: `${field.path}.${index}.${sub.name}` })">Crop</FwbButton>
               </div>
               <FwbInput :model-value="String((item[sub.name] as { alt?: string } | undefined)?.alt ?? '')" label="Alt text" @update:model-value="updateItem(field, index, sub.name, { ...((item[sub.name] as object) ?? {}), alt: $event, media: (item[sub.name] as { media?: string } | undefined)?.media ?? '' })" />
+              <FieldErrors :issues="issues" :path="issuePath(`${field.path}.${index}.${sub.name}.alt`)" />
+              <FieldErrors :issues="issues" :path="issuePath(`${field.path}.${index}.${sub.name}`)" />
             </div>
             <FwbInput
               v-else
@@ -305,6 +328,7 @@ function openCrop(field: FieldSpec) {
               :label="sub.label"
               @update:model-value="updateItem(field, index, sub.name, $event)"
             />
+            <FieldErrors :issues="issues" :path="issuePath(`${field.path}.${index}.${sub.name}`)" include-children />
           </div>
           <button type="button" class="text-xs text-red-700 dark:text-red-400 hover:underline" @click="removeItem(field, index)">Remove</button>
         </div>

@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { api, ApiError } from '../../utils/api'
 import type { Device, PageEditor } from '../../utils/page-editor'
+import type { FieldIssue } from '#shared/issues'
+import { blockIndexFromPath, describeIssues, issuesUnder } from '#shared/field-issues'
+import { blockCatalog, blockLabel } from '../../utils/block-fields'
 
 const props = defineProps<{ editor: PageEditor }>()
 const emit = defineEmits<{ submitted: [] }>()
@@ -9,6 +12,48 @@ const assistant = useAssistant(() => props.editor)
 
 const submitting = ref(false)
 const submitError = ref('')
+const submitIssues = ref<FieldIssue[]>([])
+const showMobileFields = ref(false)
+
+const blockLabels = computed(() => Object.fromEntries(blockCatalog().map((item) => [item.type, item.label])))
+const labelledIssues = computed(() =>
+  describeIssues(submitIssues.value, {
+    blockTypes: props.editor.doc.blocks.map((block) => block.type),
+    blockLabels: blockLabels.value,
+  }),
+)
+
+function issuePathFor(blockId: string): string {
+  const index = props.editor.doc.blocks.findIndex((block) => block.id === blockId)
+  return index >= 0 ? `blocks.${index}` : ''
+}
+
+function issuesForBlock(blockId: string): FieldIssue[] {
+  const path = issuePathFor(blockId)
+  return path ? issuesUnder(submitIssues.value, path) : []
+}
+
+function onSectionProps(value: Record<string, unknown>) {
+  const id = props.editor.selectedId
+  if (id) props.editor.updateProps(id, value)
+}
+
+function focusIssue(issue: FieldIssue) {
+  const index = blockIndexFromPath(issue.path)
+  if (index == null) {
+    props.editor.setInspectorTab('page')
+    showMobileFields.value = true
+    return
+  }
+  const block = props.editor.doc.blocks[index]
+  if (block) props.editor.select(block.id)
+  showMobileFields.value = true
+  void nextTick(() => {
+    const field = document.querySelector(`[data-field-path="${CSS.escape(issue.path)}"]`)
+    const section = block ? document.querySelector(`[data-block-id="${CSS.escape(block.id)}"]`) : null
+    ;(field ?? section)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  })
+}
 
 const saveLabel = computed(() => {
   switch (props.editor.saveStatus) {
@@ -66,13 +111,21 @@ onBeforeUnmount(() => {
 
 async function submit() {
   submitError.value = ''
+  submitIssues.value = []
   submitting.value = true
   try {
     await props.editor.flush()
     await api(`/pages/${props.editor.pageId}/submit`, { method: 'POST', body: {} })
     emit('submitted')
   } catch (error) {
-    submitError.value = error instanceof ApiError ? error.message : 'Could not submit this page.'
+    if (error instanceof ApiError) {
+      submitError.value = error.message
+      const fields = error.details.fields
+      submitIssues.value = Array.isArray(fields) ? (fields as FieldIssue[]) : []
+      if (submitIssues.value[0]) focusIssue(submitIssues.value[0]!)
+    } else {
+      submitError.value = 'Could not submit this page.'
+    }
   } finally {
     submitting.value = false
   }
@@ -105,15 +158,41 @@ async function submit() {
         </FwbButton>
       </div>
     </header>
-    <FwbAlert v-if="submitError || editor.error" type="danger" class="rounded-none">{{ submitError || editor.error }}</FwbAlert>
+    <div v-if="submitError || editor.error || labelledIssues.length" class="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-950 dark:border-red-900 dark:bg-red-950 dark:text-red-50" data-testid="submit-issues">
+      <p class="m-0 font-medium">{{ submitError || editor.error || 'Fix these before submitting.' }}</p>
+      <ul v-if="labelledIssues.length" class="mt-2 mb-0 list-disc space-y-2 pl-5">
+        <li v-for="(item, i) in labelledIssues" :key="`${item.issue.path}-${i}`">
+          <button type="button" class="text-left underline decoration-red-400 underline-offset-2 hover:decoration-red-700" @click="focusIssue(item.issue)">
+            <span class="font-medium">{{ item.title }}.</span> {{ item.message }}
+          </button>
+        </li>
+      </ul>
+    </div>
+    <div
+      v-if="showMobileFields && editor.selected"
+      class="max-h-[50vh] overflow-y-auto border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 lg:hidden"
+      data-testid="mobile-section-fields"
+    >
+      <div class="mb-3 flex items-center justify-between gap-3">
+        <p class="m-0 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ blockLabel(editor.selected.type) }}</p>
+        <button type="button" class="text-sm text-gray-600 dark:text-gray-400 hover:underline" @click="showMobileFields = false">Close</button>
+      </div>
+      <EditorSectionFields
+        :type="editor.selected.type"
+        :model-value="editor.selected.props"
+        :issues="issuesForBlock(editor.selected.id)"
+        :base-path="`${issuePathFor(editor.selected.id)}.props`"
+        @update:model-value="onSectionProps"
+      />
+    </div>
     <div v-if="editor.offline" class="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-950">
       You're offline. Your changes will save when you're back.
     </div>
     <EditorConflictBanner v-if="editor.conflict" :editor="editor" />
     <div class="flex min-h-0 flex-1">
       <EditorLeftRail :editor="editor" :assistant="assistant" />
-      <EditorCanvas :editor="editor" />
-      <EditorInspectorPanel :editor="editor" />
+      <EditorCanvas :editor="editor" :issues="submitIssues" />
+      <EditorInspectorPanel :editor="editor" :issues="submitIssues" />
     </div>
   </div>
 </template>

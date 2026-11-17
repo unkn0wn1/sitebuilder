@@ -2,8 +2,9 @@
 import { api, ApiError } from '../../utils/api'
 import { timeAgo } from '../../utils/format'
 import type { InspectorTab, PageEditor } from '../../utils/page-editor'
+import type { FieldIssue } from '#shared/issues'
 
-const props = defineProps<{ editor: PageEditor }>()
+const props = withDefaults(defineProps<{ editor: PageEditor; issues?: FieldIssue[] }>(), { issues: () => [] })
 
 const tabs: { id: InspectorTab; label: string }[] = [
   { id: 'section', label: 'Section' },
@@ -100,7 +101,7 @@ async function restore(id: string) {
 </script>
 
 <template>
-  <aside v-if="editor.selected || editor.inspectorTab !== 'section'" class="flex h-full w-80 min-h-0 flex-col border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+  <aside v-if="editor.selected || editor.inspectorTab !== 'section'" class="hidden h-full w-80 min-h-0 flex-col border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 lg:flex">
     <div class="flex border-b border-gray-200 dark:border-gray-700 p-1">
       <button
         v-for="tab in tabs"
@@ -117,7 +118,13 @@ async function restore(id: string) {
 
     <div class="min-h-0 flex-1 overflow-y-auto p-4">
       <div v-if="editor.inspectorTab === 'section' && editor.selected">
-        <EditorSectionFields :type="editor.selected.type" :model-value="editor.selected.props" @update:model-value="onProps" />
+                <EditorSectionFields
+          :type="editor.selected.type"
+          :model-value="editor.selected.props"
+          :issues="issues"
+          :base-path="`blocks.${editor.doc.blocks.findIndex((b) => b.id === editor.selected!.id)}.props`"
+          @update:model-value="onProps"
+        />
         <div class="mt-6 flex flex-col gap-2 border-t border-gray-200 dark:border-gray-700 pt-4">
           <FwbButton color="light" size="sm" @click="editor.duplicateSection(editor.selected.id)">Duplicate</FwbButton>
           <FwbButton color="red" size="sm" @click="editor.removeSection(editor.selected.id)">Remove section</FwbButton>

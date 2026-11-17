@@ -1,9 +1,16 @@
 <script setup lang="ts">
 import { canvasScale } from '../../utils/format'
 import { DEVICE_WIDTHS, type PageEditor } from '../../utils/page-editor'
+import type { FieldIssue } from '#shared/issues'
+import { issuesUnder } from '#shared/field-issues'
 import { CANVAS_SCOPE, SCOPED_THEME_CSS } from '../../utils/theme-css'
 
-const props = defineProps<{ editor: PageEditor }>()
+const props = withDefaults(defineProps<{ editor: PageEditor; issues?: FieldIssue[] }>(), { issues: () => [] })
+
+function blockIssues(index: number) {
+  return issuesUnder(props.issues, `blocks.${index}`)
+}
+
 
 const host = ref<HTMLElement | null>(null)
 const available = ref(1280)
@@ -35,7 +42,7 @@ const scale = computed(() => canvasScale(Math.max(available.value - 48, 160), wi
         @click.stop
       >
         <p v-if="!editor.doc.blocks.length" class="p-16 text-center text-gray-500 dark:text-gray-400">This page has no sections yet. Add one from the left.</p>
-        <div v-for="(block, index) in editor.doc.blocks" :key="block.id" class="group relative">
+        <div v-for="(block, index) in editor.doc.blocks" :key="block.id" class="group relative" :data-block-id="block.id">
           <EditorSectionView
             :block="block"
             :selected="editor.selectedId === block.id"
@@ -43,6 +50,13 @@ const scale = computed(() => canvasScale(Math.max(available.value - 48, 160), wi
             @select="editor.select(block.id)"
             @change-text="(prop, value) => editor.updateProps(block.id, { [prop]: value })"
           />
+          <div
+            v-if="blockIssues(index).length"
+            class="border-l-4 border-red-500 bg-red-50 px-4 py-2 text-sm text-red-900"
+            :data-field-path="`blocks.${index}`"
+          >
+            <p v-for="(issue, i) in blockIssues(index)" :key="i" class="m-0">{{ issue.message }}</p>
+          </div>
           <div
             v-if="editor.selectedId === block.id"
             class="absolute right-3 top-3 z-10 flex gap-1 rounded-md bg-white/95 dark:bg-gray-800/95 p-1 shadow"
