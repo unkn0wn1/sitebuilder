@@ -351,7 +351,7 @@ onBeforeUnmount(() => {
         </div>
         <div v-else-if="xaiConnecting" class="space-y-3">
           <p class="text-sm text-gray-700 dark:text-gray-300">Open the link, sign in, and enter this code if asked.</p>
-          <p class="font-mono text-2xl tracking-widest text-gray-900 dark:text-gray-100" data-testid="xai-user-code">{{ xaiUserCode }}</p>
+          <p class="font-mono text-2xl text-gray-900 dark:text-gray-100" data-testid="xai-user-code">{{ xaiUserCode }}</p>
           <p class="text-sm">
             <a
               class="text-blue-700 no-underline hover:underline dark:text-blue-400"
