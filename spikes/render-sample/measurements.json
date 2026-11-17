@@ -1,0 +1,54 @@
+{
+  "at": "2026-11-17T03:22:05.364Z",
+  "bundleId": "bundle-spike-001",
+  "videoBytes": 30523,
+  "poster1280WebpBytes": 5652,
+  "fonts": 0,
+  "note": "Measured on the spike output, gzip level 9. Not served through Cloudflare. Virtuous script is not included in the JS figure.",
+  "rows": [
+    {
+      "measure": "HTML per page (gzip)",
+      "bytes": 1158,
+      "budget": 51200,
+      "raw": 2795,
+      "pass": true
+    },
+    {
+      "measure": "CSS whole site (gzip)",
+      "bytes": 1135,
+      "budget": 30720,
+      "raw": 2837,
+      "pass": true
+    },
+    {
+      "measure": "Our JS island (gzip, excluding Virtuous)",
+      "bytes": 531,
+      "budget": 20480,
+      "raw": 1152,
+      "pass": true
+    },
+    {
+      "measure": "Hero poster 640px AVIF",
+      "bytes": 1469,
+      "budget": 122880,
+      "pass": true
+    }
+  ],
+  "lighthouse": {
+    "version": "13.6.0",
+    "profile": "mobile, simulated slow 4G (rtt 150ms, 1.6 Mbps, 4\u00d7 CPU)",
+    "fetchedAtIst": "2026-11-17 08:52 IST",
+    "performance": 100,
+    "accessibility": 100,
+    "lcpMs": 941,
+    "cls": 0,
+    "tbtMs": 0,
+    "fcpMs": 751,
+    "notes": [
+      "Served from Python http.server, not nginx or Cloudflare.",
+      "Render-blocking CSS insight (~140ms). The theme is small enough to inline in the real renderer.",
+      "Cache-lifetime insight is from the test server having no Cache-Control. nginx.conf would set it.",
+      "Poster and video are generated from a gradient, not a real photograph. Re-measure with real footage in the pilot."
+    ]
+  }
+}

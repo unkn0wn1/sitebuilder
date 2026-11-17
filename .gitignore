@@ -27,3 +27,8 @@ logs
 .vscode/*
 !.vscode/extensions.json
 *.local
+
+# Spike generated output
+spikes/**/out/
+spikes/**/dist/
+spikes/render-sample/media/hero-poster-source.jpg
