@@ -15,6 +15,7 @@
     "db:generate": "drizzle-kit generate",
     "seed": "tsx scripts/seed.ts",
     "test:api": "nuxt build && vitest run -c vitest.api.config.ts",
+    "test:e2e": "playwright test",
     "check": "npm run typecheck && npm test && npm run test:api",
     "restore": "tsx scripts/restore.ts",
     "install-site": "tsx scripts/install.ts"
@@ -22,6 +23,8 @@
   "dependencies": {
     "better-sqlite3": "^13.2.0",
     "drizzle-orm": "^0.45.4",
+    "flowbite-vue": "^0.4.0",
+    "focus-trap": "^8.2.5",
     "jose": "^6.2.17",
     "nuxt": "^4.6.4",
     "sharp": "^0.35.5",
@@ -33,7 +36,9 @@
     "@tailwindcss/vite": "^4.3.5",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.6.6",
+    "@vue/test-utils": "^2.6.0",
     "drizzle-kit": "^0.31.11",
+    "playwright": "^1.65.1",
     "tailwindcss": "^4.3.5",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",

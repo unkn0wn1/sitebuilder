@@ -152,7 +152,14 @@ export function getPage(ctx: ServiceCtx, id: string) {
   const page = requirePage(ctx, id)
   const doc = readDoc(ctx, page.draftVersionId!)
   const review = ctx.db.select().from(reviews).where(and(eq(reviews.targetType, 'page'), eq(reviews.targetId, id), eq(reviews.state, 'pending'))).get()
-  return { page, doc, revision: page.draftRevision, review: review ?? null }
+  const rules = getTemplateRules(ctx, page.template)
+  return {
+    page,
+    doc,
+    revision: page.draftRevision,
+    review: review ?? null,
+    template: rules ? { key: page.template, label: rules.label, rules } : { key: page.template, label: page.template, rules: null },
+  }
 }
 
 /**

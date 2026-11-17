@@ -37,6 +37,8 @@ describe('pages', () => {
     expect(notAllowed.message).toMatch(/isn't allowed on a Story page/)
     // All or nothing: the failed batches changed nothing.
     expect(getPage(ctx, page.id).revision).toBe(1)
+    expect(getPage(ctx, page.id).template.rules?.allowedBlocks).toContain('VideoHero')
+    expect(getPage(ctx, page.id).template.label).toBeTruthy()
   })
 
   it('coalesces autosaves from one person, but not across people or long gaps', () => {

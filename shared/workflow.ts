@@ -25,3 +25,9 @@ export function restingState(opts: { publishedVersionId: string | null; wasUnpub
 export function canSubmit(state: WorkflowState): boolean {
   return state === 'draft' || state === 'published' || state === 'unpublished'
 }
+
+/** Status shown next to a page title. Live pages with a newer draft say so. */
+export function statusLabel(state: WorkflowState, hasUnpublishedChanges = false): string {
+  if (state === 'published' && hasUnpublishedChanges) return 'Live, with changes'
+  return STATE_LABELS[state]
+}

@@ -1,1 +1,120 @@
 @import "tailwindcss";
+/* flowbite-vue 0.4.0 ships a compiled stylesheet (utilities + component CSS). */
+@import "flowbite-vue/index.css";
+
+@theme {
+  --font-sans: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --color-builder-ink: #1f2937;
+  --color-builder-muted: #6b7280;
+  --color-builder-line: #e5e7eb;
+  --color-builder-wash: #f3f4f6;
+  --color-builder-accent: #1a56db;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-builder-ink);
+  background: #fff;
+}
+
+#__nuxt {
+  min-height: 100%;
+}
+
+.sb-builder {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: 3.25rem 1fr;
+  grid-template-columns: 13.5rem 1fr;
+  background: #fff;
+}
+
+.sb-builder.is-editor {
+  grid-template-columns: auto 1fr;
+}
+
+.sb-topbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0 1rem;
+  border-bottom: 1px solid var(--color-builder-line);
+  background: #fff;
+}
+
+.sb-nav {
+  border-right: 1px solid var(--color-builder-line);
+  background: #fafafa;
+  padding: 0.75rem 0.5rem;
+}
+
+.sb-main {
+  min-width: 0;
+  min-height: 0;
+  background: #fff;
+}
+
+.sb-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.sb-status-draft,
+.sb-status-unpublished {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.sb-status-in_review {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.sb-status-approved {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.sb-status-published {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.sb-status-published-changes {
+  background: #ecfccb;
+  color: #3f6212;
+}
+
+.sb-canvas-frame {
+  background: var(--color-builder-wash);
+}
+
+.sb-section-selected {
+  outline: 2px solid var(--color-builder-accent);
+  outline-offset: -2px;
+}
+
+.sb-inline[contenteditable='true'] {
+  cursor: text;
+  outline: none;
+  box-decoration-break: clone;
+  border-radius: 2px;
+}
+
+.sb-inline[contenteditable='true']:focus {
+  box-shadow: inset 0 0 0 2px var(--color-builder-accent);
+}

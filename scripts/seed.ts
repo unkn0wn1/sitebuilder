@@ -4,6 +4,7 @@
 //   SEED_SITE_NAME        site name (default "Example charity")
 //   SEED_ADMIN_EMAIL      first admin's email (default admin@example.org)
 //   SEED_ADMIN_PASSWORD   first admin's password; if unset a random one is printed once
+//   SEED_SAMPLE_PAGES     set to 1 to also add the Winter appeal demo page
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { randomBytes } from 'node:crypto'
@@ -13,12 +14,14 @@ import { loadMigrationsFromDir } from '../server/db/migrations-fs'
 import { pages, siteParts, templates, users } from '../server/db/schema'
 import { createUser } from '../server/services/auth'
 import type { ActingAs, ServiceCtx } from '../server/services/context'
-import { createPage } from '../server/services/pages'
+import { applyPageOps, createPage } from '../server/services/pages'
 import { STARTER_TEMPLATES } from '../server/services/seed-data'
 import { createEmbed, createSite, getOnlySite, listEmbeds } from '../server/services/site'
 import { createSitePart } from '../server/services/site-parts'
 import { createTemplate } from '../server/services/templates'
+import { CallToAction, Hero, Quote } from '../shared/blocks/library'
 import { createDefaultRegistry } from '../shared/blocks/registry'
+import { richTextFromParagraphs } from '../shared/richtext'
 
 const path = process.env.SITEBUILDER_DB_PATH ?? '.data/sitebuilder.db'
 if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true })
@@ -65,6 +68,17 @@ if (!db.select({ id: pages.id }).from(pages).where(eq(pages.slug, 'about-us')).g
   createPage(ctx, actor, { title: 'About us', template: 'standard', slug: 'about-us' })
   log('added sample page About us')
 }
+if (process.env.SEED_SAMPLE_PAGES === '1' && !db.select({ id: pages.id }).from(pages).where(eq(pages.slug, 'winter-appeal')).get()) {
+  const { page } = createPage(ctx, actor, { title: 'Winter appeal', template: 'campaign', slug: 'winter-appeal' })
+  applyPageOps(ctx, actor, page.id, page.draftRevision, [
+    { op: 'add_block', block: { type: 'Hero', props: { ...Hero.sample, heading: 'Keep them warm this winter', subheading: 'Your gift pays for blankets, food and treatment.' } } },
+    { op: 'add_block', block: { type: 'RichText', props: { content: richTextFromParagraphs(['Every night this winter, injured street animals need a warm, safe place to recover. A gift of any size helps us keep the hospital open.']) } } },
+    { op: 'add_block', block: { type: 'Quote', props: { ...Quote.sample } } },
+    { op: 'add_block', block: { type: 'CallToAction', props: { ...CallToAction.sample } } },
+  ])
+  log('added sample page Winter appeal')
+}
+
 
 sqlite.close()
 log(`done (${path})`)

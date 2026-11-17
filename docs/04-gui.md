@@ -118,6 +118,8 @@ flowchart TD
 
 ## Page editor
 
+The first-party Vue editor (ADR 0014) is in the app: sign in, the pages list, and `/pages/:id`. It has the tabbed left rail (Assistant, Add, Outline), a canvas with the public theme and a Desktop/Tablet/Mobile switch, and a Section/Page/History inspector. Changes are sent as operations within a second, with Saving/Saved, undo, and Keep mine / Use theirs on conflicts. The assistant tab is visible but does not call a model yet.
+
 ### Layout
 
 ```
