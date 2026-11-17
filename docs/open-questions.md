@@ -1,6 +1,6 @@
 # Open questions
 
-Decisions still to make. v1 decisions made on 17 Nov 2026 are recorded as ADRs 0004 to 0014 in [decisions/](decisions/). Each doc also has its own "Open questions" section.
+Decisions still to make. v1 decisions made on 17 Nov 2026 are recorded as ADRs 0004 to 0015 in [decisions/](decisions/). Each doc also has its own "Open questions" section.
 
 ## Still open
 
@@ -30,5 +30,6 @@ Decisions still to make. v1 decisions made on 17 Nov 2026 are recorded as ADRs 0
 - **Renditions at upload or generate time:** upload time ([ADR 0013](decisions/0013-renditions-at-upload.md)).
 - **Editor base:** build our own Vue editor ([ADR 0014](decisions/0014-first-party-vue-editor.md), spike write-up in [spikes/002-editor-base.md](spikes/002-editor-base.md)).
 - **Puck's paid AI layer for the editor spike:** no. The spike stayed fully open source.
+- **Outbound email in v1:** Google Workspace through the Gmail API, not SMTP ([ADR 0015](decisions/0015-gmail-workspace-mail.md)).
 - **Streaming UI for the assistant:** tool calls applied live, progress streamed ([04-gui.md](04-gui.md#assistant-states)).
 - **Cloudflare purge by tag on cheaper plans:** available on all plans since April 2025 ([08-hosting.md](08-hosting.md#cloudflare-purge-plans-and-limits)).

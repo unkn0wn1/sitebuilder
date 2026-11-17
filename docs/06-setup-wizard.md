@@ -32,7 +32,7 @@ These become design tokens (a Tailwind theme) used by every block.
 
 - AI model provider and key (bring your own).
 - Cloudflare zone and API token for cache purge (Zone, Cache Purge only), required before first publish. The wizard checks that the origin only accepts Cloudflare and that Cloudflare Access protects the builder ([ADR 0007](decisions/0007-single-site-install.md)).
-- Email (SMTP) for invites, password resets and approval emails ([16-operations.md](16-operations.md#email)).
+- Email: connect a Google Workspace account (for example noreply@) for invites, password resets and approval emails ([ADR 0015](decisions/0015-gmail-workspace-mail.md), [16-operations.md](16-operations.md#email)).
 - Allowed embed domains.
 - Tracking and consent by id (GA4, Tag Manager, Plausible, Cookiebot) ([ADR 0011](decisions/0011-named-tracking-integrations.md)).
 - Workflow: "How many people approve changes?" If one, self-approval is switched on ([ADR 0005](decisions/0005-rollback-and-approval.md)).

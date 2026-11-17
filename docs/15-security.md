@@ -9,7 +9,7 @@
 - Someone reaching the origin server directly, around Cloudflare.
 - The AI being talked, or tricked by content it reads, into doing something outside its task.
 - The builder's server being used to reach internal addresses (SSRF).
-- Secrets (AI key, Cloudflare token, SMTP password) leaking.
+- Secrets (AI key, Cloudflare token, Google OAuth client secret and mail tokens) leaking.
 - Losing data (see [16-operations.md](16-operations.md#backups-and-restore)).
 
 ## The builder
@@ -39,12 +39,13 @@
 
 ## Secrets
 
-- Integration secrets (AI key, Cloudflare token, SMTP password) are stored in the `secrets` table, **encrypted with AES-256-GCM**.
+- Integration secrets (AI key, Cloudflare token, Google OAuth client secret, and Gmail OAuth tokens) are stored in the `secrets` table, **encrypted with AES-256-GCM**. Gmail refresh and access tokens are written only by the OAuth callback, never by the secrets API, and are never returned.
 - The encryption key is **`SITEBUILDER_SECRET_KEY`**, set in the server's environment file (outside the database and outside the repo), created by the installer.
 - **Backups:** the database backup and the key are stored **separately**. Restoring needs both. The restore guide says so in bold. If the key is lost, the secrets must be re-entered (content is not affected).
 - Secrets are write-only in the API and the GUI. They are never sent to the browser and never shown in logs.
 - **Cloudflare token scope:** Zone, Cache Purge, for the one zone only. Nothing else.
 - **AI key:** sent only to the configured provider's endpoint.
+- **Google OAuth:** the client secret and Gmail tokens never leave the server. The access token is sent only to Google, to send mail or refresh. The Gmail scopes are send-only plus the account email.
 
 ## The AI
 

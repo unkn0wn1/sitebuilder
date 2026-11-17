@@ -45,6 +45,7 @@ Each with an ADR in [decisions/](decisions/):
 - Where the AI panel appears: [ADR 0012](decisions/0012-ai-panel-screens-v1.md)
 - Renditions at upload time: [ADR 0013](decisions/0013-renditions-at-upload.md)
 - Build our own Vue editor: [ADR 0014](decisions/0014-first-party-vue-editor.md)
+- Email through Google Workspace and the Gmail API: [ADR 0015](decisions/0015-gmail-workspace-mail.md)
 
 Everything else in these docs is a draft, but 13 to 18 are the working basis for the v1 code.
 

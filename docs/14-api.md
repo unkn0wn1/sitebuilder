@@ -129,8 +129,12 @@ Tools run inside the server. They call the same services as the routes above, so
 
 | Method and path | Who | Does |
 | --- | --- | --- |
-| `GET /settings`, `PATCH /settings` | Admin | Site settings |
-| `PUT /settings/secrets/:name` | Admin or Operator | Write-only: AI key, Cloudflare token, SMTP password. Never readable afterwards |
+| `GET /settings`, `PATCH /settings` | Admin | Site settings, including whether Google Workspace mail is connected |
+| `PUT /settings/secrets/:name` | Admin or Operator | Write-only: AI key, Cloudflare token, Google OAuth client secret. Never readable afterwards. Gmail tokens cannot be set this way |
+| `POST /settings/mail/google/start` | Admin | Returns the Google OAuth URL to connect a Workspace account |
+| `GET /settings/mail/google/callback` | OAuth redirect | Stores the encrypted tokens and redirects to Settings |
+| `POST /settings/mail/google/disconnect` | Admin | Forgets the connected Workspace account |
+| `POST /settings/mail/test` | Admin | Sends a test email through the same transport the jobs use: `{ to? }` |
 | `GET /audit` | Admin | Audit log with filters |
 | `GET /notifications` | Signed in | Your latest 50 notifications |
 | `GET /health` | Anyone | Liveness (no details) |

@@ -80,7 +80,9 @@ Server settings (environment variables, none are committed):
 | `SITEBUILDER_ACCESS_TEAM_DOMAIN` | Cloudflare Access team domain, like `https://<team>.cloudflareaccess.com`. Required in production. |
 | `SITEBUILDER_ACCESS_AUD` | Cloudflare Access application audience (AUD) tag. Required in production. |
 | `SITEBUILDER_MEDIA_DIR` | Where uploads and renditions are stored. Default: `media` next to the database. |
-| `SITEBUILDER_MAIL_OUTBOX` | Folder where emails are written instead of sent (default `.data/outbox` outside production). SMTP sending is not built yet. |
+| `SITEBUILDER_MAIL_OUTBOX` | Folder where emails are written instead of sent. Always used when set (tests and local debugging). The default in development, if Google Workspace is not connected, is `.data/outbox`. |
+| `SITEBUILDER_GOOGLE_OAUTH_CLIENT_ID` | Optional. Google OAuth client id, if not stored in Settings. |
+| `SITEBUILDER_GOOGLE_OAUTH_CLIENT_SECRET` | Optional. Google OAuth client secret, if not stored in Settings. |
 | `SITEBUILDER_ALLOW_NO_ACCESS` | Set to `1` to run in production without Cloudflare Access (testing only). |
 | `SITEBUILDER_ORIGIN` | The builder's public origin, for the CSRF check, if the proxy headers are not reliable. |
 | `SITEBUILDER_WORKER` | Set to `0` to stop the in-process job worker. |

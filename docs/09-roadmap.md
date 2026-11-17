@@ -23,7 +23,7 @@ Draft. Timings are rough guesses for one developer with AI help, not commitments
 - **Spike:** render one sample page with a compiled render bundle and Vue's server renderer, serve it from nginx behind Cloudflare, measure against the budgets ([17-testing-and-budgets.md](17-testing-and-budgets.md)). Test a Virtuous embed and a near full-screen video hero.
 - **Spike:** decide whether to build our own Vue editor or start from an existing one.
 
-Progress (17 November 2026): M1 is complete for the backend, the remaining AI tools, and both spikes. The content API, schema, auth, pages, site parts, reviews, settings, media, jobs, Access checks and AI tool permissions (including create draft, crop proposal, upload request and a schematic preview screenshot) are in, with unit tests and HTTP-level API tests. There are still no real model calls. The [sample-page render spike](spikes/001-render-sample.md) met the performance budgets on a Vue server-rendered page with a video hero and a Virtuous-style embed island. The [editor-base spike](spikes/002-editor-base.md) led to [ADR 0014](decisions/0014-first-party-vue-editor.md): we will build our own Vue editor. SMTP sending, the real publish renderer, the GUI editor and real model calls move to later milestones.
+Progress (17 November 2026): M1 is complete for the backend, the remaining AI tools, and both spikes. The content API, schema, auth, pages, site parts, reviews, settings, media, jobs, Access checks and AI tool permissions (including create draft, crop proposal, upload request and a schematic preview screenshot) are in, with unit tests and HTTP-level API tests. There are still no real model calls. The [sample-page render spike](spikes/001-render-sample.md) met the performance budgets on a Vue server-rendered page with a video hero and a Virtuous-style embed island. The [editor-base spike](spikes/002-editor-base.md) led to [ADR 0014](decisions/0014-first-party-vue-editor.md): we will build our own Vue editor. Google Workspace mail (ADR 0015) is in for milestone 2. The real publish renderer, Docker Compose install, backups, the GUI editor and real model calls are still to come.
 
 ## Phase 2: Publishing and media (3 to 4 weeks)
 
@@ -33,7 +33,7 @@ Progress (17 November 2026): M1 is complete for the backend, the remaining AI to
 - Releases with manifests, symlink switch, site rollback ([ADR 0005](decisions/0005-rollback-and-approval.md)).
 - Cloudflare purge by cache tag, redirects map, sitemap.xml, robots.txt, per-page CSP.
 - Image pipeline: uploads, sharp renditions as jobs, crops, alt text ([ADR 0013](decisions/0013-renditions-at-upload.md)).
-- Email through SMTP jobs.
+- Email through Google Workspace and the Gmail API, behind a mail-transport interface ([ADR 0015](decisions/0015-gmail-workspace-mail.md)). SMTP or Postmark can be added later.
 - Docker Compose install and backup and restore.
 
 ## Phase 3: Editor and approvals (4 to 6 weeks)

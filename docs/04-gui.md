@@ -89,7 +89,7 @@ flowchart TD
 | SEO and redirects | robots.txt, sitemap view, default social image, redirects table | Admin |
 | Tracking and consent | Named integrations by id: GA4, Tag Manager, Plausible, Cookiebot ([ADR 0011](decisions/0011-named-tracking-integrations.md)) | Admin |
 | Users and roles | Invite, deactivate, roles (Editor, Approver, Admin), operator flag | Admin |
-| Integrations | AI provider, model and key; Cloudflare zone and token; email (SMTP) | Admin or operator |
+| Integrations | AI provider, model and key; Cloudflare zone and token; email (Google Workspace) | Admin or operator |
 | AI | Agent profile, site memory, usage and cost, caps | Admin |
 | Security | Embed domain allow-list | Admin |
 | Publishing and activity | Releases, site rollback, audit log (including AI tool calls) | Admin (log), approvers can view releases |

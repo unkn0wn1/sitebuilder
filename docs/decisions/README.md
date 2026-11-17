@@ -18,3 +18,4 @@ Short records of decisions that are locked in. Each has a status, the context, t
 | [0012](0012-ai-panel-screens-v1.md) | Where the AI panel appears in v1 | Accepted |
 | [0013](0013-renditions-at-upload.md) | Image renditions are made at upload time with sharp | Accepted |
 | [0014](0014-first-party-vue-editor.md) | Build our own Vue editor, do not depend on Gissen or Page Composer in v1 | Accepted |
+| [0015](0015-gmail-workspace-mail.md) | Send mail through Google Workspace and the Gmail API | Accepted |

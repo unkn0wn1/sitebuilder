@@ -67,7 +67,7 @@ erDiagram
 | `ai_messages` | The messages and tool calls in a session |
 | `memory_entries` | Site memory and user memory entries |
 | `notifications` | In-app notifications per user, with read time |
-| `secrets` | Encrypted integration secrets (AI key, Cloudflare token, SMTP password), never returned by the API |
+| `secrets` | Encrypted integration secrets (AI key, Cloudflare token, Google OAuth client secret, Gmail tokens), never returned by the API |
 
 ## Page workflow states
 

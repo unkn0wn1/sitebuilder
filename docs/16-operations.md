@@ -8,7 +8,7 @@
   - `builder`: the Nuxt app (GUI, API) and the job worker,
   - `nginx`: serves `current/` and media to Cloudflare,
   - volumes: `data/` (SQLite database), `media/` (originals and renditions), `releases/` (release folders and the `current` symlink),
-  - an environment file with `SITEBUILDER_SECRET_KEY`, the builder origin, the Cloudflare Access audience tag and SMTP host settings.
+  - an environment file with `SITEBUILDER_SECRET_KEY`, the builder origin and the Cloudflare Access audience tag. Google Workspace mail is connected in the setup wizard or Settings, not with SMTP host settings.
 - An install script creates the environment file and secret key, checks the Cloudflare setup (zone, token, Access, origin lock), and starts the containers.
 - A plain systemd install is documented for people who prefer it, but is not the tested path.
 
@@ -24,10 +24,14 @@ From [ADR 0009](decisions/0009-sqlite-drizzle-and-jobs.md):
 
 ## Email
 
-Outbound email is needed for invites, password resets and approvals, so it is part of v1.
+Outbound email is needed for invites, password resets and approvals, so it is part of v1. The transport is decided in [ADR 0015](decisions/0015-gmail-workspace-mail.md).
 
-- **SMTP** settings in Settings > Integrations and in the setup wizard: host, port, user, password (stored as a secret), from address. Any provider works (for example Postmark, Amazon SES, Mailgun, or the organisation's Google Workspace relay).
-- Emails are sent through `send_email` jobs, so a slow mail server never blocks a request, and failures retry.
+- **v1: Google Workspace**, through the Gmail API. In the setup wizard or Settings > Integrations, add a Google OAuth client (id and secret) and connect a Workspace account such as `noreply@`. No app passwords, and no SMTP settings in v1. SMTP or Postmark can be added later behind the same mail-transport interface.
+- The OAuth client needs the Gmail API enabled and this redirect URI: `{builder origin}/api/v1/settings/mail/google/callback`. The scopes are send-only, plus reading the account's email so Settings can show who is connected. Refresh and access tokens are stored encrypted at rest and are never shown again.
+- The from address defaults to the connected account and can be set in Settings (it must be a send-as address Google will accept).
+- Settings has a **test-send**, so the operator can confirm mail works before inviting anyone.
+- Emails (except the test-send) are sent through `send_email` jobs, so a slow Gmail call never blocks a request, and failures retry. If the connection expires, reconnect it in Settings.
+- In development, messages are written to a file outbox unless a Workspace account is connected. `SITEBUILDER_MAIL_OUTBOX` always forces the outbox, including in tests.
 - v1 emails:
 
 | Email | To | Priority |
