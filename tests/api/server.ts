@@ -48,6 +48,8 @@ export async function startServer(extraEnv: Record<string, string> = {}, opts: {
     SITEBUILDER_SECRET_KEY: randomBytes(32).toString('base64'),
     SEED_ADMIN_EMAIL: ADMIN_EMAIL,
     SEED_ADMIN_PASSWORD: PASSWORD,
+    // Don't inherit a leftover demo-page seed from a developer or screenshot shell.
+    SEED_SAMPLE_PAGES: '',
     ...extraEnv,
   }
   if (opts.seed !== false) {

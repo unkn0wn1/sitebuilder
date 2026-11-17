@@ -52,3 +52,33 @@ test('settings, media library and inspector crop', async ({ page }) => {
   await expect(page.getByText('field.png').first()).toBeVisible()
   await page.screenshot({ path: shot('editor-photo-change.png'), fullPage: true })
 })
+
+
+test('site parts list, menu, header and footer', async ({ page }) => {
+  await signIn(page)
+
+  await page.goto('/site-parts')
+  await expect(page.getByRole('heading', { name: 'Site parts' })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('link', { name: 'Main menu' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Header', exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Footer', exact: true })).toBeVisible()
+  await page.screenshot({ path: shot('menus.png'), fullPage: true })
+
+  await page.getByRole('link', { name: 'Main menu' }).click()
+  await expect(page.getByRole('heading', { name: 'Main menu' })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('button', { name: 'Add item' })).toBeVisible()
+  await expect(page.getByText('Preview')).toBeVisible()
+  await page.screenshot({ path: shot('menu-editor.png'), fullPage: true })
+
+  await page.goto('/site-parts')
+  await page.getByRole('link', { name: 'Header', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Header' })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByLabel('Layout')).toBeVisible()
+  await page.screenshot({ path: shot('header-editor.png'), fullPage: true })
+
+  await page.goto('/site-parts')
+  await page.getByRole('link', { name: 'Footer', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Footer' })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByLabel('Email')).toBeVisible()
+  await page.screenshot({ path: shot('footer-editor.png'), fullPage: true })
+})

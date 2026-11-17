@@ -280,7 +280,7 @@ After **Build it**, it becomes the editor layout with the Assistant tab open.
 +-------------------------------------+-------------------------------------+
 ```
 
-Header and footer use the page editor layout without the assistant tab, limited to the sections allowed in them.
+Header, footer and banner are small structured documents, so their editors are forms (layout, menu, contact, social links, and so on) with a live preview on the right, not the page-section canvas. There is no assistant tab: approvers and admins edit these by hand (ADR 0012). Publishing one updates every page (about a minute).
 
 ### Media library and item
 
