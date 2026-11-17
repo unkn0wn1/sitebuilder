@@ -219,13 +219,16 @@ function trustGroups(value: unknown): { label: string; items: TrustPreviewItem[]
         <h2 v-if="p.heading" class="sb-inline" contenteditable="true" @blur="onInline('heading', $event)">{{ String(p.heading) }}</h2>
         <p v-if="p.intro" class="lede sb-inline" contenteditable="true" @blur="onInline('intro', $event)">{{ String(p.intro) }}</p>
         <div class="tiers">
-          <article v-for="(item, i) in asItems<{ amount: string; title?: string; explanation?: string; image?: ImageRef }>(p.items)" :key="i" class="tier">
-            <img v-if="item.image" :src="imageSrc(item.image, 640)" :alt="item.image.alt ?? ''" @error="($event.target as HTMLImageElement).style.opacity = '0.2'">
-            <div class="tier-body">
-              <p class="tier-amount">{{ item.amount }}</p>
-              <h3 v-if="item.title">{{ item.title }}</h3>
-              <p v-if="item.explanation">{{ item.explanation }}</p>
-            </div>
+          <article v-for="(item, i) in asItems<{ amount: string; title?: string; explanation?: string; frequency?: string; image?: ImageRef }>(p.items)" :key="i" class="tier">
+            <a class="tier-give" href="#donate">
+              <img v-if="item.image" :src="imageSrc(item.image, 640)" :alt="item.image.alt ?? ''" @error="($event.target as HTMLImageElement).style.opacity = '0.2'">
+              <div class="tier-body">
+                <p class="tier-amount">{{ item.amount }}</p>
+                <h3 v-if="item.title">{{ item.title }}</h3>
+                <p v-if="item.explanation">{{ item.explanation }}</p>
+                <p v-if="item.frequency" class="tier-frequency">{{ item.frequency === 'once' ? 'One-time' : item.frequency }}</p>
+              </div>
+            </a>
           </article>
         </div>
         <p v-if="p.otherAmount" class="tier-other">{{ String(p.otherAmount) }}</p>

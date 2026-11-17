@@ -131,7 +131,7 @@ A template is a set of rules, not a fixed layout:
 
 ## Starter blocks (MVP)
 
-Hero, VideoHero (poster plus a muted looping video), RichText, TextAndImage, Image, Gallery, Quote, Stats, CardGrid, CallToAction, FAQ, DonationEmbed, Embed (allow-listed), ImpactTiers, DonationProgress, MatchBanner, StoryBeforeAfter, TrustStrip, plus the header and footer from the shell.
+Hero, VideoHero (poster plus a muted looping video), RichText, TextAndImage, Image, Gallery, Quote, Stats, CardGrid, CallToAction, FAQ, DonationEmbed, Embed (allow-listed), ImpactTiers (tier buttons scroll to `#donate` and pre-fill the Virtuous form via documented `amount` and `frequency` URL params plus `RaiseDonorsForms.settings.giftInfo`, with a highlighted amount hint as fallback), DonationProgress, MatchBanner, StoryBeforeAfter, TrustStrip, plus the header and footer from the shell.
 
 ## Open questions
 

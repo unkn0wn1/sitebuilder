@@ -13,6 +13,7 @@ import { createPublishHandler, currentRelease, unpublishPage } from '../server/s
 import { createFileReleaseWriter, readCurrentReleaseId } from '../server/services/release'
 import { approveReview, submitPage } from '../server/services/reviews'
 import {
+  EMBED_JS,
   STYLE_HASH,
   THEME_CSS,
   htmlPathFor,
@@ -303,8 +304,8 @@ describe('public-site renderer', () => {
           heading: 'What your gift can do',
           intro: 'These are example amounts for this demo, not a live appeal.',
           items: [
-            { amount: '₹500', title: 'A warm meal', explanation: 'Helps feed an animal in our care for a day.' },
-            { amount: '₹2,000', title: 'Urgent treatment', explanation: 'Goes towards pain relief.' },
+            { amount: '₹500', title: 'A warm meal', explanation: 'Helps feed an animal in our care for a day.', frequency: 'once' },
+            { amount: '₹2,000', title: 'Urgent treatment', explanation: 'Goes towards pain relief.', frequency: 'monthly' },
           ],
           cta: { label: 'Donate now', href: '#donate' },
         },
@@ -333,6 +334,56 @@ describe('public-site renderer', () => {
     expect(rendered.html).toContain('data-countdown="2099-12-01T23:59:59.000Z"')
     expect(rendered.html).toContain('src="/embed.js"')
     expect(rendered.html).toContain('href="#donate"')
+    expect(rendered.html).toContain('class="tier-give"')
+    expect(rendered.html).toContain('data-donate-amount="500"')
+    expect(rendered.html).toContain('data-donate-frequency="once"')
+    expect(rendered.html).toContain('data-donate-amount="2000"')
+    expect(rendered.html).toContain('data-donate-frequency="monthly"')
+    expect(rendered.html).toContain('One-time')
+  })
+
+  it('renders a Virtuous donation box with a pre-fill hint, and keeps the CSP to self plus the Virtuous origin', async () => {
+    const doc = emptyPageDoc('Give')
+    doc.blocks = [
+      {
+        id: 'b_tiers',
+        type: 'ImpactTiers',
+        v: 1,
+        props: {
+          heading: 'Give',
+          items: [{ amount: '₹500', title: 'A meal' }],
+        },
+      },
+      { id: 'b_form', type: 'DonationEmbed', v: 1, props: { embed: 'emb_00000000000000000000000009', heading: 'Give now', anchor: 'donate' } },
+    ]
+    const rendered = await renderPageHtml({
+      doc,
+      pageId: 'pg_give',
+      versionId: 'ver_1',
+      path: '/give',
+      site: site({
+        embeds: {
+          emb_00000000000000000000000009: {
+            id: 'emb_00000000000000000000000009',
+            provider: 'virtuous',
+            name: 'Demo form',
+            config: { formId: 'example-form' },
+          },
+        },
+      }),
+    })
+    expect(rendered.html).toContain('id="donate"')
+    expect(rendered.html).toContain('data-embed="virtuous"')
+    expect(rendered.html).toContain('data-vform="example-form"')
+    expect(rendered.html).toContain('data-donate-hint')
+    expect(rendered.html).toContain('The donation form loads here when the page is live.')
+    expect(rendered.html).toContain('src="/embed.js"')
+    expect(rendered.csp).toContain("script-src 'self' https://cdn.virtuoussoftware.com")
+    expect(rendered.csp).not.toContain('unsafe-inline')
+    expect(rendered.csp).not.toContain('unsafe-eval')
+    expect(EMBED_JS).toContain('searchParams.set("amount"')
+    expect(EMBED_JS).toContain('RaiseDonorsForms')
+    expect(EMBED_JS).toContain('data-donate-hint')
   })
 
   it('hides a match banner after its end date and renders a before-and-after story', async () => {

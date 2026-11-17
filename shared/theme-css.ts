@@ -13,7 +13,7 @@ export const DEFAULT_THEME_TOKENS = {
 } as const
 export type ThemeTokens = { [K in keyof typeof DEFAULT_THEME_TOKENS]: string }
 
-export const BUNDLE_ID = "theme-default-3"
+export const BUNDLE_ID = "theme-default-4"
 
 export const THEME_CSS = `:root {
   --ink: #1f1b16;
@@ -219,9 +219,14 @@ a { color: var(--accent); }
 .eyebrow { text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.8rem; font-weight: 600; color: var(--muted); margin: 0 0 0.5rem; }
 .tiers { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
 .tier { border: 1px solid var(--line); border-radius: 0.5rem; overflow: hidden; background: var(--paper); }
+.tier-give { display: flex; flex-direction: column; height: 100%; color: inherit; text-decoration: none; }
+.tier-give:hover, .tier-give:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
 .tier-body { padding: 1rem; }
 .tier-amount { font-size: 1.5rem; font-weight: 700; margin: 0 0 0.25rem; }
+.tier-frequency { font-size: 0.85rem; font-weight: 600; color: var(--muted); margin: 0 0 0.5rem; text-transform: capitalize; }
 .tier-other { color: var(--muted); margin: 1rem 0 0; }
+.donate-prefill-hint { margin: 0 0 0.85rem; padding: 0.7rem 0.9rem; border-radius: 0.4rem; background: var(--band); border: 2px solid var(--accent); font-weight: 600; }
+.donate-prefill-hint[hidden] { display: none; }
 .goal-progress { width: 100%; height: 0.75rem; accent-color: var(--accent); }
 .progress-meta { margin: 0.75rem 0 0; font-weight: 600; }
 .progress-match, .progress-date { color: var(--muted); margin: 0.35rem 0 0; }

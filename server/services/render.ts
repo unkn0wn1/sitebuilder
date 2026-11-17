@@ -8,6 +8,7 @@ import { createSSRApp, defineComponent, h, type VNode } from 'vue'
 import { renderToString } from 'vue/server-renderer'
 import { sanitizeBadgeHtml } from '../../shared/badge-html'
 import { formatMoney, hasEnded, progressPercent, endOfUtcDay } from '../../shared/amounts'
+import { virtuousPrefill } from '../../shared/donate-prefill'
 import type { ImageRef } from '../../shared/blocks/define'
 import type { StoredBlock } from '../../shared/blocks/registry'
 import { migratePageDoc, type PageDoc } from '../../shared/page'
@@ -420,26 +421,41 @@ function applyBadgeHtml(raw: string, bag: Collector): string {
   return sanitized.html
 }
 
+function frequencyLabel(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  if (value === 'once') return 'One-time'
+  return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
 function renderImpactTiers(p: Record<string, unknown>, site: SiteRenderContext, bag: Collector): VNode {
-  const items = (p.items as { amount: string; title?: string; explanation?: string; image?: ImageRef }[] | undefined) ?? []
+  const items = (p.items as { amount: string; title?: string; explanation?: string; frequency?: string; image?: ImageRef }[] | undefined) ?? []
+  bag.needsEmbedJs = true
   return wrapSection([
     p.heading ? h('h2', String(p.heading)) : null,
     p.intro ? h('p', { class: 'lede' }, String(p.intro)) : null,
     h(
       'div',
       { class: 'tiers' },
-      items.map((item) =>
-        h('article', { class: 'tier' }, [
-          pictureVNode(item.image, site, bag, { slot: { width: 640, height: 480 } }),
-          h('div', { class: 'tier-body' }, [
-            h('p', { class: 'tier-amount' }, item.amount),
-            item.title ? h('h3', item.title) : null,
-            item.explanation ? h('p', item.explanation) : null,
+      items.map((item) => {
+        const prefill = virtuousPrefill({ amount: item.amount, frequency: item.frequency, label: item.amount })
+        const attrs: Record<string, string> = { class: 'tier-give', href: '#donate' }
+        if (prefill.amount) attrs['data-donate-amount'] = prefill.amount
+        if (prefill.frequency) attrs['data-donate-frequency'] = prefill.frequency
+        if (prefill.label) attrs['data-donate-label'] = prefill.label
+        return h('article', { class: 'tier' }, [
+          h('a', attrs, [
+            pictureVNode(item.image, site, bag, { slot: { width: 640, height: 480 } }),
+            h('div', { class: 'tier-body' }, [
+              h('p', { class: 'tier-amount' }, item.amount),
+              item.title ? h('h3', item.title) : null,
+              item.explanation ? h('p', item.explanation) : null,
+              prefill.frequency ? h('p', { class: 'tier-frequency' }, frequencyLabel(prefill.frequency) ?? prefill.frequency) : null,
+            ]),
           ]),
-        ]),
-      ),
+        ])
+      }),
     ),
-    p.otherAmount ? h('p', { class: 'tier-other' }, String(p.otherAmount)) : null,
+    p.otherAmount ? h('p', { class: 'tier-other' }, [h('a', { class: 'tier-give', href: '#donate' }, String(p.otherAmount))]) : null,
     linkButton(asLink(p.cta), bag),
   ])
 }
@@ -566,6 +582,7 @@ function renderEmbed(type: string, p: Record<string, unknown>, site: SiteRenderC
       h('div', { class: 'wrap' }, [
         heading,
         h('div', { class: 'donate-box', 'data-embed': 'virtuous', 'data-src': VIRTUOUS_SCRIPT, 'data-vform': formId }, [
+          h('p', { class: 'donate-prefill-hint', hidden: true, 'data-donate-hint': 'true' }),
           h('p', { class: 'embed-fallback' }, 'The donation form loads here when the page is live.'),
         ]),
       ]),
