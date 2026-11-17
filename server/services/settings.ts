@@ -7,6 +7,7 @@ import { audit } from './audit'
 import { inTx, type ActingAs, type ServiceCtx } from './context'
 import { forbidden } from './errors'
 import { USER_SECRET_NAMES } from './auth'
+import { xaiOauthStatus } from './xai-oauth'
 
 export function getSettings(ctx: ServiceCtx): {
   name: string
@@ -14,6 +15,7 @@ export function getSettings(ctx: ServiceCtx): {
   settings: SiteSettings
   secretsSet: Record<string, boolean>
   mail: { transport: 'gmail' | 'outbox' | 'none'; googleConnected: boolean; googleAccount: string | null; from: string | null }
+  xaiOauth: { enabled: boolean; connected: boolean; account: string | null }
 } {
   const site = ctx.db.select().from(sites).where(eq(sites.id, ctx.siteId)).get()!
   const set = new Set(ctx.db.select({ name: secrets.name }).from(secrets).where(eq(secrets.siteId, ctx.siteId)).all().map((s) => s.name))
@@ -30,6 +32,7 @@ export function getSettings(ctx: ServiceCtx): {
       googleAccount: settings.mail.googleAccount,
       from: settings.mail.from ?? settings.mail.googleAccount,
     },
+    xaiOauth: xaiOauthStatus(ctx),
   }
 }
 

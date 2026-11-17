@@ -23,6 +23,7 @@ const DEFAULT_MODELS: Record<string, string> = {
 interface SettingsPayload {
   settings: SiteSettings
   secretsSet: Record<string, boolean>
+  xaiOauth: { enabled: boolean; connected: boolean; account: string | null }
 }
 
 const loading = ref(true)
@@ -44,6 +45,19 @@ const monthlyPounds = ref('20')
 const sessionPounds = ref('2')
 const requestPounds = ref('0.50')
 const monthUsedPounds = ref<number | null>(null)
+
+const xaiOauthEnabled = ref(false)
+const xaiOauthConnected = ref(false)
+const xaiOauthAccount = ref<string | null>(null)
+const xaiConnecting = ref(false)
+const xaiDisconnecting = ref(false)
+const xaiPendingId = ref('')
+const xaiUserCode = ref('')
+const xaiVerificationUri = ref('')
+const xaiVerificationUriComplete = ref<string | null>(null)
+const xaiExpiresAt = ref(0)
+const xaiPollError = ref('')
+let pollTimer: ReturnType<typeof setTimeout> | null = null
 
 function poundsField(value: string, label: string): number {
   const n = Number(value)
@@ -69,6 +83,9 @@ async function load() {
     requestPounds.value = String(penceToPounds(ai.requestCapPence))
     keySet.value = !!data.secretsSet.ai_api_key
     keyValue.value = ''
+    xaiOauthEnabled.value = !!data.xaiOauth?.enabled
+    xaiOauthConnected.value = !!data.xaiOauth?.connected
+    xaiOauthAccount.value = data.xaiOauth?.account ?? null
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : 'Could not load settings.'
   }
@@ -163,6 +180,115 @@ async function testConnection() {
     testing.value = false
   }
 }
+
+function clearPoll() {
+  if (pollTimer) {
+    clearTimeout(pollTimer)
+    pollTimer = null
+  }
+}
+
+function resetDeviceFlow() {
+  clearPoll()
+  xaiConnecting.value = false
+  xaiPendingId.value = ''
+  xaiUserCode.value = ''
+  xaiVerificationUri.value = ''
+  xaiVerificationUriComplete.value = null
+  xaiExpiresAt.value = 0
+}
+
+async function startXaiSignIn() {
+  xaiPollError.value = ''
+  error.value = ''
+  saved.value = ''
+  try {
+    const data = await api<{
+      pendingId: string
+      userCode: string
+      verificationUri: string
+      verificationUriComplete: string | null
+      expiresIn: number
+      interval: number
+    }>('/settings/ai/xai/start', { method: 'POST', body: {} })
+    xaiPendingId.value = data.pendingId
+    xaiUserCode.value = data.userCode
+    xaiVerificationUri.value = data.verificationUri
+    xaiVerificationUriComplete.value = data.verificationUriComplete
+    xaiExpiresAt.value = Date.now() + data.expiresIn * 1000
+    xaiConnecting.value = true
+    schedulePoll(data.interval)
+  } catch (err) {
+    xaiPollError.value = err instanceof ApiError ? err.message : 'Could not start sign-in with xAI.'
+  }
+}
+
+function schedulePoll(interval: number) {
+  clearPoll()
+  pollTimer = setTimeout(() => void pollXaiSignIn(), Math.max(1, interval) * 1000)
+}
+
+async function pollXaiSignIn() {
+  if (!xaiPendingId.value) return
+  try {
+    const data = await api<{
+      status: 'pending' | 'connected' | 'expired' | 'denied' | 'error'
+      interval?: number
+      account?: string | null
+      message?: string
+    }>('/settings/ai/xai/poll', { method: 'POST', body: { pendingId: xaiPendingId.value } })
+    if (data.status === 'pending') {
+      schedulePoll(data.interval ?? 5)
+      return
+    }
+    if (data.status === 'connected') {
+      resetDeviceFlow()
+      xaiOauthConnected.value = true
+      xaiOauthAccount.value = data.account ?? null
+      if (provider.value !== 'xai') provider.value = 'xai'
+      saved.value = data.account ? `Signed in with xAI as ${data.account}.` : 'Signed in with xAI.'
+      return
+    }
+    resetDeviceFlow()
+    xaiPollError.value = data.message || 'Sign-in with xAI did not finish.'
+  } catch (err) {
+    resetDeviceFlow()
+    xaiPollError.value = err instanceof ApiError ? err.message : 'Could not finish sign-in with xAI.'
+  }
+}
+
+async function cancelXaiSignIn() {
+  const pendingId = xaiPendingId.value
+  resetDeviceFlow()
+  xaiPollError.value = ''
+  if (!pendingId) return
+  try {
+    await api('/settings/ai/xai/cancel', { method: 'POST', body: { pendingId } })
+  } catch {
+    // Already cancelled locally.
+  }
+}
+
+async function disconnectXai() {
+  if (!confirm('Disconnect xAI? The assistant will need an API key, or a new sign-in, before it can run.')) return
+  xaiDisconnecting.value = true
+  xaiPollError.value = ''
+  error.value = ''
+  try {
+    await api('/settings/ai/xai/disconnect', { method: 'POST', body: {} })
+    xaiOauthConnected.value = false
+    xaiOauthAccount.value = null
+    saved.value = 'Disconnected from xAI.'
+  } catch (err) {
+    xaiPollError.value = err instanceof ApiError ? err.message : 'Could not disconnect xAI.'
+  } finally {
+    xaiDisconnecting.value = false
+  }
+}
+
+onBeforeUnmount(() => {
+  clearPoll()
+})
 </script>
 
 <template>
@@ -174,8 +300,9 @@ async function testConnection() {
     </SettingsNav>
 
     <p class="mb-6 max-w-2xl text-gray-600 dark:text-gray-400">
-      The assistant uses the key and model you provide. Draft content is sent to that provider when someone uses the assistant.
-      Check the provider's data policy before you switch it on. The key is stored encrypted and is never shown again after you save it.
+      The assistant uses the model you choose and either an API key or, when this install allows it, a sign-in with xAI.
+      Draft content is sent to that provider when someone uses the assistant. Check the provider's data policy before you switch it on.
+      Keys and sign-in tokens are stored encrypted and are never shown again.
     </p>
 
     <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading settings…</p>
@@ -207,6 +334,38 @@ async function testConnection() {
         <FwbInput v-model="smallModel" label="Cheaper model (optional)" placeholder="For small jobs such as alt text" />
       </div>
 
+      <div v-if="xaiOauthEnabled" class="mb-6 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+        <h2 class="mb-1 text-lg font-semibold text-gray-900 dark:text-gray-100">Sign in with xAI</h2>
+        <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">
+          Use your SuperGrok or X Premium+ subscription instead of pasting an API key. Cost caps still apply.
+          xAI sometimes refuses sign-in access on some subscription tiers. If that happens, paste an API key below.
+        </p>
+        <FwbAlert v-if="xaiPollError" type="danger" class="mb-3">{{ xaiPollError }}</FwbAlert>
+        <div v-if="xaiOauthConnected && !xaiConnecting" class="space-y-3">
+          <p class="text-sm text-gray-800 dark:text-gray-200">
+            {{ xaiOauthAccount ? `Signed in with xAI as ${xaiOauthAccount}.` : 'Signed in with xAI.' }}
+          </p>
+          <FwbButton color="light" type="button" :disabled="xaiDisconnecting || saving || testing" @click="disconnectXai">
+            {{ xaiDisconnecting ? 'Disconnecting…' : 'Disconnect' }}
+          </FwbButton>
+        </div>
+        <div v-else-if="xaiConnecting" class="space-y-3">
+          <p class="text-sm text-gray-700 dark:text-gray-300">Open the link, sign in, and enter this code if asked.</p>
+          <p class="font-mono text-2xl tracking-widest text-gray-900 dark:text-gray-100" data-testid="xai-user-code">{{ xaiUserCode }}</p>
+          <p class="text-sm">
+            <a
+              class="text-blue-700 no-underline hover:underline dark:text-blue-400"
+              :href="xaiVerificationUriComplete || xaiVerificationUri"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="xai-verification-link"
+            >{{ xaiVerificationUri }}</a>
+          </p>
+          <FwbButton color="light" type="button" @click="cancelXaiSignIn">Cancel</FwbButton>
+        </div>
+        <FwbButton v-else color="light" type="button" :disabled="saving || testing" @click="startXaiSignIn">Sign in with xAI</FwbButton>
+      </div>
+
       <div class="mb-6">
         <FwbInput
           v-model="keyValue"
@@ -216,7 +375,9 @@ async function testConnection() {
           autocomplete="off"
         />
         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          {{ keySet ? 'A key is already saved. It cannot be read back.' : 'The key is write-only: after you save it, it cannot be read back.' }}
+          <template v-if="xaiOauthConnected">An API key is optional while you are signed in with xAI. It is used if sign-in stops working.</template>
+          <template v-else-if="keySet">A key is already saved. It cannot be read back.</template>
+          <template v-else>The key is write-only: after you save it, it cannot be read back.</template>
         </p>
       </div>
 

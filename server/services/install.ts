@@ -85,6 +85,8 @@ export function renderEnvFile(opts: InstallOptions, secretKey: string, layout: I
     '# SITEBUILDER_BACKUP_S3_ACCESS_KEY_ID=',
     '# SITEBUILDER_BACKUP_S3_SECRET_ACCESS_KEY=',
     '# SITEBUILDER_BACKUP_S3_PREFIX=sitebuilder/',
+    '# SITEBUILDER_ENABLE_XAI_OAUTH=1',
+    '# SITEBUILDER_XAI_OAUTH_CLIENT_ID=',
     '',
   ]
   return lines.join('\n')

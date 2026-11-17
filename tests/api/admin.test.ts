@@ -34,6 +34,9 @@ describe('settings, secrets, redirects, memory, system', () => {
     const settings = await admin.get('/settings')
     expect(settings.status).toBe(200)
     expect(JSON.stringify(settings.body)).not.toContain('not-a-real-key')
+    expect(settings.body.xaiOauth).toEqual({ enabled: false, connected: false, account: null })
+    expect((await admin.post('/settings/ai/xai/start', {})).status).toBe(404)
+    expect((await editor.post('/settings/ai/xai/start', {})).status).toBe(404)
   })
 
   it('secrets are write-only', async () => {

@@ -12,6 +12,7 @@ import { chatToolsFor } from './ai-tools-schema'
 import { getSecret, hasSecret, secretKeyFromEnv } from './auth'
 import type { ActingAs, ServiceCtx } from './context'
 import { AppError } from './errors'
+import { isXaiOauthConnected, xaiOauthAccessToken, xaiOauthDeniedMessage } from './xai-oauth'
 
 export const MAX_STEPS = 25
 const MUTATING = new Set(['add_block', 'update_props', 'move_block', 'remove_block', 'set_seo', 'set_meta', 'create_draft'])
@@ -71,7 +72,7 @@ export function resolveAi(ctx: ServiceCtx): ResolvedAi {
   const monthMicros = monthCostMicros(ctx)
   const monthCapMicros = penceToMicros(settings.monthlyCapPence)
   const mock = process.env.SITEBUILDER_AI_PROVIDER === 'mock'
-  const hasKey = mock || hasSecret(ctx, 'ai_api_key')
+  const hasKey = mock || hasAiCredentials(ctx, settings.provider)
   const baseUrl = defaultBaseUrl(settings.provider, settings.baseUrl)
   let reason: ResolvedAi['reason'] = 'ready'
   if (!settings.enabled) reason = 'off'
@@ -106,6 +107,11 @@ export function unavailableMessage(reason: ResolvedAi['reason']): string {
   }
 }
 
+export function hasAiCredentials(ctx: ServiceCtx, provider: SiteSettings['ai']['provider']): boolean {
+  if (hasSecret(ctx, 'ai_api_key')) return true
+  return provider === 'xai' && isXaiOauthConnected(ctx)
+}
+
 export function resolveProvider(ctx: ServiceCtx, resolved: ResolvedAi, injected?: ModelProvider): ModelProvider {
   if (injected) return injected
   if (ctx.aiProvider) return ctx.aiProvider
@@ -114,6 +120,9 @@ export function resolveProvider(ctx: ServiceCtx, resolved: ResolvedAi, injected?
   }
   const baseUrl = resolved.baseUrl
   if (!baseUrl) throw new AppError('ai_unavailable', unavailableMessage('no_model'))
+  if (resolved.settings.provider === 'xai' && isXaiOauthConnected(ctx)) {
+    return xaiOauthModelProvider(ctx, baseUrl)
+  }
   let key: string | null = null
   try {
     key = getSecret(ctx, secretKeyFromEnv(process.env.SITEBUILDER_SECRET_KEY), 'ai_api_key')
@@ -126,6 +135,40 @@ export function resolveProvider(ctx: ServiceCtx, resolved: ResolvedAi, injected?
     apiKey: key,
     extraHeaders: extraHeadersFor(resolved.settings.provider),
   })
+}
+
+function xaiOauthModelProvider(ctx: ServiceCtx, baseUrl: string): ModelProvider {
+  const complete: ModelProvider['complete'] = async (req) => {
+    const call = async (token: string) =>
+      openAiCompatibleProvider({ baseUrl, apiKey: token, extraHeaders: extraHeadersFor('xai') }).complete(req)
+    try {
+      return await call(await xaiOauthAccessToken(ctx))
+    } catch (error) {
+      const status = error instanceof ProviderError ? error.status : error instanceof AppError ? error.status : undefined
+      const message = error instanceof Error ? error.message : ''
+      if (status === 401) {
+        try {
+          return await call(await xaiOauthAccessToken(ctx, { forceRefresh: true }))
+        } catch (retry) {
+          throw mapXaiProviderError(retry)
+        }
+      }
+      const mapped = xaiOauthDeniedMessage(status, message)
+      if (mapped) throw new AppError('ai_unavailable', mapped)
+      throw error
+    }
+  }
+  return { complete }
+}
+
+function mapXaiProviderError(error: unknown): never {
+  if (error instanceof AppError) throw error
+  const status = error instanceof ProviderError ? error.status : undefined
+  const message = error instanceof Error ? error.message : ''
+  const mapped = xaiOauthDeniedMessage(status, message)
+  if (mapped) throw new AppError('ai_unavailable', mapped)
+  if (error instanceof ProviderError) throw error
+  throw new AppError('ai_unavailable', "The assistant isn't available right now. Everything else works as normal.")
 }
 
 function parseArgs(raw: string): Record<string, unknown> {
@@ -342,8 +385,8 @@ export async function testAiConnection(ctx: ServiceCtx, opts: { provider?: Model
   if (!resolved.settings.model) {
     throw new AppError('ai_unavailable', 'Choose a model, then try the test again.')
   }
-  if (!injected && process.env.SITEBUILDER_AI_PROVIDER !== 'mock' && !hasSecret(ctx, 'ai_api_key')) {
-    throw new AppError('ai_unavailable', 'Add an API key first, then try the test again.')
+  if (!injected && process.env.SITEBUILDER_AI_PROVIDER !== 'mock' && !hasAiCredentials(ctx, resolved.settings.provider)) {
+    throw new AppError('ai_unavailable', 'Sign in with xAI or add an API key first, then try the test again.')
   }
   const provider = resolveProvider(ctx, resolved, injected)
   try {

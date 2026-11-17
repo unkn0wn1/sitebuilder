@@ -100,6 +100,14 @@ Server settings (environment variables, none are committed):
 | `SITEBUILDER_BACKUP_S3_ACCESS_KEY_ID` | Backup access key. |
 | `SITEBUILDER_BACKUP_S3_SECRET_ACCESS_KEY` | Backup secret key. |
 | `SITEBUILDER_BACKUP_S3_PREFIX` | Optional key prefix inside the bucket. |
+| `SITEBUILDER_ENABLE_XAI_OAUTH` | Set to `1` to offer Sign in with xAI in Settings > AI. Off by default. See [ADR 0016](docs/decisions/0016-xai-oauth.md). |
+| `SITEBUILDER_XAI_OAUTH_CLIENT_ID` | Optional. OAuth client id for Sign in with xAI. If unset, the public Grok CLI / Hermes client is used (not a Sitebuilder-registered app). |
+
+## Sign in with xAI (optional)
+
+Off unless `SITEBUILDER_ENABLE_XAI_OAUTH=1`. When the flag is on, Settings > AI offers **Sign in with xAI** next to the API key field. The builder starts a device-code login, shows a short code and a verification link, and polls until you approve it in the browser (or cancel). Refresh tokens are stored encrypted with `SITEBUILDER_SECRET_KEY` and are refreshed automatically. Cost caps still apply. If xAI refuses your subscription tier, paste an API key instead.
+
+xAI does not currently offer a public way to register our own OAuth client. The default client id is the public one used by Grok CLI and Hermes Agent; set `SITEBUILDER_XAI_OAUTH_CLIENT_ID` if you have your own. Details: [ADR 0016](docs/decisions/0016-xai-oauth.md).
 
 ## Docs
 
