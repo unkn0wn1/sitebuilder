@@ -129,3 +129,46 @@ test('brand and design', async ({ page }) => {
   await expect(page.getByText('Menu', { exact: true }).first()).toBeVisible()
   await page.screenshot({ path: shot('brand-hamburger.png'), fullPage: true })
 })
+
+
+test('page types and the rest of settings', async ({ page }) => {
+  await signIn(page)
+
+  await page.goto('/templates')
+  await expect(page.getByRole('heading', { name: 'Page types' })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('link', { name: 'Campaign' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Standard' })).toBeVisible()
+  await page.screenshot({ path: shot('page-types.png'), fullPage: true })
+
+  await page.getByRole('link', { name: 'Campaign' }).click()
+  await expect(page.getByRole('heading', { name: 'Campaign' })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByText('Allowed and required sections')).toBeVisible()
+  await page.screenshot({ path: shot('page-type-editor.png'), fullPage: true })
+
+  await page.goto('/settings')
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('link', { name: 'General' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Workflow' })).toBeVisible()
+  await page.screenshot({ path: shot('settings.png'), fullPage: true })
+
+  await page.goto('/settings/general')
+  await expect(page.getByRole('heading', { name: 'General', exact: true })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByLabel('Site name')).toBeVisible()
+  await page.screenshot({ path: shot('settings-general.png'), fullPage: true })
+
+  await page.goto('/settings/workflow')
+  await expect(page.getByRole('heading', { name: 'Workflow', exact: true })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByText('Allow people to approve their own changes')).toBeVisible()
+  await page.screenshot({ path: shot('settings-workflow.png'), fullPage: true })
+
+  await page.goto('/settings/integrations')
+  await expect(page.getByRole('heading', { name: 'Integrations', exact: true })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('heading', { name: 'Cloudflare' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Google Workspace email' })).toBeVisible()
+  await page.screenshot({ path: shot('settings-integrations.png'), fullPage: true })
+
+  await page.goto('/settings/users')
+  await expect(page.getByRole('heading', { name: 'Users', exact: true })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('button', { name: 'Send invite' })).toBeVisible()
+  await page.screenshot({ path: shot('settings-users.png'), fullPage: true })
+})

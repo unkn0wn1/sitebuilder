@@ -3,7 +3,7 @@
 import { and, desc, eq, isNotNull, ne } from 'drizzle-orm'
 import { newId } from '../../shared/ids'
 import { can } from '../../shared/roles'
-import { brandPacks, pages, redirects, releases, reviews, siteParts, type ReleaseManifest } from '../db/schema'
+import { brandPacks, pages, redirects, releases, reviews, siteParts, templates, type ReleaseManifest } from '../db/schema'
 import { audit } from './audit'
 import { inTx, iso, type ActingAs, type ServiceCtx } from './context'
 import { AppError, forbidden, notFound } from './errors'
@@ -12,6 +12,7 @@ import { notify, usersWithRoles } from './notify'
 import { requirePage } from './pages'
 import { requireReview, setTargetState } from './reviews'
 import { getOrCreateBrand, readBrandDoc } from './brand'
+import { readTemplateDoc, requireTemplate } from './templates'
 import { requireSitePart } from './site-parts'
 
 export interface WriteReleaseInput {
@@ -94,6 +95,10 @@ export function createPublishHandler(writer: ReleaseWriter = noopReleaseWriter):
           manifest.theme = readBrandDoc(ctx, pack, review.versionId).theme
           // Tokens and menu look are on every page.
           changedPageIds = Object.keys(manifest.pages)
+        } else if (review.targetType === 'template') {
+          requireTemplate(ctx, review.targetId)
+          // Page-type rules apply to later page edits. Live HTML does not change.
+          changedPageIds = []
         } else {
           throw new Error(`Publishing ${review.targetType} is not built yet.`)
         }
@@ -128,6 +133,15 @@ export function createPublishHandler(writer: ReleaseWriter = noopReleaseWriter):
           audit(ctx, 'system', 'brand.published', { type: 'brand', id: pack.id }, { releaseId, versionId: review.versionId, reviewId: review.id, selfApproved: review.selfApproved })
           notify(ctx, [review.submittedBy], 'published', 'The new look is live. Every page is being updated.', { type: 'brand', id: pack.id })
           enqueueJob(ctx, 'purge_cache', { tags: ['shell'] })
+          return
+        }
+        if (review?.targetType === 'template') {
+          const pack = requireTemplate(ctx, review.targetId)
+          const doc = readTemplateDoc(ctx, pack, review.versionId)
+          ctx.db.update(templates).set({ publishedVersionId: review.versionId, label: doc.label, workflowState: 'published', wasUnpublished: false, updatedAt: iso(ctx) }).where(eq(templates.id, pack.id)).run()
+          ctx.db.update(reviews).set({ state: 'published' }).where(eq(reviews.id, review.id)).run()
+          audit(ctx, 'system', 'template.published', { type: 'template', id: pack.id }, { releaseId, versionId: review.versionId, reviewId: review.id, selfApproved: review.selfApproved })
+          notify(ctx, [review.submittedBy], 'published', `The ${doc.label} page type is live.`, { type: 'template', id: pack.id })
           return
         }
         if (review?.targetType === 'site_part') {
@@ -181,7 +195,7 @@ export function createPublishHandler(writer: ReleaseWriter = noopReleaseWriter):
           const review = requireReview(ctx, payload.reviewId)
           // Back to pending, so an approver can retry by approving again.
           ctx.db.update(reviews).set({ state: 'pending', decisionComment: `Publish failed: ${message}` }).where(eq(reviews.id, review.id)).run()
-          if (review.targetType === 'page' || review.targetType === 'site_part' || review.targetType === 'brand') setTargetState(ctx, { type: review.targetType, id: review.targetId }, 'in_review')
+          if (review.targetType === 'page' || review.targetType === 'site_part' || review.targetType === 'brand' || review.targetType === 'template') setTargetState(ctx, { type: review.targetType, id: review.targetId }, 'in_review')
           notify(ctx, [review.decidedBy ?? '', ...usersWithRoles(ctx, ['admin'])].filter(Boolean), 'publish_failed', `Publishing failed: ${message}`, { type: 'review', id: review.id })
         } else if (payload.unpublishPageId) {
           ctx.db.update(pages).set({ workflowState: 'published', updatedAt: iso(ctx) }).where(eq(pages.id, payload.unpublishPageId)).run()

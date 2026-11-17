@@ -55,7 +55,7 @@ watch(filter, load, { immediate: true })
         <FwbTableRow v-for="item in shown" :key="item.id">
           <FwbTableCell>
             <NuxtLink :to="`/approvals/${item.id}`" class="font-medium text-gray-900 no-underline hover:underline">{{ item.title }}</NuxtLink>
-            <p class="m-0 text-sm text-gray-500">{{ item.targetType === 'site_part' ? 'Site part' : item.targetType === 'brand' ? 'Brand and Design' : 'Page' }}</p>
+            <p class="m-0 text-sm text-gray-500">{{ item.targetType === 'site_part' ? 'Site part' : item.targetType === 'brand' ? 'Brand and Design' : item.targetType === 'template' ? 'Page type' : 'Page' }}</p>
           </FwbTableCell>
           <FwbTableCell>
             <span class="sb-status" :class="item.state === 'pending' ? 'sb-status-in_review' : item.state === 'published' ? 'sb-status-published' : 'sb-status-draft'">

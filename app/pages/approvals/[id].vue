@@ -67,6 +67,7 @@ const liveHref = computed(() => {
   if (!d) return null
   if (d.target.type === 'site_part') return `/site-parts/${d.target.id}`
   if (d.target.type === 'brand') return '/brand'
+  if (d.target.type === 'template') return `/templates/${d.target.id}`
   const domain = site.value?.primaryDomain
   if (domain && d.target.path) return `https://${domain}${d.target.path}`
   return `/pages/${d.target.id}`
@@ -243,6 +244,13 @@ watch(id, load, { immediate: true })
             </FwbButtonGroup>
           </div>
           <p v-if="detail.target.type === 'brand'" class="p-8 text-sm text-gray-600">This is a brand and design change. Checks and the summary are in the right-hand column. After publish, every page is updated (about a minute).</p>
+          <div v-else-if="detail.target.type === 'template'" class="p-8 text-sm text-gray-700">
+            <p class="mt-0">This is a page type change. After it is published, the new rules apply when people edit or submit pages of this type. Existing live pages are not re-rendered.</p>
+            <p v-if="'allowedBlocks' in detail.doc && Array.isArray(detail.doc.allowedBlocks)" class="mb-0">
+              Allowed: {{ detail.doc.allowedBlocks.join(', ') }}.
+              Required: {{ detail.doc.requiredBlocks.length ? detail.doc.requiredBlocks.join(', ') : 'none' }}.
+            </p>
+          </div>
           <ReviewPreview
             v-else
             :kind="detail.target.type"

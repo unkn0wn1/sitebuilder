@@ -54,7 +54,7 @@ describe('block registry', () => {
   })
 
   it('treats a VideoHero as satisfying a required Hero on a Home page', () => {
-    const rules = { label: 'Home', allowedBlocks: ['Hero', 'VideoHero', 'RichText'], requiredBlocks: ['Hero'], startingBlocks: [] }
+    const rules = { schemaVersion: 1 as const, label: 'Home', allowedBlocks: ['Hero', 'VideoHero', 'RichText'], requiredBlocks: ['Hero'], startingBlocks: [] }
     expect(checkTemplateRules(['VideoHero'], rules, { enforceRequired: true })).toEqual([])
     expect(checkTemplateRules(['RichText'], rules, { enforceRequired: true })[0]?.message).toMatch(/needs a "Hero"/)
     expect(VideoHero.sample.video).toBeTruthy()

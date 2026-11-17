@@ -8,7 +8,7 @@ import { emptyPageDoc, type PageDoc } from '../shared/page'
 import { blockRegistry } from '../app/utils/block-fields'
 import { richTextFromParagraphs } from '../shared/richtext'
 
-const rules = { label: 'Campaign', allowedBlocks: ['Hero', 'RichText', 'Quote', 'CallToAction'], requiredBlocks: ['Hero'], startingBlocks: [] }
+const rules = { schemaVersion: 1 as const, label: 'Campaign', allowedBlocks: ['Hero', 'RichText', 'Quote', 'CallToAction'], requiredBlocks: ['Hero'], startingBlocks: [] }
 
 function snapshot(over: Partial<EditorSnapshot> = {}): EditorSnapshot {
   const doc = over.doc ?? emptyPageDoc('Winter appeal')

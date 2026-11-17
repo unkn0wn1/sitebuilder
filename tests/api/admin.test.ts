@@ -164,3 +164,27 @@ describe('brand pack over HTTP', () => {
     expect((await admin.get('/brand')).body.pack.workflowState).toBe('in_review')
   })
 })
+
+
+describe('page types over HTTP', () => {
+  it('lets an admin change rules and forbids an editor', async () => {
+    const list = await admin.get('/templates')
+    expect(list.status).toBe(200)
+    const campaign = list.body.items.find((t: { key: string }) => t.key === 'campaign')
+    expect(campaign).toBeTruthy()
+    const current = await admin.get(`/templates/${campaign.id}`)
+    expect(current.status).toBe(200)
+    expect(current.body.doc.requiredBlocks).toContain('DonationEmbed')
+    expect((await editor.post(`/templates/${campaign.id}/ops`, { baseRevision: current.body.revision, ops: [{ op: 'replace', doc: current.body.doc }] })).status).toBe(403)
+    const doc = { ...current.body.doc, requiredBlocks: ['Hero'] }
+    const saved = await admin.post(`/templates/${campaign.id}/ops`, { baseRevision: current.body.revision, ops: [{ op: 'replace', doc }] })
+    expect(saved.status).toBe(200)
+    expect(saved.body.doc.requiredBlocks).toEqual(['Hero'])
+    const sub = await admin.post(`/templates/${campaign.id}/submit`, { note: 'Relax the campaign rules' })
+    expect(sub.status).toBe(200)
+    expect((await admin.get(`/templates/${campaign.id}`)).body.template.workflowState).toBe('in_review')
+    const created = await admin.post('/templates', { key: 'briefing', rules: { label: 'Briefing', allowedBlocks: ['RichText'] } })
+    expect(created.status).toBe(200)
+    expect((await editor.post('/templates', { key: 'other', rules: { label: 'Other', allowedBlocks: ['RichText'] } })).status).toBe(403)
+  })
+})

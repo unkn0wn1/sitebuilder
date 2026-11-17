@@ -8,7 +8,7 @@ import { validatePageDoc, type PageDoc } from '../../shared/page'
 import { atLeast, can } from '../../shared/roles'
 import { readSettings } from '../../shared/settings'
 import { canSubmit, restingState, type WorkflowState } from '../../shared/workflow'
-import { brandPacks, pages, reviewComments, reviews, siteParts, sites, users } from '../db/schema'
+import { brandPacks, pages, reviewComments, reviews, siteParts, sites, templates, users } from '../db/schema'
 import { audit } from './audit'
 import { inTx, iso, type ActingAs, type ServiceCtx } from './context'
 import { AppError, forbidden, notFound } from './errors'
@@ -18,7 +18,8 @@ import { readDoc, requirePage, sealDraft } from './pages'
 import { getOrCreateBrand, readBrandDoc } from './brand'
 import { readSitePartDoc, requireSitePart, sitePartChecks } from './site-parts'
 import { brandContrastChecks } from '../../shared/brand'
-import { getTemplateRules } from './templates'
+import { getTemplateRules, readTemplateDoc, requireTemplate } from './templates'
+import { templateChecks } from '../../shared/templates'
 
 export type ReviewRow = typeof reviews.$inferSelect
 
@@ -28,7 +29,7 @@ export function siteSettings(ctx: ServiceCtx) {
 
 /** What a review is about: a page or a site part. Both have the same draft and published pointers. */
 export interface ReviewTarget {
-  type: 'page' | 'site_part' | 'brand'
+  type: 'page' | 'site_part' | 'brand' | 'template'
   id: string
   title: string
   workflowState: WorkflowState
@@ -51,11 +52,15 @@ export function loadReviewTarget(ctx: ServiceCtx, type: ReviewRow['targetType'],
     if (pack.id !== id) throw notFound('That brand pack')
     return { type, id, title: 'Brand and Design', workflowState: pack.workflowState, publishedVersionId: pack.publishedVersionId, wasUnpublished: pack.wasUnpublished, draftVersionId: pack.draftVersionId }
   }
+  if (type === 'template') {
+    const pack = requireTemplate(ctx, id)
+    return { type, id, title: pack.label, workflowState: pack.workflowState, publishedVersionId: pack.publishedVersionId, wasUnpublished: pack.wasUnpublished, draftVersionId: pack.draftVersionId }
+  }
   throw new AppError('invalid_state', 'Reviews for this kind of change are not built yet.')
 }
 
 export function setTargetState(ctx: ServiceCtx, t: Pick<ReviewTarget, 'type' | 'id'>, workflowState: WorkflowState) {
-  const table = t.type === 'page' ? pages : t.type === 'brand' ? brandPacks : siteParts
+  const table = t.type === 'page' ? pages : t.type === 'brand' ? brandPacks : t.type === 'template' ? templates : siteParts
   ctx.db.update(table).set({ workflowState, updatedAt: iso(ctx) }).where(eq(table.id, t.id)).run()
 }
 
@@ -64,8 +69,16 @@ function targetChecks(ctx: ServiceCtx, t: ReviewTarget, versionId: string) {
     const page = requirePage(ctx, t.id)
     return checksFor(ctx, page.template, readDoc(ctx, versionId))
   }
-  const part = requireSitePart(ctx, t.id)
-  return sitePartChecks(ctx, part.kind, readSitePartDoc(ctx, part, versionId))
+  if (t.type === 'site_part') {
+    const part = requireSitePart(ctx, t.id)
+    return sitePartChecks(ctx, part.kind, readSitePartDoc(ctx, part, versionId))
+  }
+  if (t.type === 'brand') {
+    const pack = getOrCreateBrand(ctx)
+    return brandContrastChecks(readBrandDoc(ctx, pack, versionId))
+  }
+  const pack = requireTemplate(ctx, t.id)
+  return templateChecks(readTemplateDoc(ctx, pack, versionId))
 }
 
 export function requireReview(ctx: ServiceCtx, id: string): ReviewRow {
@@ -253,6 +266,21 @@ export function getReview(ctx: ServiceCtx, actor: ActingAs, reviewId: string) {
       hasLive: !!liveDoc,
       checks: sitePartChecks(ctx, part.kind, doc),
       draftChangedSinceSubmit: draftChangedSinceSubmit(part),
+      ...withNames,
+    }
+  }
+  if (review.targetType === 'template') {
+    const pack = requireTemplate(ctx, review.targetId)
+    const doc = readTemplateDoc(ctx, pack, review.versionId)
+    const liveDoc = pack.publishedVersionId ? readTemplateDoc(ctx, pack, pack.publishedVersionId) : null
+    return {
+      review,
+      target: { type: 'template' as const, id: pack.id, title: pack.label, key: pack.key, state: pack.workflowState },
+      doc,
+      liveDoc,
+      hasLive: !!liveDoc,
+      checks: templateChecks(doc),
+      draftChangedSinceSubmit: draftChangedSinceSubmit(pack),
       ...withNames,
     }
   }

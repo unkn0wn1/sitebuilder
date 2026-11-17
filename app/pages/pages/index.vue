@@ -51,8 +51,8 @@ async function load() {
 onMounted(async () => {
   await load()
   try {
-    const data = await api<{ items: { key: string; label: string }[] }>('/templates')
-    templates.value = data.items
+    const data = await api<{ items: { key: string; label: string; live?: boolean }[] }>('/templates')
+    templates.value = data.items.filter((item) => item.live !== false)
     if (templates.value.some((t) => t.key === 'standard')) newTemplate.value = 'standard'
     else if (templates.value[0]) newTemplate.value = templates.value[0].key
   } catch {

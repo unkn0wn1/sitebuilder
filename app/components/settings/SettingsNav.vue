@@ -1,9 +1,24 @@
 <script setup lang="ts">
-const route = useRoute()
+import { can, type Action } from '#shared/roles'
 
-const sections = [
-  { to: '/settings/ai', label: 'AI', ready: true },
+const route = useRoute()
+const { user } = useSession()
+
+const all = [
+  { to: '/settings/general', label: 'General', need: 'settings.manage' as Action },
+  { to: '/settings/workflow', label: 'Workflow', need: 'settings.manage' as Action },
+  { to: '/settings/integrations', label: 'Integrations', need: 'settings.manage' as Action },
+  { to: '/settings/ai', label: 'AI', need: 'settings.manage' as Action },
+  { to: '/settings/tracking', label: 'Tracking', need: 'settings.manage' as Action },
+  { to: '/settings/seo', label: 'SEO and redirects', need: 'settings.manage' as Action },
+  { to: '/settings/security', label: 'Security', need: 'settings.manage' as Action },
+  { to: '/settings/users', label: 'Users', need: 'users.manage' as Action },
+  { to: '/settings/publishing', label: 'Publishing', need: 'release.read' as Action },
+  { to: '/settings/backups', label: 'Backups', need: 'backups.manage' as Action },
+  { to: '/settings/system', label: 'System', need: 'system.read' as Action },
 ]
+
+const sections = computed(() => all.filter((s) => user.value && can(user.value, s.need)))
 
 function active(to: string) {
   return route.path === to || route.path.startsWith(`${to}/`)
