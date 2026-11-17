@@ -27,6 +27,7 @@ export const ID_PREFIXES = {
   notification: 'ntf',
   secret: 'sec',
   block: 'b',
+  pageBrief: 'pbr',
 } as const
 
 export type IdKind = keyof typeof ID_PREFIXES

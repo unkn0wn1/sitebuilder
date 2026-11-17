@@ -11,7 +11,7 @@ export interface CheckResult {
   warnings: FieldIssue[]
 }
 
-const PLACEHOLDERS = [/lorem ipsum/i, /\[(headline|heading|title|text|name|image|link)\]/i, /\bTODO\b/, /\bTBC\b/, /\bxxx+\b/i]
+const PLACEHOLDERS = [/lorem ipsum/i, /\[(headline|heading|title|text|name|image|link|placeholder)\]/i, /\bTODO\b/, /\bTBC\b/, /\bxxx+\b/i]
 const VAGUE_LINK_TEXT = /^(click here|here|read more|more|link)$/i
 
 function walk(value: unknown, path: string, visit: (value: unknown, path: string) => void) {

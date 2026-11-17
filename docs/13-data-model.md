@@ -37,6 +37,7 @@ erDiagram
   sites ||--o{ audit_events : has
   users ||--o{ ai_sessions : starts
   ai_sessions ||--o{ ai_messages : has
+  users ||--o{ page_briefs : starts
   sites ||--o{ memory_entries : has
   users ||--o{ notifications : receives
   sites ||--o{ secrets : has
@@ -64,6 +65,7 @@ erDiagram
 | `jobs` | Background work: kind, payload, state, run at, attempts, lease, last error, result ([ADR 0009](decisions/0009-sqlite-drizzle-and-jobs.md)) |
 | `audit_events` | Who (user, AI session or system) did what to which target, with details |
 | `ai_sessions` | One AI task: user, task type, target type and id, state (`active`, `parked`, `ended`), model, token and cost totals |
+| `page_briefs` | A "New page with the assistant" interview: prompt, answers, plan, optional draft `page_id` / `template_id`, state (`interviewing`, `planned`, `built`) |
 | `ai_messages` | The messages and tool calls in a session |
 | `memory_entries` | Site memory and user memory entries |
 | `notifications` | In-app notifications per user, with read time |

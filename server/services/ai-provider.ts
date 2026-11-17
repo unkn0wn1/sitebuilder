@@ -1,6 +1,7 @@
 // One OpenAI-compatible chat interface. OpenAI, xAI, Anthropic's compatibility API
 // and local/custom servers all go through this. Tests inject a mock and never hit a network.
 // See docs/12-ai-harness.md#bring-your-own-model.
+import { readFileSync } from 'node:fs'
 import type { SiteSettings } from '../../shared/settings'
 
 export interface ToolCall {
@@ -192,4 +193,30 @@ export function assistantTools(calls: { name: string; arguments: Record<string, 
 export function extraHeadersFor(provider: SiteSettings['ai']['provider']): Record<string, string> | undefined {
   if (provider === 'anthropic') return { 'anthropic-version': '2023-06-01' }
   return undefined
+}
+
+let fileScriptedMock: (ModelProvider & { calls: ChatRequest[] }) | undefined
+
+/** Forget a scripted env mock. Used by tests that start a fresh process. */
+export function resetFileScriptedMock() {
+  fileScriptedMock = undefined
+}
+
+/** A process-wide mock that walks SITEBUILDER_AI_MOCK_REPLIES across HTTP requests. */
+export function providerFromEnvMock(): ModelProvider | null {
+  if (process.env.SITEBUILDER_AI_PROVIDER !== 'mock') return null
+  const path = process.env.SITEBUILDER_AI_MOCK_REPLIES
+  if (!path) return null
+  if (!fileScriptedMock) {
+    const raw = JSON.parse(readFileSync(path, 'utf8')) as unknown
+    if (!Array.isArray(raw)) throw new ProviderError('The mock replies file must be a JSON array.')
+    fileScriptedMock = mockProvider(
+      raw.map((item) => {
+        if (item && typeof item === 'object' && 'message' in (item as object)) return item as ChatResult
+        const text = typeof item === 'string' ? item : JSON.stringify(item)
+        return assistantText(text)
+      }),
+    )
+  }
+  return fileScriptedMock
 }

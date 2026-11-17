@@ -93,7 +93,10 @@ const states = [
   <div class="p-6">
     <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
       <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Pages</h1>
-      <FwbButton v-if="canEdit" @click="showNew = true">New page</FwbButton>
+      <div v-if="canEdit" class="flex flex-wrap gap-2">
+        <FwbButton color="light" @click="navigateTo('/pages/new-assistant')">New page with the assistant</FwbButton>
+        <FwbButton @click="showNew = true">New page</FwbButton>
+      </div>
     </div>
     <div class="mb-4 flex flex-wrap gap-3">
       <div class="w-72">

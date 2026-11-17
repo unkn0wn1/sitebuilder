@@ -6,27 +6,23 @@ Draft. The agent is a helpful colleague who builds pages, not a free-form code g
 
 The AI panel is **contextual, not global**. There is no floating chat on every screen.
 
-- **Editors, approvers and admins:** on **New page** and **Edit page**.
+- **Editors, approvers and admins:** on **New page with the assistant** (an interview started from the Pages list), **New page**, and **Edit page**.
 - **Admins:** also on **Templates** (page types) and **Brand and Design**.
-- **Nobody:** Site parts, Pages list, Media, Forms and embeds, Approvals, Settings. Site parts (header, footer, menus) are edited by hand. See [ADR 0012](decisions/0012-ai-panel-screens-v1.md).
+- **Nobody:** Site parts, the Pages list itself (the list only has an entry point to the interview), Media, Forms and embeds, Approvals, Settings. Site parts (header, footer, menus) are edited by hand. See [ADR 0012](decisions/0012-ai-panel-screens-v1.md).
 
 Each screen starts a task, and each task type gets its own tool set bound to the one thing being edited, filtered by role. A page edit session only has the page builder tools for that page, so it physically cannot change menus, templates, the header or footer, the brand or other pages. Admins get every task type, but an admin's page edit is locked to that page too. The tool table below is the page builder set used on New page and Edit page. See [12-ai-harness.md](12-ai-harness.md#task-scoped-tools).
 
 ## The conversation
 
-For a new page, the agent:
+From **Pages**, **New page with the assistant** runs a short structured interview, then builds a draft:
 
-1. **Asks five or six questions**, one or two at a time, for example:
-   - What is the page for, and who is it aimed at?
-   - The headline or main message.
-   - The story or key points (or "write it for me from these notes").
-   - Hero image or video (pick from the media library or upload).
-   - Which donation form or call to action.
-   - Any dates, deadlines or links.
-2. **Picks a template** that fits and proposes a block outline ("Hero, short story, three stats, donation form, FAQ").
-3. **Builds a draft** through tool calls, showing each change on the canvas.
-4. **Iterates**: "make the headline punchier", "swap the photo", "move the form higher". Back and forth until the person is happy.
-5. **Hands over for approval**: suggests submitting for review. It cannot publish.
+1. The person describes what they want.
+2. The assistant asks **three to five questions**, one at a time, with suggested answers as chips plus a free-text box, covering purpose, audience, how the page will be used (campaign, evergreen, story, event…), content they already have, the call to action or donation (including a Virtuous form if one is registered), and look and feel (tone, within the current brand pack).
+3. It shows a short plan ("Here's what I'll build: sections…") and a **Build** button. Optionally, an admin can also save the structure as a reusable page type (a draft, not published).
+4. On confirm, the server composes a **draft** page from existing block types (including the campaign blocks when they fit), validates each block against its schema (repairing or retrying invalid ones), fills slug, title and SEO, and marks unknown facts as `[placeholder]` or `TBC`. It never publishes, and it does not invent live statistics.
+5. The person is redirected to that page in the editor, where they can keep editing by hand or with the ordinary assistant tab.
+
+The older "start a new_page chat session" path still exists on the editor and still cannot publish.
 
 For edits to an existing page, it skips the questions and works on a new draft version.
 

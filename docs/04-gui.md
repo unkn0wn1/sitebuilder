@@ -51,7 +51,8 @@ flowchart TD
   Shell --> Settings["Settings"]
 
   Pages --> List["Pages list<br/>search, filter, paginate, bin"]
-  List --> NewPage["New page 🤖<br/>conversation, or pick a page type"]
+  List --> NewPage["New page with the assistant 🤖<br/>interview, plan, Build a draft"]
+  List --> NewPageManual["New page<br/>title and page type"]
   NewPage --> Editor["Edit page 🤖<br/>left rail (Assistant, Add, Outline),<br/>canvas with device switch,<br/>inspector (Section, Page, History)"]
   List --> Editor
   Parts --> PartEditor["Site part editor<br/>(header, footer, menus)<br/>by hand, no assistant"]
@@ -65,7 +66,7 @@ flowchart TD
   Publish --> Live["Live page link"]
 ```
 
-🤖 marks the screens where the **assistant** appears ([ADR 0012](decisions/0012-ai-panel-screens-v1.md)): New page and Edit page for editors, approvers and admins; Page types and Brand and Design for admins. Nowhere else. Each screen starts its own task bound to the one thing being edited. See [12-ai-harness.md](12-ai-harness.md#task-scoped-tools).
+🤖 marks the screens where the **assistant** appears ([ADR 0012](decisions/0012-ai-panel-screens-v1.md)): New page with the assistant (from the Pages list), New page and Edit page for editors, approvers and admins; Page types and Brand and Design for admins. The Pages list itself has no chat panel — only the entry point. Each screen starts its own task bound to the one thing being edited. See [12-ai-harness.md](12-ai-harness.md#task-scoped-tools).
 
 ### Left nav
 
@@ -104,7 +105,7 @@ flowchart TD
 +------------------+--------------------------------------------------------+
 | sitebuilder      | Site name [View live] [Search  Ctrl K] (bell)  [User v]|
 +------------------+--------------------------------------------------------+
-| > Pages          |  Pages                          [Bin]   [+ New page]   |
+| > Pages          |  Pages           [Bin]  [New page with the assistant] [+ New page] |
 |   Site parts     |  [Search...........]  Status [All v]  Type [All v]     |
 |   Media          |  ------------------------------------------------------|
 |   Forms/embeds   |  Title            Status        Last edited     Address|
@@ -246,24 +247,31 @@ Ends with "Live" and **View page**. Menu, header or footer changes say "Updating
 
 ## Other screens
 
-### New page
+### New page with the assistant
+
+Started from the Pages list. The person describes the page, answers three to five short questions (suggested answers as chips, plus free text), reviews a plan ("Here's what I'll build: sections…"), then confirms **Build**. The result is a draft — never published — and the editor opens on that page.
 
 ```
 +---------------------------------------------------------------+
-| < Pages   New page                                             |
+| < Pages   New page with the assistant                          |
 +---------------------------------------------------------------+
+|  What should this page be?                                    |
+|  [ A winter blanket appeal for existing supporters...     ]   |
+|                                                 [Continue]    |
 |                                                               |
-|      Assistant: Hi Asha. What's this page for?                |
+|  Question 2 of up to 5                                        |
+|  Who is it mainly for?                                        |
+|  [Existing supporters] [New visitors] [Local visitors]        |
+|  [ Or write your own answer...                    ]           |
 |                                                               |
-|      [A donation appeal] [A news story] [An event] [Other]    |
-|                                                               |
-|      [ Type a message...                         ] [Send]     |
-|                                                               |
-|      Or pick a page type yourself                             |
+|  Here's what I'll build: Hero, story, gift amounts,          |
+|  progress, trust marks, donation form.                       |
+|  [ ] Also save this structure as a reusable page type        |
+|                                                 [Build]       |
 +---------------------------------------------------------------+
 ```
 
-After **Build it**, it becomes the editor layout with the Assistant tab open.
+**New page** (without the assistant) is still the title-and-page-type modal on the list, for when the assistant is off or the person already knows the type.
 
 ### Site parts: menus
 

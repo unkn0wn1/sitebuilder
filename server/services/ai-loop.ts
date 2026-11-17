@@ -7,7 +7,7 @@ import { sites } from '../db/schema'
 import { eq } from 'drizzle-orm'
 import { addAiUsage, appendAiMessage, cancelAiSession, endAiTurn, getAiSession, listAiMessages, monthCostMicros, runTool, type AiSession } from './ai'
 import { buildTurnMessages, type ChatHistoryItem } from './ai-context'
-import { extraHeadersFor, mockProvider, openAiCompatibleProvider, ProviderError, defaultBaseUrl, type ChatMessage, type ModelProvider } from './ai-provider'
+import { extraHeadersFor, mockProvider, openAiCompatibleProvider, ProviderError, defaultBaseUrl, providerFromEnvMock, type ChatMessage, type ModelProvider } from './ai-provider'
 import { chatToolsFor } from './ai-tools-schema'
 import { getSecret, hasSecret, secretKeyFromEnv } from './auth'
 import type { ActingAs, ServiceCtx } from './context'
@@ -116,7 +116,7 @@ export function resolveProvider(ctx: ServiceCtx, resolved: ResolvedAi, injected?
   if (injected) return injected
   if (ctx.aiProvider) return ctx.aiProvider
   if (process.env.SITEBUILDER_AI_PROVIDER === 'mock') {
-    return mockProvider([{ message: { role: 'assistant', content: 'This is the mock assistant. I can only give scripted replies in tests.' }, usage: { tokensIn: 1, tokensOut: 1 } }])
+    return providerFromEnvMock() ?? mockProvider([{ message: { role: 'assistant', content: 'This is the mock assistant. I can only give scripted replies in tests.' }, usage: { tokensIn: 1, tokensOut: 1 } }])
   }
   const baseUrl = resolved.baseUrl
   if (!baseUrl) throw new AppError('ai_unavailable', unavailableMessage('no_model'))

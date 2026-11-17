@@ -117,6 +117,10 @@ Same pattern as pages: `GET /site-parts`, `GET /site-parts/:id`, `GET /site-part
 | Method and path | Who | Does |
 | --- | --- | --- |
 | `GET /ai/status` | Signed in | Whether the assistant is on and available, why not if it isn't, and the current caps |
+| `POST /ai/page-briefs` | Editors and up, when the assistant is available | Start a new-page interview: `{ prompt }`. Returns a question or a plan. Does not create a page |
+| `GET /ai/page-briefs/:id` | Brief owner | Current interview, plan or built page id |
+| `POST /ai/page-briefs/:id/answers` | Brief owner | `{ questionId, chip, text }`. Next question or a plan |
+| `POST /ai/page-briefs/:id/build` | Brief owner | `{ saveAsTemplate? }`. Creates a **draft** page (never published) and optionally a draft page type. Returns `pageId` |
 | `POST /ai/sessions` | By task type and role | Start a task: `{ taskType, targetId }`. Reuses the caller's active session for the same task and target |
 | `GET /ai/sessions/:id` | Session owner | Session and messages |
 | `POST /ai/sessions/:id/messages` | Session owner | Send `{ text }`. Streams progress events (server-sent events): text, tool started, tool result, needs you, finished, error |

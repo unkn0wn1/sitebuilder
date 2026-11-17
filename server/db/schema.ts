@@ -406,3 +406,22 @@ export const oauthStates = sqliteTable(
   (t) => [index('oauth_states_expires_at').on(t.expiresAt)],
 )
 
+export const pageBriefs = sqliteTable(
+  'page_briefs',
+  {
+    id: id(),
+    siteId: siteId(),
+    userId: text('user_id').notNull().references(() => users.id),
+    sessionId: text('session_id').references(() => aiSessions.id),
+    state: text('state', { enum: ['interviewing', 'planned', 'built'] }).notNull(),
+    prompt: text('prompt').notNull(),
+    answers: json<unknown[]>('answers').notNull(),
+    plan: json<Record<string, unknown> | null>('plan'),
+    pageId: text('page_id'),
+    templateId: text('template_id'),
+    createdAt: createdAt(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (tb) => [index('page_briefs_site_user').on(tb.siteId, tb.userId)],
+)
+

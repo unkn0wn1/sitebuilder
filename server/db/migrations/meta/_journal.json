@@ -15,6 +15,13 @@
       "when": 1794970000000,
       "tag": "0001_oauth_states",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1795000000000,
+      "tag": "0002_page_briefs",
+      "breakpoints": true
     }
   ]
 }
