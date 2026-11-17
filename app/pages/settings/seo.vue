@@ -4,6 +4,7 @@ import type { SettingsPayload } from '../../utils/settings'
 import SettingsNav from '../../components/settings/SettingsNav.vue'
 import MediaPickerModal from '../../components/media/MediaPickerModal.vue'
 import type { MediaItem } from '../../utils/media'
+import { defaultRobotsTxt, sanitizeRobotsTxt } from '#shared/robots'
 
 definePageMeta({ layout: 'builder' })
 
@@ -20,6 +21,8 @@ const saving = ref(false)
 const error = ref('')
 const saved = ref('')
 const allowIndexing = ref(true)
+const robotsTxt = ref('')
+const robotsError = ref('')
 const defaultSocialImage = ref<string | null>(null)
 const showPicker = ref(false)
 const redirects = ref<RedirectItem[]>([])
@@ -40,6 +43,8 @@ async function load() {
     const data = await api<SettingsPayload>('/settings')
     allowIndexing.value = data.settings.seo.allowIndexing
     defaultSocialImage.value = data.settings.seo.defaultSocialImage
+    robotsTxt.value = data.settings.seo.robotsTxt ?? defaultRobotsTxt(data.primaryDomain ? `https://${data.primaryDomain}` : null)
+    robotsError.value = ''
     const list = await api<{ items: RedirectItem[] }>('/redirects')
     redirects.value = list.items
   } catch (err) {
@@ -49,13 +54,29 @@ async function load() {
   }
 }
 
+function robotsForSave(): { ok: true; text: string | null } | { ok: false } {
+  const raw = robotsTxt.value
+  const fallback = defaultRobotsTxt()
+  if (!raw.trim() || raw.trim() === fallback.trim()) return { ok: true, text: null }
+  const clean = sanitizeRobotsTxt(raw)
+  if (!clean.ok) {
+    robotsError.value = clean.message
+    return { ok: false }
+  }
+  robotsError.value = ''
+  return { ok: true, text: clean.text }
+}
+
 async function saveSeo() {
   saving.value = true
   error.value = ''
   saved.value = ''
+  robotsError.value = ''
   try {
-    await api('/settings', { method: 'PATCH', body: { seo: { allowIndexing: allowIndexing.value, defaultSocialImage: defaultSocialImage.value } } })
-    saved.value = 'Saved.'
+    const custom = robotsForSave()
+    if (!custom.ok) return
+    await api('/settings', { method: 'PATCH', body: { seo: { allowIndexing: allowIndexing.value, defaultSocialImage: defaultSocialImage.value, robotsTxt: custom.text } } })
+    saved.value = 'Saved. Changes to robots.txt apply the next time the site is published.'
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : 'Could not save settings.'
   } finally {
@@ -122,6 +143,20 @@ onMounted(load)
         <div class="mb-4">
           <FwbToggle v-model="allowIndexing" label="Allow search engines to index this site" />
           <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">When this is off, pages ask search engines not to list them.</p>
+        </div>
+        <div class="mb-6">
+          <label class="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100" for="robots-txt">robots.txt</label>
+          <p class="mb-2 text-sm text-gray-500 dark:text-gray-400">
+            A safe default is filled in for you. If indexing is switched off, this site always serves <code>Disallow: /</code>, even if you edit this text. A Sitemap line is added on publish when indexing is on and you have not included one.
+          </p>
+          <textarea
+            id="robots-txt"
+            v-model="robotsTxt"
+            class="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-2.5 font-mono text-sm text-gray-900 dark:text-gray-100"
+            :rows="8"
+            spellcheck="false"
+          />
+          <p v-if="robotsError" class="mt-2 text-sm text-red-700 dark:text-red-400">{{ robotsError }}</p>
         </div>
         <div class="mb-6">
           <p class="mb-1 text-sm font-medium text-gray-900 dark:text-gray-100">Default social image</p>

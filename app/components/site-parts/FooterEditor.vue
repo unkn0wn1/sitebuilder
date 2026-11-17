@@ -59,6 +59,16 @@ function removeSocial(index: number) {
 
 <template>
   <div class="space-y-6">
+    <FwbSelect
+      :model-value="modelValue.appearance ?? 'light'"
+      :options="[
+        { name: 'Light background', value: 'light' },
+        { name: 'Dark background', value: 'dark' },
+      ]"
+      label="Background"
+      @update:model-value="patch({ appearance: String($event) === 'dark' ? 'dark' : 'light' })"
+    />
+    <p class="text-sm text-gray-600 dark:text-gray-400">A dark footer uses the same dark-background logo setting as the header, if a logo is shown there.</p>
     <div>
       <label class="mb-2 block text-sm font-medium text-gray-800 dark:text-gray-200">About this organisation</label>
       <textarea

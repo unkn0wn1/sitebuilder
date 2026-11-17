@@ -55,6 +55,7 @@ export const headerDocSchema = z
     style: z.enum(['simple', 'centred', 'mega', 'hamburger']).default('simple'),
     menuKey: z.string().min(1).max(40).default('main'),
     cta: callToAction.nullable().default(null),
+    appearance: z.enum(['light', 'dark']).default('light'),
   })
   .strict()
 
@@ -75,6 +76,7 @@ export const footerDocSchema = z
     social: z.array(z.object({ network: z.enum(SOCIAL_NETWORKS), url: z.url({ protocol: /^https$/, message: 'Use a full https:// address.' }) }).strict()).max(8).default([]),
     legalMenuKey: z.string().min(1).max(40).nullable().default(null),
     charityNumber: z.string().trim().max(40).nullable().default(null),
+    appearance: z.enum(['light', 'dark']).default('light'),
   })
   .strict()
 

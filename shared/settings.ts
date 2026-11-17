@@ -22,7 +22,7 @@ export const siteSettingsSchema = z
     workflow: z.object({ selfApproval: z.boolean().default(false) }).strict().default({ selfApproval: false }),
     allowedEmbedProviders: z.array(z.enum(EMBED_PROVIDER_KEYS)).optional(),
     tracking: trackingSchema.default({ ga4: null, gtm: null, plausible: null, cookiebot: null }),
-    seo: z.object({ defaultSocialImage: z.string().max(64).nullable().default(null), allowIndexing: z.boolean().default(true) }).strict().default({ defaultSocialImage: null, allowIndexing: true }),
+    seo: z.object({ defaultSocialImage: z.string().max(64).nullable().default(null), allowIndexing: z.boolean().default(true), robotsTxt: z.string().max(8000).nullable().default(null) }).strict().default({ defaultSocialImage: null, allowIndexing: true, robotsTxt: null }),
     ai: z
       .object({
         enabled: z.boolean().default(false),
@@ -71,7 +71,7 @@ export const settingsPatchSchema = z
     workflow: z.object({ selfApproval: z.boolean() }).strict().optional(),
     allowedEmbedProviders: z.array(z.enum(EMBED_PROVIDER_KEYS)).optional(),
     tracking: trackingSchema.partial().optional(),
-    seo: z.object({ defaultSocialImage: z.string().max(64).nullable(), allowIndexing: z.boolean() }).partial().strict().optional(),
+    seo: z.object({ defaultSocialImage: z.string().max(64).nullable(), allowIndexing: z.boolean(), robotsTxt: z.string().max(8000).nullable() }).partial().strict().optional(),
     ai: z
       .object({
         enabled: z.boolean(),

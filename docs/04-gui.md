@@ -77,7 +77,7 @@ flowchart TD
 | **Media** | Library, upload, processing status, alt text, crops, bin | Editors and up |
 | **Forms and embeds** | Registered donation forms (for example Virtuous) and other embeds by name. Only from domains on the admin allow-list | Approvers and up |
 | **Approvals** | Items waiting for approval, with a count badge; the review screen | Approvers and up |
-| **Brand and Design** 🤖 | Brand pack, contrast checks, favicon from logo, re-run wizard steps, Design tab for themes ([11-theming.md](11-theming.md)) | Admins |
+| **Brand and Design** 🤖 | Brand pack, contrast checks, favicon from logo, optional logo for dark backgrounds, re-run wizard steps, Design tab for themes ([11-theming.md](11-theming.md)) | Admins |
 | **Page types** 🤖 | Allowed page types, allowed and required sections per type | Admins |
 | **Settings** | See below | Admins (System: operators) |
 
@@ -87,7 +87,7 @@ flowchart TD
 | --- | --- | --- |
 | General | Site name, primary domain, title pattern, favicon override | Admin |
 | Workflow | Self-approval on or off ([ADR 0005](decisions/0005-rollback-and-approval.md)) | Admin |
-| SEO and redirects | robots.txt, sitemap view, default social image, redirects table | Admin |
+| SEO and redirects | Editable robots.txt (safe default; if indexing is off, `Disallow: /` always wins), default social image, redirects table | Admin |
 | Tracking and consent | Named integrations by id: GA4, Tag Manager, Plausible, Cookiebot ([ADR 0011](decisions/0011-named-tracking-integrations.md)) | Admin |
 | Users and roles | Invite, deactivate, roles (Editor, Approver, Admin), operator flag | Admin |
 | Integrations | AI provider, model and key; Cloudflare zone and token; email (Google Workspace) | Admin or operator |
@@ -249,7 +249,7 @@ Ends with "Live" and **View page**. Menu, header or footer changes say "Updating
 
 ### New page with the assistant
 
-Started from the Pages list. The person describes the page, answers three to five short questions (suggested answers as chips, plus free text), reviews a plan ("Here's what I'll build: sections…"), then confirms **Build**. The result is a draft — never published — and the editor opens on that page.
+Started from the Pages list. The person describes the page, answers three to five short questions (suggested answers as chips, plus free text), reviews a plan ("Here's what I'll build: sections…"), can uncheck sections, then confirms **Build**. The result is a draft — never published — and the editor opens on that page.
 
 ```
 +---------------------------------------------------------------+

@@ -3,7 +3,7 @@
 import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { and, desc, eq, isNull, like, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, like, or, sql } from 'drizzle-orm'
 import sharp, { type Metadata } from 'sharp'
 import { z } from 'zod'
 import { cropRectError, defaultCropRect, type CropRect } from '../../shared/crop'
@@ -15,6 +15,7 @@ import { audit } from './audit'
 import { inTx, iso, type ActingAs, type ServiceCtx } from './context'
 import { AppError, forbidden, notFound } from './errors'
 import { enqueueJob, type JobHandler } from './jobs'
+import { SVG_MAX_BYTES, looksLikeSvg, sanitizeSvg, SvgSanitiseError, svgPublicName } from '../../shared/svg-sanitize'
 
 export const MEDIA_MAX_BYTES = 25 * 1024 * 1024
 /** Prepared looping hero videos (transcoding is later). A few megabytes, with a little headroom. */
@@ -45,7 +46,12 @@ export function looksLikeVideo(data: Buffer): { mime: string; ext: string } | nu
   return null
 }
 
-export function masterPath(dir: string, row: Pick<MediaRow, 'id' | 'mime'>) {
+export function isSvgMedia(row: Pick<MediaRow, 'mime'> & { kind?: MediaRow['kind'] }): boolean {
+  return row.kind === 'svg' || row.mime === 'image/svg+xml'
+}
+
+export function masterPath(dir: string, row: Pick<MediaRow, 'id' | 'mime'> & { kind?: MediaRow['kind'] }) {
+  if (isSvgMedia(row)) return join(mediaPaths(dir).originals, svgPublicName(row.id))
   const ext = Object.values(FORMATS).find((f) => f.mime === row.mime)?.ext ?? VIDEO_TYPES[row.mime]?.ext ?? 'bin'
   return join(mediaPaths(dir).originals, `${row.id}.${ext}`)
 }
@@ -60,6 +66,7 @@ export function videoPublicName(row: Pick<MediaRow, 'id' | 'mime'>): string {
 export function previewFileName(row: Pick<MediaRow, 'id' | 'kind' | 'mime' | 'width' | 'status'>): string | null {
   if (row.status !== 'ready') return null
   if (row.kind === 'video') return videoPublicName(row)
+  if (isSvgMedia(row)) return svgPublicName(row.id)
   const widths = widthsFor(row.width ?? 0)
   const w = widths.find((n) => n >= 320) ?? widths.at(-1)
   return w ? `${row.id}-${w}.webp` : null
@@ -75,9 +82,11 @@ export function widthsFor(width: number): number[] {
 export const ratioKey = (ratio: string) => ratio.replace(':', 'x')
 
 /** File names of the renditions for an image (and its crops). Served from /media/ on the public site. */
-export function renditionNames(row: Pick<MediaRow, 'id' | 'width'>, cropRatio?: string): string[] {
+export function renditionNames(row: Pick<MediaRow, 'id' | 'width'> & Partial<Pick<MediaRow, 'kind' | 'mime'>>, cropRatio?: string): string[] {
   const base = cropRatio ? `${row.id}-${ratioKey(cropRatio)}` : row.id
-  return widthsFor(row.width ?? 0).flatMap((w) => RENDITION_FORMATS.map((f) => `${base}-${w}.${f}`))
+  const rasters = widthsFor(row.width ?? 0).flatMap((w) => RENDITION_FORMATS.map((f) => `${base}-${w}.${f}`))
+  if (!cropRatio && row.kind && isSvgMedia(row as Pick<MediaRow, 'kind' | 'mime'>)) return [svgPublicName(row.id), ...rasters]
+  return rasters
 }
 
 function requireMedia(ctx: ServiceCtx, id: string): MediaRow {
@@ -95,6 +104,8 @@ export async function uploadMedia(ctx: ServiceCtx, actor: ActingAs, input: { fil
   } else if (input.data.length > MEDIA_MAX_BYTES) {
     throw new AppError('validation_failed', 'That file is too big. The limit is 25 MB.', [{ path: 'file', message: 'Too big.' }])
   }
+  if (looksLikeSvg(input.data)) return uploadSanitisedSvg(ctx, actor, input)
+
   const sha256 = createHash('sha256').update(input.data).digest('hex')
   const dup = ctx.db.select().from(media).where(and(eq(media.siteId, ctx.siteId), eq(media.sha256, sha256), isNull(media.deletedAt))).get()
   if (dup) return { media: dup, duplicate: true, jobId: null }
@@ -158,6 +169,77 @@ export async function uploadMedia(ctx: ServiceCtx, actor: ActingAs, input: { fil
 }
 
 
+async function uploadSanitisedSvg(ctx: ServiceCtx, actor: ActingAs, input: { filename: string; data: Buffer; mediaDir: string }) {
+  if (input.data.length > SVG_MAX_BYTES) throw new AppError('validation_failed', 'That SVG is too big. Keep it under 1 MB.', [{ path: 'file', message: 'Too big.' }])
+  let markup: string
+  try {
+    markup = sanitizeSvg(input.data)
+  } catch (error) {
+    const message = error instanceof SvgSanitiseError ? error.message : 'That SVG could not be used.'
+    throw new AppError('validation_failed', message, [{ path: 'file', message: 'Not a usable SVG.' }])
+  }
+  const bytes = Buffer.from(markup, 'utf8')
+  const sha256 = createHash('sha256').update(bytes).digest('hex')
+  const dup = ctx.db.select().from(media).where(and(eq(media.siteId, ctx.siteId), eq(media.sha256, sha256), isNull(media.deletedAt))).get()
+  if (dup) return { media: dup, duplicate: true, jobId: null }
+
+  let width = 0
+  let height = 0
+  try {
+    const meta = await sharp(bytes, { limitInputPixels: MEDIA_MAX_PIXELS, density: 144 }).metadata()
+    width = meta.width ?? 0
+    height = meta.height ?? 0
+  } catch {
+    // Fall through and read a viewBox if sharp cannot measure it.
+  }
+  if (!width || !height) {
+    const viewBox = markup.match(/viewBox\s*=\s*["']?\s*[0-9.+-]+\s+[0-9.+-]+\s+([0-9.+-]+)\s+([0-9.+-]+)/i)
+    if (viewBox) {
+      width = Math.max(1, Math.round(Number(viewBox[1])))
+      height = Math.max(1, Math.round(Number(viewBox[2])))
+    }
+  }
+  if (!width || !height) {
+    width = 256
+    height = 256
+  }
+
+  const id = newId('media', ctx.now().getTime())
+  const filename = input.filename.replace(/[^\w.() -]+/g, '_').slice(0, 120) || 'image.svg'
+  const row: MediaRow = {
+    id,
+    siteId: ctx.siteId,
+    kind: 'svg',
+    filename,
+    mime: 'image/svg+xml',
+    bytes: bytes.length,
+    width,
+    height,
+    sha256,
+    alt: null,
+    decorative: false,
+    focalX: null,
+    focalY: null,
+    placeholder: null,
+    dominantColor: null,
+    status: 'processing',
+    uploadedBy: actor.id,
+    createdAt: iso(ctx),
+    deletedAt: null,
+  }
+  const paths = mediaPaths(input.mediaDir)
+  mkdirSync(paths.originals, { recursive: true })
+  mkdirSync(paths.renditions, { recursive: true })
+  writeFileSync(masterPath(input.mediaDir, row), bytes)
+  writeFileSync(join(paths.renditions, svgPublicName(id)), bytes)
+  const jobId = inTx(ctx, () => {
+    ctx.db.insert(media).values(row).run()
+    audit(ctx, actor, 'media.uploaded', { type: 'media', id }, { filename, bytes: row.bytes, width: row.width, height: row.height, kind: 'svg' })
+    return enqueueJob(ctx, 'media_renditions', { mediaId: id }, { createdBy: actor.id })
+  })
+  return { media: row, duplicate: false, jobId }
+}
+
 function uploadPreparedVideo(ctx: ServiceCtx, actor: ActingAs, input: { filename: string; data: Buffer; mediaDir: string }, type: { ext: string; mime: string }, sha256: string) {
   const id = newId('media', ctx.now().getTime())
   const filename = input.filename.replace(/[^\w.() -]+/g, '_').slice(0, 120) || 'video'
@@ -205,11 +287,13 @@ export function createMediaRenditionsHandler(mediaDir: string): JobHandler {
       const source = readFileSync(masterPath(mediaDir, row))
       const out = mediaPaths(mediaDir).renditions
       mkdirSync(out, { recursive: true })
+      if (isSvgMedia(row) && !crop) writeFileSync(join(out, svgPublicName(row.id)), source)
       const width = crop ? crop.width : (row.width ?? 0)
       const base = crop ? `${row.id}-${ratioKey(crop.ratio)}` : row.id
       let files = 0
+      const sharpOpts = { limitInputPixels: MEDIA_MAX_PIXELS, ...(isSvgMedia(row) ? { density: 144 } : {}) }
       for (const w of widthsFor(width)) {
-        let img = sharp(source, { limitInputPixels: MEDIA_MAX_PIXELS })
+        let img = sharp(source, sharpOpts)
         if (crop) img = img.extract({ left: crop.x, top: crop.y, width: crop.width, height: crop.height })
         img = img.resize({ width: w, withoutEnlargement: true })
         await img.clone().avif({ quality: 55, effort: 4 }).toFile(join(out, `${base}-${w}.avif`))
@@ -235,7 +319,7 @@ export function listMedia(ctx: ServiceCtx, q: { search?: string; kind?: 'image' 
   const where = and(
     eq(media.siteId, ctx.siteId),
     isNull(media.deletedAt),
-    q.kind ? eq(media.kind, q.kind) : undefined,
+    q.kind === 'image' ? inArray(media.kind, ['image', 'svg']) : q.kind ? eq(media.kind, q.kind) : undefined,
     q.search ? or(like(media.filename, `%${q.search}%`), like(media.alt, `%${q.search}%`)) : undefined,
   )
   const total = ctx.db.select({ n: sql<number>`count(*)` }).from(media).where(where).get()?.n ?? 0
@@ -268,8 +352,8 @@ export function mediaUsage(ctx: ServiceCtx, mediaId: string): MediaUsage[] {
     const brandHas = (versionId: string | null) => {
       if (!versionId) return false
       const v = ctx.db.select({ doc: versions.doc }).from(versions).where(eq(versions.id, versionId)).get()
-      const doc = v?.doc as { logoMediaId?: string | null } | undefined
-      return doc?.logoMediaId === mediaId
+      const doc = v?.doc as { logoMediaId?: string | null; logoDarkMediaId?: string | null } | undefined
+      return doc?.logoMediaId === mediaId || doc?.logoDarkMediaId === mediaId
     }
     const inDraft = brandHas(pack.draftVersionId)
     const live = pack.publishedVersionId === pack.draftVersionId ? inDraft : brandHas(pack.publishedVersionId)

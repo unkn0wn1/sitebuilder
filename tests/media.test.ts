@@ -64,10 +64,32 @@ describe('media', () => {
     const s = setup()
     const dir = mkdtempSync(join(tmpdir(), 'sb-media-'))
     await expectCode(uploadMedia(s.ctx, s.editor, { filename: 'x.jpg', data: Buffer.from('<html>hello</html>'), mediaDir: dir }), 'validation_failed')
-    const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><script>alert(1)</script></svg>')
-    await expectCode(uploadMedia(s.ctx, s.editor, { filename: 'logo.png', data: svg, mediaDir: dir }), 'validation_failed')
     const gif = await sharp({ create: { width: 10, height: 10, channels: 3, background: '#000' } }).gif().toBuffer()
     await expectCode(uploadMedia(s.ctx, s.editor, { filename: 'a.gif', data: gif, mediaDir: dir }), 'validation_failed')
+  })
+
+  it('accepts a sanitised SVG, stores it as svg, and lists it with images', async () => {
+    const s = setup()
+    const dir = mkdtempSync(join(tmpdir(), 'sb-media-'))
+    const dirty = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="32" viewBox="0 0 64 32"><script>alert(1)</script><circle r="8" fill="#0a7" onclick="alert(1)"/></svg>')
+    const up = await uploadMedia(s.ctx, s.editor, { filename: 'candid-seal.svg', data: dirty, mediaDir: dir })
+    expect(up.media.kind).toBe('svg')
+    expect(up.media.mime).toBe('image/svg+xml')
+    const stored = readFileSync(join(dir, 'originals', `${up.media.id}.svg`), 'utf8')
+    expect(stored).toContain('<circle')
+    expect(stored).not.toMatch(/script/i)
+    expect(stored).not.toMatch(/onclick/i)
+    expect(existsSync(join(dir, 'renditions', `${up.media.id}.svg`))).toBe(true)
+
+    await runJobsOnce(s.ctx, { media_renditions: createMediaRenditionsHandler(dir) })
+    const got = getMedia(s.ctx, up.media.id)
+    expect(got.media.status).toBe('ready')
+    expect(got.preview).toBe(`${up.media.id}.svg`)
+    expect(got.renditions).toContain(`${up.media.id}.svg`)
+    expect(got.renditions.some((n) => n.endsWith('.webp'))).toBe(true)
+    expect(listMedia(s.ctx, { kind: 'image', page: 1, pageSize: 10 }).items.map((i) => i.id)).toContain(up.media.id)
+    expect(listMedia(s.ctx, { kind: 'video', page: 1, pageSize: 10 }).total).toBe(0)
+    s.sqlite.close()
   })
 
   it('edits alt text, approves crops, and refuses to bin images on live pages', async () => {
@@ -150,7 +172,15 @@ describe('brand logo usage', () => {
     })
     const handlers = { media_renditions: createMediaRenditionsHandler(dir), publish: createPublishHandler(), purge_cache: { run: () => ({}) }, send_email: { run: () => ({}) } }
     await runJobsOnce(s.ctx, handlers)
-    editBrand(s.ctx, s.admin, 0, { ...defaultBrandDoc(), logoMediaId: media.id })
+    const dark = await uploadMedia(s.ctx, s.admin, {
+      filename: 'logo-dark.png',
+      data: await sharp({ create: { width: 80, height: 40, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } } }).png().toBuffer(),
+      mediaDir: dir,
+    })
+    editBrand(s.ctx, s.admin, 0, { ...defaultBrandDoc(), logoMediaId: media.id, logoDarkMediaId: dark.media.id })
+    expect(getMedia(s.ctx, dark.media.id).usedOn).toEqual([
+      { pageId: expect.any(String), title: 'Brand and Design', inDraft: true, live: false, href: '/brand' },
+    ])
     expect(getMedia(s.ctx, media.id).usedOn).toEqual([
       { pageId: expect.any(String), title: 'Brand and Design', inDraft: true, live: false, href: '/brand' },
     ])

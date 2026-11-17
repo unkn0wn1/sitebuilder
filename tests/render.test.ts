@@ -26,6 +26,7 @@ import {
 } from '../server/services/render'
 import { emptyPageDoc } from '../shared/page'
 import { defaultBrandDoc } from '../shared/brand'
+import { defaultSitePartDoc, type HeaderDoc } from '../shared/site-parts'
 import { richTextFromParagraphs } from '../shared/richtext'
 import { runJobsOnce } from '../server/services/jobs'
 import { IMG, setup } from './helpers'
@@ -119,6 +120,9 @@ describe('public-site renderer', () => {
     expect(map).toContain('https://example.org/')
     expect(map).not.toContain('/hidden')
     expect(robotsTxt(site({ allowIndexing: false }))).toContain('Disallow: /')
+    expect(robotsTxt(site({ allowIndexing: false, robotsTxt: 'User-agent: *\nAllow: /\n' }))).toBe('User-agent: *\nDisallow: /\n')
+    expect(robotsTxt(site({ robotsTxt: 'User-agent: *\nDisallow: /drafts\n' }))).toContain('Disallow: /drafts')
+    expect(robotsTxt(site({ robotsTxt: 'User-agent: *\nDisallow: /drafts\n' }))).toContain('Sitemap: https://example.org/sitemap.xml')
   })
 
   it('lists both pretty and file URIs in an nginx map', () => {
@@ -195,6 +199,90 @@ describe('public-site renderer', () => {
     expect(rendered.html).toContain('rel="apple-touch-icon" href="/apple-touch-icon.png"')
     expect(rendered.html).not.toMatch(/>Hope for Street Animals<\/a>/)
     expect(rendered.deps.media).toContain(logoId)
+  })
+
+  it('uses the dark-background logo on a dark header, or a CSS filter when one is not set', async () => {
+    const logoId = 'med_00000000000000000000000009'
+    const darkId = 'med_0000000000000000000000000A'
+    const entry = (id: string) => ({
+      id,
+      width: 600,
+      height: 188,
+      alt: 'Hope for Street Animals',
+      decorative: false,
+      status: 'ready' as const,
+      kind: 'image',
+      mime: 'image/png',
+      cropRatios: [],
+    })
+    const header = { id: 'sp_header', doc: { ...(defaultSitePartDoc('header') as HeaderDoc), appearance: 'dark' as const } }
+    const withDark = await renderPageHtml({
+      doc: emptyPageDoc('Home'),
+      pageId: 'pg_home',
+      versionId: 'ver_1',
+      path: '/',
+      site: site({
+        brand: { ...defaultBrandDoc(), logoMediaId: logoId, logoDarkMediaId: darkId },
+        header,
+        media: { [logoId]: entry(logoId), [darkId]: entry(darkId) },
+      }),
+    })
+    expect(withDark.html).toContain('site-header-dark')
+    expect(withDark.html).toContain(`/media/${darkId}-600.webp`)
+    expect(withDark.html).not.toContain(`/media/${logoId}-600.webp`)
+    expect(withDark.deps.media).toContain(darkId)
+
+    const filtered = await renderPageHtml({
+      doc: emptyPageDoc('Home'),
+      pageId: 'pg_home',
+      versionId: 'ver_1',
+      path: '/',
+      site: site({
+        brand: { ...defaultBrandDoc(), logoMediaId: logoId },
+        header,
+        media: { [logoId]: entry(logoId) },
+      }),
+    })
+    expect(filtered.html).toContain('site-logo-fallback-light')
+    expect(filtered.html).toContain(`/media/${logoId}-600.webp`)
+  })
+
+  it('renders an SVG logo and an SVG image from the sanitised file', async () => {
+    const logoId = 'med_0000000000000000000000000B'
+    const imageId = 'med_0000000000000000000000000C'
+    const svgEntry = (id: string) => ({
+      id,
+      width: 120,
+      height: 40,
+      alt: 'Candid',
+      decorative: false,
+      status: 'ready' as const,
+      kind: 'svg',
+      mime: 'image/svg+xml',
+      cropRatios: [],
+    })
+    const doc = emptyPageDoc('Trust')
+    doc.blocks = [
+      {
+        id: 'b_img',
+        type: 'Image',
+        v: 1,
+        props: { image: { media: imageId, alt: 'Candid seal' }, caption: 'Candid' },
+      },
+    ]
+    const rendered = await renderPageHtml({
+      doc,
+      pageId: 'pg_trust',
+      versionId: 'ver_1',
+      path: '/trust',
+      site: site({
+        brand: { ...defaultBrandDoc(), logoMediaId: logoId },
+        media: { [logoId]: svgEntry(logoId), [imageId]: { ...svgEntry(imageId), alt: 'Candid seal' } },
+      }),
+    })
+    expect(rendered.html).toContain(`/media/${logoId}.svg`)
+    expect(rendered.html).toContain(`/media/${imageId}.svg`)
+    expect(rendered.html).not.toContain(`/media/${logoId}-120.webp`)
   })
 
   it('falls back to the site name in the header when no logo is set', async () => {

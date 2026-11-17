@@ -5,7 +5,8 @@ import { can } from '../../shared/roles'
 import { secrets, sites } from '../db/schema'
 import { audit } from './audit'
 import { inTx, type ActingAs, type ServiceCtx } from './context'
-import { forbidden } from './errors'
+import { AppError, forbidden } from './errors'
+import { sanitizeRobotsTxt } from '../../shared/robots'
 import { USER_SECRET_NAMES } from './auth'
 import { xaiOauthStatus } from './xai-oauth'
 
@@ -42,6 +43,16 @@ export function updateSettings(ctx: ServiceCtx, actor: ActingAs, patch: Settings
     const site = ctx.db.select().from(sites).where(eq(sites.id, ctx.siteId)).get()!
     const { name, primaryDomain, ...rest } = patch
     const before = readSettings(site.settings)
+    if (rest.seo && 'robotsTxt' in rest.seo) {
+      const raw = rest.seo.robotsTxt
+      if (raw == null || !raw.trim()) {
+        rest.seo = { ...rest.seo, robotsTxt: null }
+      } else {
+        const clean = sanitizeRobotsTxt(raw)
+        if (!clean.ok) throw new AppError('validation_failed', clean.message, [{ path: 'seo.robotsTxt', message: clean.message }])
+        rest.seo = { ...rest.seo, robotsTxt: clean.text }
+      }
+    }
     const settings = mergeSettings(before, rest)
     ctx.db
       .update(sites)

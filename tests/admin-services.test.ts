@@ -41,6 +41,16 @@ describe('settings', () => {
     expect(code(() => updateSettings(s.ctx, s.approver, { workflow: { selfApproval: true } }))).toBe('forbidden')
   })
 
+  it('stores a sanitised robots.txt and rejects HTML', () => {
+    const s = setup()
+    const next = updateSettings(s.ctx, s.admin, { seo: { robotsTxt: 'user-agent: *\ndisallow: /drafts\n' } })
+    expect(next.settings.seo.robotsTxt).toContain('Disallow: /drafts')
+    expect(code(() => updateSettings(s.ctx, s.admin, { seo: { robotsTxt: 'User-agent: *\nDisallow: /<script>' } }))).toBe('validation_failed')
+    const cleared = updateSettings(s.ctx, s.admin, { seo: { robotsTxt: '' } })
+    expect(cleared.settings.seo.robotsTxt).toBeNull()
+    s.sqlite.close()
+  })
+
   it('self-approval setting is what approval reads', async () => {
     const s = setup()
     const { page } = createPage(s.ctx, s.approver, { title: 'Contact', template: 'standard' })

@@ -28,6 +28,7 @@ import { embeds, media, mediaCrops, pages, redirects, siteParts, sites, versions
 import type { ServiceCtx } from './context'
 import { widthsFor } from './media'
 import { readSettings, type SiteSettings } from '../../shared/settings'
+import { renderRobotsTxt } from '../../shared/robots'
 import { aliasesFromRedirects, pageIdByPath, pageIdForHref, pathForPageId } from '../../shared/internal-links'
 
 export { BUNDLE_ID, EMBED_JS, THEME_CSS }
@@ -88,6 +89,7 @@ export interface SiteRenderContext {
   origin: string | null
   titlePattern: string
   allowIndexing: boolean
+  robotsTxt?: string | null
   defaultSocialImage: string | null
   tracking: SiteSettings['tracking']
   header: { id: string; doc: HeaderDoc } | null
@@ -203,6 +205,21 @@ export function pictureVNode(
   if (!image) return null
   bag.media.add(image.media)
   const entry = site.media[image.media]
+  if (entry?.kind === 'svg' || entry?.mime === 'image/svg+xml') {
+    const alt = image.decorative || entry?.decorative ? '' : (image.alt ?? entry?.alt ?? '')
+    const width = opts.slot?.width ?? entry?.width ?? undefined
+    const height = opts.slot?.height ?? entry?.height ?? undefined
+    return h('img', {
+      class: opts.class,
+      src: `/media/${image.media}.svg`,
+      alt,
+      width,
+      height,
+      loading: opts.eager ? 'eager' : 'lazy',
+      decoding: 'async',
+      fetchpriority: opts.eager ? 'high' : undefined,
+    })
+  }
   const ratio = opts.slot && opts.slot.height ? ratioFor(opts.slot.width, opts.slot.height) : null
   const useCrop = ratio && entry?.cropRatios.includes(ratio)
   const base = useCrop ? `${image.media}-${ratioKey(ratio!)}` : image.media
@@ -589,11 +606,16 @@ function menuStyleOf(site: SiteRenderContext): HeaderDoc['style'] {
   return site.brand?.menuStyle ?? site.header?.doc.style ?? 'simple'
 }
 
-function headerClass(style: HeaderDoc['style'] | undefined): string {
-  if (style === 'centred') return 'site-header site-header-centred'
-  if (style === 'mega') return 'site-header site-header-mega'
-  if (style === 'hamburger') return 'site-header site-header-hamburger'
-  return 'site-header'
+function headerClass(style: HeaderDoc['style'] | undefined, appearance?: HeaderDoc['appearance']): string {
+  const base =
+    style === 'centred'
+      ? 'site-header site-header-centred'
+      : style === 'mega'
+        ? 'site-header site-header-mega'
+        : style === 'hamburger'
+          ? 'site-header site-header-hamburger'
+          : 'site-header'
+  return appearance === 'dark' ? `${base} site-header-dark` : base
 }
 
 function renderNav(site: SiteRenderContext, bag: Collector): VNode | null {
@@ -623,17 +645,34 @@ function renderNav(site: SiteRenderContext, bag: Collector): VNode | null {
   return h('nav', { class: style === 'mega' ? 'nav nav-mega' : 'nav', 'aria-label': 'Site' }, items)
 }
 
-function logoOrName(site: SiteRenderContext, bag: Collector): VNode | string {
-  const id = site.brand?.logoMediaId
+function logoOrName(site: SiteRenderContext, bag: Collector, opts: { dark?: boolean } = {}): VNode | string {
+  const dark = !!opts.dark
+  const darkId = site.brand?.logoDarkMediaId
+  const lightId = site.brand?.logoMediaId
+  const id = dark && darkId ? darkId : lightId
   if (!id) return site.name
   const entry = site.media[id]
   if (!entry || entry.kind === 'video') return site.name
   bag.media.add(id)
+  if (dark && darkId && darkId !== lightId) bag.media.add(darkId)
+  if (lightId && lightId !== id) bag.media.add(lightId)
+  const alt = entry.alt?.trim() || site.name
+  const fallback = dark && !darkId
+  const className = fallback ? 'site-logo site-logo-fallback-light' : 'site-logo'
+  if (entry.kind === 'svg' || entry.mime === 'image/svg+xml') {
+    return h('img', {
+      class: className,
+      src: `/media/${id}.svg`,
+      alt,
+      width: entry.width ?? undefined,
+      height: entry.height ?? undefined,
+      decoding: 'async',
+    })
+  }
   const widths = widthsForMedia(entry)
   const srcW = widths[widths.length - 1] ?? 320
-  const alt = entry.alt?.trim() || site.name
   return h('img', {
-    class: 'site-logo',
+    class: className,
     src: `/media/${id}-${srcW}.webp`,
     srcset: widths.map((w) => `/media/${id}-${w}.webp ${w}w`).join(', '),
     sizes: '(max-width: 640px) 180px, 220px',
@@ -675,9 +714,9 @@ function renderShell(doc: PageDoc, site: SiteRenderContext, bag: Collector): VNo
           bannerLink ? [' ', h('a', { href: bannerLink.href }, bannerLink.label)] : null,
         ])
       : null,
-    h('header', { class: headerClass(menuStyleOf(site)) }, [
+    h('header', { class: headerClass(menuStyleOf(site), site.header?.doc.appearance) }, [
       h('div', { class: 'site-header-inner' }, [
-        h('a', { class: 'site-title', href: '/' }, logoOrName(site, bag)),
+        h('a', { class: 'site-title', href: '/' }, logoOrName(site, bag, { dark: site.header?.doc.appearance === 'dark' })),
         renderNav(site, bag),
         headerCta ? h('a', { class: 'cta-btn', href: headerCta.href }, headerCta.label) : null,
       ]),
@@ -699,7 +738,7 @@ function renderFooter(site: SiteRenderContext, bag: Collector, footer: SiteRende
   const doc = footer?.doc
   const legal = doc?.legalMenuKey ? site.menus[doc.legalMenuKey] : null
   if (legal) bag.siteParts.add(legal.id)
-  return h('footer', { class: 'site-footer' }, [
+  return h('footer', { class: site.footer?.doc.appearance === 'dark' ? 'site-footer site-footer-dark' : 'site-footer' }, [
     h('div', { class: 'site-footer-inner' }, [
       doc?.text ? h('div', { class: 'prose' }, renderRichText(doc.text, bag)) : null,
       doc?.contact && (doc.contact.email || doc.contact.phone || doc.contact.address)
@@ -963,6 +1002,7 @@ export function loadSiteRenderContext(ctx: ServiceCtx, manifest: ReleaseManifest
     origin,
     titlePattern: settings.titlePattern,
     allowIndexing: settings.seo.allowIndexing,
+    robotsTxt: settings.seo.robotsTxt,
     defaultSocialImage: settings.seo.defaultSocialImage,
     tracking: settings.tracking,
     header,
@@ -1016,9 +1056,7 @@ export function sitemapXml(site: SiteRenderContext, manifest: ReleaseManifest, d
 }
 
 export function robotsTxt(site: SiteRenderContext): string {
-  if (!site.allowIndexing) return 'User-agent: *\nDisallow: /\n'
-  const sitemap = site.origin ? `Sitemap: ${publicUrl(site.origin, '/sitemap.xml')}\n` : 'Sitemap: /sitemap.xml\n'
-  return `User-agent: *\nAllow: /\n${sitemap}`
+  return renderRobotsTxt({ allowIndexing: site.allowIndexing, origin: site.origin, custom: site.robotsTxt })
 }
 
 export function nginxMapLines(entries: { uri: string; value: string }[]): string {

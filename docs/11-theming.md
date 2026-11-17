@@ -51,6 +51,7 @@ A theme is a Nuxt layer that provides tokens and can override block renderers. C
 - A theme is a Nuxt layer: in core, or in the site's own `site/themes/` ([ADR 0006](decisions/0006-site-layer.md)).
 - The builder UI always uses its own neutral look; only the canvas and previews use the site theme ([ADR 0008](decisions/0008-editor-shape.md)).
 - One theme per site in v1.
+- Header and footer can be light or dark. A dark one uses the optional dark-background logo from the brand pack, or a CSS filter fallback (`theme-default-3`).
 
 ## Open questions
 

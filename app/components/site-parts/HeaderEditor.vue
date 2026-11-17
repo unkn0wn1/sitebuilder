@@ -49,6 +49,16 @@ function setCtaTarget(target: LinkTarget) {
       <NuxtLink to="/brand" class="text-blue-700 no-underline hover:underline dark:text-blue-400">Brand and Design</NuxtLink>.
     </p>
     <FwbSelect
+      :model-value="modelValue.appearance ?? 'light'"
+      :options="[
+        { name: 'Light background', value: 'light' },
+        { name: 'Dark background', value: 'dark' },
+      ]"
+      label="Background"
+      @update:model-value="patch({ appearance: String($event) === 'dark' ? 'dark' : 'light' })"
+    />
+    <p class="text-sm text-gray-600 dark:text-gray-400">A dark header uses the dark-background logo from Brand and Design, or a light CSS filter if one is not set.</p>
+    <FwbSelect
       :model-value="modelValue.menuKey"
       :options="menuOptions.length ? menuOptions : [{ name: 'No menus yet', value: modelValue.menuKey }]"
       label="Menu"

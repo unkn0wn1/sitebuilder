@@ -28,6 +28,8 @@ const showSubmit = ref(false)
 const submitNote = ref('')
 const showLogo = ref(false)
 const logoPreview = ref<string | null>(null)
+const showLogoDark = ref(false)
+const logoDarkPreview = ref<string | null>(null)
 const review = ref<{ id: string } | null>(null)
 const withdrawnNotice = ref('')
 let timer: ReturnType<typeof setTimeout> | null = null
@@ -89,6 +91,8 @@ async function load() {
     markClean(data.doc)
     if (data.doc.logoMediaId) await loadLogo(data.doc.logoMediaId)
     else logoPreview.value = null
+    if (data.doc.logoDarkMediaId) await loadLogoDark(data.doc.logoDarkMediaId)
+    else logoDarkPreview.value = null
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : 'Could not load the brand pack.'
   } finally {
@@ -96,14 +100,22 @@ async function load() {
   }
 }
 
-async function loadLogo(id: string) {
+async function previewFor(id: string): Promise<string | null> {
   try {
     const item = await api<MediaItem & { preview?: string | null; renditions?: string[] }>(`/media/${id}`)
-    const name = item.preview ?? item.renditions?.find((n) => n.endsWith('.webp')) ?? item.renditions?.[0]
-    logoPreview.value = name ? mediaFileUrl(id, name) : null
+    const name = item.preview ?? item.renditions?.find((n) => n.endsWith('.svg') || n.endsWith('.webp')) ?? item.renditions?.[0]
+    return name ? mediaFileUrl(id, name) : null
   } catch {
-    logoPreview.value = null
+    return null
   }
+}
+
+async function loadLogo(id: string) {
+  logoPreview.value = await previewFor(id)
+}
+
+async function loadLogoDark(id: string) {
+  logoDarkPreview.value = await previewFor(id)
 }
 
 function scheduleSave() {
@@ -167,6 +179,13 @@ function onLogo(item: MediaItem) {
   showLogo.value = false
   patch({ logoMediaId: item.id })
   void loadLogo(item.id)
+
+}
+
+function onLogoDark(item: MediaItem) {
+  showLogoDark.value = false
+  patch({ logoDarkMediaId: item.id })
+  void loadLogoDark(item.id)
 }
 
 async function onSubmit() {
@@ -246,6 +265,13 @@ onBeforeUnmount(() => {
             <FwbButton v-if="canEdit" size="sm" color="light" @click="showLogo = true">{{ doc.logoMediaId ? 'Change logo' : 'Choose a logo' }}</FwbButton>
             <FwbButton v-if="canEdit && doc.logoMediaId" size="sm" color="light" @click="patch({ logoMediaId: null }); logoPreview = null">Remove</FwbButton>
           </div>
+          <p class="mt-4 mb-2 text-sm font-medium text-gray-900 dark:text-gray-100">Logo for dark backgrounds</p>
+          <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">Used when the header or footer is set to a dark background. If you leave this empty, a light version is made from the main logo with a CSS filter.</p>
+          <div class="flex flex-wrap items-center gap-3">
+            <img v-if="logoDarkPreview" :src="logoDarkPreview" alt="Logo for dark backgrounds" class="h-12 max-w-40 object-contain bg-gray-900 p-2" />
+            <FwbButton v-if="canEdit" size="sm" color="light" @click="showLogoDark = true">{{ doc.logoDarkMediaId ? 'Change dark logo' : 'Choose a dark logo' }}</FwbButton>
+            <FwbButton v-if="canEdit && doc.logoDarkMediaId" size="sm" color="light" @click="patch({ logoDarkMediaId: null }); logoDarkPreview = null">Remove</FwbButton>
+          </div>
         </section>
         <section>
           <h2 class="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">Menu look</h2>
@@ -314,6 +340,7 @@ onBeforeUnmount(() => {
     </div>
 
     <MediaPickerModal v-if="showLogo" :selected-id="doc.logoMediaId" @close="showLogo = false" @pick="onLogo" />
+    <MediaPickerModal v-if="showLogoDark" :selected-id="doc.logoDarkMediaId" @close="showLogoDark = false" @pick="onLogoDark" />
 
     <FwbModal v-if="showSubmit" @close="showSubmit = false">
       <template #header>Submit for approval</template>

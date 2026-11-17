@@ -13,7 +13,7 @@ export const DEFAULT_THEME_TOKENS = {
 } as const
 export type ThemeTokens = { [K in keyof typeof DEFAULT_THEME_TOKENS]: string }
 
-export const BUNDLE_ID = "theme-default-2"
+export const BUNDLE_ID = "theme-default-3"
 
 export const THEME_CSS = `:root {
   --ink: #1f1b16;
@@ -102,6 +102,26 @@ a { color: var(--accent); }
 .site-title { color: inherit; text-decoration: none; font-weight: 700; font-size: 1.1rem; display: inline-flex; align-items: center; }
 .site-logo { display: block; height: 2.75rem; width: auto; max-width: min(18rem, 100%); }
 .site-header-centred .site-logo { height: 3.25rem; max-width: min(22rem, 100%); }
+.site-header-dark {
+  background: var(--ink);
+  color: var(--paper);
+  border-bottom-color: color-mix(in srgb, var(--paper) 20%, transparent);
+}
+.site-header-dark .nav a, .site-header-dark .nav summary, .site-header-dark .site-title { color: var(--paper); }
+.site-header-dark .nav a { color: color-mix(in srgb, var(--paper) 82%, transparent); }
+.site-header-dark .nav-hamburger > summary, .site-header-dark .nav details ul, .site-header-dark .nav-hamburger .nav-panel {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: color-mix(in srgb, var(--paper) 20%, transparent);
+}
+.site-footer-dark {
+  background: var(--ink);
+  color: color-mix(in srgb, var(--paper) 82%, transparent);
+  border-top-color: color-mix(in srgb, var(--paper) 20%, transparent);
+}
+.site-footer-dark a { color: var(--paper); }
+.site-header-dark .site-logo-fallback-light,
+.site-footer-dark .site-logo-fallback-light { filter: brightness(0) invert(1); }
 @media (max-width: 640px) {
   .site-logo, .site-header-centred .site-logo { height: 2.5rem; max-width: min(16rem, calc(100vw - 2 * var(--space))); }
 }

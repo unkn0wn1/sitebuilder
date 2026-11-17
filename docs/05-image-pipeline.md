@@ -6,7 +6,7 @@ Draft. Images are the biggest risk to page speed, so the pipeline does the right
 
 Using [sharp](https://sharp.pixelplumbing.com):
 
-1. Check type and size from the file's content, not its name (JPEG, PNG, WebP, AVIF, up to 25 MB and 100 megapixels). SVG, for logos and icons only, needs a sanitiser and is not accepted yet. Animated images are refused.
+1. Check type and size from the file's content, not its name (JPEG, PNG, WebP, AVIF, up to 25 MB and 100 megapixels; SVG up to 1 MB). SVG is sanitised on upload: scripts, event handlers, foreign objects and external references are stripped, then the file is stored as `image/svg+xml` and served with `X-Content-Type-Options: nosniff` and a tight Content-Security-Policy. Raster WebP and AVIF renditions are also made. Animated images are refused.
 2. Auto-rotate from EXIF, then strip metadata (including GPS location).
 3. Cap the stored original (for example 3200 pixels on the long edge).
 4. Generate renditions at set widths, 320, 640, 960, 1280, 1920 and 2560 (never larger than the original, plus the original width itself when it is between two of these), in **AVIF** and **WebP**. No JPEG fallback in v1 ([ADR 0013](decisions/0013-renditions-at-upload.md)).

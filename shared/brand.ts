@@ -38,6 +38,7 @@ export const brandDocSchema = z
       .strict()
       .default({ body: 'system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif', heading: null }),
     logoMediaId: z.string().min(1).max(64).nullable().default(null),
+    logoDarkMediaId: z.string().min(1).max(64).nullable().default(null),
     theme: z.string().trim().min(1).max(40).default('default'),
     menuStyle: z.enum(HEADER_STYLES).default('simple'),
   })
