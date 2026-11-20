@@ -19,6 +19,7 @@ The design is written here first, then built. Everything in this folder is a dra
 | [12-ai-harness.md](12-ai-harness.md) | How the AI is wrapped and kept on remit (draft) |
 | [13-data-model.md](13-data-model.md) | Entities, states, versions, autosave, concurrent edits, releases |
 | [14-api.md](14-api.md) | The HTTP API contract, errors and operations |
+| [agent-gateway.md](agent-gateway.md) | Letting an AI read and change the site: setup, tokens, rules, undo, MCP and REST (reference: [tools](agent-gateway-tools.md), [OpenAPI](agent-gateway-openapi.json), [plan](agent-gateway-plan.md)) |
 | [15-security.md](15-security.md) | Builder, public site, origin, secrets and AI security |
 | [16-operations.md](16-operations.md) | Install, jobs, email, backups, monitoring, upgrades, AI outages |
 | [17-testing-and-budgets.md](17-testing-and-budgets.md) | Test layers, performance budgets, checks before review, AI evals |
@@ -47,6 +48,7 @@ Each with an ADR in [decisions/](decisions/):
 - Build our own Vue editor: [ADR 0014](decisions/0014-first-party-vue-editor.md)
 - Email through Google Workspace and the Gmail API: [ADR 0015](decisions/0015-gmail-workspace-mail.md)
 - Optional Sign in with xAI (device code, off by default): [ADR 0016](decisions/0016-xai-oauth.md)
+- Agent gateway (REST and MCP, drafts first, rules decide what goes live): [ADR 0018](decisions/0018-agent-gateway.md)
 
 Everything else in these docs is a draft, but 13 to 18 are the working basis for the v1 code.
 

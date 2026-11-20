@@ -30,3 +30,12 @@ There were two rollbacks that disagreed. Page rollback works through the databas
 - One source of truth: the release manifest. Database and files cannot drift.
 - Incidents can be fixed by one admin in seconds, with an audit trail.
 - One-person organisations are not blocked, and larger teams keep a second pair of eyes.
+
+## Amendment, 2026-11-20 ([ADR 0018](0018-agent-gateway.md))
+
+Approval now has a second legitimate source and undo a second shape, both for the agent gateway:
+
+- **Approval by rule.** An agent token with a matching `publish` rule (or an active always-allow) can approve the review for a change it made. The review records `decided_by = agent:<token id>`, the rule in the decision comment, `self_approved = false`, and the audit action `review.approved_by_rule`. The blocking checks still apply and cannot be overridden. A change that touches a money section, shows mock data, or sits on someone else's unpublished work is never approved by rule.
+- **Admin undo of an agent change.** An admin can undo a published agent change in one step. It restores the earlier content as a new change that is published straight away, with the audit action `review.approved_admin_undo`. It is refused if the pages were published again since; the whole-site rollback above is still the tool for that.
+- Editors still cannot approve their own work, and approval is still pinned to a version.
+

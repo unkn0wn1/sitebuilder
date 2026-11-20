@@ -442,7 +442,7 @@ export function sendChange(ctx: ServiceCtx, agent: SignedInAgent, row: ChangeRow
     })
     const admins = usersWithRoles(ctx, ['admin'])
     if (publish) {
-      notify(ctx, [row.ownerUserId, ...admins], 'agent_change', `Agent "${agent.token.name}" published: ${row.title}. Change id ${row.id}.`, { type: 'agent_change', id: row.id }, emailBody(row, ev, `Agent "${agent.token.name}" published a change${opts.adminActor ? ' (undo by an admin)' : ''}. To take it back, ask the agent to run undo_change on ${row.id}, or use the undo button in the builder`))
+      notify(ctx, [row.ownerUserId, ...admins], 'agent_change', `Agent "${agent.token.name}" published: ${row.title}. Change id ${row.id}.`, { type: 'agent_change', id: row.id }, emailBody(row, ev, `Agent "${agent.token.name}" published a change${opts.adminActor ? ' (undo by an admin)' : ''}. To take it back, ask the agent to run undo_change on ${row.id}, or ask an admin to undo it (POST /api/v1/agent/changes/${row.id}/undo)`))
     } else {
       notify(ctx, [row.ownerUserId], 'agent_change', `Agent "${agent.token.name}" asked for review: ${row.title}.`, { type: 'agent_change', id: row.id }, emailBody(row, ev, `Agent "${agent.token.name}" has sent a change for review`))
     }

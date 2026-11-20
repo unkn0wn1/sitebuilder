@@ -21,3 +21,13 @@ Multi-site, how the software is installed, who runs it, and how the builder logi
 - The schema is ready for multi-site.
 - A hosting partner can be given exactly the access they need.
 - Cloudflare Access becomes part of setup, alongside the Cloudflare zone already required by ADR 0002.
+
+## Amendment, 2026-11-20 ([ADR 0018](0018-agent-gateway.md))
+
+Cloudflare Access cannot sign in an AI connector. When the agent gateway is switched on (`SITEBUILDER_AGENT_GATEWAY=1`) its paths are under `/agent/`. They can be exempted from Access in two matching places:
+
+- In Cloudflare: a second Access application for `<builder host>/agent` with a Bypass policy for Everyone (the more specific application wins), or serve the gateway on its own hostname.
+- In the app: `SITEBUILDER_AGENT_ACCESS=bypass` makes `server/middleware/00.access.ts` skip the Access token check for `/agent/` only. It has no effect unless the gateway is on.
+
+The rest of the builder stays behind Access. Everything under `/agent/` needs a bearer token; it never reads the session cookie. Bypass turns off Cloudflare's Access logging for that path, so the audit log in the builder is the record.
+

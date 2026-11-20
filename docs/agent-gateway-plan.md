@@ -19,7 +19,7 @@ One agent gateway in front of the services sitebuilder already has, exposed twic
 | Always allow? | Per token, off by default, expires (7 days maximum), never covers the never-list, checks or rate limits. Explicit deny rules still win | Token settings |
 | Money and the Together page | Never auto-published. An agent can draft changes to money sections, but a person approves. Donation forms and embeds cannot be touched at all | `shared/agent/rules.ts` |
 | Legal pages | A rule you can add. Off by default, with word caps | Token rules |
-| Who is told | The token's owner and all admins (in-app, plus the existing email job) | `server/services/agent/notify` |
+| Who is told | Published by rule: the token's owner and all admins (in-app, plus the email job with the diff). Sent for review: the usual approver notice, and an email to the token's owner | `server/services/agent/changes.ts` |
 | Build me a site | Pages inside this install (one site per install, ADR 0007) | n/a |
 | Prompt record | The agent's stated reason, stored on every change and audit entry, labelled as the agent's words | n/a |
 | Off by default? | Yes. Routes answer 404 unless `SITEBUILDER_AGENT_GATEWAY=1` | env var |
@@ -53,3 +53,7 @@ Total is about 46 to 51 days. The 3am flow (phases 0 to 3) is what this branch c
 - No rendered preview link yet. `preview_change` returns the diff, the checks and the rule decision.
 - Rich text edits work inside a single run of text. Text that is split by bold or a link must be edited in each run, or replaced with `insert_rich_text` or `edit_component`.
 - Token and rule management is by REST (signed-in admin) and the `agent-token` script. There is no Settings screen yet.
+- There is no `unpublish_page` tool. A page an agent created can only be taken down by an admin, and an agent cannot undo a change that created a page.
+- An agent will not edit a page that is waiting for approval, and will not publish over someone else's unpublished edits on the same page. It reports the page and stops.
+- Admin undo of an agent change is by REST only (`POST /api/v1/agent/changes/:id/undo`), and is refused if the page was published again since.
+- OpenAPI is public at `/agent/v1/openapi.json` (it contains no secrets). Tools still need a bearer token.
