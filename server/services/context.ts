@@ -17,6 +17,8 @@ export interface ServiceCtx {
 /** A person, optionally acting through an AI session they own. */
 export interface ActingAs extends Actor {
   aiSessionId?: string
+  /** Set when the person's token is being used by an outside agent (ADR 0018). */
+  agent?: { tokenId: string; tokenName: string }
 }
 
 export function iso(ctx: ServiceCtx): string {
@@ -24,6 +26,7 @@ export function iso(ctx: ServiceCtx): string {
 }
 
 export function actorKey(actor: ActingAs): string {
+  if (actor.agent) return `agent:${actor.agent.tokenId}`
   return actor.aiSessionId ? `ai:${actor.aiSessionId}` : `user:${actor.id}`
 }
 

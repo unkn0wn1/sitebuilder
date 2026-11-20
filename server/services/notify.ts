@@ -6,7 +6,7 @@ import { notifications, users } from '../db/schema'
 import { iso, type ServiceCtx } from './context'
 import { enqueueJob } from './jobs'
 
-export type NotificationKind = 'review_requested' | 'sent_back' | 'published' | 'publish_failed' | 'emergency_rollback' | 'backup_failed'
+export type NotificationKind = 'review_requested' | 'sent_back' | 'published' | 'publish_failed' | 'emergency_rollback' | 'backup_failed' | 'agent_change' | 'agent_paused'
 
 export function usersWithRoles(ctx: ServiceCtx, roles: Role[]): string[] {
   return ctx.db
@@ -23,12 +23,14 @@ export function notify(
   kind: NotificationKind,
   message: string,
   target?: { type: string; id: string },
+  /** Longer text for the email only (for example a diff). The in-app message stays one line. */
+  body?: string,
 ) {
   for (const userId of new Set(userIds)) {
     ctx.db
       .insert(notifications)
       .values({ id: newId('notification', ctx.now().getTime()), siteId: ctx.siteId, userId, kind, targetType: target?.type ?? null, targetId: target?.id ?? null, message, createdAt: iso(ctx) })
       .run()
-    enqueueJob(ctx, 'send_email', { userId, kind, message, target: target ?? null })
+    enqueueJob(ctx, 'send_email', { userId, kind, message, target: target ?? null, ...(body ? { body } : {}) })
   }
 }

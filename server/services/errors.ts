@@ -10,6 +10,11 @@ export type ErrorCode =
   | 'conflict'
   | 'invalid_state'
   | 'rate_limited'
+  | 'rule_denied'
+  | 'never_list'
+  | 'agent_paused'
+  | 'no_matches'
+  | 'match_count_mismatch'
   | 'ai_unavailable'
   | 'not_set_up'
   | 'internal'
@@ -23,6 +28,11 @@ const STATUS: Record<ErrorCode, number> = {
   conflict: 409,
   invalid_state: 409,
   rate_limited: 429,
+  rule_denied: 403,
+  never_list: 403,
+  agent_paused: 403,
+  no_matches: 422,
+  match_count_mismatch: 409,
   ai_unavailable: 503,
   not_set_up: 503,
   internal: 500,

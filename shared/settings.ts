@@ -22,6 +22,8 @@ export const siteSettingsSchema = z
     workflow: z.object({ selfApproval: z.boolean().default(false) }).strict().default({ selfApproval: false }),
     allowedEmbedProviders: z.array(z.enum(EMBED_PROVIDER_KEYS)).optional(),
     tracking: trackingSchema.default({ ga4: null, gtm: null, plausible: null, cookiebot: null }),
+    /** Kill switch for every agent token at once (ADR 0018). Changed through /api/v1/agent/pause, not PATCH /settings. */
+    agent: z.object({ paused: z.boolean().default(false) }).strict().default({ paused: false }),
     seo: z.object({ defaultSocialImage: z.string().max(64).nullable().default(null), allowIndexing: z.boolean().default(true), robotsTxt: z.string().max(8000).nullable().default(null) }).strict().default({ defaultSocialImage: null, allowIndexing: true, robotsTxt: null }),
     ai: z
       .object({
