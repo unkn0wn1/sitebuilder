@@ -443,6 +443,8 @@ export const agentTokens = sqliteTable(
     access: text('access', { enum: ['read', 'draft'] }).notNull(),
     rules: json<unknown[]>('rules').notNull(),
     alwaysAllowUntil: text('always_allow_until'),
+    /** Always-allow with no end date. Set only with the site name and the admin's password, cleared by switching it off or revoking the token. */
+    alwaysAllowPermanent: bool('always_allow_permanent').notNull().default(false),
     limits: json<Record<string, number>>('limits'),
     ipAllow: json<string[]>('ip_allow'),
     status: text('status', { enum: ['active', 'paused', 'revoked'] }).notNull(),

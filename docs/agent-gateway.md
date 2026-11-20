@@ -56,6 +56,9 @@ npm run agent-token -- create --name "Claude, emergencies" --preset takedown --d
 npm run agent-token -- create --name "Claude, copy edits" --preset copy-editor --admin you@example.org
 npm run agent-token -- create --name "Reader" --preset read-only
 npm run agent-token -- list
+npm run agent-token -- always-allow agt_... --days 3 --site-name "Example charity"     # 1 to 7 days
+npm run agent-token -- always-allow agt_... --permanent --site-name "Example charity"  # no end date
+npm run agent-token -- always-allow-off agt_...
 npm run agent-token -- revoke agt_...
 npm run agent-token -- pause-all     # the kill switch for every token
 npm run agent-token -- resume-all
@@ -108,14 +111,43 @@ A rule is a plain object:
 
 1. A matching `deny` rule refuses it. This happens when the draft is made, not at publish time, and counts as a blocked attempt.
 2. **The floor.** A person is needed, whatever the rules or always-allow say, if: the change touches a money section (`ImpactTiers`, `DonationProgress`, `MatchBanner`, `MatchThermometer`); the page shows mock data; the page or part has someone else's unpublished work (publishing would publish it too); the standard submission checks fail.
-3. **Always-allow**, if switched on and not expired: it publishes without a matching rule.
+3. **Always-allow**, if switched on (and, for a timed one, not ended): it publishes without a matching rule.
 4. Otherwise every action in every part of the change must be covered by a `publish` rule whose limits hold. If one part is not, the **whole change** goes to review. It never publishes half.
 
 Each tool declares its action, so "take this link down" is `remove_link` even when it removes a menu item. Link, word and section counts come from comparing the draft with what is live.
 
 ### Always-allow
 
-For an emergency window you can let a token publish anything not on the never-list or the floor, with no matching rule. It needs the **site name typed** and **your password**, lasts **1 to 7 days**, and a deny rule still wins. `POST /api/v1/agent/tokens/:id/always-allow` with `{ "days", "siteName", "password" }`, and `DELETE` on the same address switches it off. Publishing by always-allow is recorded as such in the audit log and the notification.
+Always-allow lets a token publish a change that **no rule covers**, so a trusted assistant does not have to ask every time. It is off by default and is set per token. There are two kinds:
+
+| Kind | Length | Use it for |
+| --- | --- | --- |
+| **Timed** | 1 to 7 days | An emergency window or a campaign week. It switches itself off. |
+| **Permanent** | No end date | A token you fully trust to run the site day to day. It stays on until someone switches it off or the token is revoked or expires. |
+
+Either kind needs the **site name typed exactly** and **your password**, every time it is switched on. Switching it on again replaces the earlier setting (timed to permanent, permanent to timed). It cannot be switched on by a token or by a non-admin.
+
+**What permanent does not change.** It is exactly the same switch, with no end date. These still win, always:
+
+- A matching **deny** rule.
+- The **never-list**: donation forms and embeds, the embed, source and campaign props, theme, settings, users, tokens, code. These are refused even as drafts.
+- The **floor**: a money section (`ImpactTiers`, `DonationProgress`, `MatchBanner`, `MatchThermometer`), a page that shows mock data, someone else's unpublished work on the same page or part, and failing checks. A person approves these.
+- Rate limits, the IP list, the token's own expiry, pausing and the kill switch.
+
+**Seeing it.** A permanent setting is labelled **permanent** (no end date) wherever it is shown: the token list (`alwaysAllow: { permanent: true, until: null }`), the command line (`ALWAYS-ALLOW: PERMANENT (no end date)`), and to the assistant itself (`you.always_allow` and `you.always_allow_meaning` from `get_site`). A timed one shows its end time.
+
+**Switching it on or off.**
+
+```bash
+npm run agent-token -- always-allow agt_... --permanent --site-name "Example charity"   # asks for your password (hidden), or set SITEBUILDER_ADMIN_PASSWORD
+npm run agent-token -- always-allow-off agt_...
+```
+
+Or by the admin API: `POST /api/v1/agent/tokens/:id/always-allow` with `{ "permanent": true, "siteName", "password" }` (or `{ "days": 1 to 7, ... }`; give exactly one of the two), and `DELETE` on the same address switches it off.
+
+**Audit.** Switching it on is `agent.token.always_allow_on` (with `permanent: true` or the end time), switching it off is `agent.token.always_allow_off` (with whether it was permanent), and each change it publishes by always-allow is recorded as such in the audit log and the notification. Revoking a token clears it.
+
+**Our advice.** Prefer timed. If you use permanent, give the token an IP list and an expiry date you will remember, keep the deny rules (for example on legal pages), and read the audit log.
 
 ## Connect a client
 
@@ -141,7 +173,7 @@ claude mcp add --transport http sitebuilder-local http://localhost:3000/agent/mc
 { "mcpServers": { "sitebuilder": { "url": "https://builder.example.org/agent/mcp", "headers": { "Authorization": "Bearer sbt_..." } } } }
 ```
 
-**claude.ai and ChatGPT connectors.** These screens normally use OAuth, which is phase 4 and not built yet. As of this writing Claude's custom connectors can send a fixed header (choose *No sign in*, then add `Authorization: Bearer sbt_...` under Request headers), but that is a beta for some organisations only. Check what your plan shows. Until OAuth exists, the reliable options are Claude Code, a client that accepts headers, or REST.
+**claude.ai and ChatGPT connectors.** These screens normally use OAuth. **A bearer token is the supported way for now and OAuth (phase 4) is deferred** (decided 20 Nov 2026, see [ADR 0018](decisions/0018-agent-gateway.md#update-20-nov-2026)). As of this writing Claude's custom connectors can send a fixed header (choose *No sign in*, then add `Authorization: Bearer sbt_...` under Request headers), but that is a beta for some organisations only. Check what your plan shows. Until OAuth is built, the reliable options are Claude Code, a client that accepts headers, or REST.
 
 **MCP Inspector** (to read exactly what an AI sees): `npx @modelcontextprotocol/inspector`, choose *Streamable HTTP*, enter the URL and the header.
 
@@ -254,4 +286,4 @@ Against a demo site first, with a `drafts` token:
 
 ## What is not built yet
 
-OAuth for connector screens, a Settings screen for tokens and rules, rendered preview links, unpublishing or deleting pages by an agent, building a whole multi-page site in one go, and alerts to Slack or a webhook. See the [plan](agent-gateway-plan.md).
+OAuth for connector screens (deferred on purpose: bearer tokens are fine for now), a Settings screen for tokens and rules, rendered preview links, unpublishing or deleting pages by an agent, building a whole multi-page site in one go, and alerts to Slack or a webhook. See the [plan](agent-gateway-plan.md).

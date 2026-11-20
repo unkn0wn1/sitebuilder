@@ -7,17 +7,22 @@
 //   npx tsx scripts/agent-token.ts create --name "Claude, copy" --access draft --rules rules.json
 //   npx tsx scripts/agent-token.ts list
 //   npx tsx scripts/agent-token.ts revoke agt_...
+//   npx tsx scripts/agent-token.ts always-allow agt_... --days 3 --site-name "Example charity"       (1 to 7 days)
+//   npx tsx scripts/agent-token.ts always-allow agt_... --permanent --site-name "Example charity"    (no end date)
+//   npx tsx scripts/agent-token.ts always-allow-off agt_...
+//     The admin password is read from SITEBUILDER_ADMIN_PASSWORD, or asked for (typing is hidden).
 //   npx tsx scripts/agent-token.ts pause-all | resume-all
 //
 //   SITEBUILDER_DB_PATH   database file (default .data/sitebuilder.db)
 import { readFileSync } from 'node:fs'
+import { createInterface } from 'node:readline'
 import { eq } from 'drizzle-orm'
 import { openDb } from '../server/db/client'
 import { loadMigrationsFromDir } from '../server/db/migrations-fs'
 import { users } from '../server/db/schema'
 import type { ActingAs, ServiceCtx } from '../server/services/context'
 import { getOnlySite } from '../server/services/site'
-import { createAgentToken, listAgentTokens, revokeAgentToken, setAgentsPaused } from '../server/services/agent/tokens'
+import { createAgentToken, disableAlwaysAllow, enableAlwaysAllow, listAgentTokens, revokeAgentToken, setAgentsPaused } from '../server/services/agent/tokens'
 import { createDefaultRegistry } from '../shared/blocks/registry'
 import { RULE_PRESETS, presetByKey } from '../shared/agent/presets'
 
@@ -25,17 +30,36 @@ function arg(flag: string): string | undefined {
   const i = process.argv.indexOf(flag)
   return i >= 0 ? process.argv[i + 1] : undefined
 }
+function askPassword(): Promise<string> {
+  if (process.env.SITEBUILDER_ADMIN_PASSWORD) return Promise.resolve(process.env.SITEBUILDER_ADMIN_PASSWORD)
+  return new Promise((resolve) => {
+    const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true })
+    const w = (rl as unknown as { _writeToOutput: (s: string) => void })
+    process.stdout.write('Admin password (hidden): ')
+    w._writeToOutput = () => {}
+    rl.question('', (answer) => {
+      rl.close()
+      process.stdout.write('\n')
+      resolve(answer)
+    })
+  })
+}
 const fail = (msg: string): never => {
   console.error(msg)
   process.exit(2)
 }
+
+process.on('uncaughtException', (e) => {
+  console.error(e instanceof Error ? e.message : String(e))
+  process.exit(1)
+})
 
 const command = process.argv[2]
 if (command === 'presets') {
   for (const p of RULE_PRESETS) console.log(`${p.key.padEnd(12)} ${p.label}: ${p.description}`)
   process.exit(0)
 }
-if (!command || !['create', 'list', 'revoke', 'pause-all', 'resume-all'].includes(command)) fail('Usage: agent-token.ts presets | create | list | revoke <id> | pause-all | resume-all')
+if (!command || !['create', 'list', 'revoke', 'always-allow', 'always-allow-off', 'pause-all', 'resume-all'].includes(command)) fail('Usage: agent-token.ts presets | create | list | revoke <id> | always-allow <id> | always-allow-off <id> | pause-all | resume-all')
 
 const { db } = openDb(process.env.SITEBUILDER_DB_PATH ?? '.data/sitebuilder.db', loadMigrationsFromDir())
 const site = getOnlySite(db)
@@ -67,7 +91,22 @@ if (command === 'create') {
   console.log(secret)
   console.log('\nIt acts as that admin, limited by its rules. Revoke it any time: agent-token.ts revoke ' + token.id)
 } else if (command === 'list') {
-  for (const t of listAgentTokens(ctx, admin)) console.log(`${t.id}  ${t.status.padEnd(8)} ${t.access.padEnd(6)} ${t.prefix}…  ${t.name}  (last used ${t.lastUsedAt ?? 'never'})`)
+  for (const t of listAgentTokens(ctx, admin)) {
+    const aa = t.alwaysAllow ? (t.alwaysAllow.permanent ? '  ALWAYS-ALLOW: PERMANENT (no end date)' : `  always-allow until ${t.alwaysAllow.until}`) : ''
+    console.log(`${t.id}  ${t.status.padEnd(8)} ${t.access.padEnd(6)} ${t.prefix}…  ${t.name}  (last used ${t.lastUsedAt ?? 'never'})${aa}`)
+  }
+} else if (command === 'always-allow') {
+  const id = process.argv[3] ?? fail('Give the token id.')
+  const permanent = process.argv.includes('--permanent')
+  const days = arg('--days')
+  if (permanent === !!days) fail('Give exactly one of --days 1..7 or --permanent.')
+  const siteName = arg('--site-name') ?? fail('Give --site-name "<the exact site name>" to confirm.')
+  const password = await askPassword()
+  const t = enableAlwaysAllow(ctx, admin, id as string, { ...(permanent ? { permanent: true } : { days: Number(days) }), siteName: siteName as string, password })
+  console.log(t.alwaysAllow?.permanent ? `Always-allow is ON for "${t.name}" with NO END DATE. Switch it off with: agent-token.ts always-allow-off ${t.id}` : `Always-allow is ON for "${t.name}" until ${t.alwaysAllow?.until}.`)
+} else if (command === 'always-allow-off') {
+  const id = process.argv[3] ?? fail('Give the token id.')
+  console.log(`Always-allow is off for "${disableAlwaysAllow(ctx, admin, id as string).name}".`)
 } else if (command === 'revoke') {
   const id = process.argv[3] ?? fail('Give the token id.')
   console.log(`Revoked ${revokeAgentToken(ctx, admin, id as string).name}.`)

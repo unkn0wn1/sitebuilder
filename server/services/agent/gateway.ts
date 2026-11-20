@@ -49,7 +49,7 @@ import {
   type ChangeHandle,
   type ChangeRow,
 } from './changes'
-import { DEFAULT_LIMITS, alwaysAllowActive, effectiveLimits, tokenRules, type SignedInAgent } from './tokens'
+import { DEFAULT_LIMITS, alwaysAllowActive, alwaysAllowView, effectiveLimits, tokenRules, type SignedInAgent } from './tokens'
 
 type In<S extends z.ZodType> = z.infer<S>
 import type * as S from './schemas'
@@ -205,7 +205,12 @@ export function getSite(ctx: ServiceCtx, agent: SignedInAgent) {
       access_meaning: token.access === 'draft' ? 'You can read everything and make draft changes. Whether a change goes live is decided by the rules below.' : 'You can read only. You cannot change anything.',
       acting_for_user_id: agent.actor.id,
       expires_at: token.expiresAt,
-      always_allow_until: always ? token.alwaysAllowUntil : null,
+      always_allow: alwaysAllowView(token, ctx.now()),
+      always_allow_meaning: always
+        ? alwaysAllowView(token, ctx.now())!.permanent
+          ? 'Always-allow is ON with no end date. A change that no rule covers can still go live by itself. It never covers the never-list or the floor, and a deny rule still wins.'
+          : 'Always-allow is ON until the time given. A change that no rule covers can still go live by itself until then. It never covers the never-list or the floor, and a deny rule still wins.'
+        : 'Always-allow is off. Only a "publish" rule lets a change go live by itself.',
       rules: rules.map((r) => ({ id: r.id, label: r.label, result: r.result, actions: r.actions, targets: r.targets, limits: r.limits })),
       can_publish_by_yourself: always || rules.some((r) => r.result === 'publish'),
       rate_limits: effectiveLimits(token),

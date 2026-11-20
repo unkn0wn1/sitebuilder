@@ -4,7 +4,7 @@ import { agentCalls, agentTokens, auditEvents, reviews } from '../server/db/sche
 import { callOperation } from '../server/services/agent/operations'
 import * as G from '../server/services/agent/gateway'
 import { adminUndoChange } from '../server/services/agent/admin'
-import { authenticateAgent, createAgentToken, enableAlwaysAllow, revokeAgentToken, setAgentsPaused, updateAgentToken } from '../server/services/agent/tokens'
+import { authenticateAgent, createAgentToken, disableAlwaysAllow, enableAlwaysAllow, listAgentTokens, revokeAgentToken, setAgentsPaused, updateAgentToken } from '../server/services/agent/tokens'
 import { applyPageOps, getPage, readDoc, requirePage } from '../server/services/pages'
 import { approveReview, sendBackReview, submitPage } from '../server/services/reviews'
 import { createSitePart } from '../server/services/site-parts'
@@ -77,6 +77,71 @@ describe('tokens', () => {
     expect(r.if_you_publish.always_allow).toBe(true)
     w.clock.advance(25 * 3600_000)
     expect(call(w, 'preview_change', { change_id: r.change.id }, authenticateAgent(w.ctx, w.secret, null)).if_you_publish.outcome).toBe('goes_to_review')
+  })
+})
+
+describe('permanent always-allow', () => {
+  const ON = { siteName: 'Test charity', password: PASSWORD_FOR_TESTS }
+  const youOf = (w: World) => G.getSite(w.ctx, authenticateAgent(w.ctx, w.secret, null)).you
+
+  it('needs the same site name and password, and exactly one of days or permanent', async () => {
+    const w = await world([])
+    expect(await code(() => enableAlwaysAllow(w.ctx, w.admin, w.tokenId, { permanent: true, siteName: 'Wrong', password: PASSWORD_FOR_TESTS }))).toBe('validation_failed')
+    expect(await code(() => enableAlwaysAllow(w.ctx, w.admin, w.tokenId, { permanent: true, siteName: 'Test charity', password: 'not it' }))).toBe('forbidden')
+    expect(await code(() => enableAlwaysAllow(w.ctx, w.admin, w.tokenId, { ...ON }))).toBe('validation_failed')
+    expect(await code(() => enableAlwaysAllow(w.ctx, w.admin, w.tokenId, { days: 3, permanent: true, ...ON }))).toBe('validation_failed')
+    expect(await code(() => enableAlwaysAllow(w.ctx, w.editor, w.tokenId, { permanent: true, ...ON }))).toBe('forbidden')
+    expect(await code(() => enableAlwaysAllow(w.ctx, w.agent.actor, w.tokenId, { permanent: true, ...ON }))).toBe('forbidden')
+    expect(youOf(w).always_allow).toBeNull()
+    expect(w.ctx.db.select().from(auditEvents).all().map((e) => e.action)).not.toContain('agent.token.always_allow_on')
+  })
+
+  it('has no end date, shows as permanent in listings and to the agent, and is audited', async () => {
+    const w = await world([])
+    const t = enableAlwaysAllow(w.ctx, w.admin, w.tokenId, { permanent: true, ...ON })
+    expect(t.alwaysAllow).toEqual({ permanent: true, until: null })
+    w.clock.advance(400 * 24 * 3600_000)
+    expect(listAgentTokens(w.ctx, w.admin).find((x) => x.id === w.tokenId)!.alwaysAllow).toEqual({ permanent: true, until: null })
+    const you = youOf(w)
+    expect(you.always_allow).toEqual({ permanent: true, until: null })
+    expect(you.always_allow_meaning).toMatch(/no end date/i)
+    expect(you.can_publish_by_yourself).toBe(true)
+    const r = removeAll(w, authenticateAgent(w.ctx, w.secret, null))
+    expect(r.if_you_publish.outcome).toBe('goes_live')
+    expect(r.if_you_publish.always_allow).toBe(true)
+    const on = w.ctx.db.select().from(auditEvents).all().find((e) => e.action === 'agent.token.always_allow_on')!
+    expect(on.details).toMatchObject({ permanent: true, until: null })
+  })
+
+  it('is revocable: switching it off, replacing it with a timed one, or revoking the token ends it', async () => {
+    const w = await world([])
+    enableAlwaysAllow(w.ctx, w.admin, w.tokenId, { permanent: true, ...ON })
+    disableAlwaysAllow(w.ctx, w.admin, w.tokenId)
+    expect(youOf(w).always_allow).toBeNull()
+    expect(removeAll(w, authenticateAgent(w.ctx, w.secret, null)).if_you_publish.outcome).toBe('goes_to_review')
+    const off = w.ctx.db.select().from(auditEvents).all().find((e) => e.action === 'agent.token.always_allow_off')!
+    expect(off.details).toMatchObject({ wasPermanent: true })
+    enableAlwaysAllow(w.ctx, w.admin, w.tokenId, { permanent: true, ...ON })
+    enableAlwaysAllow(w.ctx, w.admin, w.tokenId, { days: 2, ...ON })
+    expect(youOf(w).always_allow).toMatchObject({ permanent: false })
+    w.clock.advance(3 * 24 * 3600_000)
+    expect(youOf(w).always_allow).toBeNull()
+    enableAlwaysAllow(w.ctx, w.admin, w.tokenId, { permanent: true, ...ON })
+    revokeAgentToken(w.ctx, w.admin, w.tokenId)
+    const row = w.ctx.db.select().from(agentTokens).where(eq(agentTokens.id, w.tokenId)).get()!
+    expect(row.alwaysAllowPermanent).toBe(false)
+    expect(listAgentTokens(w.ctx, w.admin).find((x) => x.id === w.tokenId)!.alwaysAllow).toBeNull()
+  })
+
+  it('still loses to the never-list, the floor and deny rules', async () => {
+    const w = await world([{ label: 'Hands off the menu', actions: '*', targets: { siteParts: ['menu'] }, result: 'deny' }])
+    enableAlwaysAllow(w.ctx, w.admin, w.tokenId, { permanent: true, ...ON })
+    const agent = authenticateAgent(w.ctx, w.secret, null)
+    expect(await code(() => call(w, 'add_component', { path: '/events', type: 'DonationEmbed', props: { embed: EMB }, reason: REASON }, agent))).toBe('never_list')
+    const money = call(w, 'add_component', { path: '/events', type: 'MatchBanner', props: w.ctx.registry.get('MatchBanner')!.sample, reason: REASON }, agent)
+    expect(money.if_you_publish.outcome).toBe('goes_to_review')
+    expect(money.if_you_publish.reasons.join(' ')).toMatch(/money section/)
+    expect(await code(() => removeAll(w, agent))).toBe('rule_denied')
   })
 })
 

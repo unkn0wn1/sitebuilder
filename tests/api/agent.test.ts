@@ -77,6 +77,24 @@ describe('tokens and the admin API', () => {
     expect((await new Client(server.baseUrl).post('/agent/tokens', { name: 'nope' })).status).toBe(401)
   })
 
+  it('switches always-allow on permanently, shows it in the listing, and switches it off', async () => {
+    const name = (await rest('/site')).body.site.name as string
+    const url = `/agent/tokens/${tokenId}/always-allow`
+    expect((await admin.post(url, { permanent: true, siteName: 'Wrong', password: PASSWORD })).status).toBe(400)
+    expect((await admin.post(url, { permanent: true, siteName: name, password: 'not the password' })).status).toBe(403)
+    expect((await admin.post(url, { siteName: name, password: PASSWORD })).status).toBe(400)
+    expect((await admin.post(url, { days: 2, permanent: true, siteName: name, password: PASSWORD })).status).toBe(400)
+    const on = await admin.post(url, { permanent: true, siteName: name, password: PASSWORD })
+    expect(on.status).toBe(200)
+    expect(on.body.token.alwaysAllow).toEqual({ permanent: true, until: null })
+    expect((await admin.get('/agent/tokens')).body.tokens.find((t: any) => t.id === tokenId).alwaysAllow).toEqual({ permanent: true, until: null })
+    expect((await rest('/site')).body.you.always_allow).toEqual({ permanent: true, until: null })
+    const off = await admin.del(url)
+    expect(off.status).toBe(200)
+    expect(off.body.token.alwaysAllow).toBeNull()
+    expect((await rest('/site')).body.you.always_allow).toBeNull()
+  })
+
   it('refuses requests without a good token, with the right headers', async () => {
     const none = await rest('/site', { token: null })
     expect(none.status).toBe(401)

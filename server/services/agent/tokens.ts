@@ -61,9 +61,16 @@ export function tokenRules(token: Pick<AgentTokenRow, 'rules'>): AgentRule[] {
   return r.ok ? r.rules : []
 }
 
-/** Is always-allow switched on and unexpired right now? */
-export function alwaysAllowActive(token: Pick<AgentTokenRow, 'alwaysAllowUntil'>, now: Date): boolean {
+/** Is always-allow switched on right now (permanent, or timed and not yet ended)? */
+export function alwaysAllowActive(token: Pick<AgentTokenRow, 'alwaysAllowUntil' | 'alwaysAllowPermanent'>, now: Date): boolean {
+  if (token.alwaysAllowPermanent) return true
   return !!token.alwaysAllowUntil && Date.parse(token.alwaysAllowUntil) > now.getTime()
+}
+
+/** The always-allow state a person or the AI sees: null when off, otherwise permanent or the end time. */
+export function alwaysAllowView(token: Pick<AgentTokenRow, 'alwaysAllowUntil' | 'alwaysAllowPermanent'>, now: Date): { permanent: boolean; until: string | null } | null {
+  if (!alwaysAllowActive(token, now)) return null
+  return token.alwaysAllowPermanent ? { permanent: true, until: null } : { permanent: false, until: token.alwaysAllowUntil }
 }
 
 /** What a person (or the AI) may see about a token. Never the hash. */
@@ -76,7 +83,7 @@ export function tokenSummary(token: AgentTokenRow, now: Date) {
     status: token.status,
     pausedReason: token.pausedReason,
     rules: tokenRules(token),
-    alwaysAllow: alwaysAllowActive(token, now) ? { until: token.alwaysAllowUntil } : null,
+    alwaysAllow: alwaysAllowView(token, now),
     limits: effectiveLimits(token),
     ipAllow: token.ipAllow ?? null,
     expiresAt: token.expiresAt,
@@ -176,36 +183,40 @@ export function revokeAgentToken(ctx: ServiceCtx, actor: ActingAs, id: string) {
   requireManager(actor)
   const token = requireAgentToken(ctx, id)
   if (token.status === 'revoked') return tokenSummary(token, ctx.now())
-  ctx.db.update(agentTokens).set({ status: 'revoked', revokedAt: iso(ctx), alwaysAllowUntil: null }).where(eq(agentTokens.id, id)).run()
+  ctx.db.update(agentTokens).set({ status: 'revoked', revokedAt: iso(ctx), alwaysAllowUntil: null, alwaysAllowPermanent: false }).where(eq(agentTokens.id, id)).run()
   audit(ctx, actor, 'agent.token.revoked', { type: 'agent_token', id }, { name: token.name })
   return tokenSummary(requireAgentToken(ctx, id), ctx.now())
 }
 
 /**
- * Switch always-allow on for a token, for 1 to 7 days. Needs the site name typed out and the admin's password,
- * because it lets the token publish anything that is not on the never-list.
+ * Switch always-allow on for a token: for 1 to 7 days (`days`), or with no end date (`permanent: true`). Exactly one of
+ * the two. Either way it needs the site name typed out and the admin's password, because it lets the token publish
+ * anything that is not on the never-list or the floor. Switching it on again replaces the earlier setting.
+ * Permanent stays until someone switches it off or the token is revoked, and every switch is in the audit log.
  */
-export function enableAlwaysAllow(ctx: ServiceCtx, actor: ActingAs, id: string, input: { days: number; siteName: string; password: string }) {
+export function enableAlwaysAllow(ctx: ServiceCtx, actor: ActingAs, id: string, input: { days?: number; permanent?: boolean; siteName: string; password: string }) {
   requireManager(actor)
-  const days = Math.floor(input.days)
-  if (!(days >= 1 && days <= ALWAYS_ALLOW_MAX_DAYS)) throw new AppError('validation_failed', `Always-allow can last 1 to ${ALWAYS_ALLOW_MAX_DAYS} days.`, [{ path: 'days', message: `1 to ${ALWAYS_ALLOW_MAX_DAYS}.` }])
+  const permanent = input.permanent === true
+  if (permanent === (input.days !== undefined)) throw new AppError('validation_failed', 'Choose how long: give "days" (1 to 7) or "permanent": true, not both and not neither.', [{ path: permanent ? 'days' : 'permanent', message: 'Give exactly one of days or permanent.' }])
+  const days = Math.floor(input.days ?? 0)
+  if (!permanent && !(days >= 1 && days <= ALWAYS_ALLOW_MAX_DAYS)) throw new AppError('validation_failed', `Timed always-allow can last 1 to ${ALWAYS_ALLOW_MAX_DAYS} days. For no end date, use permanent.`, [{ path: 'days', message: `1 to ${ALWAYS_ALLOW_MAX_DAYS}.` }])
   const site = ctx.db.select({ name: sites.name }).from(sites).where(eq(sites.id, ctx.siteId)).get()
   if (!site || input.siteName.trim() !== site.name) throw new AppError('validation_failed', 'Type the site name exactly to switch this on.', [{ path: 'siteName', message: 'Does not match the site name.' }])
   const user = ctx.db.select().from(users).where(eq(users.id, actor.id)).get()
   if (!user?.passwordHash || !verifyPassword(input.password, user.passwordHash)) throw new AppError('forbidden', 'That password is not right.')
   const token = requireAgentToken(ctx, id)
   if (token.status !== 'active') throw new AppError('invalid_state', 'Only an active token can have always-allow.')
-  const until = new Date(ctx.now().getTime() + days * 24 * 3600_000).toISOString()
-  ctx.db.update(agentTokens).set({ alwaysAllowUntil: until }).where(eq(agentTokens.id, id)).run()
-  audit(ctx, actor, 'agent.token.always_allow_on', { type: 'agent_token', id }, { until })
+  const until = permanent ? null : new Date(ctx.now().getTime() + days * 24 * 3600_000).toISOString()
+  ctx.db.update(agentTokens).set({ alwaysAllowUntil: until, alwaysAllowPermanent: permanent }).where(eq(agentTokens.id, id)).run()
+  audit(ctx, actor, 'agent.token.always_allow_on', { type: 'agent_token', id }, { permanent, until, name: token.name })
   return tokenSummary(requireAgentToken(ctx, id), ctx.now())
 }
 
 export function disableAlwaysAllow(ctx: ServiceCtx, actor: ActingAs, id: string) {
   requireManager(actor)
-  requireAgentToken(ctx, id)
-  ctx.db.update(agentTokens).set({ alwaysAllowUntil: null }).where(eq(agentTokens.id, id)).run()
-  audit(ctx, actor, 'agent.token.always_allow_off', { type: 'agent_token', id })
+  const token = requireAgentToken(ctx, id)
+  ctx.db.update(agentTokens).set({ alwaysAllowUntil: null, alwaysAllowPermanent: false }).where(eq(agentTokens.id, id)).run()
+  audit(ctx, actor, 'agent.token.always_allow_off', { type: 'agent_token', id }, { wasPermanent: token.alwaysAllowPermanent, name: token.name })
   return tokenSummary(requireAgentToken(ctx, id), ctx.now())
 }
 

@@ -95,7 +95,7 @@ EFFECT: Nothing changes. Safe to call at any time.
 
 PERMISSION: Any token, including read-only.
 
-RETURNS: `site`, `you` (access, rules, `can_publish_by_yourself`, rate limits), `never_list`, `actions`, `start_here`.
+RETURNS: `site`, `you` (access, rules, `always_allow` and `always_allow_meaning`, `can_publish_by_yourself`, rate limits), `never_list`, `actions`, `start_here`.
 
 IF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource.
 
@@ -1235,7 +1235,7 @@ BEFORE YOU CALL:
 
 EFFECT: LIVE. If `result.published` is true the public site changes within seconds, the audit log records "approved by rule", and the owner is emailed. Check with get_change that status is "published". Undo with undo_change.
 
-PERMISSION: A token with draft access. Goes live only if a rule says "publish" (or always-allow is on); otherwise sent for approval.
+PERMISSION: A token with draft access. Goes live only if a rule says "publish" (or always-allow is on, timed or permanent); otherwise sent for approval.
 
 RETURNS: The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next). `result.published` (true = going live) and `result.sent_for_review`.
 

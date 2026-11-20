@@ -1,6 +1,6 @@
 # 0018: Agent gateway: one REST API and one MCP server, drafts first, rules decide what goes live
 
-- **Status:** Accepted (phases 0 to 3 built, see [agent-gateway-plan.md](../agent-gateway-plan.md))
+- **Status:** Accepted, updated 2026-11-20 (phases 0 to 3 built, see [agent-gateway-plan.md](../agent-gateway-plan.md))
 - **Date:** 2026-11-20
 
 ## Context
@@ -27,7 +27,7 @@ Three things made this a decision rather than a feature:
 - Never-list, refused even as a draft: `DonationEmbed` and `Embed` sections, the props `embed`, `source` and `campaignId`; and everything outside page content (theme, settings, users, tokens, secrets, code and scripts), which has no tool at all.
 - Floor, always a person even with always-allow: the change touches a money section (`ImpactTiers`, `DonationProgress`, `MatchBanner`, `MatchThermometer`); the page shows mock data; the page or part has someone else's unpublished work; the standard submission checks fail.
 
-**Always-allow** is a per-token switch for an emergency window. It needs the site name typed and the admin's password, lasts one to seven days, and never covers the never-list or the floor. Deny rules still win.
+**Always-allow** is a per-token switch for an emergency window. It needs the site name typed and the admin's password, lasts one to seven days or is **permanent** (no end date, added in the 20 Nov 2026 update), and never covers the never-list or the floor. Deny rules still win.
 
 **Approval by rule is a first-class, visible event.** When a rule publishes, the review is approved by `agent:<token id>` with the rule named in the decision comment, the release is not marked self-approved by a person, the audit action is `review.approved_by_rule`, and the owner and admins are notified with the diff.
 
@@ -49,13 +49,26 @@ Three things made this a decision rather than a feature:
 - **Let an agent publish whatever its token allows, with no floor.** Rejected: money sections and other people's unpublished work are exactly where a wrong, fast publish hurts most.
 - **Infer the action from the diff** (is this change "just text"?). Rejected for v1: each tool declares what it does, which is simple to explain and test. The diff still supplies the numbers for the limits.
 - **A separate tool server from the app.** Rejected: it would need its own database access and copy the service rules. The gateway is a thin layer over the services.
-- **OAuth first.** Deferred to phase 4. A static bearer token already works for clients that can send a header (Claude Code, Cursor, MCP Inspector, scripts, Claude connectors that have request headers enabled).
+- **OAuth first.** Deferred to phase 4, and on 20 Nov 2026 Spencer confirmed bearer tokens are fine for now. A static bearer token already works for clients that can send a header (Claude Code, Cursor, MCP Inspector, scripts, Claude connectors that have request headers enabled).
 
 ## Consequences
 
 - A new path prefix (`/agent/`) and, in production, a Cloudflare Access bypass for it. The risk accepted is a public endpoint guarded by a bearer token and rate limits.
-- Three tables (`agent_tokens`, `agent_changes`, `agent_calls`), migration `0003_agent_gateway.sql`, and an `agent` actor type in the audit log.
+- Three tables (`agent_tokens`, `agent_changes`, `agent_calls`), migrations `0003_agent_gateway.sql` and `0004_agent_always_allow_permanent.sql`, and an `agent` actor type in the audit log.
 - Approval has a second legitimate source (a rule on a token) and a second one-step undo (an admin). ADR 0005 is amended.
 - A model that is instructed by page content can still do whatever its token's rules allow. The rules, not the model, are the control: keep rules narrow, keep the default (drafts for approval) for anything legal, and read the audit log.
 - A change that touches several pages queues one publish job per page or part. The decision is made once, but the jobs run one after another.
 - Unpublishing or deleting a page is not available to an agent. An admin must.
+
+## Update 20 Nov 2026
+
+Spencer reviewed the gateway and made two decisions.
+
+1. **Bearer tokens are the authentication for now. OAuth (phase 4) is deferred.** Nothing in the design blocks it later: sign-in is one function (`authenticateAgent`) that turns a credential into a token row, and rules, limits and audit hang off the token. Revisit when a connector screen that cannot send a header is needed.
+2. **Always-allow gets a permanent option** next to the 1 to 7 day ones.
+   - **Same confirmation:** the site name typed exactly and the admin's password, every time it is switched on, by an admin only.
+   - **Stored as its own flag** (`always_allow_permanent`, migration 0004), not as a far-future date, so it cannot be mistaken for a timed one and cannot silently end.
+   - **Revocable:** switching it off (API `DELETE`, or `agent-token.ts always-allow-off`) or revoking the token clears it. Both are audited (`agent.token.always_allow_on` with `permanent: true`, `agent.token.always_allow_off` with `wasPermanent`).
+   - **Visible as permanent:** `alwaysAllow: { permanent: true, until: null }` in the token list, `ALWAYS-ALLOW: PERMANENT (no end date)` in the command line list, and `you.always_allow` plus `you.always_allow_meaning` for the AI.
+   - **Nothing else widens.** The decision order is unchanged. Deny rules, the never-list (donation forms and embeds, embed props), the floor (money sections, mock data, someone else's unpublished work, failing checks), rate limits, the IP list, the token's own expiry and the kill switch all still win over it. A test covers each.
+   - **Cost accepted:** a permanent token can publish any wording or link change that no rule covers, with no one reading it first, until someone turns it off. The mitigations are the floor, the audit log, the owner and admin notification on every publish, one-call undo, and the advice to prefer timed and to keep deny rules on legal pages.

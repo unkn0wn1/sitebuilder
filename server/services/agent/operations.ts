@@ -96,7 +96,7 @@ export const OPERATIONS: Operation[] = [
       dontUseWhen: ['You already called it in this conversation and nothing has changed.'],
       before: [],
       effect: READ_EFFECT,
-      returns: '`site`, `you` (access, rules, `can_publish_by_yourself`, rate limits), `never_list`, `actions`, `start_here`.',
+      returns: '`site`, `you` (access, rules, `always_allow` and `always_allow_meaning`, `can_publish_by_yourself`, rate limits), `never_list`, `actions`, `start_here`.',
       example: { input: {}, note: 'No inputs.' },
     },
   }),
@@ -665,7 +665,7 @@ export function operationAnnotations(o: Operation) {
 function permissionText(o: Operation): string {
   if (o.level === 'read') return 'Any token, including read-only.'
   const rule = o.action ? ` A rule on the token must allow the action "${o.action}" for the target, or the change goes to a person (or is refused if a deny rule applies).` : ''
-  if (o.name === 'publish_change') return 'A token with draft access. Goes live only if a rule says "publish" (or always-allow is on); otherwise sent for approval.'
+  if (o.name === 'publish_change') return 'A token with draft access. Goes live only if a rule says "publish" (or always-allow is on, timed or permanent); otherwise sent for approval.'
   if (o.name === 'request_publish' || o.name === 'discard_change') return 'A token with draft access, for its own changes.'
   return `A token with draft access.${rule}`
 }
