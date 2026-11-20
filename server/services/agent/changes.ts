@@ -550,7 +550,7 @@ export function undoChange(ctx: ServiceCtx, agent: SignedInAgent, changeId: stri
       const live = t.type === 'page' ? requirePage(ctx, t.id).publishedVersionId : requireSitePart(ctx, t.id).publishedVersionId
       if (live !== t.afterVersionId) conflicts.push(`${t.label}: it has been published again since this change`)
     }
-    if (conflicts.length) throw new AppError('conflict', `Cannot undo change ${original.id} automatically, because ${conflicts.join('; ')}. Undoing would also remove the later work. Ask an admin to roll the site back to an earlier release (Settings > Releases), or make the edit you want as a new change.`, undefined, { conflicts })
+    if (conflicts.length) throw new AppError('conflict', `Cannot undo change ${original.id} automatically, because ${conflicts.join('; ')}. Undoing would also remove the later work. Ask an admin to roll the site back to an earlier release, or make the edit you want as a new change.`, undefined, { conflicts })
 
     const undoAgent: SignedInAgent = agent
     const undoRow = createChangeRow(ctx, undoAgent, { title: `Undo: ${original.title}`, reason: input.reason, undoOf: original.id })
