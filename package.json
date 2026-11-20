@@ -14,6 +14,8 @@
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
     "seed": "tsx scripts/seed.ts",
+    "agent-token": "tsx scripts/agent-token.ts",
+    "agent-docs": "tsx scripts/agent-docs.ts",
     "test:api": "nuxt build && vitest run -c vitest.api.config.ts",
     "test:e2e": "playwright test",
     "check": "npm run typecheck && npm test && npm run test:api",

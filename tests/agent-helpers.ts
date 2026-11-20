@@ -59,3 +59,12 @@ export type World = Awaited<ReturnType<typeof world>>
 export async function drain(w: Pick<World, 'ctx'>) {
   for (let i = 0; i < 10; i++) if ((await runJobsOnce(w.ctx, handlers)) === 0) return
 }
+
+/** Another token on the same site, signed in. */
+export function addToken(w: Pick<World, 'ctx' | 'admin'>, input: Parameters<typeof createAgentToken>[2]) {
+  const made = createAgentToken(w.ctx, w.admin, input)
+  return { agent: authenticateAgent(w.ctx, made.secret, null), secret: made.secret, id: made.token.id }
+}
+
+export const PASSWORD_FOR_TESTS = 'a-long-test-password'
+export const PUBLISH_ALL = [{ label: 'Everything', actions: '*', result: 'publish' }]

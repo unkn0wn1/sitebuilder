@@ -5,7 +5,7 @@
 //                     open  ->  publishing -> published (a rule on the token allowed it)
 //                     published -> undone               (an undo change was published)
 //                     open  ->  discarded               (thrown away before it was sent anywhere)
-import { and, desc, eq, gte } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray } from 'drizzle-orm'
 import { sameDraft } from '../../../shared/clone'
 import { diffPages, type PageDiff } from '../../../shared/diff'
 import { newId } from '../../../shared/ids'
@@ -280,6 +280,8 @@ function siteOrigin(ctx: ServiceCtx): string | null {
 export function evaluateTargets(ctx: ServiceCtx, token: AgentTokenRow, targets: ChangeTarget[], opts: { actions?: AgentAction[]; changeAgeHours?: number; forceReview?: FloorFlag[] } = {}): ChangeEvaluation {
   const origin = siteOrigin(ctx)
   const out: TargetEvaluation[] = []
+  // An undo puts back links that were live before, so they are not "new" links for the rule limits.
+  const restoring = <T extends { linksAdded: number; newLinkDomains: string[] }>(l: T): T => (opts.actions?.length === 1 && opts.actions[0] === 'undo_change' ? { ...l, linksAdded: 0, newLinkDomains: [] } : l)
   for (const t of targets) {
     const floor: FloorFlag[] = [...(opts.forceReview ?? [])]
     if (t.type === 'page') {
@@ -293,7 +295,7 @@ export function evaluateTargets(ctx: ServiceCtx, token: AgentTokenRow, targets: 
       if (draft.blocks.some(blockUsesMockData)) floor.push('mock_data')
       if (t.foreignDraft || page.draftRevision !== t.revision) floor.push('foreign_draft')
       if (checks.blocking.length) floor.push('checks_failing')
-      const links = linkDelta(live ?? { blocks: [] }, draft, 'block', origin)
+      const links = restoring(linkDelta(live ?? { blocks: [] }, draft, 'block', origin))
       const metaChanged = diff.meta.length > 0 && live !== null
       const unchanged = live !== null && !diff.blocks.length && !metaChanged && page.path === (page.publishedPath ?? page.path)
       out.push({
@@ -320,7 +322,7 @@ export function evaluateTargets(ctx: ServiceCtx, token: AgentTokenRow, targets: 
       const checks = sitePartChecks(ctx, part.kind, draft)
       if (t.foreignDraft || part.draftRevision !== t.revision) floor.push('foreign_draft')
       if (checks.blocking.length) floor.push('checks_failing')
-      const links = linkDelta(live ?? {}, draft, 'sitepart', origin)
+      const links = restoring(linkDelta(live ?? {}, draft, 'sitepart', origin))
       const unchanged = live !== null && sameDraft(live, draft)
       out.push({
         target: { ...t, label: part.label },
@@ -458,6 +460,13 @@ function basis(ev: ChangeEvaluation, opts: SendOptions, agent: SignedInAgent): {
 
 /** Bring a change's status up to date from its reviews (publish jobs run in the background). */
 export function refreshChange(ctx: ServiceCtx, row: ChangeRow): ChangeRow {
+  if (row.status === 'published') {
+    // An undo that has gone live marks this change "undone". Look at any undo still on its way.
+    const pending = ctx.db.select().from(agentChanges).where(and(eq(agentChanges.undoOf, row.id), inArray(agentChanges.status, ['publishing', 'review']))).all()
+    if (!pending.length) return row
+    for (const u of pending) refreshChange(ctx, u)
+    return requireChange(ctx, row.id)
+  }
   if (row.status !== 'publishing' && row.status !== 'review') return row
   const targets = changeTargets(row).map((t) => ({ ...t }))
   const withReview = targets.filter((t) => t.reviewId)

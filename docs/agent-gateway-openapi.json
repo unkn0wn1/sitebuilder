@@ -1,0 +1,3493 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Sitebuilder agent API",
+    "version": "1.0.0",
+    "description": "Read and change the charity website with a scoped token. Every edit is saved as a draft inside a change; nothing goes live until publish_change (if a rule on the token allows it) or a person approves it. The same tools are available over MCP at /agent/mcp. Start with GET /site. Docs: docs/agent-gateway.md."
+  },
+  "servers": [
+    {
+      "url": "/agent/v1"
+    }
+  ],
+  "security": [
+    {
+      "bearer": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Read",
+      "description": "Never changes anything."
+    },
+    {
+      "name": "Edit (drafts)",
+      "description": "Saves a draft inside a change. Never changes the live site."
+    },
+    {
+      "name": "Decide",
+      "description": "Sends, publishes, discards or undoes a change."
+    }
+  ],
+  "paths": {
+    "/site": {
+      "get": {
+        "operationId": "get_site",
+        "summary": "Start here: the site, what this token may do, and what no agent may ever do.",
+        "description": "Start here: the site, what this token may do, and what no agent may ever do.\n\nWHAT IT DOES: Returns the site name and domain, this token's access level, its rules (which kinds of change may go live by themselves and which need a person), its rate limits, the never-list, and what each action name means.\n\nUSE IT WHEN:\n- At the start of every conversation, before anything else.\n- When you are unsure whether you are allowed to do something.\n\nDO NOT USE IT WHEN:\n- You already called it in this conversation and nothing has changed.\n\nEFFECT: Nothing changes. Safe to call at any time.\n\nPERMISSION: Any token, including read-only.\n\nRETURNS: `site`, `you` (access, rules, `can_publish_by_yourself`, rate limits), `never_list`, `actions`, `start_here`.\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource.\n\nEXAMPLE (No inputs.): {}",
+        "tags": [
+          "Read"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`site`, `you` (access, rules, `can_publish_by_yourself`, rate limits), `never_list`, `actions`, `start_here`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {},
+        "parameters": []
+      }
+    },
+    "/pages": {
+      "get": {
+        "operationId": "list_pages",
+        "summary": "List the pages of the site, with their address, type and state.",
+        "description": "List the pages of the site, with their address, type and state.\n\nWHAT IT DOES: Returns pages, 25 at a time by default, optionally filtered by words in the title or address, page type or state. It does not return the contents: use get_page for that.\n\nUSE IT WHEN:\n- You need a page's id or address before reading or editing it.\n- The person names a page (\"the privacy policy\") and you must find which one it is.\n\nDO NOT USE IT WHEN:\n- You are looking for words or a link inside pages: use search_content or find_links, which search the contents.\n\nEFFECT: Nothing changes. Safe to call at any time.\n\nPERMISSION: Any token, including read-only.\n\nRETURNS: `pages` (page_id, title, path, page_type, state, has_unpublished_changes), `total`, `has_more`. state is draft, in_review, approved (publishing now), published or unpublished.\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource.\n\nEXAMPLE (Finds pages with \"privacy\" in the title or address.): {\"query\":\"privacy\"}",
+        "tags": [
+          "Read"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`pages` (page_id, title, path, page_type, state, has_unpublished_changes), `total`, `has_more`. state is draft, in_review, approved (publishing now), published or unpublished.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "query": "privacy"
+        },
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "description": "Only pages whose title or address contains this text.",
+            "schema": {
+              "description": "Only pages whose title or address contains this text.",
+              "examples": [
+                "privacy"
+              ],
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "page_type",
+            "in": "query",
+            "required": false,
+            "description": "Only pages of this page type key, from list_page_types.",
+            "schema": {
+              "description": "Only pages of this page type key, from list_page_types.",
+              "examples": [
+                "standard"
+              ],
+              "type": "string",
+              "maxLength": 60
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "description": "Only pages in this state. \"published\" = live. \"approved\" means a publish is running right now.",
+            "schema": {
+              "description": "Only pages in this state. \"published\" = live. \"approved\" means a publish is running right now.",
+              "type": "string",
+              "enum": [
+                "draft",
+                "in_review",
+                "approved",
+                "published",
+                "unpublished"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number of the results, starting at 1.",
+            "schema": {
+              "default": 1,
+              "description": "Page number of the results, starting at 1.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "description": "How many pages per result page (1 to 100).",
+            "schema": {
+              "default": 25,
+              "description": "How many pages per result page (1 to 100).",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ]
+      }
+    },
+    "/page": {
+      "get": {
+        "operationId": "get_page",
+        "summary": "Read one page: every section with its id, text, rich text as markdown and links.",
+        "description": "Read one page: every section with its id, text, rich text as markdown and links.\n\nWHAT IT DOES: Returns the DRAFT contents of a page (what your edits will change): title, address, SEO, each section with its `block_id`, type, whether agents may edit it (`agent_access`), its props, its rich text rendered as markdown, and every link in it.\n\nUSE IT WHEN:\n- Before editing a page by section: you need the block_id.\n- To read the current wording before changing it, for example a privacy policy.\n- To check a page after editing.\n\nDO NOT USE IT WHEN:\n- You only want to know whether some words or a link appear: search_content and find_links are cheaper and cover the whole site.\n\nBEFORE YOU CALL:\n- A page id (from list_pages) or an address such as \"/privacy\".\n\nEFFECT: Nothing changes. Safe to call at any time.\n\nPERMISSION: Any token, including read-only.\n\nRETURNS: `page` (ids, state, `is_live`, `has_unpublished_changes`, `waiting_for_approval`, allowed section types), `sections[]` (block_id, type, agent_access, props, rich_text, links). If `has_unpublished_changes` is true the live page differs from what you see.\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource. For this tool:\n- not_found: No page has that id or address. Use list_pages to find it.\n\nEXAMPLE (Read the privacy page by its address.): {\"path\":\"/privacy\"}",
+        "tags": [
+          "Read"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`page` (ids, state, `is_live`, `has_unpublished_changes`, `waiting_for_approval`, allowed section types), `sections[]` (block_id, type, agent_access, props, rich_text, links). If `has_unpublished_changes` is true the live page differs from what you see.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "path": "/privacy"
+        },
+        "parameters": [
+          {
+            "name": "page_id",
+            "in": "query",
+            "required": false,
+            "description": "The page id from list_pages or get_page, for example pg_01K.... Give this or `path`.",
+            "schema": {
+              "description": "The page id from list_pages or get_page, for example pg_01K.... Give this or `path`.",
+              "examples": [
+                "pg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+              ],
+              "type": "string",
+              "maxLength": 80
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "description": "The page address on the site, for example \"/privacy\". Give this or `page_id`.",
+            "schema": {
+              "description": "The page address on the site, for example \"/privacy\". Give this or `page_id`.",
+              "examples": [
+                "/privacy"
+              ],
+              "type": "string",
+              "maxLength": 300
+            }
+          }
+        ]
+      }
+    },
+    "/site-part": {
+      "get": {
+        "operationId": "get_site_part",
+        "summary": "Read the header, footer, a menu, or the banner.",
+        "description": "Read the header, footer, a menu, or the banner.\n\nWHAT IT DOES: Returns the DRAFT document of a site-wide part (it shows on every page) and every link in it. Menu items have ids you can use with remove_menu_item and rename_menu_item.\n\nUSE IT WHEN:\n- You need to see the menu items before changing them.\n- You need the current banner text.\n\nDO NOT USE IT WHEN:\n- You want to change the theme, colours, logo or settings. Agents cannot; they are on the never-list.\n\nEFFECT: Nothing changes. Safe to call at any time.\n\nPERMISSION: Any token, including read-only.\n\nRETURNS: `part` (ids, state, `is_live`), `document` (the content), `links`.\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource.\n\nEXAMPLE (The main menu.): {\"kind\":\"menu\"}",
+        "tags": [
+          "Read"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`part` (ids, state, `is_live`), `document` (the content), `links`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "kind": "menu"
+        },
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": true,
+            "description": "Which site-wide part: \"menu\", \"footer\", \"header\" or \"banner\".",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "header",
+                "footer",
+                "menu",
+                "banner"
+              ],
+              "description": "Which site-wide part: \"menu\", \"footer\", \"header\" or \"banner\".",
+              "examples": [
+                "menu"
+              ]
+            }
+          },
+          {
+            "name": "key",
+            "in": "query",
+            "required": false,
+            "description": "Which one, if the site has several of that kind (menus have a key such as \"main\" or \"legal\"). Leave out for the first one.",
+            "schema": {
+              "description": "Which one, if the site has several of that kind (menus have a key such as \"main\" or \"legal\"). Leave out for the first one.",
+              "examples": [
+                "main"
+              ],
+              "type": "string",
+              "maxLength": 40
+            }
+          }
+        ]
+      }
+    },
+    "/components": {
+      "get": {
+        "operationId": "list_components",
+        "summary": "The section types a page can be built from, with guidance and the exact props of each.",
+        "description": "The section types a page can be built from, with guidance and the exact props of each.\n\nWHAT IT DOES: Returns every section type: what it is for, when to use and avoid it, how to fill its fields, a good example, whether agents may touch it (`agent_access`), and its JSON Schema.\n\nUSE IT WHEN:\n- Before add_component, edit_component or create_page with sections.\n- You are unsure which section type fits.\n\nDO NOT USE IT WHEN:\n- You are only changing words or links: edit_text, remove_link and replace_link need no section knowledge.\n\nEFFECT: Nothing changes. Safe to call at any time.\n\nPERMISSION: Any token, including read-only.\n\nRETURNS: `components[]` with `type`, `purpose`, `use_when`, `avoid_when`, `agent_access`, `good_example_props`, `props_schema`.\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource.\n\nEXAMPLE (No inputs.): {}",
+        "tags": [
+          "Read"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`components[]` with `type`, `purpose`, `use_when`, `avoid_when`, `agent_access`, `good_example_props`, `props_schema`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {},
+        "parameters": []
+      }
+    },
+    "/page-types": {
+      "get": {
+        "operationId": "list_page_types",
+        "summary": "The page types (templates) and which sections each allows or requires.",
+        "description": "The page types (templates) and which sections each allows or requires.\n\nWHAT IT DOES: Each page has a type that decides which sections it may contain and which it must contain.\n\nUSE IT WHEN:\n- Before create_page, to choose a page_type.\n- add_component failed because the type is not allowed on this page.\n\nDO NOT USE IT WHEN:\n- You are editing existing text or links.\n\nEFFECT: Nothing changes. Safe to call at any time.\n\nPERMISSION: Any token, including read-only.\n\nRETURNS: `page_types[]` (key, label, allowed_section_types, required_section_types, starting_sections).\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource.\n\nEXAMPLE (No inputs.): {}",
+        "tags": [
+          "Read"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`page_types[]` (key, label, allowed_section_types, required_section_types, starting_sections).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {},
+        "parameters": []
+      }
+    },
+    "/search": {
+      "get": {
+        "operationId": "search_content",
+        "summary": "Find words anywhere on the site: every page, the header, footer, menus and banner.",
+        "description": "Find words anywhere on the site: every page, the header, footer, menus and banner.\n\nWHAT IT DOES: Searches the draft text of every page and site part (headings, paragraphs, buttons, captions, SEO description, menu labels) for the words, ignoring case. Says where each hit is and whether the live site has it too.\n\nUSE IT WHEN:\n- The person says \"change X to Y\" or \"where do we say X?\".\n- Before edit_text with everywhere: true, to learn the right expected_matches.\n\nDO NOT USE IT WHEN:\n- You are looking for a link address: use find_links (it also sees addresses behind link text and buttons).\n\nEFFECT: Nothing changes. Safe to call at any time.\n\nPERMISSION: Any token, including read-only.\n\nRETURNS: `results[]` (target page or site part, `where`, block_id, block_type, snippet, in_live), `total`, `truncated`. A phrase split by bold or a link is found in parts.\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource.\n\nEXAMPLE (Find every mention.): {\"query\":\"bank holiday\"}",
+        "tags": [
+          "Read"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`results[]` (target page or site part, `where`, block_id, block_type, snippet, in_live), `total`, `truncated`. A phrase split by bold or a link is found in parts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "query": "bank holiday"
+        },
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "description": "The words to look for. Case-insensitive. Matches inside one run of text; text split by bold or a link is found run by run.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "The words to look for. Case-insensitive. Matches inside one run of text; text split by bold or a link is found run by run.",
+              "examples": [
+                "0161 496 0000"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Most results to return (1 to 200). The reply says if there were more.",
+            "schema": {
+              "default": 50,
+              "description": "Most results to return (1 to 200). The reply says if there were more.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          }
+        ]
+      }
+    },
+    "/links": {
+      "get": {
+        "operationId": "find_links",
+        "summary": "Find every link to an address across the whole site, including buttons, menus and the footer.",
+        "description": "Find every link to an address across the whole site, including buttons, menus and the footer.\n\nWHAT IT DOES: Finds links in rich text, button and call-to-action props, menu items, header, footer and banner. Each hit says what kind of link it is, where it is, and whether it can be removed on its own.\n\nUSE IT WHEN:\n- The person says \"take this link down\" or \"where do we link to X?\".\n- Before remove_link or replace_link: use `total` as expected_matches.\n\nDO NOT USE IT WHEN:\n- You are looking for words, not an address: use search_content.\n\nEFFECT: Nothing changes. Safe to call at any time.\n\nPERMISSION: Any token, including read-only.\n\nRETURNS: `total`, `pages_affected`, `site_parts_affected`, `cannot_be_removed_on_their_own`, `results[]` (target, block, link kind, href, label, removable, in_live).\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource.\n\nEXAMPLE (Every link to that domain, whatever the path. Use \"exact\" for one address.): {\"url\":\"https://old-partner.example.org/\",\"match\":\"domain\"}",
+        "tags": [
+          "Read"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`total`, `pages_affected`, `site_parts_affected`, `cannot_be_removed_on_their_own`, `results[]` (target, block, link kind, href, label, removable, in_live).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "url": "https://old-partner.example.org/",
+          "match": "domain"
+        },
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "description": "The address to look for, for example https://old-partner.example.org/ or a page address on this site such as /about. For match \"domain\", just the domain.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048,
+              "description": "The address to look for, for example https://old-partner.example.org/ or a page address on this site such as /about. For match \"domain\", just the domain.",
+              "examples": [
+                "https://old-partner.example.org/"
+              ]
+            }
+          },
+          {
+            "name": "match",
+            "in": "query",
+            "required": false,
+            "description": "\"exact\" (default): the link must be the same address (ignoring http/https, \"www.\", a trailing slash and upper/lower case in the domain). \"prefix\": the link must start with the address you give, for example https://example.org/old/ matches everything under /old/. \"domain\": every link to that domain, whatever the path; give just the domain, for example example.org.",
+            "schema": {
+              "default": "exact",
+              "description": "\"exact\" (default): the link must be the same address (ignoring http/https, \"www.\", a trailing slash and upper/lower case in the domain). \"prefix\": the link must start with the address you give, for example https://example.org/old/ matches everything under /old/. \"domain\": every link to that domain, whatever the path; give just the domain, for example example.org.",
+              "type": "string",
+              "enum": [
+                "exact",
+                "prefix",
+                "domain"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Most results to return (1 to 500).",
+            "schema": {
+              "default": 100,
+              "description": "Most results to return (1 to 500).",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            }
+          }
+        ]
+      }
+    },
+    "/changes": {
+      "get": {
+        "operationId": "list_changes",
+        "summary": "Your recent changes and their state.",
+        "description": "Your recent changes and their state.\n\nWHAT IT DOES: Lists the changes made with this token, newest first, with their state: open, review (waiting for a person), publishing, published, discarded, undone or failed.\n\nUSE IT WHEN:\n- You lost track of a change id.\n- The person asks \"what did you do?\" or \"did that go live?\".\n- Before starting an undo, to find the change.\n\nDO NOT USE IT WHEN:\n- You have the change id: use get_change.\n\nEFFECT: Nothing changes. Safe to call at any time.\n\nPERMISSION: Any token, including read-only.\n\nRETURNS: `changes[]` (change_id, title, status, reason, created_at, published_at, targets). Only this token's changes are shown.\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource.\n\nEXAMPLE (Changes you started but have not sent.): {\"status\":\"open\"}",
+        "tags": [
+          "Read"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`changes[]` (change_id, title, status, reason, created_at, published_at, targets). Only this token's changes are shown.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "status": "open"
+        },
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Only changes in this state.",
+            "schema": {
+              "description": "Only changes in this state.",
+              "type": "string",
+              "enum": [
+                "open",
+                "review",
+                "publishing",
+                "published",
+                "discarded",
+                "undone",
+                "failed"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Most changes to return, newest first (1 to 100).",
+            "schema": {
+              "default": 20,
+              "description": "Most changes to return, newest first (1 to 100).",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ]
+      }
+    },
+    "/changes/{change_id}": {
+      "get": {
+        "operationId": "get_change",
+        "summary": "One change: its state and what it does.",
+        "description": "One change: its state and what it does.\n\nWHAT IT DOES: Returns the change as edit tools do: status, per-target diff, what publishing would do, and next steps. Also brings its status up to date (for example from publishing to published).\n\nUSE IT WHEN:\n- After publish_change or request_publish, to check whether it is live yet.\n- To re-read a change before deciding.\n\nDO NOT USE IT WHEN:\n- You have not made a change yet.\n\nBEFORE YOU CALL:\n- A change id from an edit tool or list_changes.\n\nEFFECT: Nothing changes. Safe to call at any time.\n\nPERMISSION: Any token, including read-only.\n\nRETURNS: The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next).\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource.\n\nEXAMPLE (Replace with a real id.): {\"change_id\":\"chg_01KABCDEFGHJKMNPQRSTVWXYZ0\"}",
+        "tags": [
+          "Read"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "change_id": "chg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+        },
+        "parameters": [
+          {
+            "name": "change_id",
+            "in": "path",
+            "required": true,
+            "description": "The change id.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/changes/{change_id}/preview": {
+      "get": {
+        "operationId": "preview_change",
+        "summary": "Show exactly what an open change would do, and whether it could go live by itself. Changes nothing.",
+        "description": "Show exactly what an open change would do, and whether it could go live by itself. Changes nothing.\n\nWHAT IT DOES: Re-checks the change against the live site: the diff per page or site part, the problems that would block it, and the decision your rules would make right now (`goes_live`, `goes_to_review` or `refused`, with reasons).\n\nUSE IT WHEN:\n- Before publish_change or request_publish, every time.\n- To show the person what is about to happen.\n\nDO NOT USE IT WHEN:\n- The change is no longer open.\n\nBEFORE YOU CALL:\n- An open change.\n\nEFFECT: Nothing changes. Safe to call at any time.\n\nPERMISSION: Any token, including read-only.\n\nRETURNS: The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next).\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource.\n\nEXAMPLE (Replace with a real id.): {\"change_id\":\"chg_01KABCDEFGHJKMNPQRSTVWXYZ0\"}",
+        "tags": [
+          "Read"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "change_id": "chg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+        },
+        "parameters": [
+          {
+            "name": "change_id",
+            "in": "path",
+            "required": true,
+            "description": "The change id.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/edits/text": {
+      "post": {
+        "operationId": "edit_text",
+        "summary": "Replace words on one page, or everywhere on the site.",
+        "description": "Replace words on one page, or everywhere on the site.\n\nWHAT IT DOES: Finds the exact words (case-sensitive by default) in headings, paragraphs, buttons, captions and the other text of sections, and the menu, header, footer and banner when `everywhere` is true, and replaces them. Formatting and links around the words are kept. Matches inside protected sections (donation forms and embeds) are skipped and reported.\n\nUSE IT WHEN:\n- A phone number, name, date, price or sentence must change.\n- Updating a policy where one phrase changes.\n\nDO NOT USE IT WHEN:\n- You are adding a whole new paragraph or section of text: use insert_rich_text.\n- You are changing or removing a link address: use replace_link or remove_link; the words on the link are not the address.\n- The words are split by bold or a link: change each part, or use insert_rich_text or edit_component.\n\nBEFORE YOU CALL:\n- Run search_content so you know the real count and wording.\n- Say where: page_id or path, or everywhere: true with expected_matches.\n\nEFFECT: Replaces text in the matching places. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish).\n\nPERMISSION: A token with draft access. A rule on the token must allow the action \"edit_text\" for the target, or the change goes to a person (or is refused if a deny rule applies).\n\nRETURNS: The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next).\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource. For this tool:\n- no_matches: The words do not appear exactly as given. Run search_content (it ignores case) and copy the real wording.\n- match_count_mismatch: Look at `error.found`. If the count is right, call again with that expected_matches.\n- invalid_state: A page in the way is waiting for approval or being published. Wait, or pass skip_blocked: true and tell the person which pages were skipped.\n\nEXAMPLE (Change a phone number everywhere. 4 came from search_content.): {\"find\":\"0161 496 0000\",\"replace\":\"0161 496 0123\",\"everywhere\":true,\"expected_matches\":4,\"reason\":\"The owner said the office phone number changed.\"}",
+        "tags": [
+          "Edit (drafts)"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "find": "0161 496 0000",
+          "replace": "0161 496 0123",
+          "everywhere": true,
+          "expected_matches": 4,
+          "reason": "The owner said the office phone number changed."
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "find": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "description": "The exact words to replace. Matching is case-sensitive unless `case_sensitive` is false. Text must sit inside one run of formatting: if it is partly bold or a link, search_content shows it in parts.",
+                    "examples": [
+                      "0161 496 0000"
+                    ]
+                  },
+                  "replace": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "description": "What to put instead. Use an empty string to delete the words. Plain text only: markdown and HTML are not interpreted.",
+                    "examples": [
+                      "0161 496 0123"
+                    ]
+                  },
+                  "page_id": {
+                    "description": "The page id from list_pages or get_page, for example pg_01K.... Give this or `path`.",
+                    "examples": [
+                      "pg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                    ],
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "path": {
+                    "description": "The page address on the site, for example \"/privacy\". Give this or `page_id`.",
+                    "examples": [
+                      "/privacy"
+                    ],
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "everywhere": {
+                    "description": "Set true to apply to every page and to the header, footer, menus and banner. Give this OR a page (page_id or path), never both. When you use it, also pass `expected_matches` so a surprise is caught before anything is changed.",
+                    "type": "boolean"
+                  },
+                  "expected_matches": {
+                    "description": "How many matches you expect, from search_content or find_links. If the real number differs, nothing is changed and you get error `match_count_mismatch` with the real list. Strongly recommended.",
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10000
+                  },
+                  "skip_blocked": {
+                    "description": "Default false. A page that is waiting for approval or being published cannot be edited, and by default that stops the whole edit with an error naming the page. Set true to skip those pages instead; they are listed in `skipped` so you can tell the owner.",
+                    "type": "boolean"
+                  },
+                  "case_sensitive": {
+                    "default": true,
+                    "description": "Default true.",
+                    "type": "boolean"
+                  },
+                  "whole_word": {
+                    "default": false,
+                    "description": "Default false. True matches only whole words (so \"cat\" does not match \"category\").",
+                    "type": "boolean"
+                  },
+                  "change_id": {
+                    "description": "The id of an open change from an earlier edit (the `change.id` it returned). Give it to add this edit to that change, so several edits are reviewed or published together. Leave it out to start a new change. A change that is in review, published or discarded cannot be added to: leave this out and start a new one.",
+                    "examples": [
+                      "chg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                    ],
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 500,
+                    "description": "Why you are making this change, in one or two plain sentences, in your own words. It is saved on the change and in the audit log and shown to the site owner. It is stored as the agent's stated reason, not as proof of what a person typed, so say who asked and what they asked if you know.",
+                    "examples": [
+                      "The owner asked in chat to take down the link to old-partner.example.org because the partnership ended."
+                    ]
+                  }
+                },
+                "required": [
+                  "find",
+                  "replace",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "example": {
+                "find": "0161 496 0000",
+                "replace": "0161 496 0123",
+                "everywhere": true,
+                "expected_matches": 4,
+                "reason": "The owner said the office phone number changed."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/edits/remove-link": {
+      "post": {
+        "operationId": "remove_link",
+        "summary": "Take a link down: remove every link to an address on a page or the whole site.",
+        "description": "Take a link down: remove every link to an address on a page or the whole site.\n\nWHAT IT DOES: Finds links to the address (in rich text, buttons, menu items, header, footer, banner and cards) and removes them. A link in rich text becomes plain text. An optional button or link is removed. A menu item is removed. A link that a section cannot do without (for example the required button of a call-to-action) is NOT removed; it is listed in `could_not_remove` with what to do.\n\nUSE IT WHEN:\n- The person says \"take this link down\", \"remove the link to X\", \"that partner is gone\".\n- A page or site you linked to no longer exists.\n\nDO NOT USE IT WHEN:\n- The link should point somewhere else: use replace_link.\n- You want to delete a whole section or page: use remove_component. Agents cannot delete pages.\n- You are removing the words as well: use edit_text.\n\nBEFORE YOU CALL:\n- Run find_links and pass its `total` as expected_matches.\n- Choose `match`: \"exact\" for one address, \"domain\" for a whole site.\n\nEFFECT: Removes the links. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish).\n\nPERMISSION: A token with draft access. A rule on the token must allow the action \"remove_link\" for the target, or the change goes to a person (or is refused if a deny rule applies).\n\nRETURNS: The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next). `result.could_not_remove` lists links left in place and `result.complete` says whether every link went.\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource. For this tool:\n- validation_failed: Some links cannot be removed on their own. Read `could_not_remove`. Remove the section (remove_component), remove the menu item (remove_menu_item), or point the link elsewhere (replace_link). Or call again with skip_unremovable: true to remove the rest and tell the person about these.\n- no_matches: No link matches. Run find_links with other match settings.\n\nEXAMPLE (Take down every link to a domain. 5 came from find_links.): {\"url\":\"https://old-partner.example.org/\",\"match\":\"domain\",\"everywhere\":true,\"expected_matches\":5,\"reason\":\"The owner asked at 3am to take down all links to the old partner.\"}",
+        "tags": [
+          "Edit (drafts)"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next). `result.could_not_remove` lists links left in place and `result.complete` says whether every link went.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "url": "https://old-partner.example.org/",
+          "match": "domain",
+          "everywhere": true,
+          "expected_matches": 5,
+          "reason": "The owner asked at 3am to take down all links to the old partner."
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048,
+                    "description": "The address of the link to take down.",
+                    "examples": [
+                      "https://old-partner.example.org/"
+                    ]
+                  },
+                  "match": {
+                    "default": "exact",
+                    "description": "\"exact\" (default): the link must be the same address (ignoring http/https, \"www.\", a trailing slash and upper/lower case in the domain). \"prefix\": the link must start with the address you give, for example https://example.org/old/ matches everything under /old/. \"domain\": every link to that domain, whatever the path; give just the domain, for example example.org.",
+                    "type": "string",
+                    "enum": [
+                      "exact",
+                      "prefix",
+                      "domain"
+                    ]
+                  },
+                  "page_id": {
+                    "description": "The page id from list_pages or get_page, for example pg_01K.... Give this or `path`.",
+                    "examples": [
+                      "pg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                    ],
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "path": {
+                    "description": "The page address on the site, for example \"/privacy\". Give this or `page_id`.",
+                    "examples": [
+                      "/privacy"
+                    ],
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "everywhere": {
+                    "description": "Set true to apply to every page and to the header, footer, menus and banner. Give this OR a page (page_id or path), never both. When you use it, also pass `expected_matches` so a surprise is caught before anything is changed.",
+                    "type": "boolean"
+                  },
+                  "expected_matches": {
+                    "description": "How many matches you expect, from search_content or find_links. If the real number differs, nothing is changed and you get error `match_count_mismatch` with the real list. Strongly recommended.",
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10000
+                  },
+                  "skip_blocked": {
+                    "description": "Default false. A page that is waiting for approval or being published cannot be edited, and by default that stops the whole edit with an error naming the page. Set true to skip those pages instead; they are listed in `skipped` so you can tell the owner.",
+                    "type": "boolean"
+                  },
+                  "skip_unremovable": {
+                    "description": "Default false. Some links cannot be removed on their own, for example a section that requires its button, or a menu item that has sub-items. By default that stops the edit and lists them. Set true to remove the others and list these in `could_not_remove` (the result then says `complete: false`).",
+                    "type": "boolean"
+                  },
+                  "change_id": {
+                    "description": "The id of an open change from an earlier edit (the `change.id` it returned). Give it to add this edit to that change, so several edits are reviewed or published together. Leave it out to start a new change. A change that is in review, published or discarded cannot be added to: leave this out and start a new one.",
+                    "examples": [
+                      "chg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                    ],
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 500,
+                    "description": "Why you are making this change, in one or two plain sentences, in your own words. It is saved on the change and in the audit log and shown to the site owner. It is stored as the agent's stated reason, not as proof of what a person typed, so say who asked and what they asked if you know.",
+                    "examples": [
+                      "The owner asked in chat to take down the link to old-partner.example.org because the partnership ended."
+                    ]
+                  }
+                },
+                "required": [
+                  "url",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "example": {
+                "url": "https://old-partner.example.org/",
+                "match": "domain",
+                "everywhere": true,
+                "expected_matches": 5,
+                "reason": "The owner asked at 3am to take down all links to the old partner."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/edits/replace-link": {
+      "post": {
+        "operationId": "replace_link",
+        "summary": "Point every link to one address at a different address.",
+        "description": "Point every link to one address at a different address.\n\nWHAT IT DOES: Changes where matching links go. Link text and button labels are kept. A link to a page on this site by id is turned into the new address.\n\nUSE IT WHEN:\n- A page moved, a partner changed their address, or a donate link moved.\n- A link cannot be removed (a required button) but is wrong.\n\nDO NOT USE IT WHEN:\n- The link should disappear: use remove_link.\n\nBEFORE YOU CALL:\n- Run find_links and pass its total as expected_matches.\n- The new address must be a real address. Do not invent one.\n\nEFFECT: Changes the links. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish). New links usually go to a person for approval, because a rule has to allow \"add_link\" and the new domain.\n\nPERMISSION: A token with draft access. A rule on the token must allow the action \"add_link\" for the target, or the change goes to a person (or is refused if a deny rule applies).\n\nRETURNS: The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next).\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource.\n\nEXAMPLE (Change a link everywhere.): {\"url\":\"https://old.example.org/donate\",\"new_url\":\"https://new.example.org/donate\",\"everywhere\":true,\"expected_matches\":3,\"reason\":\"The partner moved their donate page.\"}",
+        "tags": [
+          "Edit (drafts)"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "url": "https://old.example.org/donate",
+          "new_url": "https://new.example.org/donate",
+          "everywhere": true,
+          "expected_matches": 3,
+          "reason": "The partner moved their donate page."
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048,
+                    "description": "The address of the link to change.",
+                    "examples": [
+                      "https://old.example.org/donate"
+                    ]
+                  },
+                  "new_url": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048,
+                    "description": "Where it should go instead: https://..., http://..., mailto:..., tel:..., or a path on this site such as /donate.",
+                    "examples": [
+                      "https://new.example.org/donate"
+                    ]
+                  },
+                  "match": {
+                    "default": "exact",
+                    "description": "\"exact\" (default): the link must be the same address (ignoring http/https, \"www.\", a trailing slash and upper/lower case in the domain). \"prefix\": the link must start with the address you give, for example https://example.org/old/ matches everything under /old/. \"domain\": every link to that domain, whatever the path; give just the domain, for example example.org.",
+                    "type": "string",
+                    "enum": [
+                      "exact",
+                      "prefix",
+                      "domain"
+                    ]
+                  },
+                  "page_id": {
+                    "description": "The page id from list_pages or get_page, for example pg_01K.... Give this or `path`.",
+                    "examples": [
+                      "pg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                    ],
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "path": {
+                    "description": "The page address on the site, for example \"/privacy\". Give this or `page_id`.",
+                    "examples": [
+                      "/privacy"
+                    ],
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "everywhere": {
+                    "description": "Set true to apply to every page and to the header, footer, menus and banner. Give this OR a page (page_id or path), never both. When you use it, also pass `expected_matches` so a surprise is caught before anything is changed.",
+                    "type": "boolean"
+                  },
+                  "expected_matches": {
+                    "description": "How many matches you expect, from search_content or find_links. If the real number differs, nothing is changed and you get error `match_count_mismatch` with the real list. Strongly recommended.",
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10000
+                  },
+                  "skip_blocked": {
+                    "description": "Default false. A page that is waiting for approval or being published cannot be edited, and by default that stops the whole edit with an error naming the page. Set true to skip those pages instead; they are listed in `skipped` so you can tell the owner.",
+                    "type": "boolean"
+                  },
+                  "change_id": {
+                    "description": "The id of an open change from an earlier edit (the `change.id` it returned). Give it to add this edit to that change, so several edits are reviewed or published together. Leave it out to start a new change. A change that is in review, published or discarded cannot be added to: leave this out and start a new one.",
+                    "examples": [
+                      "chg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                    ],
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 500,
+                    "description": "Why you are making this change, in one or two plain sentences, in your own words. It is saved on the change and in the audit log and shown to the site owner. It is stored as the agent's stated reason, not as proof of what a person typed, so say who asked and what they asked if you know.",
+                    "examples": [
+                      "The owner asked in chat to take down the link to old-partner.example.org because the partnership ended."
+                    ]
+                  }
+                },
+                "required": [
+                  "url",
+                  "new_url",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "example": {
+                "url": "https://old.example.org/donate",
+                "new_url": "https://new.example.org/donate",
+                "everywhere": true,
+                "expected_matches": 3,
+                "reason": "The partner moved their donate page."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/edits/insert-rich-text": {
+      "post": {
+        "operationId": "insert_rich_text",
+        "summary": "Add paragraphs, headings or lists to a text section, written in simple markdown.",
+        "description": "Add paragraphs, headings or lists to a text section, written in simple markdown.\n\nWHAT IT DOES: Converts the markdown to the page's rich text and inserts it at the end, the start, or after the paragraph that contains some words. Existing text is untouched.\n\nUSE IT WHEN:\n- \"Update the privacy policy to say we use X\": add a paragraph or section.\n- Adding a bullet list or a heading.\n\nDO NOT USE IT WHEN:\n- Changing words that are already there: use edit_text.\n- The section is not rich text (get_page lists rich-text props).\n\nBEFORE YOU CALL:\n- get_page for the block_id and to see the existing text, so you do not repeat yourself.\n- Write only facts the person gave you. Never invent legal, medical or financial claims; mark unknowns for a person to fill in.\n\nEFFECT: Adds the text. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish).\n\nPERMISSION: A token with draft access. A rule on the token must allow the action \"edit_text\" for the target, or the change goes to a person (or is refused if a deny rule applies).\n\nRETURNS: The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next). `result.now_reads` shows the whole section as markdown after the edit.\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource.\n\nEXAMPLE (Add a section at the end of the policy.): {\"path\":\"/privacy\",\"block_id\":\"b_k3j9x2ab\",\"markdown\":\"## Analytics\\n\\nWe use Plausible analytics. It sets no cookies and does not identify you.\",\"position\":\"end\",\"reason\":\"The owner asked to add our analytics provider to the privacy policy.\"}",
+        "tags": [
+          "Edit (drafts)"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next). `result.now_reads` shows the whole section as markdown after the edit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "path": "/privacy",
+          "block_id": "b_k3j9x2ab",
+          "markdown": "## Analytics\n\nWe use Plausible analytics. It sets no cookies and does not identify you.",
+          "position": "end",
+          "reason": "The owner asked to add our analytics provider to the privacy policy."
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "page_id": {
+                    "description": "The page id from list_pages or get_page, for example pg_01K.... Give this or `path`.",
+                    "examples": [
+                      "pg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                    ],
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "path": {
+                    "description": "The page address on the site, for example \"/privacy\". Give this or `page_id`.",
+                    "examples": [
+                      "/privacy"
+                    ],
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "block_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40,
+                    "description": "The section to add text to: its `block_id` from get_page. It must be a section that holds rich text (a \"RichText\" section, or one with a rich-text prop such as FAQ answers).",
+                    "examples": [
+                      "b_k3j9x2ab"
+                    ]
+                  },
+                  "prop": {
+                    "default": "content",
+                    "description": "Which prop of the section holds the rich text. Default \"content\", which is right for \"RichText\" sections. get_page lists rich-text props under `rich_text[].prop`.",
+                    "type": "string",
+                    "maxLength": 60
+                  },
+                  "markdown": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20000,
+                    "description": "The text to add, in simple markdown: blank lines separate paragraphs; \"## Heading\" (## ### ####); lines starting \"- \" are bullets; lines starting \"1. \" are numbered; **bold**, *italic*, [link text](https://address). Nothing else is interpreted (no HTML, no images, no tables).",
+                    "examples": [
+                      "## Cookies\n\nWe use one analytics cookie, set by Plausible. It does not identify you."
+                    ]
+                  },
+                  "position": {
+                    "default": "end",
+                    "description": "\"end\" (default) adds after the existing text; \"start\" adds before it; { \"after_text\": \"some words\" } adds after the first paragraph, heading or list that contains those words.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "start",
+                          "end"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "after_text": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 300
+                          }
+                        },
+                        "required": [
+                          "after_text"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  "change_id": {
+                    "description": "The id of an open change from an earlier edit (the `change.id` it returned). Give it to add this edit to that change, so several edits are reviewed or published together. Leave it out to start a new change. A change that is in review, published or discarded cannot be added to: leave this out and start a new one.",
+                    "examples": [
+                      "chg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                    ],
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 500,
+                    "description": "Why you are making this change, in one or two plain sentences, in your own words. It is saved on the change and in the audit log and shown to the site owner. It is stored as the agent's stated reason, not as proof of what a person typed, so say who asked and what they asked if you know.",
+                    "examples": [
+                      "The owner asked in chat to take down the link to old-partner.example.org because the partnership ended."
+                    ]
+                  }
+                },
+                "required": [
+                  "block_id",
+                  "markdown",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "example": {
+                "path": "/privacy",
+                "block_id": "b_k3j9x2ab",
+                "markdown": "## Analytics\n\nWe use Plausible analytics. It sets no cookies and does not identify you.",
+                "position": "end",
+                "reason": "The owner asked to add our analytics provider to the privacy policy."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/edits/component": {
+      "post": {
+        "operationId": "edit_component",
+        "summary": "Change props of one section, for example a heading, button or list of cards.",
+        "description": "Change props of one section, for example a heading, button or list of cards.\n\nWHAT IT DOES: Sets the props you give (each replaces that whole prop) and optionally removes optional props. The section must stay valid; if not you get the exact problem. Sections for donation forms and embeds, and props that bind a form, embed or data source, cannot be touched.\n\nUSE IT WHEN:\n- edit_text cannot do it (not a plain replacement): changing a card list, a button, an image alt text, a layout.\n\nDO NOT USE IT WHEN:\n- A simple wording change: edit_text.\n- A link: remove_link or replace_link.\n- Anything about donation forms: never allowed.\n\nBEFORE YOU CALL:\n- get_page for the block_id and current props.\n- list_components for the props_schema if the shape is unclear.\n\nEFFECT: Changes the section. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish). Sections that show money (ImpactTiers, DonationProgress, MatchBanner, MatchThermometer) can be drafted but always need a person to approve.\n\nPERMISSION: A token with draft access. A rule on the token must allow the action \"edit_sections\" for the target, or the change goes to a person (or is refused if a deny rule applies).\n\nRETURNS: The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next).\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource. For this tool:\n- never_list: This section or prop is protected. Tell the person it must be done by hand.\n- validation_failed: The new props are not valid for this section. `error.fields` says which. Fix and call again.\n\nEXAMPLE (Change one prop.): {\"page_id\":\"pg_01KABCDEFGHJKMNPQRSTVWXYZ0\",\"block_id\":\"b_k3j9x2ab\",\"props\":{\"heading\":\"Help us this winter\"},\"reason\":\"The owner asked to reword the heading.\"}",
+        "tags": [
+          "Edit (drafts)"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "page_id": "pg_01KABCDEFGHJKMNPQRSTVWXYZ0",
+          "block_id": "b_k3j9x2ab",
+          "props": {
+            "heading": "Help us this winter"
+          },
+          "reason": "The owner asked to reword the heading."
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "page_id": {
+                    "description": "The page id from list_pages or get_page, for example pg_01K.... Give this or `path`.",
+                    "examples": [
+                      "pg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                    ],
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "path": {
+                    "description": "The page address on the site, for example \"/privacy\". Give this or `page_id`.",
+                    "examples": [
+                      "/privacy"
+                    ],
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "block_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40,
+                    "description": "The section to change: its `block_id` from get_page.",
+                    "examples": [
+                      "b_k3j9x2ab"
+                    ]
+                  },
+                  "props": {
+                    "default": {},
+                    "description": "Props to set, as a JSON object. Only the props you send are changed; others stay. A prop you send replaces the whole prop (for an array, send the whole new array). Shapes: see list_components, `props_schema`.",
+                    "examples": [
+                      {
+                        "heading": "Help us this winter"
+                      }
+                    ],
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  },
+                  "unset": {
+                    "description": "Names of optional props to remove.",
+                    "examples": [
+                      [
+                        "subheading"
+                      ]
+                    ],
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 60
+                    }
+                  },
+                  "change_id": {
+                    "description": "The id of an open change from an earlier edit (the `change.id` it returned). Give it to add this edit to that change, so several edits are reviewed or published together. Leave it out to start a new change. A change that is in review, published or discarded cannot be added to: leave this out and start a new one.",
+                    "examples": [
+                      "chg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                    ],
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 500,
+                    "description": "Why you are making this change, in one or two plain sentences, in your own words. It is saved on the change and in the audit log and shown to the site owner. It is stored as the agent's stated reason, not as proof of what a person typed, so say who asked and what they asked if you know.",
+                    "examples": [
+                      "The owner asked in chat to take down the link to old-partner.example.org because the partnership ended."
+                    ]
+                  }
+                },
+                "required": [
+                  "block_id",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "example": {
+                "page_id": "pg_01KABCDEFGHJKMNPQRSTVWXYZ0",
+                "block_id": "b_k3j9x2ab",
+                "props": {
+                  "heading": "Help us this winter"
+                },
+                "reason": "The owner asked to reword the heading."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/edits/add-component": {
+      "post": {
+        "operationId": "add_component",
+        "summary": "Add a section to a page.",
+        "description": "Add a section to a page.\n\nWHAT IT DOES: Adds a new section of the given type with the given props, after a section, at an index, or at the end.\n\nUSE IT WHEN:\n- The person asks for a new block of content on an existing page.\n\nDO NOT USE IT WHEN:\n- Adding a donation form or embed: never allowed.\n- Adding words to an existing text section: insert_rich_text.\n- Building a whole new page: create_page.\n\nBEFORE YOU CALL:\n- list_components for the type and props_schema.\n- list_page_types or get_page to check the page type allows the section.\n\nEFFECT: Adds the section. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish).\n\nPERMISSION: A token with draft access. A rule on the token must allow the action \"edit_sections\" for the target, or the change goes to a person (or is refused if a deny rule applies).\n\nRETURNS: The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next). `result.sections_now` lists section ids and types in order.\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource.\n\nEXAMPLE (Add a text section at the end.): {\"path\":\"/about\",\"type\":\"RichText\",\"props\":{\"content\":{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Our story starts in 1998.\"}]}]}},\"reason\":\"The owner asked for a short story section.\"}",
+        "tags": [
+          "Edit (drafts)"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next). `result.sections_now` lists section ids and types in order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "path": "/about",
+          "type": "RichText",
+          "props": {
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Our story starts in 1998."
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "reason": "The owner asked for a short story section."
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "page_id": {
+                    "description": "The page id from list_pages or get_page, for example pg_01K.... Give this or `path`.",
+                    "examples": [
+                      "pg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                    ],
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "path": {
+                    "description": "The page address on the site, for example \"/privacy\". Give this or `page_id`.",
+                    "examples": [
+                      "/privacy"
+                    ],
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "type": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60,
+                    "description": "The section type, from list_components, for example \"RichText\" or \"CardGrid\". The page type must allow it (list_page_types).",
+                    "examples": [
+                      "RichText"
+                    ]
+                  },
+                  "props": {
+                    "default": {},
+                    "description": "The props for the new section, matching `props_schema` from list_components. Required props must be present.",
+                    "examples": [
+                      {
+                        "content": {
+                          "type": "doc",
+                          "content": [
+                            {
+                              "type": "paragraph",
+                              "content": [
+                                {
+                                  "type": "text",
+                                  "text": "Hello"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      }
+                    ],
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  },
+                  "after_block_id": {
+                    "description": "Put the new section after this section (its block_id). Give this or `index`; if neither, it goes at the end.",
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "index": {
+                    "description": "Position from the top, starting at 0.",
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "change_id": {
+                    "description": "The id of an open change from an earlier edit (the `change.id` it returned). Give it to add this edit to that change, so several edits are reviewed or published together. Leave it out to start a new change. A change that is in review, published or discarded cannot be added to: leave this out and start a new one.",
+                    "examples": [
+                      "chg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                    ],
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 500,
+                    "description": "Why you are making this change, in one or two plain sentences, in your own words. It is saved on the change and in the audit log and shown to the site owner. It is stored as the agent's stated reason, not as proof of what a person typed, so say who asked and what they asked if you know.",
+                    "examples": [
+                      "The owner asked in chat to take down the link to old-partner.example.org because the partnership ended."
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "example": {
+                "path": "/about",
+                "type": "RichText",
+                "props": {
+                  "content": {
+                    "type": "doc",
+                    "content": [
+                      {
+                        "type": "paragraph",
+                        "content": [
+                          {
+                            "type": "text",
+                            "text": "Our story starts in 1998."
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "reason": "The owner asked for a short story section."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/edits/remove-component": {
+      "post": {
+        "operationId": "remove_component",
+        "summary": "Remove one section from a page.",
+        "description": "Remove one section from a page.\n\nWHAT IT DOES: Removes the section from the draft. The page must still have the sections its page type requires, which is checked when the change is sent.\n\nUSE IT WHEN:\n- A whole section must go, for example a call-to-action pointing at something that no longer exists.\n\nDO NOT USE IT WHEN:\n- Only a link or some words must go: remove_link or edit_text.\n- The section is a donation form or embed: never allowed.\n\nBEFORE YOU CALL:\n- get_page for the block_id.\n\nEFFECT: Removes the section. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish).\n\nPERMISSION: A token with draft access. A rule on the token must allow the action \"edit_sections\" for the target, or the change goes to a person (or is refused if a deny rule applies).\n\nRETURNS: The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next).\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource.\n\nEXAMPLE (Remove a section.): {\"path\":\"/events\",\"block_id\":\"b_k3j9x2ab\",\"reason\":\"The event is cancelled, so the sign-up section should go.\"}",
+        "tags": [
+          "Edit (drafts)"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "path": "/events",
+          "block_id": "b_k3j9x2ab",
+          "reason": "The event is cancelled, so the sign-up section should go."
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "page_id": {
+                    "description": "The page id from list_pages or get_page, for example pg_01K.... Give this or `path`.",
+                    "examples": [
+                      "pg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                    ],
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "path": {
+                    "description": "The page address on the site, for example \"/privacy\". Give this or `page_id`.",
+                    "examples": [
+                      "/privacy"
+                    ],
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "block_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40,
+                    "description": "The section to remove: its `block_id` from get_page."
+                  },
+                  "change_id": {
+                    "description": "The id of an open change from an earlier edit (the `change.id` it returned). Give it to add this edit to that change, so several edits are reviewed or published together. Leave it out to start a new change. A change that is in review, published or discarded cannot be added to: leave this out and start a new one.",
+                    "examples": [
+                      "chg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                    ],
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 500,
+                    "description": "Why you are making this change, in one or two plain sentences, in your own words. It is saved on the change and in the audit log and shown to the site owner. It is stored as the agent's stated reason, not as proof of what a person typed, so say who asked and what they asked if you know.",
+                    "examples": [
+                      "The owner asked in chat to take down the link to old-partner.example.org because the partnership ended."
+                    ]
+                  }
+                },
+                "required": [
+                  "block_id",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "example": {
+                "path": "/events",
+                "block_id": "b_k3j9x2ab",
+                "reason": "The event is cancelled, so the sign-up section should go."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/edits/move-component": {
+      "post": {
+        "operationId": "move_component",
+        "summary": "Move a section up or down a page.",
+        "description": "Move a section up or down a page.\n\nWHAT IT DOES: Moves the section to a new position.\n\nUSE IT WHEN:\n- The person wants the order changed.\n\nDO NOT USE IT WHEN:\n- Donation form sections: never allowed.\n\nBEFORE YOU CALL:\n- get_page for the block_id and the current order.\n\nEFFECT: Reorders the page. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish).\n\nPERMISSION: A token with draft access. A rule on the token must allow the action \"edit_sections\" for the target, or the change goes to a person (or is refused if a deny rule applies).\n\nRETURNS: The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next).\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource.\n\nEXAMPLE (Move to the top.): {\"path\":\"/about\",\"block_id\":\"b_k3j9x2ab\",\"to_index\":0,\"reason\":\"The owner wants the story at the top.\"}",
+        "tags": [
+          "Edit (drafts)"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "path": "/about",
+          "block_id": "b_k3j9x2ab",
+          "to_index": 0,
+          "reason": "The owner wants the story at the top."
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "page_id": {
+                    "description": "The page id from list_pages or get_page, for example pg_01K.... Give this or `path`.",
+                    "examples": [
+                      "pg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                    ],
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "path": {
+                    "description": "The page address on the site, for example \"/privacy\". Give this or `page_id`.",
+                    "examples": [
+                      "/privacy"
+                    ],
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "block_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40,
+                    "description": "The section to move: its `block_id` from get_page."
+                  },
+                  "to_index": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100,
+                    "description": "Where it should end up, from the top, starting at 0."
+                  },
+                  "change_id": {
+                    "description": "The id of an open change from an earlier edit (the `change.id` it returned). Give it to add this edit to that change, so several edits are reviewed or published together. Leave it out to start a new change. A change that is in review, published or discarded cannot be added to: leave this out and start a new one.",
+                    "examples": [
+                      "chg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                    ],
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 500,
+                    "description": "Why you are making this change, in one or two plain sentences, in your own words. It is saved on the change and in the audit log and shown to the site owner. It is stored as the agent's stated reason, not as proof of what a person typed, so say who asked and what they asked if you know.",
+                    "examples": [
+                      "The owner asked in chat to take down the link to old-partner.example.org because the partnership ended."
+                    ]
+                  }
+                },
+                "required": [
+                  "block_id",
+                  "to_index",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "example": {
+                "path": "/about",
+                "block_id": "b_k3j9x2ab",
+                "to_index": 0,
+                "reason": "The owner wants the story at the top."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/edits/page-details": {
+      "post": {
+        "operationId": "set_page_details",
+        "summary": "Change a page's title, address, or search-engine title and description.",
+        "description": "Change a page's title, address, or search-engine title and description.\n\nWHAT IT DOES: Changes the title, the address ending (slug), the SEO title and description, and whether search engines may list the page.\n\nUSE IT WHEN:\n- The title or search description needs updating.\n- A page address must change (a redirect is added on publish).\n\nDO NOT USE IT WHEN:\n- Changing the words inside the page: edit_text.\n\nBEFORE YOU CALL:\n- Changing an address breaks links by hand-typed address elsewhere; run find_links first.\n\nEFFECT: Changes the details. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish).\n\nPERMISSION: A token with draft access. A rule on the token must allow the action \"edit_page_details\" for the target, or the change goes to a person (or is refused if a deny rule applies).\n\nRETURNS: The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next).\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource.\n\nEXAMPLE (Change the search description.): {\"path\":\"/privacy\",\"seo_description\":\"How we look after your information.\",\"reason\":\"The owner asked for a better search description.\"}",
+        "tags": [
+          "Edit (drafts)"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "path": "/privacy",
+          "seo_description": "How we look after your information.",
+          "reason": "The owner asked for a better search description."
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "page_id": {
+                    "description": "The page id from list_pages or get_page, for example pg_01K.... Give this or `path`.",
+                    "examples": [
+                      "pg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                    ],
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "path": {
+                    "description": "The page address on the site, for example \"/privacy\". Give this or `page_id`.",
+                    "examples": [
+                      "/privacy"
+                    ],
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "title": {
+                    "description": "The new page title (1 to 120 characters).",
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "slug": {
+                    "description": "The new address ending, lower-case letters, numbers and single dashes, for example \"privacy-policy\". Changing the address of a live page adds a redirect from the old one when it is published.",
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "seo_title": {
+                    "description": "Search-engine title, up to 70 characters. null clears it (the page title is used).",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 70
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "seo_description": {
+                    "description": "Search-engine description, up to 160 characters. null clears it.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 160
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "noindex": {
+                    "description": "True asks search engines not to list the page.",
+                    "type": "boolean"
+                  },
+                  "change_id": {
+                    "description": "The id of an open change from an earlier edit (the `change.id` it returned). Give it to add this edit to that change, so several edits are reviewed or published together. Leave it out to start a new change. A change that is in review, published or discarded cannot be added to: leave this out and start a new one.",
+                    "examples": [
+                      "chg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                    ],
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 500,
+                    "description": "Why you are making this change, in one or two plain sentences, in your own words. It is saved on the change and in the audit log and shown to the site owner. It is stored as the agent's stated reason, not as proof of what a person typed, so say who asked and what they asked if you know.",
+                    "examples": [
+                      "The owner asked in chat to take down the link to old-partner.example.org because the partnership ended."
+                    ]
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "example": {
+                "path": "/privacy",
+                "seo_description": "How we look after your information.",
+                "reason": "The owner asked for a better search description."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/edits/create-page": {
+      "post": {
+        "operationId": "create_page",
+        "summary": "Create a new page as a draft.",
+        "description": "Create a new page as a draft.\n\nWHAT IT DOES: Creates a page of a page type with optional starting sections. The page is a draft and not on the site. It is not added to any menu: use add_menu_item for that.\n\nUSE IT WHEN:\n- The person asks for a new page.\n\nDO NOT USE IT WHEN:\n- The page already exists: use get_page and edit it.\n- The page needs a donation form: agents cannot add one.\n\nBEFORE YOU CALL:\n- list_page_types for the page_type.\n- list_pages in case a similar page exists.\n\nEFFECT: Creates the page. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish). New pages are never published without a person unless a rule explicitly allows \"create_page\". An agent cannot unpublish or delete a page afterwards: an admin must.\n\nPERMISSION: A token with draft access. A rule on the token must allow the action \"create_page\" for the target, or the change goes to a person (or is refused if a deny rule applies).\n\nRETURNS: The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next). `result.page_id` and `result.path`.\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource.\n\nEXAMPLE (A new page with one text section.): {\"title\":\"Our volunteers\",\"page_type\":\"standard\",\"sections\":[{\"type\":\"RichText\",\"props\":{\"content\":{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Thank you to everyone who gives their time.\"}]}]}}}],\"reason\":\"The owner asked for a volunteers page.\"}",
+        "tags": [
+          "Edit (drafts)"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next). `result.page_id` and `result.path`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "title": "Our volunteers",
+          "page_type": "standard",
+          "sections": [
+            {
+              "type": "RichText",
+              "props": {
+                "content": {
+                  "type": "doc",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "Thank you to everyone who gives their time."
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "reason": "The owner asked for a volunteers page."
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120,
+                    "description": "The page title (1 to 120 characters).",
+                    "examples": [
+                      "Our volunteers"
+                    ]
+                  },
+                  "page_type": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60,
+                    "description": "The page type key, from list_page_types.",
+                    "examples": [
+                      "standard"
+                    ]
+                  },
+                  "slug": {
+                    "description": "The address ending, for example \"volunteers\". Default: made from the title.",
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "parent_path": {
+                    "description": "The address of the page this one sits under, for example \"/about\". Leave out for the top level.",
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "sections": {
+                    "default": [],
+                    "description": "The sections to start the page with, in order, each { \"type\", \"props\" } as for add_component. Leave empty for just the page type's starting sections.",
+                    "maxItems": 30,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 60
+                        },
+                        "props": {
+                          "default": {},
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {}
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "change_id": {
+                    "description": "The id of an open change from an earlier edit (the `change.id` it returned). Give it to add this edit to that change, so several edits are reviewed or published together. Leave it out to start a new change. A change that is in review, published or discarded cannot be added to: leave this out and start a new one.",
+                    "examples": [
+                      "chg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                    ],
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 500,
+                    "description": "Why you are making this change, in one or two plain sentences, in your own words. It is saved on the change and in the audit log and shown to the site owner. It is stored as the agent's stated reason, not as proof of what a person typed, so say who asked and what they asked if you know.",
+                    "examples": [
+                      "The owner asked in chat to take down the link to old-partner.example.org because the partnership ended."
+                    ]
+                  }
+                },
+                "required": [
+                  "title",
+                  "page_type",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "example": {
+                "title": "Our volunteers",
+                "page_type": "standard",
+                "sections": [
+                  {
+                    "type": "RichText",
+                    "props": {
+                      "content": {
+                        "type": "doc",
+                        "content": [
+                          {
+                            "type": "paragraph",
+                            "content": [
+                              {
+                                "type": "text",
+                                "text": "Thank you to everyone who gives their time."
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ],
+                "reason": "The owner asked for a volunteers page."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/edits/menu/remove-item": {
+      "post": {
+        "operationId": "remove_menu_item",
+        "summary": "Remove an item from a menu.",
+        "description": "Remove an item from a menu.\n\nWHAT IT DOES: Removes a menu item by id or by its words. Items with sub-items need remove_children: true.\n\nUSE IT WHEN:\n- A menu entry should disappear.\n\nDO NOT USE IT WHEN:\n- You are taking a link down everywhere: remove_link does menus too.\n\nBEFORE YOU CALL:\n- get_site_part with kind \"menu\" for ids.\n\nEFFECT: Removes the menu item. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish). Menus show on every page.\n\nPERMISSION: A token with draft access. A rule on the token must allow the action \"edit_menu\" for the target, or the change goes to a person (or is refused if a deny rule applies).\n\nRETURNS: The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next). `result.menu_now`.\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource.\n\nEXAMPLE (Remove \"Shop\" from the main menu.): {\"label\":\"Shop\",\"reason\":\"The shop has closed.\"}",
+        "tags": [
+          "Edit (drafts)"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next). `result.menu_now`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "label": "Shop",
+          "reason": "The shop has closed."
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "menu_key": {
+                    "default": "main",
+                    "description": "Which menu. Default \"main\". Other menus (for example \"legal\") are listed by get_site_part with kind \"menu\".",
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "item_id": {
+                    "description": "The menu item id from get_site_part (kind \"menu\"). Give this or `label`.",
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "label": {
+                    "description": "The words on the menu item (case-insensitive, exact). If two items share the words you get an error listing their ids.",
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "remove_children": {
+                    "description": "Default false. If the item has sub-items you must set true to remove them with it.",
+                    "type": "boolean"
+                  },
+                  "change_id": {
+                    "description": "The id of an open change from an earlier edit (the `change.id` it returned). Give it to add this edit to that change, so several edits are reviewed or published together. Leave it out to start a new change. A change that is in review, published or discarded cannot be added to: leave this out and start a new one.",
+                    "examples": [
+                      "chg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                    ],
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 500,
+                    "description": "Why you are making this change, in one or two plain sentences, in your own words. It is saved on the change and in the audit log and shown to the site owner. It is stored as the agent's stated reason, not as proof of what a person typed, so say who asked and what they asked if you know.",
+                    "examples": [
+                      "The owner asked in chat to take down the link to old-partner.example.org because the partnership ended."
+                    ]
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "example": {
+                "label": "Shop",
+                "reason": "The shop has closed."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/edits/menu/add-item": {
+      "post": {
+        "operationId": "add_menu_item",
+        "summary": "Add an item to a menu.",
+        "description": "Add an item to a menu.\n\nWHAT IT DOES: Adds a top-level item or a sub-item that links to an address or a page on this site.\n\nUSE IT WHEN:\n- A new page needs a menu entry.\n\nDO NOT USE IT WHEN:\n- The menu already has it (get_site_part first).\n\nBEFORE YOU CALL:\n- The page exists (list_pages) or you have the exact address.\n\nEFFECT: Adds the item. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish). A new link normally needs a person to approve.\n\nPERMISSION: A token with draft access. A rule on the token must allow the action \"edit_menu\" for the target, or the change goes to a person (or is refused if a deny rule applies).\n\nRETURNS: The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next). `result.menu_now`.\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource.\n\nEXAMPLE (Add a top-level item.): {\"label\":\"Volunteers\",\"url\":\"/volunteers\",\"reason\":\"The owner asked for a menu entry for the new page.\"}",
+        "tags": [
+          "Edit (drafts)"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next). `result.menu_now`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "label": "Volunteers",
+          "url": "/volunteers",
+          "reason": "The owner asked for a menu entry for the new page."
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "menu_key": {
+                    "default": "main",
+                    "description": "Which menu. Default \"main\". Other menus (for example \"legal\") are listed by get_site_part with kind \"menu\".",
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40,
+                    "description": "The words on the new item (1 to 40 characters)."
+                  },
+                  "url": {
+                    "description": "Where the item links: https://..., /path on this site, mailto: or tel:. Give this or `page_id`.",
+                    "type": "string",
+                    "maxLength": 2048
+                  },
+                  "page_id": {
+                    "description": "A page on this site to link to (follows the page if its address changes). Give this or `url`.",
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "parent_item_id": {
+                    "description": "Put it inside this item as a sub-item (the parent's id). Leave out for the top level. A menu has at most 12 top-level items and each item at most 12 sub-items.",
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "position": {
+                    "description": "Position among its siblings, starting at 0. Default: the end.",
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 12
+                  },
+                  "change_id": {
+                    "description": "The id of an open change from an earlier edit (the `change.id` it returned). Give it to add this edit to that change, so several edits are reviewed or published together. Leave it out to start a new change. A change that is in review, published or discarded cannot be added to: leave this out and start a new one.",
+                    "examples": [
+                      "chg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                    ],
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 500,
+                    "description": "Why you are making this change, in one or two plain sentences, in your own words. It is saved on the change and in the audit log and shown to the site owner. It is stored as the agent's stated reason, not as proof of what a person typed, so say who asked and what they asked if you know.",
+                    "examples": [
+                      "The owner asked in chat to take down the link to old-partner.example.org because the partnership ended."
+                    ]
+                  }
+                },
+                "required": [
+                  "label",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "example": {
+                "label": "Volunteers",
+                "url": "/volunteers",
+                "reason": "The owner asked for a menu entry for the new page."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/edits/menu/rename-item": {
+      "post": {
+        "operationId": "rename_menu_item",
+        "summary": "Change the words on a menu item.",
+        "description": "Change the words on a menu item.\n\nWHAT IT DOES: Changes the label only. The link stays.\n\nUSE IT WHEN:\n- A menu item needs new words.\n\nDO NOT USE IT WHEN:\n- The link must change: remove it and add it again, or use replace_link.\n\nBEFORE YOU CALL:\n- get_site_part with kind \"menu\" for ids.\n\nEFFECT: Renames the item. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish).\n\nPERMISSION: A token with draft access. A rule on the token must allow the action \"edit_menu\" for the target, or the change goes to a person (or is refused if a deny rule applies).\n\nRETURNS: The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next). `result.menu_now`.\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource.\n\nEXAMPLE (Rename an item.): {\"label\":\"Donate\",\"new_label\":\"Give\",\"reason\":\"The owner prefers \\\"Give\\\".\"}",
+        "tags": [
+          "Edit (drafts)"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next). `result.menu_now`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "label": "Donate",
+          "new_label": "Give",
+          "reason": "The owner prefers \"Give\"."
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "menu_key": {
+                    "default": "main",
+                    "description": "Which menu. Default \"main\". Other menus (for example \"legal\") are listed by get_site_part with kind \"menu\".",
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "item_id": {
+                    "description": "The menu item id from get_site_part (kind \"menu\"). Give this or `label`.",
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "label": {
+                    "description": "The words on the menu item (case-insensitive, exact). If two items share the words you get an error listing their ids.",
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "new_label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40,
+                    "description": "The new words (1 to 40 characters)."
+                  },
+                  "change_id": {
+                    "description": "The id of an open change from an earlier edit (the `change.id` it returned). Give it to add this edit to that change, so several edits are reviewed or published together. Leave it out to start a new change. A change that is in review, published or discarded cannot be added to: leave this out and start a new one.",
+                    "examples": [
+                      "chg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                    ],
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 500,
+                    "description": "Why you are making this change, in one or two plain sentences, in your own words. It is saved on the change and in the audit log and shown to the site owner. It is stored as the agent's stated reason, not as proof of what a person typed, so say who asked and what they asked if you know.",
+                    "examples": [
+                      "The owner asked in chat to take down the link to old-partner.example.org because the partnership ended."
+                    ]
+                  }
+                },
+                "required": [
+                  "new_label",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "example": {
+                "label": "Donate",
+                "new_label": "Give",
+                "reason": "The owner prefers \"Give\"."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/edits/banner": {
+      "post": {
+        "operationId": "set_banner",
+        "summary": "Show, change or hide the site-wide banner.",
+        "description": "Show, change or hide the site-wide banner.\n\nWHAT IT DOES: Changes the banner that shows on every page: its message, tone, link, and whether it is shown.\n\nUSE IT WHEN:\n- A closure, emergency or news notice must go up or come down.\n\nDO NOT USE IT WHEN:\n- The notice belongs on one page only: use edit_text or add_component.\n\nBEFORE YOU CALL:\n- Words must come from the person. Do not invent opening hours, dates or claims.\n\nEFFECT: Changes the banner. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish).\n\nPERMISSION: A token with draft access. A rule on the token must allow the action \"edit_banner\" for the target, or the change goes to a person (or is refused if a deny rule applies).\n\nRETURNS: The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next). `result.banner_now`.\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource.\n\nEXAMPLE (Put up a notice.): {\"enabled\":true,\"message\":\"Our shop is closed on Monday for the bank holiday.\",\"tone\":\"info\",\"reason\":\"The owner asked for a closure notice.\"}",
+        "tags": [
+          "Edit (drafts)"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next). `result.banner_now`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "enabled": true,
+          "message": "Our shop is closed on Monday for the bank holiday.",
+          "tone": "info",
+          "reason": "The owner asked for a closure notice."
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "description": "True shows the banner on every page; false hides it. A banner must have a message to be shown.",
+                    "type": "boolean"
+                  },
+                  "message": {
+                    "description": "The banner words, up to 160 characters. Plain text.",
+                    "examples": [
+                      "Our shop is closed on Monday for the bank holiday."
+                    ],
+                    "type": "string",
+                    "maxLength": 160
+                  },
+                  "link": {
+                    "description": "A link on the banner: { \"label\": \"Read more\", \"url\": \"https://...\" } or { \"label\": ..., \"page_id\": ... }. null removes the link.",
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 30
+                          },
+                          "url": {
+                            "type": "string",
+                            "maxLength": 2048
+                          },
+                          "page_id": {
+                            "type": "string",
+                            "maxLength": 80
+                          }
+                        },
+                        "required": [
+                          "label"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "tone": {
+                    "description": "The look: \"info\" (calm), \"urgent\", \"celebrate\" or \"accent\".",
+                    "type": "string",
+                    "enum": [
+                      "info",
+                      "urgent",
+                      "celebrate",
+                      "accent"
+                    ]
+                  },
+                  "change_id": {
+                    "description": "The id of an open change from an earlier edit (the `change.id` it returned). Give it to add this edit to that change, so several edits are reviewed or published together. Leave it out to start a new change. A change that is in review, published or discarded cannot be added to: leave this out and start a new one.",
+                    "examples": [
+                      "chg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                    ],
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 500,
+                    "description": "Why you are making this change, in one or two plain sentences, in your own words. It is saved on the change and in the audit log and shown to the site owner. It is stored as the agent's stated reason, not as proof of what a person typed, so say who asked and what they asked if you know.",
+                    "examples": [
+                      "The owner asked in chat to take down the link to old-partner.example.org because the partnership ended."
+                    ]
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "example": {
+                "enabled": true,
+                "message": "Our shop is closed on Monday for the bank holiday.",
+                "tone": "info",
+                "reason": "The owner asked for a closure notice."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/changes/{change_id}/request-publish": {
+      "post": {
+        "operationId": "request_publish",
+        "summary": "Send a change to a person for approval. It does NOT go live until they approve.",
+        "description": "Send a change to a person for approval. It does NOT go live until they approve.\n\nWHAT IT DOES: Sends every page and site part in the change for review. An approver or admin sees the diff and your reason in the builder and by email, and approves or sends it back. The change then closes to further edits.\n\nUSE IT WHEN:\n- preview_change says goes_to_review.\n- You want a person to check it even though a rule would let it go live.\n- The edit adds links, touches money sections, creates pages, or is large.\n\nDO NOT USE IT WHEN:\n- The person wants it live right now and preview_change says goes_live: use publish_change.\n\nBEFORE YOU CALL:\n- preview_change, and tell the person what you are sending.\n\nEFFECT: Nothing goes live. The change moves to \"review\" and people are notified. If the reviewer sends it back, its status returns to \"open\" with their feedback in `feedback_from_reviewer`.\n\nPERMISSION: A token with draft access, for its own changes.\n\nRETURNS: The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next).\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource. For this tool:\n- invalid_state: The change is not open, is empty, or has nothing different from live. Read the message.\n- validation_failed: A check failed that every submission must pass (for example missing image text). `error.fields` says what; fix and send again.\n\nEXAMPLE (Ask a person.): {\"change_id\":\"chg_01KABCDEFGHJKMNPQRSTVWXYZ0\",\"note\":\"Please check the new paragraph in the privacy page.\"}",
+        "tags": [
+          "Decide"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "change_id": "chg_01KABCDEFGHJKMNPQRSTVWXYZ0",
+          "note": "Please check the new paragraph in the privacy page."
+        },
+        "parameters": [
+          {
+            "name": "change_id",
+            "in": "path",
+            "required": true,
+            "description": "The change to act on: the `change.id` returned by an edit tool.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "note": {
+                    "description": "A short note for the person who will approve it, saying what to look at.",
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
+              },
+              "example": {
+                "change_id": "chg_01KABCDEFGHJKMNPQRSTVWXYZ0",
+                "note": "Please check the new paragraph in the privacy page."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/changes/{change_id}/publish": {
+      "post": {
+        "operationId": "publish_change",
+        "summary": "Make a change live NOW if a rule allows it; otherwise send it for approval.",
+        "description": "Make a change live NOW if a rule allows it; otherwise send it for approval.\n\nWHAT IT DOES: Evaluates the change against this token's rules. If a rule allows every part of it (and no safety floor applies) it is approved and published within seconds. If not, it is sent for approval exactly as request_publish does, and `result.published` is false. It never publishes part of a change.\n\nUSE IT WHEN:\n- The person told you to make it live, and preview_change says goes_live.\n- An emergency edit like a 3am link takedown that the token's rules cover.\n\nDO NOT USE IT WHEN:\n- The person has not seen or agreed to the change (unless they pre-authorised this kind of edit).\n- You are unsure what the change does: preview_change first.\n\nBEFORE YOU CALL:\n- preview_change and read `if_you_publish`.\n\nEFFECT: LIVE. If `result.published` is true the public site changes within seconds, the audit log records \"approved by rule\", and the owner is emailed. Check with get_change that status is \"published\". Undo with undo_change.\n\nPERMISSION: A token with draft access. Goes live only if a rule says \"publish\" (or always-allow is on); otherwise sent for approval.\n\nRETURNS: The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next). `result.published` (true = going live) and `result.sent_for_review`.\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource. For this tool:\n- rule_denied: A rule refuses this change. Do not retry. Discard it and tell the person.\n- rate_limited: Too many publishes. Wait, or use request_publish.\n\nEXAMPLE (Replace with a real id.): {\"change_id\":\"chg_01KABCDEFGHJKMNPQRSTVWXYZ0\"}",
+        "tags": [
+          "Decide"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next). `result.published` (true = going live) and `result.sent_for_review`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "change_id": "chg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+        },
+        "parameters": [
+          {
+            "name": "change_id",
+            "in": "path",
+            "required": true,
+            "description": "The change to act on: the `change.id` returned by an edit tool.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              },
+              "example": {
+                "change_id": "chg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/changes/{change_id}/discard": {
+      "post": {
+        "operationId": "discard_change",
+        "summary": "Throw away an open change you do not want. Live pages are untouched.",
+        "description": "Throw away an open change you do not want. Live pages are untouched.\n\nWHAT IT DOES: Puts the drafts the change made back to how they were (pages and site parts you created are removed again, but only if nobody else has edited them since). The change is marked discarded.\n\nUSE IT WHEN:\n- The person changed their mind.\n- preview_change says refused and nothing can fix it.\n- You made a mistake.\n\nDO NOT USE IT WHEN:\n- The change is already live: use undo_change.\n- It is waiting for approval: ask a person to send it back.\n\nBEFORE YOU CALL:\n- The change is open.\n\nEFFECT: Only drafts change. The live site is never touched.\n\nPERMISSION: A token with draft access, for its own changes.\n\nRETURNS: The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next).\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource. For this tool:\n- conflict: Someone has edited a draft you touched since. It is left as it is. Tell the person.\n- invalid_state: The change is not open.\n\nEXAMPLE (Replace with a real id.): {\"change_id\":\"chg_01KABCDEFGHJKMNPQRSTVWXYZ0\"}",
+        "tags": [
+          "Decide"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "change_id": "chg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+        },
+        "parameters": [
+          {
+            "name": "change_id",
+            "in": "path",
+            "required": true,
+            "description": "The change to act on: the `change.id` returned by an edit tool.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              },
+              "example": {
+                "change_id": "chg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/changes/{change_id}/undo": {
+      "post": {
+        "operationId": "undo_change",
+        "summary": "Undo a change that went live: restore the earlier content as a new change.",
+        "description": "Undo a change that went live: restore the earlier content as a new change.\n\nWHAT IT DOES: Builds a new change that puts back what each page and site part said before the original change, then sends it through the same rules as any other change (so it may go live at once, or wait for approval). Fails safely if the page has been changed again since.\n\nUSE IT WHEN:\n- \"That was wrong, put it back.\"\n- The person asks to roll back something you published.\n\nDO NOT USE IT WHEN:\n- The change is not published yet: discard_change.\n- You want to roll back the whole site: an admin does that in the builder.\n\nBEFORE YOU CALL:\n- get_change or list_changes to find the published change.\n\nEFFECT: May be LIVE within seconds if a rule allows it. Otherwise it waits for approval. The original change becomes \"undone\" once the undo is live.\n\nPERMISSION: A token with draft access. A rule on the token must allow the action \"undo_change\" for the target, or the change goes to a person (or is refused if a deny rule applies).\n\nRETURNS: The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next). `result.undo_goes_live` / `result.undo_sent_for_review`.\n\nIF IT FAILS: errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in the sitebuilder://guide/errors resource. For this tool:\n- conflict: The page has changed since. Run get_page, tell the person, and make the fix with edit tools instead.\n- invalid_state: Only published changes can be undone, and only once.\n\nEXAMPLE (Replace with a real id.): {\"change_id\":\"chg_01KABCDEFGHJKMNPQRSTVWXYZ0\",\"reason\":\"The owner said the event is back on, so the link should return.\"}",
+        "tags": [
+          "Decide"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The change (id, status, a diff of exactly what differs from the live site per page or site part), `if_you_publish` (what publish_change would do right now and why), `problems_to_fix`, `result` (what this call did) and `next_steps` (what to call next). `result.undo_goes_live` / `result.undo_sent_for_review`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "change_id": "chg_01KABCDEFGHJKMNPQRSTVWXYZ0",
+          "reason": "The owner said the event is back on, so the link should return."
+        },
+        "parameters": [
+          {
+            "name": "change_id",
+            "in": "path",
+            "required": true,
+            "description": "The change to act on: the `change.id` returned by an edit tool.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 500,
+                    "description": "Why you are making this change, in one or two plain sentences, in your own words. It is saved on the change and in the audit log and shown to the site owner. It is stored as the agent's stated reason, not as proof of what a person typed, so say who asked and what they asked if you know.",
+                    "examples": [
+                      "The owner asked in chat to take down the link to old-partner.example.org because the partnership ended."
+                    ]
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "example": {
+                "change_id": "chg_01KABCDEFGHJKMNPQRSTVWXYZ0",
+                "reason": "The owner said the event is back on, so the link should return."
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "responses": {
+      "Error400": {
+        "description": "validation_failed: An input was missing, the wrong shape, or the edit would make a page or site part invalid. Read `error.message` and `error.fields` (each has a `path` and a `message`). Fix exactly those inputs and call again. Nothing was changed.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Error401": {
+        "description": "unauthenticated: The bearer token is missing, wrong, expired or revoked. Do not retry. Tell the person the token is not valid and that the site owner must make a new one.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Error403": {
+        "description": "forbidden: This token may not do that: it is read-only, or the call came from an address the token does not allow. Do not retry. Tell the person what you were trying to do and that the site owner needs to give the token draft access.\n\nrule_denied: A rule on this token forbids this kind of change (or, for publish_change, forbids publishing it). Do not try to get around it by splitting the change or using another tool. Discard the change if you made one, and tell the person plainly what was refused and why. Repeated attempts pause the token.\n\nnever_list: You tried to touch something no agent may ever change: donation forms and embeds, form/data bindings, theme, settings, code. Stop. Tell the person this needs doing by hand in the builder. Repeated attempts pause the token.\n\nagent_paused: This token, or all agent access to the site, is paused. A token is paused by an admin or automatically after repeated blocked attempts. Do not retry. Tell the person the agent is paused and an admin can resume it.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Error404": {
+        "description": "not_found: The page, section, menu item or change does not exist (or belongs to another token). Look the thing up again with list_pages, get_page, get_site_part or list_changes and use the exact id or address returned.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Error409": {
+        "description": "conflict: Someone else changed the same draft a moment ago. Call get_page (or get_site_part) again to see the current content, then redo your edit on top of it.\n\ninvalid_state: The thing is in the wrong state for this: a page waiting for approval cannot be edited, a published change cannot be edited, an empty change cannot be published. Read `error.message`; it says what state it is in. Usually: wait, or start a new change by leaving out change_id, or ask a person.\n\nmatch_count_mismatch: The number of matches differs from `expected_matches`. Nothing was changed. Look at `error.found` and `error.actual`. If the real number makes sense, tell the person and call again with expected_matches set to it. If it is a surprise, stop and ask.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Error429": {
+        "description": "rate_limited: This token has made too many calls. Wait `error.retryAfterSeconds` seconds, then continue. Do not loop; batch edits into one change.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Error422": {
+        "description": "no_matches: Nothing matched what you asked to change. Use search_content or find_links to see how the text or link is really written (spelling, formatting splits, a different address) and call again.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Error500": {
+        "description": "internal: Something went wrong on the server. Retry once after a few seconds. If it fails again, stop and tell the person; give them the time and what you were doing.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "A token starting sbt_, made by an admin. Sent as \"Authorization: Bearer sbt_...\"."
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "validation_failed",
+                  "unauthenticated",
+                  "forbidden",
+                  "not_found",
+                  "conflict",
+                  "invalid_state",
+                  "rate_limited",
+                  "rule_denied",
+                  "never_list",
+                  "agent_paused",
+                  "no_matches",
+                  "match_count_mismatch",
+                  "internal"
+                ],
+                "description": "What went wrong, in a form you can act on. See each response for what to do."
+              },
+              "message": {
+                "type": "string",
+                "description": "A sentence saying what happened and often what to do."
+              },
+              "fields": {
+                "type": "array",
+                "description": "For validation_failed: each input that was wrong.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "retryAfterSeconds": {
+                "type": "integer",
+                "description": "For rate_limited: how long to wait."
+              }
+            },
+            "additionalProperties": true
+          }
+        }
+      }
+    }
+  }
+}
