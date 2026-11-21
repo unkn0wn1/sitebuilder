@@ -104,7 +104,11 @@ function allParts(ctx: ServiceCtx) {
 function findPart(ctx: ServiceCtx, kind: SitePartKind, key?: string) {
   const parts = allParts(ctx).filter((p) => p.kind === kind && (!key || p.key === key))
   const part = parts.sort((a, b) => (a.key === 'main' ? -1 : b.key === 'main' ? 1 : a.key.localeCompare(b.key)))[0]
-  if (!part) throw new AppError('not_found', `This site has no ${kind}${key ? ` called "${key}"` : ''}. Use get_site_part with kind "${kind}" without a key, or list the parts with get_site.`)
+  if (!part) {
+    const any = allParts(ctx).some((p) => p.kind === kind)
+    if (!any) throw new AppError('not_found', `This site has no ${kind} at all yet. Agents cannot create one. Tell the person an admin must add a ${kind} in Site parts first.`)
+    throw new AppError('not_found', `This site has no ${kind} called "${key}". Use get_site_part with kind "${kind}" without a key for the main one.`)
+  }
   return part
 }
 
@@ -281,7 +285,7 @@ export function getPageFor(ctx: ServiceCtx, input: In<typeof S.getPageInput>) {
       waiting_for_approval: !!review,
       draft_revision: revision,
       seo: doc.seo,
-      allowed_section_types: template.rules?.allowedBlocks ?? null,
+      allowed_section_types: template.rules?.allowedBlocks ? agentAllowed(template.rules.allowedBlocks) : null,
     },
     sections: blocks,
     note: 'These are the DRAFT contents (what edits will change). If has_unpublished_changes is true, the live page differs from this.',
@@ -328,7 +332,16 @@ export function listPageTypes(ctx: ServiceCtx) {
       .filter((t) => t.live)
       .map((t) => {
         const rules = getTemplateRules(ctx, t.key)
-        return { key: t.key, label: t.label, allowed_section_types: rules?.allowedBlocks ?? [], required_section_types: rules?.requiredBlocks ?? [], starting_sections: rules?.startingBlocks.map((b) => b.type) ?? [] }
+        const required = rules?.requiredBlocks ?? []
+        const blocked = required.filter((b) => isNeverBlockType(b))
+        return {
+          key: t.key,
+          label: t.label,
+          allowed_section_types: agentAllowed(rules?.allowedBlocks ?? []),
+          required_section_types: required,
+          starting_sections: rules?.startingBlocks.map((b) => b.type) ?? [],
+          ...(blocked.length ? { agent_can_create: false, agent_note: `This page type needs ${blocked.join(' and ')}, which agents can never add. Do not create pages of this type; use another type, or ask a person to make it in the builder.` } : { agent_can_create: true }),
+        }
       }),
     note: 'Required section types are checked when a change is sent for review or published, not while you are drafting.',
   }
@@ -770,6 +783,22 @@ export function createPageFor(ctx: ServiceCtx, agent: SignedInAgent, input: In<t
   return { ...changeView(ctx, agent, done.change), result: { page_id: page.id, path: page.path, page_type: page.template, note: 'The page exists as a draft only. It is not live until the change is published or approved.' } }
 }
 
+/** Section types a page type allows, minus the ones no agent may ever add (donation forms, embeds). */
+const agentAllowed = (types: readonly string[]) => types.filter((t) => !isNeverBlockType(t))
+
+/** Say which page in a create_pages call a validation error belongs to, with paths an agent can map to its input. */
+function inPage<T>(index: number, title: string, blockOffset: number, fn: () => T): T {
+  try {
+    return fn()
+  } catch (e) {
+    if (!(e instanceof AppError) || e.code !== 'validation_failed') throw e
+    const at = `pages.${index}`
+    const fields = (e.fields ?? []).map((f) => ({ ...f, path: `${at}.${f.path.replace(/^blocks\.(\d+)/, (_m, n: string) => `sections.${Number(n) - blockOffset}`)}` }))
+    const where = fields[0]?.path ? ` (${fields[0].path})` : ''
+    throw new AppError('validation_failed', `Page ${index + 1} ("${title}")${where}: ${e.message} Nothing was created.`, fields)
+  }
+}
+
 /** Build several pages in one change (phase 5). All or nothing: one bad page, section or menu item and nothing is created. */
 export function createPagesFor(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.createPagesInput>) {
   const refs = new Set<string>()
@@ -789,11 +818,12 @@ export function createPagesFor(ctx: ServiceCtx, agent: SignedInAgent, input: In<
   const done = runInChange(ctx, agent, { changeId: input.change_id, title: input.pages.length === 1 ? `Create page: ${input.pages[0]!.title}` : `Build ${input.pages.length} pages: ${input.pages.map((p) => p.title).join(', ').slice(0, 80)}`, reason: input.reason }, (h) => {
     const byRef = new Map<string, string>()
     const made: { ref: string | null; page_id: string; path: string; title: string; page_type: string; menu?: { menu_key: string; label: string; under_label?: string } }[] = []
-    for (const p of input.pages) {
+    for (const [i, p] of input.pages.entries()) {
       const parent = p.parent_ref ? requirePage(ctx, byRef.get(p.parent_ref)!) : p.parent_path ? resolvePage(ctx, { path: p.parent_path }) : null
-      const { page } = createPage(ctx, h.actor, { title: p.title, template: p.page_type, slug: p.slug, parentId: parent?.id ?? null })
+      const { page } = inPage(i, p.title, 0, () => createPage(ctx, h.actor, { title: p.title, template: p.page_type, slug: p.slug, parentId: parent?.id ?? null }))
       h.addCreatedPage({ id: page.id, title: page.title, path: page.path, draftRevision: page.draftRevision, template: page.template }, 'create_page')
-      if (p.sections.length) h.editPage(page.id, 'create_page', p.sections.map((sec) => ({ op: 'add_block' as const, block: { type: sec.type, props: sec.props } })))
+      const offset = p.sections.length ? readDoc(ctx, requirePage(ctx, page.id).draftVersionId!).blocks.length : 0
+      if (p.sections.length) inPage(i, p.title, offset, () => h.editPage(page.id, 'create_page', p.sections.map((sec) => ({ op: 'add_block' as const, block: { type: sec.type, props: sec.props } }))))
       if (p.ref) byRef.set(p.ref, page.id)
       const row = requirePage(ctx, page.id)
       made.push({ ref: p.ref ?? null, page_id: page.id, path: row.path, title: page.title, page_type: page.template, ...(p.menu ? { menu: { menu_key: p.menu.menu_key, label: p.menu.label ?? p.title.slice(0, 40), under_label: p.menu.under_label } } : {}) })
@@ -995,7 +1025,7 @@ export function discardChangeFor(ctx: ServiceCtx, agent: SignedInAgent, input: I
 export function undoChangeFor(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.undoChangeInput>) {
   if (agent.token.access !== 'draft') throw new AppError('forbidden', 'This token is read-only.')
   const r = undoChange(ctx, agent, input.change_id, { reason: input.reason })
-  return { ...changeView(ctx, agent, r.undo), result: { undone: r.published, undo_goes_live: r.published, undo_sent_for_review: !r.published, original_change_id: input.change_id } }
+  return { ...changeView(ctx, agent, r.undo!), result: { undone: r.published, undo_goes_live: r.published, undo_sent_for_review: !r.published, original_change_id: input.change_id } }
 }
 
 export { agentChanges, notFound, getAt }

@@ -224,14 +224,14 @@ All of it is reproduced in [agent-gateway-tools.md](agent-gateway-tools.md) so a
 
 Every edit returns the whole change: the diff per page or site part, before and after text, `if_you_publish` (what would happen right now and why), `problems_to_fix`, and `next_steps`, so the AI never has to guess the next call.
 
-An agent will not edit a page that is **waiting for approval** (it would withdraw the review). It will not publish over **someone else's unpublished edits** on the same page. Pages the change created cannot be undone by the agent (an admin must unpublish them).
+An agent will not edit a page that is **waiting for approval** (it would withdraw the review). It will not publish over **someone else's unpublished edits** on the same page. An agent cannot undo a change that created pages. An admin undo takes those pages offline (they stay as drafts) after putting everything else back.
 
 ## Audit, notifications and undo
 
 - Everything an agent does is an audit event with actor type `agent` and the token's name: edits (`agent.change.edited`), approvals by rule (`review.approved_by_rule`), discards, undo, blocked attempts (`agent.call.blocked`), token changes (`agent.token.*`), and automatic pauses.
 - The agent's `reason` is saved on the change and the audit entry. It is **the agent's words, not proof of what a person said**: the builder cannot see the chat.
 - When a change is **published by rule**, the token's owner and all admins are notified (in the app, and by email with the diff and how to undo it). When a change is **sent for review**, approvers and admins get the usual "waiting for approval" notice and the token's owner gets an email with the diff.
-- Admin API: `GET /api/v1/agent/changes` (all agent changes), `GET /api/v1/agent/changes/:id`, and **`POST /api/v1/agent/changes/:id/undo` with `{ "reason" }`**: restores the earlier content and publishes it now. It is refused if the page was published again since; use the whole-site rollback ([ADR 0005](decisions/0005-rollback-and-approval.md)) then.
+- Admin API: `GET /api/v1/agent/changes` (all agent changes), `GET /api/v1/agent/changes/:id`, and **`POST /api/v1/agent/changes/:id/undo` with `{ "reason" }`**: restores the earlier content and publishes it now. Pages the change created are taken offline (the reply lists them in `pagesTakenOffline`). A menu or footer that had never been published is put back to its draft from before the change. It is refused if the page was published again since; use the whole-site rollback ([ADR 0005](decisions/0005-rollback-and-approval.md)) then.
 - **Pause everything:** `POST /api/v1/agent/pause` with `{ "paused": true }`, or `npm run agent-token -- pause-all`. Every token then answers `agent_paused` until resumed.
 
 ## Limits and automatic protection

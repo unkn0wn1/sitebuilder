@@ -30,6 +30,7 @@ import { inTx, iso, type ActingAs, type ServiceCtx } from '../context'
 import { AppError, notFound } from '../errors'
 import { notify, usersWithRoles } from '../notify'
 import { applyPageOps, binPage, readDoc, requirePage, restoreVersion, undoOp } from '../pages'
+import { unpublishPage } from '../publish'
 import { approveReviewDirect, checksFor, summariseDiff, submitPage } from '../reviews'
 import { editSitePart, readSitePartDoc, requireSitePart, sitePartChecks, submitSitePart } from '../site-parts'
 import { assertCanPublish, recordViolation, takeCall } from './limits'
@@ -512,7 +513,9 @@ export function listChanges(ctx: ServiceCtx, agent: SignedInAgent, q: { status?:
     .orderBy(desc(agentChanges.createdAt))
     .limit(q.limit)
     .all()
-  return rows.map((r) => refreshChange(ctx, r))
+  // Refresh every row first: an undo going live marks its original "undone", which may be an earlier row.
+  for (const r of rows) refreshChange(ctx, r)
+  return rows.map((r) => requireChange(ctx, r.id))
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -571,25 +574,49 @@ export function undoChange(ctx: ServiceCtx, agent: SignedInAgent, changeId: stri
     }
     if (conflicts.length) throw new AppError('conflict', `Cannot undo change ${original.id} automatically, because ${conflicts.join('; ')}. Undoing would also remove the later work. Ask an admin to roll the site back to an earlier release, or make the edit you want as a new change.`, undefined, { conflicts })
 
+    // Pages this change created have no earlier live version. An agent cannot take pages offline, so only an admin
+    // undo handles them: the other parts are put back first, then the new pages are taken offline (publish jobs run in
+    // order, so menus stop linking to them before they go).
+    const created = targets.filter((t) => t.type === 'page' && !t.beforePublishedVersionId)
+    if (created.length && !input.adminActor) {
+      throw new AppError('invalid_state', `This change created ${created.length === 1 ? `the page "${created[0]!.label}"` : `${created.length} pages (${created.map((t) => `"${t.label}"`).join(', ')})`}, so undoing it means taking ${created.length === 1 ? 'it' : 'them'} offline, which an agent cannot do. Tell the person an admin can undo the whole change in one step from Settings > Agents > Changes.`)
+    }
+    const rest = targets.filter((t) => !created.includes(t))
+    const actor = input.adminActor ?? agent.actor
+    const takeOffline = () => {
+      for (const t of created) {
+        const page = requirePage(ctx, t.id)
+        if (page.publishedVersionId) unpublishPage(ctx, input.adminActor!, t.id)
+      }
+      if (created.length) audit(ctx, input.adminActor!, 'agent.change.pages_taken_offline', { type: 'agent_change', id: original.id }, { pages: created.map((t) => ({ id: t.id, title: t.label, path: t.path })) })
+    }
+    if (!rest.length) {
+      // Nothing to put back, only pages to take down: no undo change is needed.
+      takeOffline()
+      ctx.db.update(agentChanges).set({ status: 'undone', updatedAt: iso(ctx) }).where(eq(agentChanges.id, original.id)).run()
+      audit(ctx, actor, 'agent.change.undone', { type: 'agent_change', id: original.id }, { reason: input.reason, pagesTakenOffline: created.length })
+      return { undo: null, original: requireChange(ctx, original.id), evaluation: null, published: true, pagesTakenOffline: created.map((t) => t.label) }
+    }
+
     const undoAgent: SignedInAgent = agent
     const undoRow = createChangeRow(ctx, undoAgent, { title: `Undo: ${original.title}`, reason: input.reason, undoOf: original.id })
     const handle = new ChangeHandle(ctx, undoAgent, undoRow, [], !input.adminActor)
-    const actor = input.adminActor ?? agent.actor
-    for (const t of targets) {
+    for (const t of rest) {
       if (t.type === 'page') {
-        if (!t.beforePublishedVersionId) throw new AppError('invalid_state', `The page "${t.label}" was created by this change, so undoing means taking it offline. Ask an admin to unpublish it from the builder.`)
         handle.touchPage(t.id, 'undo_change')
         const page = requirePage(ctx, t.id)
-        const restored = restoreVersion(ctx, actor, t.id, t.beforePublishedVersionId)
+        const restored = restoreVersion(ctx, actor, t.id, t.beforePublishedVersionId!)
         const tt = handle.pageTarget(t.id)!
         tt.revision = restored.revision
         tt.foreignDraft = tt.foreignDraft || page.draftRevision !== t.revision
       } else {
-        if (!t.beforePublishedVersionId) throw new AppError('invalid_state', `The ${t.label.toLowerCase()} had no earlier live version to go back to. Ask an admin to roll the site back.`)
+        // A part that was never live before the change: an admin puts back the document as it was before the agent's
+        // edit (that publishes it). An agent cannot.
+        if (!t.beforePublishedVersionId && !(input.adminActor && t.beforeDoc)) throw new AppError('invalid_state', `The ${t.label.toLowerCase()} had no earlier live version to go back to. Ask an admin to undo it from Settings > Agents, or to roll the site back.`)
         const part = requireSitePart(ctx, t.id)
         const { target } = handle.touchSitePart(t.id, 'undo_change')
         target.foreignDraft = target.foreignDraft || part.draftRevision !== t.revision
-        const before = readSitePartDoc(ctx, part, t.beforePublishedVersionId)
+        const before = t.beforePublishedVersionId ? readSitePartDoc(ctx, part, t.beforePublishedVersionId) : (t.beforeDoc as SitePartDoc)
         target.revision = editSitePart(ctx, actor, t.id, part.draftRevision, before).revision
       }
     }
@@ -598,7 +625,8 @@ export function undoChange(ctx: ServiceCtx, agent: SignedInAgent, changeId: stri
     const ageHours = original.publishedAt ? (ctx.now().getTime() - Date.parse(original.publishedAt)) / 3600_000 : 0
     const evaluation = evaluateTargets(ctx, agent.token, changeTargets(row), { actions: ['undo_change'], changeAgeHours: ageHours })
     const sent = sendChange(ctx, agent, row, { mode: 'publish_if_allowed', evaluation, adminActor: input.adminActor })
-    return { undo: sent.change, original: requireChange(ctx, original.id), evaluation, published: sent.published }
+    if (created.length) takeOffline()
+    return { undo: sent.change, original: requireChange(ctx, original.id), evaluation, published: sent.published, pagesTakenOffline: created.map((t) => t.label) }
   })
 }
 

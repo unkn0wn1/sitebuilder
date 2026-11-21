@@ -54,7 +54,7 @@ Total is about 46 to 51 days. This branch contains phases 0 to 3, 5 and 6.
 - Rendered previews are in the builder (Settings > Agents > Changes, needs a builder sign-in). Agents get the link as `draft_preview_url` (or `draft_preview_path` when `SITEBUILDER_ORIGIN` is not set) but cannot open it themselves.
 - Rich text edits work inside a single run of text. Text that is split by bold or a link must be edited in each run, or replaced with `insert_rich_text` or `edit_component`.
 - Token and rule management is in Settings > Agents, by REST (signed-in admin) and by the `agent-token` script.
-- There is no `unpublish_page` tool. A page an agent created can only be taken down by an admin, and an agent cannot undo a change that created a page.
+- There is no `unpublish_page` tool. An agent cannot undo a change that created pages. An admin undo of such a change (Settings > Agents > Changes, or the API below) puts the other pages and parts back first, then takes the new pages offline. They stay as drafts.
 - An agent will not edit a page that is waiting for approval, and will not publish over someone else's unpublished edits on the same page. It reports the page and stops.
 - Admin undo of an agent change is the Undo button in Settings > Agents (or `POST /api/v1/agent/changes/:id/undo`), and is refused if the page was published again since.
 - Photo imports run in the background (`import_media` returns an `import_id`; poll `get_media_import`). Public https only, every redirect hop and the resolved addresses are checked, 25 MB cap, at most 10 waiting per token. Video cannot be imported by address.

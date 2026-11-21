@@ -53,7 +53,7 @@ for (const [key, rules] of Object.entries(STARTER_TEMPLATES)) {
 
 const haveParts = new Map(db.select({ key: siteParts.key, id: siteParts.id }).from(siteParts).all().map((p) => [p.key, p.id]))
 // The starter header, menu and footer are live from the start, so the first page published has them (Spencer, 21 Nov 2026).
-const STARTER_PARTS = [['header', 'header', 'Header', true], ['footer', 'footer', 'Footer', true], ['menu', 'main', 'Main menu', true]] as const
+const STARTER_PARTS = [['header', 'header', 'Header', true], ['footer', 'footer', 'Footer', true], ['menu', 'main', 'Main menu', true], ['banner', 'banner', 'Banner', false]] as const
 for (const [kind, key, label, live] of STARTER_PARTS) {
   const existing = haveParts.get(key)
   if (!existing) {

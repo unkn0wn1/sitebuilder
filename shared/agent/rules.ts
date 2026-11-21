@@ -100,7 +100,7 @@ export type FloorFlag = 'money_section_touched' | 'mock_data' | 'foreign_draft' 
 export const FLOOR_MESSAGES: Record<FloorFlag, string> = {
   money_section_touched: 'It touches a money section (gift amounts, progress, match or countdown). Those always need a person.',
   mock_data: 'The page shows mock data, which can never go live.',
-  foreign_draft: 'The page or part has unpublished changes that are not from this change (a person is working on it, or it changed since the agent edited it). Publishing would publish their work too.',
+  foreign_draft: 'The page or part has unpublished changes that are not from this change (a person is working on it, it has never been published, or it changed since the agent edited it). Publishing would publish that too.',
   checks_failing: 'The checks that every submission must pass are failing.',
 }
 

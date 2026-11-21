@@ -34,8 +34,10 @@ export function listAllChanges(ctx: ServiceCtx, admin: ActingAs, q: { status?: C
     .limit(q.limit)
     .all()
   const names = new Map(ctx.db.select({ id: agentTokens.id, name: agentTokens.name }).from(agentTokens).where(eq(agentTokens.siteId, ctx.siteId)).all().map((t) => [t.id, t.name]))
+  // Refresh every row first: an undo going live marks its original "undone", which may be an earlier row.
+  for (const r of rows) refreshChange(ctx, r)
   return rows.map((r) => {
-    const row = refreshChange(ctx, r)
+    const row = requireChange(ctx, r.id)
     return { id: row.id, title: row.title, status: row.status, reason: row.reason, tokenId: row.tokenId, tokenName: names.get(row.tokenId) ?? 'Deleted token', createdAt: row.createdAt, publishedAt: row.publishedAt, undoOf: row.undoOf, targets: changeTargets(row).map((t) => ({ type: t.type, id: t.id, label: t.label, path: t.path ?? null })) }
   })
 }
@@ -55,7 +57,7 @@ export function adminUndoChange(ctx: ServiceCtx, admin: ActingAs, id: string, re
   if (reason.trim().length < 5) throw new AppError('validation_failed', 'Say why in a sentence.', [{ path: 'reason', message: 'At least 5 characters.' }])
   const agent = agentFor(ctx, admin, row)
   const r = undoChange(ctx, agent, id, { reason: reason.trim(), adminActor: admin })
-  return { undoChangeId: r.undo.id, published: r.published, original: changeView(ctx, agent, r.original).change }
+  return { undoChangeId: r.undo?.id ?? null, published: r.published, pagesTakenOffline: r.pagesTakenOffline, original: changeView(ctx, agent, r.original).change }
 }
 
 /** Ready-made rule sets and the action vocabulary, for the Settings screen. */

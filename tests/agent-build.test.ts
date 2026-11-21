@@ -60,3 +60,69 @@ describe('create_pages', () => {
     expect(call(signedIn, 'create_pages', { pages: [{ title: 'Solo', page_type: 'standard' }], reason: REASON }).if_you_publish.outcome).toBe('goes_live')
   })
 })
+
+describe('create_pages errors', () => {
+  it('says which page and section is wrong, in input terms', async () => {
+    const w = await world(PUBLISH_ALL)
+    const e: any = await (async () => {
+      try {
+        call(w, 'create_pages', { pages: [{ title: 'Fine', page_type: 'standard' }, { title: 'Broken', page_type: 'standard', sections: [text('ok'), { type: 'Hero', props: { heading: 'No photo' } }] }], reason: REASON })
+      } catch (x) {
+        return x
+      }
+    })()
+    expect(e.code).toBe('validation_failed')
+    expect(e.message).toMatch(/^Page 2 \("Broken"\) \(pages\.1\.sections\.1\.props\.image\)/)
+    expect(e.fields[0].path).toBe('pages.1.sections.1.props.image')
+    expect(await code(() => call(w, 'get_page', { path: '/fine' }))).toBe('not_found')
+  })
+})
+
+describe('page types as an agent sees them', () => {
+  it('leaves never-list sections out of allowed types and flags page types an agent cannot make', async () => {
+    const w = await world()
+    const types = call(w, 'list_page_types', {}).page_types
+    for (const t of types) expect(t.allowed_section_types, t.key).not.toContain('DonationEmbed')
+    expect(types.find((t: any) => t.key === 'campaign')).toMatchObject({ agent_can_create: false })
+    expect(types.find((t: any) => t.key === 'standard')).toMatchObject({ agent_can_create: true })
+    expect(call(w, 'get_page', { path: '/events' }).page.allowed_section_types ?? []).not.toContain('Embed')
+  })
+})
+
+describe('undoing a build', () => {
+  it('an agent cannot undo a change that created pages; an admin undo puts parts back and takes the new pages offline', async () => {
+    const { adminUndoChange } = await import('../server/services/agent/admin')
+    const big = [{ label: 'Build', actions: ['create_page', 'edit_menu', 'edit_sections', 'edit_page_details', 'add_link', 'undo_change'], result: 'publish', limits: { maxNewPages: 3, allowNewLinks: true } }]
+    const w = await world(big)
+    const r = call(w, 'create_pages', { pages: ABOUT, reason: REASON })
+    call(w, 'publish_change', { change_id: r.change.id })
+    await drain(w)
+    expect(call(w, 'get_page', { path: '/about-us' }).page.is_live).toBe(true)
+    const refused: any = await (async () => { try { call(w, 'undo_change', { change_id: r.change.id, reason: REASON }) } catch (e) { return e } })()
+    expect(refused.code).toBe('invalid_state')
+    expect(refused.message).toMatch(/admin can undo the whole change/)
+    const u = adminUndoChange(w.ctx, w.admin, r.change.id, 'Not wanted after all')
+    expect(u.pagesTakenOffline).toEqual(['About us', 'Our team'])
+    await drain(w)
+    // The first list after the undo goes live already shows the original as undone (it is an earlier row).
+    const { listAllChanges } = await import('../server/services/agent/admin')
+    expect(listAllChanges(w.ctx, w.admin, { limit: 10 }).find((c) => c.id === r.change.id)!.status).toBe('undone')
+    expect(call(w, 'get_page', { path: '/about-us' }).page.is_live).toBe(false)
+    expect(call(w, 'get_page', { path: '/about-us/our-team' }).page.is_live).toBe(false)
+    expect(JSON.stringify(call(w, 'get_site_part', { kind: 'menu' }))).not.toContain('Our team')
+    expect(call(w, 'get_change', { change_id: r.change.id }).change.status).toBe('undone')
+  })
+
+  it('an admin undo of a change that only created pages needs no undo change', async () => {
+    const { adminUndoChange } = await import('../server/services/agent/admin')
+    const w = await world([{ label: 'Pages', actions: ['create_page', 'edit_sections', 'edit_page_details'], result: 'publish' }])
+    const r = call(w, 'create_pages', { pages: [{ title: 'Solo', page_type: 'standard' }], reason: REASON })
+    call(w, 'publish_change', { change_id: r.change.id })
+    await drain(w)
+    const u = adminUndoChange(w.ctx, w.admin, r.change.id, 'Not wanted after all')
+    expect(u.undoChangeId).toBeNull()
+    await drain(w)
+    expect(call(w, 'get_page', { path: '/solo' }).page.is_live).toBe(false)
+    expect(call(w, 'get_change', { change_id: r.change.id }).change.status).toBe('undone')
+  })
+})
