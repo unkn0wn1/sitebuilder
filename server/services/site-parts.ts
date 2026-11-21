@@ -48,6 +48,23 @@ export function createSitePart(ctx: ServiceCtx, kind: SitePartKind, key: string,
   })
 }
 
+/**
+ * A new menu or top strip, made from the builder. It starts empty (a strip starts switched off) and is not live until
+ * it is approved, so creating one never changes the published site.
+ */
+export function addSitePart(ctx: ServiceCtx, actor: ActingAs, input: { kind: 'menu' | 'banner'; label: string }): { id: string; key: string } {
+  if (actor.aiSessionId || !can(actor, 'sitePart.edit')) throw forbidden('Only approvers and admins can add site parts.')
+  const label = input.label.trim()
+  if (!label) throw new AppError('validation_failed', 'Give it a name.', [{ path: 'label', message: 'Give it a name.' }])
+  const taken = new Set(ctx.db.select({ key: siteParts.key, kind: siteParts.kind }).from(siteParts).where(eq(siteParts.siteId, ctx.siteId)).all().filter((p) => p.kind === input.kind).map((p) => p.key))
+  const base = input.kind === 'banner' ? 'main' : label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'menu'
+  let key = base
+  for (let n = 2; taken.has(key); n++) key = `${base}-${n}`
+  const id = createSitePart(ctx, input.kind, key, label, actor)
+  audit(ctx, actor, 'site_part.created', { type: 'site_part', id }, { kind: input.kind, key })
+  return { id, key }
+}
+
 export function readSitePartDoc(ctx: ServiceCtx, part: SitePartRow, versionId: string | null = part.draftVersionId): SitePartDoc {
   const raw = versionId ? getVersionRow(ctx, versionId).doc : null
   const valid = validateSitePartDoc(part.kind, migrateSitePartDoc(part.kind, raw))

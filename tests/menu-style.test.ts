@@ -70,7 +70,7 @@ describe('menu look presets', () => {
     expect(burger.html).toContain('>Home</a>')
   })
 
-  it('lets the brand pack override the header look without changing the menu', async () => {
+  it('uses the look chosen on the header, even when the brand pack still holds an older choice', async () => {
     const doc = emptyPageDoc('Home')
     const rendered = await renderPageHtml({
       doc,
@@ -82,9 +82,20 @@ describe('menu look presets', () => {
         header: { id: 'sp_header', doc: { ...(defaultSitePartDoc('header') as HeaderDoc), style: 'mega', menuKey: 'main' } },
       }),
     })
-    expect(rendered.html).toContain('nav-hamburger')
-    expect(rendered.html).not.toContain('site-header-mega')
-    expect(rendered.html).toContain('>Home</a>')
+    expect(rendered.html).toContain('site-header-mega')
+    expect(rendered.html).not.toContain('class="nav nav-hamburger"')
+    expect(rendered.html).toContain('Our team')
+  })
+
+  it("falls back to the brand pack's look only when there is no header", async () => {
+    const rendered = await renderPageHtml({
+      doc: emptyPageDoc('Home'),
+      pageId: 'pg_home',
+      versionId: 'ver_1',
+      path: '/',
+      site: site({ brand: { ...defaultBrandDoc(), menuStyle: 'hamburger' }, header: null }),
+    })
+    expect(rendered.html).toContain('site-header-hamburger')
   })
 
   it('falls back to the header style when the site has no brand pack', async () => {

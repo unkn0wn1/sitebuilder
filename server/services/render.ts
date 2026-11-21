@@ -654,9 +654,10 @@ function embedSrc(embed: EmbedCatalogEntry): string | null {
   return null
 }
 
-/** Brand pack menuStyle is the source of truth. A header-level style is only a fallback for older sites with no brand pack. */
+/** The header owns the menu look (one place to choose it; Spencer, 21 Nov 2026). The brand pack's old menuStyle is
+ *  only used when there is no live header. */
 function menuStyleOf(site: SiteRenderContext): HeaderDoc['style'] {
-  return site.brand?.menuStyle ?? site.header?.doc.style ?? 'simple'
+  return site.header?.doc.style ?? site.brand?.menuStyle ?? 'simple'
 }
 
 function headerClass(style: HeaderDoc['style'] | undefined, appearance?: HeaderDoc['appearance']): string {

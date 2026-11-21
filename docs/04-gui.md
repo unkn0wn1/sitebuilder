@@ -2,7 +2,7 @@
 
 **Draft, with the v1 shape decided.** The editor layout, mobile scope and where the AI appears are locked in by [ADR 0008](decisions/0008-editor-shape.md) and [ADR 0012](decisions/0012-ai-panel-screens-v1.md). The journeys this GUI must serve are in [18-user-journeys.md](18-user-journeys.md).
 
-Built with Vue 3, Tailwind and Flowbite / flowbite-vue.
+Built with Vue 3, Tailwind and Flowbite / flowbite-vue. The current look, shell and site-part screens are described in [19-admin-redesign.md](19-admin-redesign.md).
 
 ## Look and feel
 
