@@ -79,9 +79,25 @@ const summary = computed(() => {
   return CHANGE_STATUS_LABELS[c.status]
 })
 const hasDiffs = computed(() => !!data.value?.items.some((i) => i.type === 'page' && i.hasBefore))
+/** Fit the frame to what is in it: a full-height frame for pages with sections, a short one for menus, footers and empty pages. */
+function frameClass(i: PreviewItem): string {
+  if (i.type === 'site_part') return 'h-auto max-h-[60vh]'
+  const blocks = (i.doc as PageDoc | null)?.blocks?.length ?? 0
+  return blocks ? 'h-[70vh] min-h-[22rem]' : 'h-56'
+}
+/** The rule engine's reasons, only while they still matter (not after the change went live or was undone). */
+const reasons = computed(() => {
+  const c = data.value?.change
+  if (!c?.decision?.reasons?.length || c.status === 'published' || c.status === 'undone' || c.status === 'publishing') return []
+  return c.decision.reasons
+})
 const liveHref = (i: PreviewItem) => (site.value?.primaryDomain && i.path ? `https://${site.value.primaryDomain}${i.path}` : null)
 
-onMounted(load)
+onMounted(() => {
+  // Phones see the phone layout first; the desktop frame would be shrunk to a third of its size.
+  if (window.innerWidth < 768) device.value = 'mobile'
+  void load()
+})
 </script>
 
 <template>
@@ -101,7 +117,12 @@ onMounted(load)
       <p class="mb-2 max-w-3xl rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-sm text-gray-700 dark:text-gray-300">
         <span class="text-gray-500 dark:text-gray-400">The agent's own words for why (not proof of what anyone asked):</span> “{{ data.change.reasonByAgent }}”
       </p>
-      <p v-if="data.change.decision?.reasons?.length && data.change.status !== 'open'" class="mb-4 max-w-3xl text-sm text-gray-600 dark:text-gray-400">{{ data.change.decision.reasons.join(' ') }}</p>
+      <details v-if="reasons.length" class="mb-4 max-w-3xl text-sm text-gray-700 dark:text-gray-300" :open="reasons.length <= 2">
+        <summary class="cursor-pointer font-medium">Why this needs a person ({{ reasons.length }})</summary>
+        <ul class="m-0 mt-2 list-disc space-y-1 pl-5">
+          <li v-for="(r, i) in reasons" :key="i" class="break-words">{{ r }}</li>
+        </ul>
+      </details>
 
       <div class="mb-3 flex flex-wrap items-center gap-2">
         <FwbButton size="sm" :color="device === 'desktop' ? 'default' : 'light'" @click="device = 'desktop'">Desktop</FwbButton>
@@ -116,7 +137,7 @@ onMounted(load)
           <span v-if="item.created" class="rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-900 dark:bg-emerald-900 dark:text-emerald-100">New page</span>
           <a v-if="liveHref(item) && data.mode === 'after_publish'" :href="liveHref(item)!" class="text-sm" target="_blank" rel="noopener">Open on the site</a>
         </div>
-        <div v-if="item.doc" class="flex h-[70vh] min-h-[22rem]">
+        <div v-if="item.doc" class="flex" :class="frameClass(item)">
           <ReviewPreview
             :kind="item.type"
             :site-part-kind="item.kind"
