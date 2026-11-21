@@ -730,6 +730,19 @@ describe('published photos', () => {
     expect(urls.filter((u) => !onDisk.has(u))).toEqual([])
   })
 
+  it('leaves out a photo or video that is not in the library instead of publishing a broken image', async () => {
+    const doc = emptyPageDoc('Gift')
+    doc.blocks = [
+      { id: 'b_ti1', type: 'TextAndImage', v: 1, props: { heading: 'How your gift helps', content: richTextFromParagraphs(['Food and care.']), image: { media: 'med_00000000000000000000000001', alt: 'Sample' } } },
+      { id: 'b_vh1', type: 'VideoHero', v: 1, props: { heading: 'Winter', poster: { media: 'med_00000000000000000000000001', alt: 'Sample' }, video: 'med_00000000000000000000000002' } },
+    ]
+    const rendered = await renderPageHtml({ doc, pageId: 'pg_gift', versionId: 'ver_1', path: '/gift', site: site({ mediaComplete: true }) })
+    expect(rendered.html).toContain('How your gift helps')
+    expect(rendered.html).not.toContain('med_00000000000000000000000001')
+    expect(rendered.html).not.toContain('med_00000000000000000000000002')
+    expect(rendered.html).not.toContain('<video')
+  })
+
   it('will not submit a page whose photo is not in the media library', async () => {
     const s = setup()
     const { page } = createPage(s.ctx, s.editor, { title: 'Broken', template: 'standard' })

@@ -105,6 +105,9 @@ export interface SiteRenderContext {
   /** Former paths of pages that have moved, so stored hrefs still resolve to the live address. */
   pathAliases?: Map<string, string>
   media: Record<string, MediaCatalogEntry>
+  /** True when `media` is the whole library (the real site). Then a photo or video that is not in it is left out
+   * instead of published as a broken image (a sample placeholder, or a deleted file). */
+  mediaComplete?: boolean
   embeds: Record<string, EmbedCatalogEntry>
 }
 
@@ -208,8 +211,9 @@ export function pictureVNode(
   opts: { slot?: { width: number; height: number }; eager?: boolean; class?: string },
 ): VNode | null {
   if (!image) return null
-  bag.media.add(image.media)
   const entry = site.media[image.media]
+  if (!entry && site.mediaComplete) return null
+  bag.media.add(image.media)
   if (entry?.kind === 'svg' || entry?.mime === 'image/svg+xml') {
     const alt = image.decorative || entry?.decorative ? '' : (image.alt ?? entry?.alt ?? '')
     const width = opts.slot?.width ?? entry?.width ?? undefined
@@ -282,13 +286,14 @@ function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector
       ])
     case 'VideoHero': {
       const videoId = typeof p.video === 'string' ? p.video : ''
-      if (videoId) bag.media.add(videoId)
+      if (videoId && (site.media[videoId] || !site.mediaComplete)) bag.media.add(videoId)
       const clip = videoId ? site.media[videoId] : undefined
+      const playVideo = !!videoId && (!!clip || !site.mediaComplete)
       const ext = clip?.mime === 'video/webm' ? 'webm' : 'mp4'
       const mime = clip?.mime === 'video/webm' ? 'video/webm' : 'video/mp4'
       return h('section', { class: 'hero', 'aria-label': String(p.heading ?? '') }, [
         pictureVNode(p.poster as ImageRef | undefined, site, bag, { slot: { width: 1280, height: 720 }, eager: firstHero, class: 'hero-media' }),
-        videoId
+        playVideo
           ? h('video', { class: 'hero-video', autoplay: true, muted: true, loop: true, playsinline: true, preload: 'none', 'aria-hidden': 'true' }, [
               h('source', { src: `/media/${videoId}.${ext}`, type: mime, media: '(min-width: 641px)' }),
             ])
@@ -1041,6 +1046,7 @@ export function loadSiteRenderContext(ctx: ServiceCtx, manifest: ReleaseManifest
     pagesById,
     pathAliases,
     media: mediaCatalog,
+    mediaComplete: true,
     embeds: embedCatalog,
   }
 }
