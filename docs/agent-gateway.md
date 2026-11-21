@@ -93,7 +93,7 @@ A rule is a plain object:
 - **actions**: any of the list below, or `"*"` for all.
 - **targets**: leave out for everything. `pageTemplates` (page type keys), `pagePaths` (`/exact` or `/folder/*`), `siteParts` (`header`, `footer`, `menu`, `banner`). Page targets and site-part targets are alternatives: a rule with only `pagePaths` does not match the menu.
 - **result**: `publish` (may go live by itself), `review` (a person must approve; the same as having no rule), `deny` (refused).
-- **limits**: `maxSections`, `maxWords`, `allowNewLinks` (default false), `allowedLinkDomains`, `maxPerHour`, `allowMoneyPages` (default false), `withinHours` (for `undo_change`).
+- **limits**: `maxSections`, `maxWords`, `allowNewLinks` (default false), `allowedLinkDomains`, `maxPerHour`, `allowMoneyPages` (default false), `maxNewPages` (for `create_page`, default 1), `withinHours` (for `undo_change`).
 
 | Action | Used by | Meaning |
 | --- | --- | --- |
@@ -102,10 +102,13 @@ A rule is a plain object:
 | `add_link` | `replace_link` | Add a link, or point one somewhere new. |
 | `edit_sections` | `edit_component`, `add_component`, `remove_component`, `move_component` | Anything beyond plain text. |
 | `edit_page_details` | `set_page_details` | Title, address, search settings. |
-| `create_page` | `create_page` | A new page. |
+| `create_page` | `create_page`, `create_pages` | New pages. More than one in a change needs a rule with `maxNewPages`, or a person. |
 | `edit_menu` | `remove_menu_item`, `add_menu_item`, `rename_menu_item` | Menu items. |
 | `edit_banner` | `set_banner` | The site-wide banner. |
+| `edit_footer` | `set_footer` | Footer words, contact details, social links, tagline, charity number. Not its layout or look. |
 | `undo_change` | `undo_change` | Undo a change the token made. |
+
+`list_media`, `import_media`, `get_media_import` and `set_alt_text` need no rule: the media library is open to any token with draft access (decided 21 Nov 2026). A photo is only live once a published page uses it. Imports run in the background: `import_media` returns an `import_id`, and `get_media_import` says when it is done.
 
 **How a change is decided**, always in this order:
 

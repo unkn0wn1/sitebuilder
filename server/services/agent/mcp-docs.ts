@@ -163,7 +163,9 @@ An agent cannot unpublish or delete a page afterwards; an admin must. Do not add
 2. list_pages (what exists) and list_page_types (which page types exist and what sections each allows). list_components for section types and their props.
 3. PLAN FIRST. Write a short plan for the person: each page with its title, page type, address, the sections it will have, and whether it goes in the menu (and under what). Ask the person to confirm or change it. Do not build until they say yes. ${NEED_PERSON}
 4. Use ONLY facts, wording and links the person gave you or that are already on the site. Do not invent people, figures, quotes, addresses or phone numbers. Where something is missing, write a short honest page and list what is missing in your reply. Never fill gaps with plausible-sounding text.
-5. If the person wants a donation or sign-up form somewhere, build the page without it, put a plain paragraph where it will go, and tell them an admin must add the form by hand.
+5. PHOTOS: use list_media for photos already in the library. For a photo the person gives you by address, call import_media (with alt text describing what is visible), then get_media_import every few seconds until "done", and put its use_in_props value in the section image field. Only import photos the person gave you or has the right to use. The library needs no approval; a photo goes live only with a published page.
+5b. FOOTER: if the person gives new contact details, social links or a charity number, use set_footer with the SAME change_id. Copy their words exactly.
+5c. If the person wants a donation or sign-up form somewhere, build the page without it, put a plain paragraph where it will go, and tell them an admin must add the form by hand.
 6. create_pages with ALL the pages in order (parents before children, linking children with parent_ref). Give each page menu: { label } if it belongs in the menu. Maximum 12 pages per call. For a bigger site, build in several changes by area. It is all or nothing: if it fails, nothing was created; read the message, which names the page, fix it and send the whole list again.
 7. To adjust a page you just made, use the edit tools with the SAME change_id, so it stays one change. Do not start a second change for the same build.
 8. preview_change. A change that creates more than one page is sent to a person unless a rule allows it. Call request_publish with a note listing the pages. Give the person the preview link (change.draft_preview_url) and tell them: the pages are drafts, nothing is live, an approver will see the whole set together.
@@ -272,7 +274,7 @@ function rulesGuide(): string {
   return `# What you may do, and what happens next
 Your token has an ACCESS level and RULES. get_site shows both.
 - access "read": you can only read. "draft": you can also make drafts.
-- Each rule says: which ACTIONS (edit_text, remove_link, add_link, edit_sections, edit_page_details, create_page, edit_menu, edit_banner, undo_change), on which TARGETS (page types, page addresses, header/footer/menu/banner), with what RESULT (publish = may go live by itself, review = a person must approve, deny = refused), and LIMITS (most sections, most words, whether new links are allowed, which link domains, how many per hour, and for create_page how many new pages one change may hold: maxNewPages, default 1).
+- Each rule says: which ACTIONS (edit_text, remove_link, add_link, edit_sections, edit_page_details, create_page, edit_menu, edit_banner, edit_footer, undo_change), on which TARGETS (page types, page addresses, header/footer/menu/banner), with what RESULT (publish = may go live by itself, review = a person must approve, deny = refused), and LIMITS (most sections, most words, whether new links are allowed, which link domains, how many per hour, and for create_page how many new pages one change may hold: maxNewPages, default 1).
 - A change goes live by itself only if EVERY part of it is covered by a "publish" rule and its limits hold. Otherwise publish_change sends it to a person (it never publishes half).
 - BUILDING SEVERAL PAGES: a change that creates more than one page goes to a person unless a publish rule for create_page has limits.maxNewPages high enough. Always-allow does not cover it.
 - A "deny" rule beats everything.
@@ -321,7 +323,7 @@ You can read this charity's website and propose changes to it. The site owner de
 THE LOOP
 1. get_site: what am I allowed to do?
 2. Find: search_content (words), find_links (links), list_pages / get_page (pages), get_site_part (header, footer, menu, banner).
-3. Edit: edit_text, remove_link, replace_link, insert_rich_text, edit_component, add_component, remove_component, move_component, set_page_details, create_page, create_pages, remove_menu_item, add_menu_item, rename_menu_item, set_banner. These make DRAFTS and return a change.
+3. Edit: edit_text, remove_link, replace_link, insert_rich_text, edit_component, add_component, remove_component, move_component, set_page_details, create_page, create_pages, remove_menu_item, add_menu_item, rename_menu_item, set_banner, set_footer. These make DRAFTS and return a change.
 4. preview_change: what will differ, would it go live by itself.
 5. Decide: publish_change (live only if a rule allows; otherwise asks a person), request_publish (asks a person), discard_change.
 6. Confirm: get_change. Tell the person what happened. undo_change if wrong.

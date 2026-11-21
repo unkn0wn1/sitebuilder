@@ -9,7 +9,7 @@
 import { z } from 'zod'
 import { SITE_PART_KINDS, type SitePartKind } from '../site-parts'
 
-export const AGENT_ACTIONS = ['edit_text', 'remove_link', 'add_link', 'edit_sections', 'edit_page_details', 'create_page', 'edit_menu', 'edit_banner', 'undo_change'] as const
+export const AGENT_ACTIONS = ['edit_text', 'remove_link', 'add_link', 'edit_sections', 'edit_page_details', 'create_page', 'edit_menu', 'edit_banner', 'edit_footer', 'undo_change'] as const
 export type AgentAction = (typeof AGENT_ACTIONS)[number]
 
 /** Plain words for each action, shown to the owner and to the AI (docs, rule errors, `get_site`). */
@@ -22,6 +22,7 @@ export const ACTION_LABELS: Record<AgentAction, string> = {
   create_page: 'Create a new page',
   edit_menu: 'Add, remove or rename menu items',
   edit_banner: 'Change the site-wide banner',
+  edit_footer: 'Change the footer: its words, contact details, social links, tagline and charity number (not its layout or look)',
   undo_change: 'Undo a change this token made earlier',
 }
 

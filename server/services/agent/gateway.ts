@@ -28,7 +28,7 @@ import type { InternalOp } from '../../../shared/ops'
 import type { PageDoc } from '../../../shared/page'
 import { isSafeHref } from '../../../shared/richtext'
 import type { FieldIssue } from '../../../shared/issues'
-import { validateSitePartDoc, type MenuDoc, type SitePartDoc, type SitePartKind, type BannerDoc } from '../../../shared/site-parts'
+import { validateSitePartDoc, type MenuDoc, type SitePartDoc, type SitePartKind, type BannerDoc, type FooterDoc } from '../../../shared/site-parts'
 import { agentChanges, pages, sites, siteParts } from '../../db/schema'
 import type { ServiceCtx } from '../context'
 import { AppError, notFound } from '../errors'
@@ -915,6 +915,46 @@ export function setBanner(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeo
   if (!valid.ok) throw new AppError('validation_failed', valid.issues[0]!.message, valid.issues)
   const done = runInChange(ctx, agent, { changeId: input.change_id, title: 'Change the banner', reason: input.reason }, (h) => h.editPart(part.id, 'edit_banner', valid.doc))
   return { ...changeView(ctx, agent, done.change), result: { banner_now: valid.doc } }
+}
+
+/** Change the footer's words and details (phase 5). Layout, look and which menus it shows stay with people. */
+export function setFooter(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.setFooterInput>) {
+  const part = findPart(ctx, 'footer')
+  const footer = structuredClone(readSitePartDoc(ctx, part)) as FooterDoc
+  const changed: string[] = []
+  if (input.text_markdown !== undefined) {
+    if (input.text_markdown === null || !input.text_markdown.trim()) footer.text = null
+    else {
+      const md = markdownToRichText(input.text_markdown)
+      if (!md.ok) throw new AppError('validation_failed', md.message, [{ path: 'text_markdown', message: md.message }])
+      footer.text = md.doc
+    }
+    changed.push('text')
+  }
+  if (input.contact) {
+    for (const k of ['email', 'phone', 'address'] as const) if (input.contact[k] !== undefined) footer.contact[k] = input.contact[k] || null
+    changed.push('contact')
+  }
+  if (input.social !== undefined) {
+    footer.social = input.social
+    changed.push('social')
+  }
+  if (input.tagline !== undefined) {
+    footer.tagline = input.tagline ? { lead: input.tagline.lead, accent: input.tagline.accent ?? '' } : null
+    changed.push('tagline')
+  }
+  const simple = { contact_title: 'contactTitle', links_title: 'linksTitle', legal_text: 'legalText', charity_number: 'charityNumber' } as const
+  for (const [k, field] of Object.entries(simple) as [keyof typeof simple, (typeof simple)[keyof typeof simple]][]) {
+    if (input[k] !== undefined) {
+      footer[field] = input[k] || null
+      changed.push(field)
+    }
+  }
+  if (!changed.length) throw new AppError('validation_failed', 'Say what to change: text_markdown, contact, social, tagline, contact_title, links_title, legal_text or charity_number.', [{ path: '(input)', message: 'Nothing to change.' }])
+  const valid = validateSitePartDoc('footer', footer)
+  if (!valid.ok) throw new AppError('validation_failed', valid.issues[0]!.message, valid.issues)
+  const done = runInChange(ctx, agent, { changeId: input.change_id, title: `Change the footer (${changed.join(', ')})`, reason: input.reason }, (h) => h.editPart(part.id, 'edit_footer', valid.doc))
+  return { ...changeView(ctx, agent, done.change), result: { changed, footer_now: valid.doc } }
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

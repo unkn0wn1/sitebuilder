@@ -3,7 +3,7 @@
 // JSON Schema in MCP tools/list and in the OpenAPI file, so they are the documentation the model reads.
 import { z } from 'zod'
 import { AGENT_ACTIONS } from '../../../shared/agent/rules'
-import { SITE_PART_KINDS } from '../../../shared/site-parts'
+import { SITE_PART_KINDS, SOCIAL_NETWORKS } from '../../../shared/site-parts'
 
 const id = (what: string, example: string) => z.string().trim().min(1).max(80).meta({ description: what, examples: [example] })
 
@@ -341,3 +341,73 @@ export const discardChangeInput = needsChange.strict()
 export const undoChangeInput = needsChange.extend({ reason }).strict()
 
 export type ActionName = (typeof AGENT_ACTIONS)[number]
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Phase 5: footer and media
+
+const nullableText = (max: number, description: string) => z.string().trim().max(max).nullable().optional().meta({ description })
+
+export const setFooterInput = z
+  .object({
+    text_markdown: z.string().max(2000).nullable().optional().meta({ description: 'The footer words (about text), as markdown: paragraphs, **bold**, *italic*, [links](https://...). null or "" removes them. Leave out to keep them.', examples: ['We rescue and treat injured street animals in Udaipur.'] }),
+    contact: z
+      .object({
+        email: z.string().trim().max(254).nullable().optional().meta({ description: 'Contact email. null or "" removes it.' }),
+        phone: z.string().trim().max(30).nullable().optional().meta({ description: 'Contact phone: digits, spaces and + ( ) - only. null or "" removes it.' }),
+        address: z.string().trim().max(200).nullable().optional().meta({ description: 'Postal address on one line. null or "" removes it.' }),
+      })
+      .strict()
+      .optional()
+      .meta({ description: 'Contact details. Only the fields you give change.' }),
+    social: z
+      .array(z.object({ network: z.enum(SOCIAL_NETWORKS).meta({ description: `One of: ${SOCIAL_NETWORKS.join(', ')}.` }), url: z.string().trim().max(2048).meta({ description: 'The full https:// address of the profile.' }) }).strict())
+      .max(8)
+      .optional()
+      .meta({ description: 'The FULL list of social links, in order (it replaces the list). Read it first with get_site_part kind "footer" and send it back with your change. [] removes them all.' }),
+    tagline: z
+      .object({ lead: z.string().trim().min(1).max(60).meta({ description: 'The first words of the tagline.' }), accent: z.string().trim().max(60).optional().meta({ description: 'Words shown in the accent colour after the lead.' }) })
+      .strict()
+      .nullable()
+      .optional()
+      .meta({ description: 'The tagline in the columns footer. null removes it.' }),
+    contact_title: nullableText(40, 'Heading over the contact column. null or "" removes it.'),
+    links_title: nullableText(40, 'Heading over the links column. null or "" removes it.'),
+    legal_text: nullableText(200, 'The small print line, for example "© 2026 Animal Aid". null or "" removes it.'),
+    charity_number: nullableText(40, 'The registered charity number, exactly as the person gave it. null or "" removes it.'),
+    change_id: changeId,
+    reason,
+  })
+  .strict()
+
+export const listMediaInput = z
+  .object({
+    search: z.string().trim().max(200).optional().meta({ description: 'Only photos whose file name or alt text contains this.', examples: ['dog'] }),
+    kind: z.enum(['image', 'video']).optional().meta({ description: 'Only images or only videos.' }),
+    page: z.coerce.number().int().min(1).default(1).meta({ description: 'Page number of the results, starting at 1.' }),
+    page_size: z.coerce.number().int().min(1).max(100).default(25).meta({ description: 'How many per result page (1 to 100).' }),
+  })
+  .strict()
+
+const altText = z.string().trim().min(1).max(250).meta({ description: 'What the photo shows, for people who cannot see it, in one plain sentence (up to 250 characters). Describe only what is visible. Required unless decorative is true.', examples: ['A brown street dog with a bandaged leg resting on a blanket.'] })
+const decorative = z.boolean().optional().meta({ description: 'True if the photo adds nothing for someone who cannot see it (a pattern, a texture). Then no alt text is needed.' })
+
+export const importMediaInput = z
+  .object({
+    url: z.string().trim().min(1).max(2048).meta({ description: 'The public https:// address of the image FILE itself (ends in .jpg, .png, .webp, .avif or similar), not the page it appears on. JPEG, PNG, WebP, AVIF or SVG, up to 25 MB.', examples: ['https://example.org/photos/rescued-dog.jpg'] }),
+    alt: altText.optional(),
+    decorative,
+    filename: z.string().trim().min(1).max(120).optional().meta({ description: 'A file name to show in the library. Default: the last part of the address.' }),
+    reason,
+  })
+  .strict()
+
+export const getMediaImportInput = z.object({ import_id: id('The import_id that import_media returned.', 'job_01KABCDEFGHJKMNPQRSTVWXYZ0') }).strict()
+
+export const setAltTextInput = z
+  .object({
+    media_id: id('The media_id from list_media or get_media_import.', 'med_01KABCDEFGHJKMNPQRSTVWXYZ0'),
+    alt: altText.optional(),
+    decorative,
+    reason,
+  })
+  .strict()

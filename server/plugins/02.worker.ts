@@ -2,6 +2,7 @@
 import { createBackupHandler, ensureBackupScheduled, resolveBackupStore } from '../services/backup'
 import { createPurgeCacheHandler } from '../services/cloudflare'
 import { createWebhookHandler } from '../services/agent/webhook'
+import { createMediaImportHandler } from '../services/agent/media'
 import { createEmailHandler, resolveMailer } from '../services/email'
 import { createMediaRenditionsHandler } from '../services/media'
 import { createPublishHandler } from '../services/publish'
@@ -21,6 +22,7 @@ function buildHandlers(): JobHandlers {
   }),
   purge_cache: createPurgeCacheHandler(),
   agent_webhook: createWebhookHandler(),
+  agent_media_import: createMediaImportHandler(mediaDir()),
   media_renditions: createMediaRenditionsHandler(mediaDir()),
   run_checks: skipped('Rendered-page checks'),
   render_preview: skipped('Preview rendering'),

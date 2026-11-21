@@ -26,10 +26,11 @@ describe('generated reference docs', () => {
 
   it('routes every operation to itself and refuses the wrong method', () => {
     for (const o of OPERATIONS) {
-      const concrete = o.path.replace('{change_id}', 'chg_abc')
+      const names = [...o.path.matchAll(/\{(\w+)\}/g)].map((x) => x[1]!)
+      const concrete = o.path.replace(/\{(\w+)\}/g, (_m, n: string) => `${n}_abc`)
       const m = matchRoute(o.method, concrete)
       expect(m && m !== 'wrong-method' && m.op.name, o.name).toBe(o.name)
-      if (o.path.includes('{')) expect(m && m !== 'wrong-method' && m.params.change_id).toBe('chg_abc')
+      for (const n of names) expect(m && m !== 'wrong-method' && m.params[n], `${o.name} ${n}`).toBe(`${n}_abc`)
       expect(matchRoute(o.method === 'GET' ? 'POST' : 'GET', concrete)).toBe('wrong-method')
     }
     expect(matchRoute('GET', '/nothing')).toBeNull()

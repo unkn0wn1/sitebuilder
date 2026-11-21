@@ -2,6 +2,7 @@
 // documentation. REST routes, MCP tools/list, the OpenAPI file and docs/agent-gateway-tools.md are all
 // generated from this table, so they cannot disagree. See ADR 0018.
 import { queueWebhook } from './webhook'
+import * as M from './media'
 import { z } from 'zod'
 import { audit } from '../audit'
 import type { ServiceCtx } from '../context'
@@ -586,6 +587,101 @@ export const OPERATIONS: Operation[] = [
     },
   }),
 
+  op({
+    name: 'set_footer',
+    level: 'draft',
+    action: 'edit_footer',
+    method: 'POST',
+    path: '/edits/footer',
+    input: S.setFooterInput,
+    run: (ctx, agent, input) => G.setFooter(ctx, agent, input),
+    doc: {
+      summary: 'Change the footer words, contact details, social links, tagline or charity number.',
+      what: 'Changes the site-wide footer. Only the fields you give change. It cannot change the footer layout, colours, logo or which menus it shows: those stay with people in the builder. Links in the footer menu are menu items: use add_menu_item with the footer links menu.',
+      useWhen: ['The contact email, phone or address changed.', 'A social profile was added, moved or closed.', 'The about text, tagline, small print or charity number needs new words.'],
+      dontUseWhen: ['A link in the footer links column: those are a menu (get_site_part kind "footer" shows linksMenuKey; use the menu tools).', 'The look or layout of the footer: a person does that in the builder.'],
+      before: ['get_site_part with kind "footer", so you see what is there now (especially the social list, which you send back whole).', 'Contact details and charity numbers must come from the person, word for word. Never guess them.'],
+      effect: DRAFT_EFFECT('Changes the footer.'),
+      returns: `${CHANGE_RETURNS} \`result.changed\` (the fields changed) and \`result.footer_now\`.`,
+      example: { input: { contact: { phone: '+91 98290 00000' }, reason: 'The owner gave the new helpline number for the footer.' }, note: 'Change one contact detail.' },
+    },
+  }),
+
+  // ------------------------------------------------------------------ media (open to draft tokens, no rules)
+  op({
+    name: 'list_media',
+    level: 'read',
+    method: 'GET',
+    path: '/media',
+    input: S.listMediaInput,
+    run: (ctx, _a, input) => M.listMediaFor(ctx, input),
+    doc: {
+      summary: 'List photos and videos in the media library, newest first.',
+      what: 'Lists the library: id, file name, alt text, size and whether renditions are ready, plus the exact value to put in a section image field (use_in_props).',
+      useWhen: ['You need a photo for a section.', 'You want to check a photo is already in the library before importing it.'],
+      dontUseWhen: ['You need the photos on one page: get_page shows them in its sections.'],
+      before: [],
+      effect: READ_EFFECT,
+      returns: '`media` (each with media_id, filename, kind, alt, decorative, width, height, status, use_in_props), `page`, `page_size`, `total`.',
+      example: { input: { search: 'dog' }, note: 'Find photos about dogs.' },
+    },
+  }),
+  op({
+    name: 'import_media',
+    level: 'draft',
+    method: 'POST',
+    path: '/media/imports',
+    input: S.importMediaInput,
+    run: (ctx, agent, input) => M.importMediaFor(ctx, agent, input),
+    doc: {
+      summary: 'Import a photo into the media library from a public address (runs in the background).',
+      what: 'Checks the address and queues a background import, then returns an import_id straight away. The server downloads the file (public https only, up to 25 MB, JPEG, PNG, WebP, AVIF or SVG), checks it really is an image, removes hidden data such as GPS location, and adds it to the library with your alt text. If the same photo is already there, you get that one back instead of a copy.',
+      useWhen: ['The person gave you the address of a photo to use.', 'Building pages that need photos the person has online.'],
+      dontUseWhen: ['The photo is already in the library: use list_media.', 'You found a photo on some other website and nobody gave it to you: do not import photos you have no right to use. Ask the person.', 'It is a video: only photos can be imported by address.'],
+      before: ['Make sure the person has the right to use the photo (their own, or they say it is licensed).', 'Write alt text that describes what is visible, or set decorative: true.'],
+      effect: 'Needs a token with DRAFT access. No rule or approval is needed: the media library is open to draft tokens. The photo is added to the library only. Nothing on the live site changes until a page that uses it is published through the normal change rules.',
+      returns: '`import_id`, `status` ("queued") and `next_steps`. Then call get_media_import.',
+      errors: { validation_failed: 'The address is not public https, has a user name or password in it, or points inside a private network; or alt text is missing. Fix and call again.', rate_limited: 'Ten imports are already waiting for this token. Wait for them with get_media_import.' },
+      example: { input: { url: 'https://example.org/photos/rescued-dog.jpg', alt: 'A brown street dog with a bandaged leg resting on a blanket.', reason: 'The owner sent this photo for the new Our Animals page.' }, note: 'Import one photo.' },
+    },
+  }),
+  op({
+    name: 'get_media_import',
+    level: 'read',
+    method: 'GET',
+    path: '/media/imports/{import_id}',
+    input: S.getMediaImportInput,
+    run: (ctx, agent, input) => M.getMediaImportFor(ctx, agent, input),
+    doc: {
+      summary: 'See whether a photo import has finished, and get its media_id.',
+      what: 'Returns the state of an import you started: "queued", "running", "retrying", "done" (with the photo, its media_id and use_in_props) or "failed" (with the reason in plain words). You can only see your own imports.',
+      useWhen: ['After import_media, every few seconds until it is done or failed.'],
+      dontUseWhen: ['To find photos already in the library: use list_media.'],
+      before: ['import_media, for the import_id.'],
+      effect: READ_EFFECT,
+      returns: '`status`, and when done `media` (as in list_media) and `duplicate`; when failed `error`.',
+      example: { input: { import_id: 'job_01KABCDEFGHJKMNPQRSTVWXYZ0' }, note: 'Check an import.' },
+    },
+  }),
+  op({
+    name: 'set_alt_text',
+    level: 'draft',
+    method: 'POST',
+    path: '/media/{media_id}/alt',
+    input: S.setAltTextInput,
+    run: (ctx, agent, input) => M.setAltTextFor(ctx, agent, input),
+    doc: {
+      summary: 'Set the alt text of a photo in the library (or mark it decorative).',
+      what: 'Changes the alt text stored on the photo. Alt text is shared: every page that uses the photo uses it. A photo without alt text (and not decorative) blocks publishing.',
+      useWhen: ['A check says a photo has no alt text.', 'The alt text is wrong or empty.'],
+      dontUseWhen: ['You cannot see the photo and nobody told you what it shows: ask the person rather than guess.'],
+      before: ['list_media or get_page, for the media_id.'],
+      effect: 'Needs a token with DRAFT access. No rule or approval is needed: the media library is open to draft tokens. The new text is saved on the photo straight away and audited. Live pages show it after their next publish.',
+      returns: '`media` (as in list_media) and a `note`.',
+      example: { input: { media_id: 'med_01KABCDEFGHJKMNPQRSTVWXYZ0', alt: 'Volunteers lifting a cow onto a stretcher.', reason: 'The owner described the photo for its alt text.' }, note: 'Fix missing alt text.' },
+    },
+  }),
+
   // ------------------------------------------------------------------ decide
   op({
     name: 'request_publish',
@@ -712,6 +808,7 @@ function permissionText(o: Operation): string {
   const rule = o.action ? ` A rule on the token must allow the action "${o.action}" for the target, or the change goes to a person (or is refused if a deny rule applies).` : ''
   if (o.name === 'publish_change') return 'A token with draft access. Goes live only if a rule says "publish" (or always-allow is on, timed or permanent); otherwise sent for approval.'
   if (o.name === 'request_publish' || o.name === 'discard_change') return 'A token with draft access, for its own changes.'
+  if (o.name === 'import_media' || o.name === 'set_alt_text') return 'A token with draft access. No rule is needed: the media library is open to draft tokens (decided 21 Nov 2026). A photo goes live only on a page published through the normal rules.'
   return `A token with draft access.${rule}`
 }
 

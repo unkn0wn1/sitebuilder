@@ -1,6 +1,6 @@
 # Agent gateway: phased plan
 
-**Status:** phases 0 to 3 and 6 built on branch `feat/agent-gateway` (local, not deployed). Phase 5 is in progress. Phase 4 is deferred. This is the engineering version of the plan Page. The reasoning is in [ADR 0018](decisions/0018-agent-gateway.md). How to use it is in [agent-gateway.md](agent-gateway.md).
+**Status:** phases 0 to 3, 5 and 6 built on branch `feat/agent-gateway` (local, not deployed). Phase 4 is deferred. This is the engineering version of the plan Page. The reasoning is in [ADR 0018](decisions/0018-agent-gateway.md). How to use it is in [agent-gateway.md](agent-gateway.md).
 
 ## The idea
 
@@ -22,6 +22,7 @@ One agent gateway in front of the services sitebuilder already has, exposed twic
 | Who is told | Published by rule: the token's owner and all admins (in-app, plus the email job with the diff). Sent for review: the usual approver notice, and an email to the token's owner | `server/services/agent/changes.ts` |
 | Build me a site | Pages inside this install (one site per install, ADR 0007) | n/a |
 | Prompt record | The agent's stated reason, stored on every change and audit entry, labelled as the agent's words | n/a |
+| Media library | Open to any token with draft access: no rule or approval (21 Nov 2026, Spencer). A photo is only live once a published page uses it, and that page follows the change rules. Imports and alt-text edits are audited | `server/services/agent/media.ts` |
 | Off by default? | Yes. Routes answer 404 unless `SITEBUILDER_AGENT_GATEWAY=1` | env var |
 
 ## Phases
@@ -35,10 +36,10 @@ Sizes are rough days of focused work for one developer, plus or minus half.
 | 2. Drafting | Changes (drafts across pages and site parts), write tools, dry run with diff and rule decision, rate limits kept in SQLite, review request | 9 to 10 days | **Built** (text, links, sections, page details, new pages, menu and banner). Rendered preview links are not built |
 | 3. Rules, auto-publish, undo | Rule engine in the live path, approval by rule, audit diff, one-call undo, owner notifications, pause and auto-pause, always-allow, token admin API and CLI | 9 to 10 days | **Built** (API and CLI). The Settings screen for tokens and rules is not built |
 | 4. OAuth for connectors | Discovery metadata, PKCE, refresh tokens, consent screen with rules picker, client registration, ChatGPT and Claude connector tests | 6 to 7 days | **Deferred** (20 Nov 2026: bearer tokens confirmed for now). Use a static bearer token (Claude Code, scripts, header connectors) |
-| 5. Build me a site | Multi-page changes in one go, media import by address, more menu and footer tools, build-guide prompts, first-publish confirmation | 9 to 10 days | **In progress**: multi-page changes (`create_pages`, all or nothing, nested pages, menu entries, `maxNewPages` rule limit, not covered by always-allow) and the build-a-site recipe and prompt are built. Media import by address, footer tools and first-publish confirmation are not |
+| 5. Build me a site | Multi-page changes in one go, media import by address, more menu and footer tools, build-guide prompts | 9 to 10 days | **Built**: `create_pages` (all or nothing, nested pages, menu entries, `maxNewPages` rule limit, not covered by always-allow), `list_media`, `import_media` and `get_media_import` (background import), `set_alt_text`, `set_footer` (new rule action `edit_footer`), build-a-site recipe and prompt. First-publish confirmation dropped (21 Nov 2026, Spencer): approval of multi-page builds already covers it |
 | 6. Hardening | Prompt-injection red-team page, limit tuning, published OpenAPI, Slack or webhook alerts, Settings screen, rendered previews | 5 days | **Built** (red-team in [agent-gateway-red-team.md](agent-gateway-red-team.md); Settings > Agents with tokens, rules, changes, previews, undo, activity and alerts) |
 
-Total is about 46 to 51 days. The 3am flow (phases 0 to 3) is what this branch contains.
+Total is about 46 to 51 days. This branch contains phases 0 to 3, 5 and 6.
 
 ## What each phase is tested with
 
@@ -56,4 +57,6 @@ Total is about 46 to 51 days. The 3am flow (phases 0 to 3) is what this branch c
 - There is no `unpublish_page` tool. A page an agent created can only be taken down by an admin, and an agent cannot undo a change that created a page.
 - An agent will not edit a page that is waiting for approval, and will not publish over someone else's unpublished edits on the same page. It reports the page and stops.
 - Admin undo of an agent change is the Undo button in Settings > Agents (or `POST /api/v1/agent/changes/:id/undo`), and is refused if the page was published again since.
+- Photo imports run in the background (`import_media` returns an `import_id`; poll `get_media_import`). Public https only, every redirect hop and the resolved addresses are checked, 25 MB cap, at most 10 waiting per token. Video cannot be imported by address.
+- `set_footer` changes words and details only. Footer layout, look, logo and which menus it shows stay with people.
 - OpenAPI is public at `/agent/v1/openapi.json` (it contains no secrets). Tools still need a bearer token.
