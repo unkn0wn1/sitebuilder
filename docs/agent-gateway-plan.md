@@ -1,6 +1,6 @@
 # Agent gateway: phased plan
 
-**Status:** phases 0 to 3 built on branch `feat/agent-gateway` (local, not deployed). Phases 4 to 6 are planned. This is the engineering version of the plan Page. The reasoning is in [ADR 0018](decisions/0018-agent-gateway.md). How to use it is in [agent-gateway.md](agent-gateway.md).
+**Status:** phases 0 to 3 and 6 built on branch `feat/agent-gateway` (local, not deployed). Phase 5 is in progress. Phase 4 is deferred. This is the engineering version of the plan Page. The reasoning is in [ADR 0018](decisions/0018-agent-gateway.md). How to use it is in [agent-gateway.md](agent-gateway.md).
 
 ## The idea
 
@@ -36,7 +36,7 @@ Sizes are rough days of focused work for one developer, plus or minus half.
 | 3. Rules, auto-publish, undo | Rule engine in the live path, approval by rule, audit diff, one-call undo, owner notifications, pause and auto-pause, always-allow, token admin API and CLI | 9 to 10 days | **Built** (API and CLI). The Settings screen for tokens and rules is not built |
 | 4. OAuth for connectors | Discovery metadata, PKCE, refresh tokens, consent screen with rules picker, client registration, ChatGPT and Claude connector tests | 6 to 7 days | **Deferred** (20 Nov 2026: bearer tokens confirmed for now). Use a static bearer token (Claude Code, scripts, header connectors) |
 | 5. Build me a site | Multi-page changes in one go, media import by address, more menu and footer tools, build-guide prompts, first-publish confirmation | 9 to 10 days | Planned |
-| 6. Hardening | Prompt-injection red-team page, limit tuning, published OpenAPI, Slack or webhook alerts, Settings screen, rendered previews | 5 days | Planned |
+| 6. Hardening | Prompt-injection red-team page, limit tuning, published OpenAPI, Slack or webhook alerts, Settings screen, rendered previews | 5 days | **Built** (red-team in [agent-gateway-red-team.md](agent-gateway-red-team.md); Settings > Agents with tokens, rules, changes, previews, undo, activity and alerts) |
 
 Total is about 46 to 51 days. The 3am flow (phases 0 to 3) is what this branch contains.
 
@@ -50,10 +50,10 @@ Total is about 46 to 51 days. The 3am flow (phases 0 to 3) is what this branch c
 ## Known limits of what is built
 
 - Publishing a change that touches several pages queues one publish job per page or site part. The decision to publish is made once for the whole change (no partial publishing), but the jobs run one after another, so for a few seconds some parts can be live before others.
-- No rendered preview link yet. `preview_change` returns the diff, the checks and the rule decision.
+- Rendered previews are in the builder (Settings > Agents > Changes, needs a builder sign-in). Agents get the link as `draft_preview_url` (or `draft_preview_path` when `SITEBUILDER_ORIGIN` is not set) but cannot open it themselves.
 - Rich text edits work inside a single run of text. Text that is split by bold or a link must be edited in each run, or replaced with `insert_rich_text` or `edit_component`.
-- Token and rule management is by REST (signed-in admin) and the `agent-token` script. There is no Settings screen yet.
+- Token and rule management is in Settings > Agents, by REST (signed-in admin) and by the `agent-token` script.
 - There is no `unpublish_page` tool. A page an agent created can only be taken down by an admin, and an agent cannot undo a change that created a page.
 - An agent will not edit a page that is waiting for approval, and will not publish over someone else's unpublished edits on the same page. It reports the page and stops.
-- Admin undo of an agent change is by REST only (`POST /api/v1/agent/changes/:id/undo`), and is refused if the page was published again since.
+- Admin undo of an agent change is the Undo button in Settings > Agents (or `POST /api/v1/agent/changes/:id/undo`), and is refused if the page was published again since.
 - OpenAPI is public at `/agent/v1/openapi.json` (it contains no secrets). Tools still need a bearer token.
