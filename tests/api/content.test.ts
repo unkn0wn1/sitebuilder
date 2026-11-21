@@ -97,3 +97,40 @@ describe('site parts over HTTP', () => {
     expect((await admin.get(`/site-parts/${menu.id}`)).body.part.workflowState).toBe('published')
   })
 })
+
+describe('adding site parts and previewing them over HTTP', () => {
+  it('only approvers and admins can add a menu; it starts as a draft with a unique key', async () => {
+    expect((await editor.post('/site-parts', { kind: 'menu', label: 'Campaign links' })).status).toBe(403)
+    const a = await admin.post('/site-parts', { kind: 'menu', label: 'Campaign links' })
+    expect(a.status).toBe(200)
+    expect(a.body.key).toBe('campaign-links')
+    const b = await approver.post('/site-parts', { kind: 'menu', label: 'Campaign links' })
+    expect(b.body.key).toBe('campaign-links-2')
+    const part = (await admin.get(`/site-parts/${a.body.id}`)).body.part
+    expect(part.kind).toBe('menu')
+    expect(part.workflowState).toBe('draft')
+    expect((await admin.post('/site-parts', { kind: 'footer', label: 'Nope' })).status).toBe(400)
+  })
+
+  it('previews a draft top strip on a real page, and rejects an invalid draft', async () => {
+    const parts = (await editor.get('/site-parts')).body.items as { id: string; kind: string }[]
+    let strip = parts.find((p) => p.kind === 'banner')
+    if (!strip) strip = (await admin.post('/site-parts', { kind: 'banner', label: 'Site banner' })).body as { id: string; kind: string }
+    const doc = { schemaVersion: 1, enabled: true, message: 'Report an injured animal', tone: 'urgent', link: null }
+    const res = await editor.post('/preview/site-part', { parts: [{ partId: strip.id, doc }] })
+    expect(res.status).toBe(200)
+    expect(res.body.html.match(/<div class="banner[^>]*>[^<]*/)?.[0]).toBe('<div class="banner banner-urgent" role="alert">Report an injured animal')
+    const bad = await editor.post('/preview/site-part', { parts: [{ partId: strip.id, doc: { ...doc, message: '' } }] })
+    expect(bad.status).toBe(400)
+  })
+
+  it('tells the menu editor where a menu is used', async () => {
+    const parts = (await editor.get('/site-parts')).body.items as { id: string; kind: string; key: string }[]
+    const fresh = parts.find((p) => p.kind === 'menu' && p.key === 'campaign-links')!
+    const doc = { schemaVersion: 1, items: [{ id: 'b_give1', label: 'Donate', target: { type: 'url', url: 'https://example.org/give' }, children: [] }] }
+    const res = await editor.post('/preview/site-part', { parts: [{ partId: fresh.id, doc }] })
+    expect(res.status).toBe(200)
+    expect(res.body.menuUse).toBe('unused')
+    expect(res.body.html).toContain('https://example.org/give')
+  })
+})

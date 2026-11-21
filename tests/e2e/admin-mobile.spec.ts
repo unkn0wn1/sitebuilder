@@ -28,12 +28,26 @@ function shot(name: string) {
 
 const mobile = { width: 375, height: 812 }
 
+async function navigate(page: Page, name: RegExp) {
+  await page.getByRole('button', { name: 'Open the menu' }).click()
+  const nav = page.getByRole('navigation', { name: 'Builder' })
+  await expect(nav).toBeInViewport()
+  await nav.getByRole('link', { name }).click()
+  await expect(nav).not.toBeInViewport()
+}
+
 async function visitReviewFlows(page: Page, scheme: 'light' | 'dark') {
-  await expect(page.getByRole('navigation', { name: 'Builder' })).toBeVisible()
+  // Phones get a top bar; the navigation opens as a sheet.
+  await expect(page.getByRole('button', { name: 'Open the menu' })).toBeVisible()
   await assertNoHorizontalOverflow(page)
   await page.screenshot({ path: shot(`admin-mobile-pages-${scheme}.png`), fullPage: true })
 
-  await page.getByRole('link', { name: 'Approvals' }).click()
+  await page.getByRole('button', { name: 'Open the menu' }).click()
+  const nav = page.getByRole('navigation', { name: 'Builder' })
+  await expect(nav).toBeInViewport()
+  await page.screenshot({ path: shot(`admin-mobile-nav-${scheme}.png`) })
+  await nav.getByRole('link', { name: /Approvals/ }).click()
+  await expect(nav).not.toBeInViewport()
   await expect(page.getByRole('heading', { name: 'Approvals' })).toBeVisible({ timeout: 20_000 })
   await assertNoHorizontalOverflow(page)
   await page.screenshot({ path: shot(`admin-mobile-approvals-${scheme}.png`), fullPage: true })
@@ -44,10 +58,10 @@ async function visitReviewFlows(page: Page, scheme: 'light' | 'dark') {
     await expect(page.getByRole('heading', { name: /Review:/ })).toBeVisible({ timeout: 20_000 })
     await assertNoHorizontalOverflow(page)
     await page.screenshot({ path: shot(`admin-mobile-review-${scheme}.png`), fullPage: true })
-    await page.getByRole('link', { name: /Approvals/ }).first().click()
+    await navigate(page, /Approvals/)
   }
 
-  await page.getByRole('link', { name: 'Pages' }).click()
+  await navigate(page, /^Pages$/)
   await expect(page.getByRole('heading', { name: 'Pages' })).toBeVisible({ timeout: 20_000 })
   const winter = page.getByRole('link', { name: 'Winter appeal' })
   await expect(winter).toBeVisible()

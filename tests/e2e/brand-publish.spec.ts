@@ -71,7 +71,7 @@ async function publishAPage(page: Page) {
   await expect.poll(() => (publishedHomeHtml() ? 'ready' : 'missing'), { timeout: 60_000 }).toBe('ready')
 }
 
-test('changing the brand menu look still publishes after leaving the page for approvals', async ({ page }) => {
+test('a brand change still publishes after leaving the page for approvals', async ({ page }) => {
   test.setTimeout(180_000)
   await signIn(page)
 
@@ -82,7 +82,8 @@ test('changing the brand menu look still publishes after leaving the page for ap
   await page.goto('/brand')
   await expect(page.getByRole('heading', { name: 'Brand and Design' })).toBeVisible({ timeout: 20_000 })
   await expectSaved(page)
-  await page.getByRole('radio', { name: /Hamburger/ }).check()
+  // The menu look now lives on the Header; the body font is a brand change that reaches every page.
+  await page.getByLabel('Body font').fill('Georgia, serif')
   await expectSaved(page)
 
   await page.getByRole('button', { name: 'Submit for approval' }).click()
@@ -92,7 +93,7 @@ test('changing the brand menu look still publishes after leaving the page for ap
 
   // This is the navigation that used to flush the same draft and withdraw the review.
   await page.goto('/approvals')
-  const reviewLink = page.locator('table a[href^="/approvals/"]').filter({ hasText: 'Brand and Design' }).first()
+  const reviewLink = page.locator('a[href^="/approvals/"]').filter({ hasText: 'Brand and Design' }).first()
   await expect(reviewLink).toBeVisible({ timeout: 15_000 })
   await reviewLink.click()
   await expect(page.getByRole('button', { name: 'Approve and publish' })).toBeVisible({ timeout: 20_000 })
@@ -100,6 +101,6 @@ test('changing the brand menu look still publishes after leaving the page for ap
 
   await expect.poll(() => {
     const html = publishedHomeHtml()
-    return html && html.includes('site-header-hamburger') ? 'hamburger' : html ? 'other' : 'missing'
-  }, { timeout: 60_000 }).toBe('hamburger')
+    return html && html.includes('Georgia, serif') ? 'georgia' : html ? 'other' : 'missing'
+  }, { timeout: 60_000 }).toBe('georgia')
 })

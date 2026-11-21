@@ -30,49 +30,46 @@ async function expectSaved(page: Page) {
   expectNoCloneError()
 }
 
-test('brand menu look, site parts and settings all finish saving', async ({ page }) => {
+test('brand, site parts (menu look on the header) and settings all finish saving', async ({ page }) => {
   await signIn(page)
 
   await page.goto('/brand')
   await expect(page.getByRole('heading', { name: 'Brand and Design' })).toBeVisible({ timeout: 20_000 })
   await expectSaved(page)
 
-  const looks = ['Classic bar', 'Centred logo', 'Mega menu', 'Hamburger'] as const
-  for (const look of looks) {
-    await page.getByRole('radio', { name: new RegExp(look) }).check()
-    await expect(page.getByTestId('save-status')).toHaveText(/Saving|Saved/)
-    await expectSaved(page)
-  }
 
   await page.goto('/site-parts')
   await expect(page.getByRole('heading', { name: 'Site parts' })).toBeVisible({ timeout: 20_000 })
 
-  await page.getByRole('link', { name: 'Main menu' }).click()
-  await expect(page.getByRole('heading', { name: 'Main menu' })).toBeVisible({ timeout: 20_000 })
+  await page.getByRole('heading', { name: 'Main menu', level: 3 }).click()
+  await expect(page.getByRole('heading', { name: 'Main menu', level: 1 })).toBeVisible({ timeout: 20_000 })
   await expectSaved(page)
-  await page.getByRole('button', { name: 'Add item' }).click()
+  await page.getByRole('button', { name: /Add (a menu item|the first link)/ }).click()
   await expectSaved(page)
   await page.getByRole('button', { name: 'Remove' }).last().click()
   await expectSaved(page)
 
   await page.goto('/site-parts')
-  await page.getByRole('link', { name: 'Header', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Header' })).toBeVisible({ timeout: 20_000 })
+  await page.getByRole('heading', { name: 'Header and top strip', level: 3 }).click()
+  await expect(page.getByRole('heading', { name: 'Header and top strip', level: 1 })).toBeVisible({ timeout: 20_000 })
   await expectSaved(page)
-  await expect(page.getByLabel('Menu look')).toHaveCount(0)
-  const hint = page.getByText(/Menu look is set in/)
-  await expect(hint.getByRole('link', { name: 'Brand and Design' })).toBeVisible()
-  const hadCta = await page.getByRole('checkbox', { name: 'Show a button in the header' }).isChecked()
-  await page.getByRole('checkbox', { name: 'Show a button in the header' }).setChecked(!hadCta)
+  await expect(page.getByTestId('menu-look')).toBeVisible()
+  // The one place to choose the menu look.
+  const looks = ['Classic bar', 'Centred logo', 'Hamburger', 'Mega menu'] as const
+  for (const look of looks) {
+    await page.getByTestId('menu-look').locator('label', { hasText: look }).click()
+    await expect(page.getByRole('radio', { name: new RegExp(look) })).toBeChecked()
+    await expectSaved(page)
+  }
+  const hadCta = await page.getByRole('switch', { name: 'Show a button in the header' }).isChecked()
+  await page.getByRole('switch', { name: 'Show a button in the header' }).setChecked(!hadCta, { force: true })
   await expectSaved(page)
-  await page.getByRole('checkbox', { name: 'Show a button in the header' }).setChecked(hadCta)
+  await page.getByRole('switch', { name: 'Show a button in the header' }).setChecked(hadCta, { force: true })
   await expectSaved(page)
-  await hint.getByRole('link', { name: 'Brand and Design' }).click()
-  await expect(page.getByRole('heading', { name: 'Brand and Design' })).toBeVisible({ timeout: 20_000 })
 
   await page.goto('/site-parts')
-  await page.getByRole('link', { name: 'Footer', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Footer' })).toBeVisible({ timeout: 20_000 })
+  await page.getByRole('heading', { name: 'Footer', level: 3 }).click()
+  await expect(page.getByRole('heading', { name: 'Footer', level: 1 })).toBeVisible({ timeout: 20_000 })
   await expectSaved(page)
   const address = page.getByLabel('Address')
   const was = await address.inputValue()
