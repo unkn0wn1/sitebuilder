@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import type { StoredBlock } from '#shared/blocks/registry'
 import type { ImageRef } from '#shared/blocks/define'
+import { canvasImageUrl } from '../../utils/media'
+import { SAMPLE_MEDIA_ID } from '#shared/blocks/library'
+import { imageSlotFor } from '../../utils/block-fields'
 
 const props = defineProps<{
   block: StoredBlock
@@ -15,9 +18,14 @@ const emit = defineEmits<{
 
 const p = computed(() => props.block.props as Record<string, unknown>)
 
-function imageSrc(ref: ImageRef | undefined, width = 960): string | undefined {
+// New sections start with a sample photo id that is not in the library. Show that a photo is still needed.
+const SAMPLE_PHOTO = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="960" height="720" viewBox="0 0 960 720"><rect width="960" height="720" fill="#e5e7eb"/><rect x="24" y="24" width="912" height="672" fill="none" stroke="#9ca3af" stroke-width="4" stroke-dasharray="16 12"/><text x="480" y="350" font-family="system-ui,sans-serif" font-size="44" fill="#374151" text-anchor="middle">Sample photo</text><text x="480" y="410" font-family="system-ui,sans-serif" font-size="30" fill="#4b5563" text-anchor="middle">Choose a photo in the panel on the right</text></svg>')}`
+
+/** Canvas URL for a photo; slot is the prop path, so the crop for that slot's ratio is shown like on the live page. */
+function imageSrc(ref: ImageRef | undefined, width = 960, slot?: string): string | undefined {
   if (!ref?.media) return undefined
-  return `/media/${ref.media}-${width}.webp`
+  if (ref.media === SAMPLE_MEDIA_ID) return SAMPLE_PHOTO
+  return canvasImageUrl(ref.media, width, slot ? imageSlotFor(props.block.type, slot)?.ratio : null)
 }
 
 function onInline(prop: string, event: Event) {
@@ -79,7 +87,7 @@ function trustGroups(value: unknown): { label: string; items: TrustPreviewItem[]
     >
       <img
         v-if="asImage((block.type === 'VideoHero' ? p.poster : p.image) as never)"
-        :src="imageSrc(asImage((block.type === 'VideoHero' ? p.poster : p.image) as never), 1280)"
+        :src="imageSrc(asImage((block.type === 'VideoHero' ? p.poster : p.image) as never), 1280, block.type === 'VideoHero' ? 'poster' : 'image')"
         alt=""
         class="hero-media"
         @error="($event.target as HTMLImageElement).style.display = 'none'"
@@ -106,7 +114,7 @@ function trustGroups(value: unknown): { label: string; items: TrustPreviewItem[]
           </div>
           <img
             v-if="asImage(p.image)"
-            :src="imageSrc(asImage(p.image), 960)"
+            :src="imageSrc(asImage(p.image), 960, 'image')"
             :alt="asImage(p.image)?.alt ?? ''"
             @error="($event.target as HTMLImageElement).style.opacity = '0.2'"
           >
@@ -119,7 +127,7 @@ function trustGroups(value: unknown): { label: string; items: TrustPreviewItem[]
         <figure class="figure">
           <img
             v-if="asImage(p.image)"
-            :src="imageSrc(asImage(p.image), 1280)"
+            :src="imageSrc(asImage(p.image), 1280, 'image')"
             :alt="asImage(p.image)?.alt ?? ''"
             @error="($event.target as HTMLImageElement).style.opacity = '0.2'"
           >
@@ -135,7 +143,7 @@ function trustGroups(value: unknown): { label: string; items: TrustPreviewItem[]
           <img
             v-for="(img, i) in asItems<ImageRef>(p.images)"
             :key="i"
-            :src="imageSrc(img, 800)"
+            :src="imageSrc(img, 800, 'images')"
             :alt="img.alt ?? ''"
             @error="($event.target as HTMLImageElement).style.opacity = '0.2'"
           >
@@ -171,7 +179,7 @@ function trustGroups(value: unknown): { label: string; items: TrustPreviewItem[]
           <article v-for="(card, i) in asItems<{ title: string; text?: string; image?: ImageRef; link?: { label: string; href: string } }>(p.cards)" :key="i" class="card">
             <img
               v-if="card.image"
-              :src="imageSrc(card.image, 640)"
+              :src="imageSrc(card.image, 640, 'cards.image')"
               :alt="card.image.alt ?? ''"
               @error="($event.target as HTMLImageElement).style.opacity = '0.2'"
             >
@@ -221,7 +229,7 @@ function trustGroups(value: unknown): { label: string; items: TrustPreviewItem[]
         <div class="tiers">
           <article v-for="(item, i) in asItems<{ amount: string; title?: string; explanation?: string; frequency?: string; image?: ImageRef }>(p.items)" :key="i" class="tier">
             <a class="tier-give" href="#donate">
-              <img v-if="item.image" :src="imageSrc(item.image, 640)" :alt="item.image.alt ?? ''" @error="($event.target as HTMLImageElement).style.opacity = '0.2'">
+              <img v-if="item.image" :src="imageSrc(item.image, 640, 'items.image')" :alt="item.image.alt ?? ''" @error="($event.target as HTMLImageElement).style.opacity = '0.2'">
               <div class="tier-body">
                 <p class="tier-amount">{{ item.amount }}</p>
                 <h3 v-if="item.title">{{ item.title }}</h3>
@@ -265,11 +273,11 @@ function trustGroups(value: unknown): { label: string; items: TrustPreviewItem[]
         </div>
         <div class="before-after">
           <figure>
-            <img v-if="asImage(p.before)" :src="imageSrc(asImage(p.before), 960)" :alt="asImage(p.before)?.alt ?? ''" @error="($event.target as HTMLImageElement).style.opacity = '0.2'">
+            <img v-if="asImage(p.before)" :src="imageSrc(asImage(p.before), 960, 'before')" :alt="asImage(p.before)?.alt ?? ''" @error="($event.target as HTMLImageElement).style.opacity = '0.2'">
             <figcaption>{{ String(p.beforeCaption ?? 'Before') }}</figcaption>
           </figure>
           <figure>
-            <img v-if="asImage(p.after)" :src="imageSrc(asImage(p.after), 960)" :alt="asImage(p.after)?.alt ?? ''" @error="($event.target as HTMLImageElement).style.opacity = '0.2'">
+            <img v-if="asImage(p.after)" :src="imageSrc(asImage(p.after), 960, 'after')" :alt="asImage(p.after)?.alt ?? ''" @error="($event.target as HTMLImageElement).style.opacity = '0.2'">
             <figcaption>{{ String(p.afterCaption ?? 'After') }}</figcaption>
           </figure>
         </div>

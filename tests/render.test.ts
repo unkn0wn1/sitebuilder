@@ -688,3 +688,57 @@ describe('published brand logo', () => {
     expect(dominant.r).toBeGreaterThan(100)
   })
 })
+
+describe('published photos', () => {
+  it('every image URL on a published page with a cropped photo narrower than the standard widths exists', async () => {
+    const s = setup()
+    const { approveCrop } = await import('../server/services/media')
+    const { readdirSync } = await import('node:fs')
+    const mediaDir = mkdtempSync(join(tmpdir(), 'sb-crop-media-'))
+    const root = mkdtempSync(join(tmpdir(), 'sb-crop-release-'))
+    const photo = await sharp({ create: { width: 1024, height: 700, channels: 3, background: { r: 120, g: 90, b: 60 } } }).jpeg().toBuffer()
+    const { media } = await uploadMedia(s.ctx, s.admin, { filename: 'dog.jpg', data: photo, mediaDir })
+    updateMedia(s.ctx, s.admin, media.id, { alt: 'A dog after treatment' })
+    const writer = createFileReleaseWriter(root, { keep: 10, mediaDir })
+    const handlers = {
+      media_renditions: createMediaRenditionsHandler(mediaDir),
+      publish: createPublishHandler(writer),
+      send_email: { run: () => ({ skipped: true }) },
+      purge_cache: { run: () => ({ skipped: true }) },
+    }
+    await runJobsOnce(s.ctx, handlers)
+    // A 4:3 crop of a 1024x700 photo is 933 wide: there is no 960 or 1024 version of the crop.
+    approveCrop(s.ctx, s.admin, media.id, { ratio: '4:3', rect: { x: 45, y: 0, width: 933, height: 700 } })
+    while (await runJobsOnce(s.ctx, handlers)) {}
+
+    const { page } = createPage(s.ctx, s.editor, { title: 'Rescue', template: 'standard' })
+    applyPageOps(s.ctx, s.editor, page.id, 0, [
+      { op: 'add_block', block: { type: 'Hero', props: { heading: 'Rescue', image: { media: media.id, alt: 'A dog' } } } },
+      { op: 'add_block', block: { type: 'TextAndImage', props: { heading: 'Healed', content: richTextFromParagraphs(['Better now.']), image: { media: media.id, alt: 'A dog' } } } },
+    ])
+    const sub = submitPage(s.ctx, s.editor, page.id)
+    approveReview(s.ctx, s.approver, sub.reviewId, { versionId: sub.versionId })
+    while (await runJobsOnce(s.ctx, handlers)) {}
+
+    const html = readFileSync(join(root, 'releases', readCurrentReleaseId(root)!, 'rescue', 'index.html'), 'utf8')
+    expect(html).toContain(`/media/${media.id}-4x3-933.webp`)
+    const onDisk = new Set(readdirSync(join(mediaDir, 'renditions')))
+    const urls = [...html.matchAll(/\/media\/([A-Za-z0-9_.-]+\.(?:webp|avif))/g)].map((m) => m[1]!)
+    expect(urls.length).toBeGreaterThan(4)
+    expect(urls.filter((u) => !onDisk.has(u))).toEqual([])
+  })
+
+  it('will not submit a page whose photo is not in the media library', async () => {
+    const s = setup()
+    const { page } = createPage(s.ctx, s.editor, { title: 'Broken', template: 'standard' })
+    applyPageOps(s.ctx, s.editor, page.id, 0, [{ op: 'add_block', block: { type: 'Hero', props: { heading: 'Broken', image: { media: 'med_000000000000000000000000ZZ', alt: 'A dog' } } } }])
+    let err: any
+    try {
+      submitPage(s.ctx, s.editor, page.id)
+    } catch (e) {
+      err = e
+    }
+    expect(err?.code).toBe('validation_failed')
+    expect(err.fields).toEqual(expect.arrayContaining([expect.objectContaining({ path: 'blocks.0.props.image', message: expect.stringMatching(/not in the media library/) })]))
+  })
+})

@@ -70,6 +70,8 @@ export interface MediaCatalogEntry {
   kind: string
   mime: string
   cropRatios: string[]
+  /** Width of the approved crop for each ratio. Crop renditions are made up to this width, not the original's. */
+  cropWidths?: Record<string, number>
 }
 
 export interface EmbedCatalogEntry {
@@ -192,7 +194,9 @@ function ratioKey(ratio: string): string {
   return ratio.replace(':', 'x')
 }
 
-function widthsForMedia(entry: MediaCatalogEntry | undefined): number[] {
+function widthsForMedia(entry: MediaCatalogEntry | undefined, cropRatio?: string | null): number[] {
+  const cropWidth = cropRatio ? entry?.cropWidths?.[cropRatio] : undefined
+  if (cropWidth) return widthsFor(cropWidth)
   if (entry?.width) return widthsFor(entry.width)
   return [...DEFAULT_WIDTHS]
 }
@@ -224,7 +228,7 @@ export function pictureVNode(
   const ratio = opts.slot && opts.slot.height ? ratioFor(opts.slot.width, opts.slot.height) : null
   const useCrop = ratio && entry?.cropRatios.includes(ratio)
   const base = useCrop ? `${image.media}-${ratioKey(ratio!)}` : image.media
-  const widths = widthsForMedia(entry)
+  const widths = widthsForMedia(entry, useCrop ? ratio : null)
   const avif = widths.map((w) => `/media/${base}-${w}.avif ${w}w`).join(', ')
   const webp = widths.map((w) => `/media/${base}-${w}.webp ${w}w`).join(', ')
   const fallbackW = widths.includes(1280) ? 1280 : widths[widths.length - 1]!
@@ -938,7 +942,7 @@ function firstHeroPreload(block: StoredBlock, site: SiteRenderContext): string {
   const ratio = '16:9'
   const useCrop = entry?.cropRatios.includes(ratio)
   const base = useCrop ? `${image.media}-${ratioKey(ratio)}` : image.media
-  const widths = widthsForMedia(entry)
+  const widths = widthsForMedia(entry, useCrop ? ratio : null)
   const w = widths.includes(1280) ? 1280 : widths[widths.length - 1] ?? 1280
   const small = widths.includes(640) ? 640 : widths[0] ?? w
   return `<link rel="preload" as="image" href="/media/${base}-${small}.avif" type="image/avif" media="(max-width: 640px)">
@@ -981,10 +985,14 @@ export function loadSiteRenderContext(ctx: ServiceCtx, manifest: ReleaseManifest
   const mediaRows = ctx.db.select().from(media).where(eq(media.siteId, ctx.siteId)).all()
   const cropRows = ctx.db.select().from(mediaCrops).where(eq(mediaCrops.siteId, ctx.siteId)).all()
   const cropsByMedia = new Map<string, string[]>()
-  for (const crop of cropRows) {
+  const cropWidthsByMedia = new Map<string, Record<string, number>>()
+  // Renditions are named by ratio only, so the newest approved crop for a ratio is the one on disk ('all' first).
+  const ordered = [...cropRows].sort((a, b) => (a.breakpoint === 'all' ? 1 : 0) - (b.breakpoint === 'all' ? 1 : 0) || String(a.approvedAt).localeCompare(String(b.approvedAt)))
+  for (const crop of ordered) {
     const list = cropsByMedia.get(crop.mediaId) ?? []
     list.push(crop.ratio)
     cropsByMedia.set(crop.mediaId, list)
+    cropWidthsByMedia.set(crop.mediaId, { ...cropWidthsByMedia.get(crop.mediaId), [crop.ratio]: crop.width })
   }
   const mediaCatalog: Record<string, MediaCatalogEntry> = {}
   for (const row of mediaRows) {
@@ -998,6 +1006,7 @@ export function loadSiteRenderContext(ctx: ServiceCtx, manifest: ReleaseManifest
       kind: row.kind,
       mime: row.mime,
       cropRatios: [...new Set(cropsByMedia.get(row.id) ?? [])],
+      cropWidths: cropWidthsByMedia.get(row.id) ?? {},
     }
   }
 

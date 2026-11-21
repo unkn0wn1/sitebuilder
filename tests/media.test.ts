@@ -88,7 +88,7 @@ describe('media', () => {
     expect(got.renditions).toContain(`${up.media.id}.svg`)
     expect(got.renditions.some((n) => n.endsWith('.webp'))).toBe(true)
     expect(listMedia(s.ctx, { kind: 'image', page: 1, pageSize: 10 }).items.map((i) => i.id)).toContain(up.media.id)
-    expect(listMedia(s.ctx, { kind: 'video', page: 1, pageSize: 10 }).total).toBe(0)
+    expect(listMedia(s.ctx, { kind: 'video', page: 1, pageSize: 10 }).items.map((i) => i.id)).not.toContain(up.media.id)
     s.sqlite.close()
   })
 
@@ -189,5 +189,18 @@ describe('brand logo usage', () => {
     await runJobsOnce(s.ctx, handlers)
     expect(getMedia(s.ctx, media.id).usedOn.some((u) => u.title === 'Brand and Design' && u.live)).toBe(true)
     await expectCode(() => binMedia(s.ctx, s.approver, media.id), 'invalid_state')
+  })
+})
+
+describe('pickRendition', () => {
+  it('picks the smallest WebP at least as wide as wanted, else the largest that exists', async () => {
+    const { pickRendition } = await import('../server/services/media')
+    const names = ['m-320.webp', 'm-320.avif', 'm-640.webp', 'm-700.webp', 'm-700.avif']
+    expect(pickRendition(names, 960)).toBe('m-700.webp')
+    expect(pickRendition(names, 600)).toBe('m-640.webp')
+    expect(pickRendition(names, 100)).toBe('m-320.webp')
+    expect(pickRendition(['m.svg', 'm-320.webp'], 960)).toBe('m-320.webp')
+    expect(pickRendition(['m.svg'], 960)).toBe('m.svg')
+    expect(pickRendition([], 960)).toBeNull()
   })
 })

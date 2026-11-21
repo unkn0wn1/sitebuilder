@@ -6,7 +6,7 @@ import type { ActingAs, ServiceCtx } from '../server/services/context'
 import { STARTER_TEMPLATES } from '../server/services/seed-data'
 import { createSite } from '../server/services/site'
 import { createTemplate } from '../server/services/templates'
-import { sites } from '../server/db/schema'
+import { media, sites } from '../server/db/schema'
 import { eq } from 'drizzle-orm'
 
 export class Clock {
@@ -34,6 +34,10 @@ export function setup(opts: { selfApproval?: boolean } = {}) {
   const approver = mk('approver', 'priya')
   const admin = mk('admin', 'spencer')
   for (const [key, rules] of Object.entries(STARTER_TEMPLATES)) createTemplate(ctx, key, rules, admin.id)
+  // The fixed sample ids used across the tests stand for photos and a video already in the library.
+  for (const [id, kind, mime] of [['med_00000000000000000000000001', 'image', 'image/jpeg'], ['med_00000000000000000000000002', 'video', 'video/mp4']] as const) {
+    db.insert(media).values({ id, siteId, kind, filename: `${id}.${kind === 'video' ? 'mp4' : 'jpg'}`, mime, bytes: 1000, width: 1920, height: 1080, sha256: id, alt: 'A dog', status: 'ready', uploadedBy: admin.id, createdAt: clock.now().toISOString() }).run()
+  }
   const setSelfApproval = (on: boolean) => db.update(sites).set({ settings: { workflow: { selfApproval: on } } }).where(eq(sites.id, siteId)).run()
   return { ctx, clock, sqlite, editor, editor2, approver, admin, setSelfApproval }
 }

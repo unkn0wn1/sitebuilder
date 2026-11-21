@@ -3,9 +3,10 @@ import { fieldsForBlock, imageSlotFor, type FieldSpec } from '../../utils/block-
 import { richTextFromParagraphs, richTextToPlain, type RichTextDoc } from '#shared/richtext'
 import { parseRatio } from '#shared/crop'
 import { api } from '../../utils/api'
-import { mediaFileUrl, type MediaDetails, type MediaItem } from '../../utils/media'
+import { mediaFileUrl, mediaVersion, type MediaDetails, type MediaItem } from '../../utils/media'
 import MediaPickerModal from '../media/MediaPickerModal.vue'
 import CropDialog from '../media/CropDialog.vue'
+import { SAMPLE_MEDIA_ID } from '#shared/blocks/library'
 import { cloneDraft } from '#shared/clone'
 import type { FieldIssue } from '#shared/issues'
 import FieldErrors from './FieldErrors.vue'
@@ -89,7 +90,7 @@ const cropFor = ref<{ path: string; mediaId: string; ratio: string; title: strin
 const previews = ref<Record<string, { alt: string; src: string | null; width: number; height: number }>>({})
 
 async function loadPreview(id: string) {
-  if (!id || previews.value[id]) return
+  if (!id || previews.value[id] || id === SAMPLE_MEDIA_ID) return
   try {
     const data = await api<MediaDetails>(`/media/${id}`)
     const name = data.preview ?? data.renditions.find((n) => n.endsWith('.webp'))
@@ -162,9 +163,11 @@ function pick(field: FieldSpec, item: MediaItem) {
     }
     cur[parts.at(-1)!] = value
   }
+  // The sample photo's alt text describes the sample, not the new photo, so replace it too.
+  const wasSample = textValue(`${field.path}.media`) === SAMPLE_MEDIA_ID
   apply(`${field.path}.media`, item.id)
   const currentAlt = textValue(`${field.path}.alt`)
-  if (!currentAlt && item.alt) apply(`${field.path}.alt`, item.alt)
+  if ((!currentAlt || wasSample) && item.alt) apply(`${field.path}.alt`, item.alt)
   emit('update:modelValue', next)
   previews.value[item.id] = {
     alt: item.alt ?? '',
@@ -187,6 +190,13 @@ function pick(field: FieldSpec, item: MediaItem) {
 function previewOf(path: string) {
   const id = textValue(`${path}.media`)
   return id ? previews.value[id] : undefined
+}
+
+// The crop's files are made in the background; ask the canvas to fetch the photo again now and once they are ready.
+function onCropApproved() {
+  cropFor.value = null
+  mediaVersion.value++
+  for (const ms of [1500, 4000]) setTimeout(() => mediaVersion.value++, ms)
 }
 
 function openCrop(field: FieldSpec) {
@@ -258,6 +268,7 @@ function openCrop(field: FieldSpec) {
           :alt="textValue(`${field.path}.alt`) || previewOf(field.path)?.alt || ''"
           class="mb-2 max-h-40 w-full rounded object-cover"
         />
+        <p v-else-if="textValue(`${field.path}.media`) === SAMPLE_MEDIA_ID" class="mb-2 rounded bg-amber-50 px-2 py-1 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-100">Sample photo. Choose a real one with Change before submitting.</p>
         <p v-else-if="textValue(`${field.path}.media`)" class="mb-2 text-xs text-gray-500 dark:text-gray-400">Photo {{ textValue(`${field.path}.media`) }}</p>
         <p v-else class="mb-2 text-xs text-gray-500 dark:text-gray-400">No photo yet.</p>
         <div class="mb-2 flex flex-wrap gap-2">
@@ -335,6 +346,6 @@ function openCrop(field: FieldSpec) {
       </div>
     </div>
     <MediaPickerModal v-if="pickerFor" :selected-id="pickerFor ? textValue(`${pickerFor}.media`) : null" @close="pickerFor = null" @pick="onPicked($event)" />
-    <CropDialog v-if="cropFor" :media-id="cropFor.mediaId" :ratio="cropFor.ratio" :title="cropFor.title" @close="cropFor = null" @approved="cropFor = null" />
+    <CropDialog v-if="cropFor" :media-id="cropFor.mediaId" :ratio="cropFor.ratio" :title="cropFor.title" @close="cropFor = null" @approved="onCropApproved" />
   </div>
 </template>

@@ -451,3 +451,48 @@ export function binMedia(ctx: ServiceCtx, actor: ActingAs, id: string) {
   ctx.db.update(media).set({ deletedAt: iso(ctx) }).where(eq(media.id, id)).run()
   audit(ctx, actor, 'media.binned', { type: 'media', id })
 }
+
+/**
+ * Photos and videos a page points at that are not usable in the media library: never uploaded (a sample id),
+ * in the bin, or failed. Published, they would be broken images, so submitting is refused.
+ */
+export function missingMediaIssues(ctx: ServiceCtx, doc: { blocks: { props: Record<string, unknown> }[] }): { path: string; message: string }[] {
+  const refs: { id: string; path: string; video: boolean }[] = []
+  const walk = (value: unknown, path: string, key: string) => {
+    if (Array.isArray(value)) return value.forEach((v, i) => walk(v, `${path}.${i}`, key))
+    if (value && typeof value === 'object') {
+      const media = (value as { media?: unknown }).media
+      if (typeof media === 'string' && media.startsWith('med_')) refs.push({ id: media, path, video: false })
+      for (const [k, v] of Object.entries(value)) if (k !== 'media') walk(v, `${path}.${k}`, k)
+      return
+    }
+    if (typeof value === 'string' && /^(video|poster|image)$/i.test(key) && value.startsWith('med_')) refs.push({ id: value, path, video: /video/i.test(key) })
+  }
+  doc.blocks.forEach((b, i) => walk(b.props, `blocks.${i}.props`, ''))
+  if (!refs.length) return []
+  const ids = [...new Set(refs.map((r) => r.id))]
+  const rows = new Map(ctx.db.select().from(media).where(and(eq(media.siteId, ctx.siteId), inArray(media.id, ids))).all().map((r) => [r.id, r]))
+  const issues: { path: string; message: string }[] = []
+  for (const r of refs) {
+    const row = rows.get(r.id)
+    const what = r.video ? 'video' : 'photo'
+    if (!row) issues.push({ path: r.path, message: `This ${what} is not in the media library (it may be a sample placeholder). Choose a ${what} from the library.` })
+    else if (row.deletedAt) issues.push({ path: r.path, message: `This ${what} is in the media bin. Restore it or choose another.` })
+    else if (row.status === 'failed') issues.push({ path: r.path, message: `This ${what} could not be processed. Upload it again or choose another.` })
+  }
+  return issues
+}
+
+/**
+ * The rendition file to show for a wanted width: the smallest WebP at least that wide, else the largest. Uses the
+ * crop for the ratio when one is approved. Only names that exist for this item are considered, so a photo narrower
+ * than the wanted width still shows (the fixed "-960" names the builder used to ask for did not exist for those).
+ */
+export function pickRendition(names: string[], want: number): string | null {
+  const sized = names
+    .map((n) => ({ n, w: Number(/-(\d+)\.webp$/.exec(n)?.[1] ?? NaN) }))
+    .filter((x) => Number.isFinite(x.w))
+    .sort((a, b) => a.w - b.w)
+  if (!sized.length) return names.find((n) => n.endsWith('.svg') || n.endsWith('.mp4') || n.endsWith('.webm')) ?? null
+  return (sized.find((x) => x.w >= want) ?? sized[sized.length - 1]!).n
+}

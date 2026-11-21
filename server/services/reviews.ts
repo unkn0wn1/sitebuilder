@@ -2,6 +2,7 @@
 // See ADR 0005 and docs/13-data-model.md#reviews-pin-a-version.
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { runChecks } from '../../shared/checks'
+import { missingMediaIssues } from './media'
 import { diffPages, type PageDiff } from '../../shared/diff'
 import { newId } from '../../shared/ids'
 import { validatePageDoc, type PageDoc } from '../../shared/page'
@@ -106,6 +107,7 @@ function checksFor(ctx: ServiceCtx, template: string, doc: PageDoc) {
   const rules = getTemplateRules(ctx, template)
   const valid = validatePageDoc(doc, ctx.registry, rules, { enforceRequired: false })
   const checks = runChecks(doc, ctx.registry, rules)
+  checks.blocking.push(...missingMediaIssues(ctx, doc))
   if (!valid.ok) checks.blocking.unshift(...valid.issues)
   return checks
 }
