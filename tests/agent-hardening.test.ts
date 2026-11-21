@@ -19,14 +19,14 @@ const payloads = (w: World) => queued(w).map((j) => (j.payload as any).payload)
 describe('webhook addresses', () => {
   it('accepts public https and refuses http, credentials and inside-the-network hosts', async () => {
     expect(checkWebhookUrl('https://hooks.example.org/a#frag', { allowHttp: false })).toBe('https://hooks.example.org/a')
-    for (const bad of ['http://hooks.example.org/a', 'https://u:p@hooks.example.org/', 'https://localhost/x', 'https://10.0.0.5/x', 'https://[::1]/x', 'https://192.168.1.1/', 'https://169.254.169.254/latest', 'not a url', 'ftp://x.org']) {
+    for (const bad of ['http://hooks.example.org/a', 'https://u:p@hooks.example.org/', 'https://localhost/x', 'https://10.0.0.5/x', 'https://[::1]/x', 'https://192.168.1.1/', 'https://169.254.169.254/latest', 'https://[::ffff:127.0.0.1]/', 'https://[::ffff:7f00:1]/', 'https://2130706433/', 'not a url', 'ftp://x.org']) {
       expect(await code(() => checkWebhookUrl(bad, { allowHttp: false })), bad).toBe('validation_failed')
     }
   })
 
   it('knows private ranges', () => {
-    for (const ip of ['127.0.0.1', '10.1.2.3', '172.20.0.1', '192.168.0.1', '169.254.1.1', '100.64.0.1', '::1', 'fd00::1', 'fe80::1', '::ffff:10.0.0.1', '0.0.0.0']) expect(isPrivateAddress(ip), ip).toBe(true)
-    for (const ip of ['8.8.8.8', '1.1.1.1', '2606:4700::1111', '172.32.0.1']) expect(isPrivateAddress(ip), ip).toBe(false)
+    for (const ip of ['127.0.0.1', '10.1.2.3', '172.20.0.1', '192.168.0.1', '169.254.1.1', '100.64.0.1', '::1', 'fd00::1', 'fe80::1', '::ffff:10.0.0.1', '0.0.0.0', '::ffff:7f00:1', '::7f00:1', '::', '64:ff9b::a9fe:a9fe', '2002:7f00:1::', '::ffff:a00:1', '2001:0:4136:e378::1', 'fe80::1%eth0']) expect(isPrivateAddress(ip), ip).toBe(true)
+    for (const ip of ['8.8.8.8', '1.1.1.1', '2606:4700::1111', '172.32.0.1', '2a00:1450:4001::200e', '::ffff:808:808', '64:ff9b::808:808']) expect(isPrivateAddress(ip), ip).toBe(false)
   })
 })
 

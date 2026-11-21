@@ -6,6 +6,27 @@ import { promises as dns } from 'node:dns'
 import { isIP } from 'node:net'
 import { AppError } from './errors'
 
+/** The 16 bytes of an IPv6 address (any textual form, including a trailing dotted IPv4), or null. */
+function ipv6Bytes(ip: string): number[] | null {
+  let v = ip.toLowerCase().split('%')[0]!
+  const dotted = v.match(/(\d+\.\d+\.\d+\.\d+)$/)
+  if (dotted) {
+    const p = dotted[1]!.split('.').map(Number)
+    v = v.slice(0, -dotted[1]!.length) + `${((p[0]! << 8) | p[1]!).toString(16)}:${((p[2]! << 8) | p[3]!).toString(16)}`
+  }
+  const [head, tail] = v.includes('::') ? v.split('::') as [string, string] : [v, null]
+  const h = head ? head.split(':') : []
+  const t = tail ? tail.split(':') : []
+  const groups = tail === null ? h : [...h, ...Array(8 - h.length - t.length).fill('0'), ...t]
+  if (groups.length !== 8) return null
+  return groups.flatMap((g) => {
+    const n = parseInt(g || '0', 16)
+    return [(n >> 8) & 255, n & 255]
+  })
+}
+
+const v4 = (b: number[]) => b.join('.')
+
 export function isPrivateAddress(ip: string): boolean {
   const kind = isIP(ip)
   if (kind === 4) {
@@ -13,10 +34,22 @@ export function isPrivateAddress(ip: string): boolean {
     return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 192 && b === 0) || (a === 198 && (b === 18 || b === 19)) || a >= 224
   }
   if (kind === 6) {
-    const v = ip.toLowerCase()
-    const mapped = v.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/)
-    if (mapped) return isPrivateAddress(mapped[1]!)
-    return v === '::' || v === '::1' || v.startsWith('fc') || v.startsWith('fd') || /^fe[89ab]/.test(v) || v.startsWith('ff') || v.startsWith('2001:db8')
+    const b = ipv6Bytes(ip)
+    if (!b) return true
+    const zero = (from: number, to: number) => b.slice(from, to).every((x) => x === 0)
+    // IPv4 hidden inside IPv6: mapped (::ffff:a.b.c.d, also written ::ffff:7f00:1), compatible (::a.b.c.d),
+    // NAT64 (64:ff9b::a.b.c.d) and 6to4 (2002:aabb:ccdd::). Judge the IPv4 address inside.
+    if (zero(0, 10) && b[10] === 255 && b[11] === 255) return isPrivateAddress(v4(b.slice(12)))
+    if (zero(0, 12)) return zero(12, 15) ? true : isPrivateAddress(v4(b.slice(12)))
+    if (b[0] === 0 && b[1] === 0x64 && b[2] === 0xff && b[3] === 0x9b && zero(4, 12)) return isPrivateAddress(v4(b.slice(12)))
+    if (b[0] === 0x20 && b[1] === 0x02) return isPrivateAddress(v4(b.slice(2, 6)))
+    const first = (b[0]! << 8) | b[1]!
+    if ((first & 0xfe00) === 0xfc00) return true // fc00::/7 unique local
+    if ((first & 0xffc0) === 0xfe80 || (first & 0xffc0) === 0xfec0) return true // link-local, old site-local
+    if (b[0] === 0xff) return true // multicast
+    if (first === 0x2001 && b[2] === 0x0d && b[3] === 0xb8) return true // documentation
+    if (first === 0x2001 && b[2] === 0 && b[3] === 0) return true // Teredo (hides an IPv4)
+    return false
   }
   return true
 }
