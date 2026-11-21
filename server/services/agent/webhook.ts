@@ -9,8 +9,6 @@
 //   - The body carries ids, names and short sentences. It never carries a token, a secret or page text beyond the change title.
 //   - A failed delivery is retried by the job queue and never affects the change itself.
 import { createHmac } from 'node:crypto'
-import { promises as dns } from 'node:dns'
-import { isIP } from 'node:net'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { can } from '../../../shared/roles'
@@ -21,6 +19,7 @@ import { deleteSecret, getSecret, hasSecret, secretKeyFromEnv, setSecret } from 
 import type { ActingAs, ServiceCtx } from '../context'
 import { AppError, forbidden } from '../errors'
 import { enqueueJob, type JobHandler } from '../jobs'
+import { assertPublicDestination, checkPublicUrl, defaultResolver, type Resolver } from '../net-guard'
 
 export const WEBHOOK_EVENTS = ['published', 'review_requested', 'blocked', 'token_paused'] as const
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number] | 'test'
@@ -46,51 +45,11 @@ export interface WebhookPayload {
 // ---------------------------------------------------------------------------------------------------------------------
 // Addresses
 
-export function isPrivateAddress(ip: string): boolean {
-  const kind = isIP(ip)
-  if (kind === 4) {
-    const [a, b] = ip.split('.').map(Number) as [number, number]
-    return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 192 && b === 0) || (a === 198 && (b === 18 || b === 19)) || a >= 224
-  }
-  if (kind === 6) {
-    const v = ip.toLowerCase()
-    const mapped = v.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/)
-    if (mapped) return isPrivateAddress(mapped[1]!)
-    return v === '::' || v === '::1' || v.startsWith('fc') || v.startsWith('fd') || /^fe[89ab]/.test(v) || v.startsWith('ff') || v.startsWith('2001:db8')
-  }
-  return true
-}
+export { isPrivateAddress } from '../net-guard'
 
 /** Checks the address the owner typed. Returns the cleaned URL. Throws validation_failed with a plain reason. */
 export function checkWebhookUrl(raw: string, opts: { allowHttp?: boolean } = {}): string {
-  const bad = (message: string) => new AppError('validation_failed', message, [{ path: 'url', message }])
-  let u: URL
-  try {
-    u = new URL(raw.trim())
-  } catch {
-    throw bad('That is not a web address. It should look like https://hooks.example.org/alerts.')
-  }
-  const allowHttp = opts.allowHttp ?? process.env.SITEBUILDER_AGENT_WEBHOOK_ALLOW_HTTP === '1'
-  if (u.protocol !== 'https:' && !(allowHttp && u.protocol === 'http:')) throw bad('Use an https:// address.')
-  if (u.username || u.password) throw bad('Do not put a user name or password in the address. Use the signing secret instead.')
-  const host = u.hostname.replace(/^\[|\]$/g, '')
-  if (!allowHttp) {
-    if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')) throw bad('That address points inside this network. Use a public address.')
-    if (isIP(host) && isPrivateAddress(host)) throw bad('That address points inside this network. Use a public address.')
-  }
-  u.hash = ''
-  return u.toString()
-}
-
-type Resolver = (host: string) => Promise<string[]>
-const defaultResolver: Resolver = async (host) => (await dns.lookup(host, { all: true })).map((a) => a.address)
-
-async function assertPublicDestination(url: string, resolve: Resolver, allowPrivate: boolean) {
-  const host = new URL(url).hostname.replace(/^\[|\]$/g, '')
-  if (allowPrivate) return
-  const addresses = isIP(host) ? [host] : await resolve(host)
-  if (!addresses.length) throw new Error(`The webhook host ${host} did not resolve.`)
-  if (addresses.some(isPrivateAddress)) throw new Error(`The webhook host ${host} points inside this network, so nothing was sent.`)
+  return checkPublicUrl(raw, { allowHttp: opts.allowHttp ?? process.env.SITEBUILDER_AGENT_WEBHOOK_ALLOW_HTTP === '1', example: 'https://hooks.example.org/alerts', credentialsHint: ' Use the signing secret instead.' })
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
