@@ -73,16 +73,12 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="p-6">
-    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h1 class="m-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">Page types</h1>
-        <p class="mt-1 mb-0 max-w-xl text-gray-600 dark:text-gray-400">Rules for what sections a page may and must have. Changes go through approval before they apply to new and existing pages.</p>
-      </div>
-      <FwbButton v-if="canEdit" @click="showNew = true">New page type</FwbButton>
-    </div>
+  <div class="sb-page">
+    <UiPageHeader title="Page types" description="Rules for which sections a page may and must have. Changes go through approval before they apply to new and existing pages.">
+      <FwbButton v-if="canEdit" @click="showNew = true"><span class="inline-flex items-center gap-1.5"><UiIcon name="plus" :size="16" /> New page type</span></FwbButton>
+    </UiPageHeader>
     <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
-    <form v-if="showNew && canEdit" class="mb-6 flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4" @submit.prevent="create">
+    <form v-if="showNew && canEdit" class="mb-6 flex flex-wrap items-end gap-3 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900" @submit.prevent="create">
       <div class="w-56">
         <FwbInput v-model="newLabel" label="Name" placeholder="Campaign" />
       </div>
@@ -93,25 +89,20 @@ onMounted(load)
       <FwbButton color="light" type="button" @click="showNew = false">Cancel</FwbButton>
       <p class="m-0 w-full text-sm text-gray-500 dark:text-gray-400">The key is used in the address of this type and can't be changed later. New types start as a draft and must be approved before editors can use them.</p>
     </form>
-    <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading page types…</p>
-    <p v-else-if="!items.length" class="text-gray-500 dark:text-gray-400">No page types yet.</p>
-    <FwbTable v-else hoverable>
-      <FwbTableHead>
-        <FwbTableHeadCell>Name</FwbTableHeadCell>
-        <FwbTableHeadCell>Key</FwbTableHeadCell>
-        <FwbTableHeadCell>Status</FwbTableHeadCell>
-        <FwbTableHeadCell>Updated</FwbTableHeadCell>
-      </FwbTableHead>
-      <FwbTableBody>
-        <FwbTableRow v-for="item in items" :key="item.id">
-          <FwbTableCell>
-            <NuxtLink :to="`/templates/${item.id}`" class="font-medium text-gray-900 dark:text-gray-100 no-underline hover:underline">{{ item.label }}</NuxtLink>
-          </FwbTableCell>
-          <FwbTableCell class="text-gray-600 dark:text-gray-400">{{ item.key }}</FwbTableCell>
-          <FwbTableCell>{{ statusLabel(item.state, item.hasUnpublishedChanges) }}</FwbTableCell>
-          <FwbTableCell>{{ timeAgo(item.updatedAt) }}</FwbTableCell>
-        </FwbTableRow>
-      </FwbTableBody>
-    </FwbTable>
+    <UiCardGrid v-if="loading">
+      <div v-for="n in 3" :key="n" class="h-36 animate-pulse rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900" />
+    </UiCardGrid>
+    <UiEmptyState v-else-if="!items.length" icon="templates" title="No page types yet" description="Page types decide which sections a page can have." />
+    <UiCardGrid v-else>
+      <UiCard v-for="item in items" :key="item.id" :to="`/templates/${item.id}`">
+        <div class="flex items-start justify-between gap-3">
+          <span class="grid size-10 place-items-center rounded-lg bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"><UiIcon name="templates" /></span>
+          <span class="sb-status" :class="`sb-status-${item.state}`">{{ statusLabel(item.state, item.hasUnpublishedChanges) }}</span>
+        </div>
+        <h2 class="mt-4 mb-0 text-base font-semibold text-gray-900 group-hover:text-blue-700 dark:text-white dark:group-hover:text-blue-300">{{ item.label }}</h2>
+        <p class="mt-1 mb-0 font-mono text-xs text-gray-500 dark:text-gray-400">{{ item.key }}</p>
+        <p class="mt-auto mb-0 inline-flex items-center gap-1 pt-4 text-xs text-gray-500 dark:text-gray-400"><UiIcon name="clock" :size="13" /> Edited {{ timeAgo(item.updatedAt) }}</p>
+      </UiCard>
+    </UiCardGrid>
   </div>
 </template>

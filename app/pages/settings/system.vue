@@ -53,7 +53,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="p-6">
+  <div class="sb-page">
     <SettingsNav>
       <template #title>
         <h1 class="m-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">System</h1>

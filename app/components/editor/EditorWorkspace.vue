@@ -73,10 +73,10 @@ const saveLabel = computed(() => {
   }
 })
 
-const devices: { id: Device; label: string }[] = [
-  { id: 'desktop', label: 'Desktop' },
-  { id: 'tablet', label: 'Tablet' },
-  { id: 'mobile', label: 'Mobile' },
+const devices: { value: Device; label: string; icon: 'desktop' | 'tablet' | 'phone' }[] = [
+  { value: 'desktop', label: 'Desktop', icon: 'desktop' },
+  { value: 'tablet', label: 'Tablet', icon: 'tablet' },
+  { value: 'mobile', label: 'Mobile', icon: 'phone' },
 ]
 
 function onKey(event: KeyboardEvent) {
@@ -143,28 +143,20 @@ async function submit() {
 </script>
 
 <template>
-  <div class="flex h-[calc(100dvh-3.25rem)] min-h-0 min-w-0 flex-col md:h-[calc(100vh-3.25rem)]">
-    <header class="flex min-w-0 flex-wrap items-center gap-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 sm:gap-3 sm:px-4">
-      <NuxtLink to="/pages" class="text-sm text-gray-600 dark:text-gray-400 no-underline hover:underline">&lt; Pages</NuxtLink>
-      <h1 class="m-0 min-w-0 break-words text-base font-semibold text-gray-900 dark:text-gray-100">{{ editor.title }}</h1>
+  <div class="sb-full flex min-h-0 min-w-0 flex-col">
+    <header class="flex min-w-0 flex-wrap items-center gap-2 border-b border-gray-200 bg-white/90 px-3 py-2 backdrop-blur dark:border-gray-800 dark:bg-gray-900/90 sm:gap-3 sm:px-4">
+      <NuxtLink to="/pages" class="grid size-8 shrink-0 place-items-center rounded-lg text-gray-500 no-underline hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white" aria-label="Back to pages" title="Back to pages"><UiIcon name="back" :size="18" /></NuxtLink>
+      <h1 class="m-0 min-w-0 break-words text-base font-semibold tracking-tight text-gray-900 dark:text-white">{{ editor.title }}</h1>
       <BuilderStatusBadge :state="editor.state" :has-unpublished-changes="editor.hasUnpublishedChanges" />
       <span class="text-sm text-gray-500 dark:text-gray-400" data-testid="save-status">{{ saveLabel }}</span>
       <div class="flex w-full min-w-0 flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
         <div class="md:hidden"><FwbButton size="sm" color="light" data-testid="mobile-sections" @click="showMobileRail = true">Sections</FwbButton></div>
         <div v-if="editor.selected" class="lg:hidden"><FwbButton size="sm" color="light" data-testid="mobile-edit-fields" @click="showMobileFields = true">Edit fields</FwbButton></div>
-        <FwbButtonGroup>
-          <FwbButton
-            v-for="device in devices"
-            :key="device.id"
-            size="sm"
-            :color="editor.device === device.id ? 'default' : 'light'"
-            @click="editor.setDevice(device.id)"
-          >
-            {{ device.label }}
-          </FwbButton>
-        </FwbButtonGroup>
-        <FwbButton size="sm" color="light" :disabled="!editor.undoStack.length" @click="editor.undo()">Undo</FwbButton>
-        <FwbButton size="sm" color="light" :disabled="!editor.redoStack.length" @click="editor.redo()">Redo</FwbButton>
+        <UiSegmented :model-value="editor.device" label="Preview size" compact :options="devices" @update:model-value="editor.setDevice($event)" />
+        <div class="inline-flex rounded-lg bg-gray-100 p-0.5 dark:bg-gray-800">
+          <button type="button" class="grid size-7 place-items-center rounded-md text-gray-600 hover:bg-white hover:text-gray-900 disabled:opacity-40 disabled:hover:bg-transparent dark:text-gray-400 dark:hover:bg-gray-950 dark:hover:text-white" aria-label="Undo" title="Undo" :disabled="!editor.undoStack.length" @click="editor.undo()"><UiIcon name="back" :size="15" /></button>
+          <button type="button" class="grid size-7 place-items-center rounded-md text-gray-600 hover:bg-white hover:text-gray-900 disabled:opacity-40 disabled:hover:bg-transparent dark:text-gray-400 dark:hover:bg-gray-950 dark:hover:text-white" aria-label="Redo" title="Redo" :disabled="!editor.redoStack.length" @click="editor.redo()"><UiIcon name="next" :size="15" /></button>
+        </div>
         <FwbButton v-if="editor.canSubmit" size="sm" :disabled="submitting" @click="submit">
           {{ submitting ? 'Submitting…' : 'Submit for approval' }}
         </FwbButton>

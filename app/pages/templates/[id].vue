@@ -201,15 +201,15 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="p-6">
-    <p class="mb-1 text-sm text-gray-500 dark:text-gray-400"><NuxtLink to="/templates" class="text-gray-500 dark:text-gray-400 no-underline hover:underline">Page types</NuxtLink></p>
-    <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h1 class="m-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">{{ pack?.label ?? 'Page type' }}</h1>
-        <p v-if="pack" class="mt-1 mb-0 text-sm text-gray-600 dark:text-gray-400">Key: {{ pack.key }} · {{ statusLabel(pack.workflowState, hasChanges) }}<span v-if="saveStatus === 'saving'"> · Saving…</span><span v-else-if="saveStatus === 'saved'"> · Saved</span></p>
-      </div>
-      <FwbButton v-if="canSubmitNow" size="sm" :disabled="submitting" @click="showSubmit = true">Submit for approval</FwbButton>
-    </div>
+  <div class="sb-page">
+    <UiPageHeader :title="pack?.label ?? 'Page type'" :back="{ to: '/templates', label: 'Page types' }">
+      <template #meta>
+        <span v-if="pack" class="font-mono">{{ pack.key }}</span>
+        <span v-if="pack" class="sb-status" :class="`sb-status-${pack.workflowState}`">{{ statusLabel(pack.workflowState, hasChanges) }}</span>
+        <span v-if="saveStatus === 'saving'">Saving…</span><span v-else-if="saveStatus === 'saved'">Saved</span>
+      </template>
+      <FwbButton v-if="canSubmitNow" :disabled="submitting" @click="showSubmit = true">Submit for approval</FwbButton>
+    </UiPageHeader>
     <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
     <FwbAlert v-else-if="saved" type="success" class="mb-4">{{ saved }}</FwbAlert>
     <p v-if="review && pack?.workflowState === 'in_review'" class="mb-4 text-sm text-gray-700 dark:text-gray-300">This is waiting for approval. Editing it will withdraw the review so it can be submitted again. <NuxtLink :to="`/approvals/${review.id}`">Open the review</NuxtLink>.</p>

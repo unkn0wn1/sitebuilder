@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { api, ApiError } from '../../utils/api'
 import { can } from '#shared/roles'
-import { HEADER_STYLE_HELP, HEADER_STYLE_LABELS, type HeaderStyle } from '#shared/site-parts'
 import { defaultBrandDoc, type BrandDoc, type BrandTokens } from '#shared/brand'
 import { themeCssFromTokens } from '#shared/theme-css'
 import { scopeThemeCss } from '../../utils/theme-css'
@@ -216,18 +215,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="p-6">
-    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Brand and Design</h1>
-        <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">Colours, type, the logo, and how the menu looks — without changing the links in it.</p>
-      </div>
-      <div class="flex items-center gap-3">
-        <span class="sb-status" data-testid="brand-status" :class="statusClass">{{ status }}</span>
-        <span class="text-sm text-gray-500 dark:text-gray-400" data-testid="save-status">{{ saveStatus === 'saving' ? 'Saving…' : saveStatus === 'error' ? 'Not saved' : 'Saved' }}</span>
-        <FwbButton v-if="canSubmitNow" size="sm" :disabled="submitting || saveStatus === 'saving'" @click="showSubmit = true">Submit for approval</FwbButton>
-      </div>
-    </div>
+  <div class="sb-page">
+    <UiPageHeader title="Brand and Design" description="Colours, type and logos for the whole site. The menu look is set on the Header.">
+      <span class="sb-status" data-testid="brand-status" :class="statusClass">{{ status }}</span>
+      <span class="text-sm text-gray-500 dark:text-gray-400" data-testid="save-status">{{ saveStatus === 'saving' ? 'Saving…' : saveStatus === 'error' ? 'Not saved' : 'Saved' }}</span>
+      <FwbButton v-if="canSubmitNow" :disabled="submitting || saveStatus === 'saving'" @click="showSubmit = true">Submit for approval</FwbButton>
+    </UiPageHeader>
     <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
     <FwbAlert v-else-if="withdrawnNotice" type="warning" class="mb-4">{{ withdrawnNotice }}</FwbAlert>
     <p v-if="!loading && pack?.workflowState === 'in_review' && review" class="mb-4 text-sm text-gray-700 dark:text-gray-300">
@@ -239,8 +232,8 @@ onBeforeUnmount(() => {
     <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading brand and design…</p>
     <div v-else class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_24rem]">
       <div class="space-y-8">
-        <section>
-          <h2 class="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">Colours</h2>
+        <section class="rounded-xl border border-gray-200/90 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+          <h2 class="mt-0 mb-3 text-base font-semibold text-gray-900 dark:text-white">Colours</h2>
           <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label v-for="field in TOKEN_FIELDS" :key="field.key" class="flex items-center gap-3 text-sm">
               <input type="color" class="h-9 w-12 cursor-pointer rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800" :value="doc.tokens[field.key]" :disabled="!canEdit" @input="setToken(field.key, ($event.target as HTMLInputElement).value)" />
@@ -251,15 +244,15 @@ onBeforeUnmount(() => {
             </label>
           </div>
         </section>
-        <section>
-          <h2 class="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">Type</h2>
+        <section class="rounded-xl border border-gray-200/90 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+          <h2 class="mt-0 mb-3 text-base font-semibold text-gray-900 dark:text-white">Type</h2>
           <FwbInput :model-value="doc.fonts.body" label="Body font" :disabled="!canEdit" @update:model-value="patch({ fonts: { ...doc.fonts, body: String($event) } })" />
           <div class="mt-3">
             <FwbInput :model-value="doc.fonts.heading ?? ''" label="Heading font (optional)" :disabled="!canEdit" @update:model-value="patch({ fonts: { ...doc.fonts, heading: String($event).trim() || null } })" />
           </div>
         </section>
-        <section>
-          <h2 class="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">Logo</h2>
+        <section class="rounded-xl border border-gray-200/90 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+          <h2 class="mt-0 mb-3 text-base font-semibold text-gray-900 dark:text-white">Logo</h2>
           <div class="flex flex-wrap items-center gap-3">
             <img v-if="logoPreview" :src="logoPreview" alt="Logo" class="h-12 max-w-40 object-contain" />
             <FwbButton v-if="canEdit" size="sm" color="light" @click="showLogo = true">{{ doc.logoMediaId ? 'Change logo' : 'Choose a logo' }}</FwbButton>
@@ -273,53 +266,38 @@ onBeforeUnmount(() => {
             <FwbButton v-if="canEdit && doc.logoDarkMediaId" size="sm" color="light" @click="patch({ logoDarkMediaId: null }); logoDarkPreview = null">Remove</FwbButton>
           </div>
         </section>
-        <section>
-          <h2 class="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">Menu look</h2>
-          <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">Pick a look for the same menu. The links stay as they are, and are edited under Site parts.</p>
-          <fieldset class="space-y-2" :disabled="!canEdit">
-            <label v-for="(label, value) in HEADER_STYLE_LABELS" :key="value" class="flex cursor-pointer gap-3 rounded-lg border border-gray-200 dark:border-gray-700 p-3 text-sm has-[:checked]:border-blue-700 has-[:checked]:bg-blue-50">
-              <input type="radio" class="mt-0.5 text-blue-700 dark:text-blue-400" :value="value" :checked="doc.menuStyle === value" @change="patch({ menuStyle: value as HeaderStyle })" />
-              <span>
-                <span class="block font-medium text-gray-900 dark:text-gray-100">{{ label }}</span>
-                <span class="text-gray-600 dark:text-gray-400">{{ HEADER_STYLE_HELP[value as HeaderStyle] }}</span>
-              </span>
-            </label>
-          </fieldset>
+        <section class="rounded-xl border border-gray-200/90 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+          <h2 class="mt-0 mb-3 text-base font-semibold text-gray-900 dark:text-white">Menu look</h2>
+          <UiCard tone="accent" to="/site-parts">
+            <p class="m-0 text-sm text-gray-800 dark:text-gray-200">The menu look is now chosen in one place, with the menu itself: <strong>Site parts › Header and top strip</strong>.</p>
+          </UiCard>
         </section>
-        <section>
-          <h2 class="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">Theme</h2>
+        <section class="rounded-xl border border-gray-200/90 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+          <h2 class="mt-0 mb-3 text-base font-semibold text-gray-900 dark:text-white">Theme</h2>
           <p class="text-sm text-gray-600 dark:text-gray-400">This site uses the default theme. One theme per site in v1. A later full theme can change section layouts as well as colours.</p>
         </section>
-        <section v-if="warnings.length">
-          <h2 class="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">Contrast</h2>
+        <section v-if="warnings.length" class="rounded-xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-500/30 dark:bg-amber-500/10">
+          <h2 class="mt-0 mb-3 text-base font-semibold text-gray-900 dark:text-white">Contrast</h2>
           <ul class="m-0 list-disc space-y-1 pl-5 text-sm text-amber-800">
             <li v-for="(issue, i) in warnings" :key="i">{{ issue.message }}</li>
           </ul>
         </section>
         <p v-if="!canEdit" class="text-sm text-gray-500 dark:text-gray-400">Only admins can change the brand and design.</p>
       </div>
-      <div>
+      <div class="lg:sticky lg:top-6 lg:self-start">
         <p class="mb-2 text-sm font-medium text-gray-800 dark:text-gray-200">Preview</p>
         <div class="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
           <component :is="'style'">{{ previewCss }}</component>
           <div class="sb-brand-preview">
-            <header :class="doc.menuStyle === 'centred' ? 'site-header site-header-centred' : doc.menuStyle === 'hamburger' ? 'site-header site-header-hamburger' : doc.menuStyle === 'mega' ? 'site-header site-header-mega' : 'site-header'">
+            <header class="site-header">
               <div class="site-header-inner">
                 <a class="site-title" href="#">{{ logoPreview ? '' : 'Example charity' }}</a>
                 <img v-if="logoPreview" :src="logoPreview" alt="" class="h-8 max-w-32 object-contain" />
-                <details v-if="doc.menuStyle === 'hamburger'" class="nav nav-hamburger" open>
-                  <summary>Menu</summary>
-                  <div class="nav-panel">
-                    <a href="#">Home</a>
-                    <a href="#">About</a>
-                    <a href="#">Adopt</a>
-                  </div>
-                </details>
-                <nav v-else :class="doc.menuStyle === 'mega' ? 'nav nav-mega' : 'nav'">
+                <nav class="nav">
                   <a href="#">Home</a>
                   <details open>
                     <summary>About</summary>
-                    <ul :class="doc.menuStyle === 'mega' ? 'nav-mega-panel' : undefined">
+                    <ul>
                       <li><a href="#">Our team</a></li>
                       <li><a href="#">Our story</a></li>
                     </ul>

@@ -74,10 +74,9 @@ function editBatch(item: { mediaId: string; suggestion: string | null }) {
 </script>
 
 <template>
-  <div class="flex min-h-[calc(100vh-3.25rem)] min-w-0 flex-col lg:flex-row">
-    <div class="min-w-0 flex-1 p-4 sm:p-6">
-      <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 class="m-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">Media</h1>
+  <div class="flex min-h-[calc(100dvh-var(--sb-top))] min-w-0 flex-col lg:flex-row">
+    <div class="sb-page min-w-0 flex-1">
+      <UiPageHeader title="Media" description="Photos, videos and files used on the site. Good alt text helps everyone.">
         <FwbButton
           v-if="aiAvailable && missingAltCount"
           color="light"
@@ -88,7 +87,7 @@ function editBatch(item: { mediaId: string; suggestion: string | null }) {
         >
           {{ batching ? 'Suggesting…' : `Suggest alt text for ${missingAltCount} ${missingAltCount === 1 ? 'image' : 'images'}` }}
         </FwbButton>
-      </div>
+      </UiPageHeader>
       <p v-if="batchError" class="mb-4 text-sm text-gray-700 dark:text-gray-300">{{ batchError }}</p>
       <div v-if="batchItems.length" class="mb-4 rounded-lg border border-gray-200 dark:border-gray-700 p-3" data-testid="batch-alt-suggestions">
         <p class="mt-0 mb-2 text-sm font-medium text-gray-900 dark:text-gray-100">Suggested alt text — not saved until you use it</p>

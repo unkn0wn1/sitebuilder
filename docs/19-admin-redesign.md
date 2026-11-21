@@ -77,7 +77,7 @@ All of these live in `app/components/ui/` and are auto-imported as `Ui…`:
   - Footer: the preview starts scrolled to the footer.
 - **Approvals:** cards for waiting changes, with who, when and what. The review screen keeps the rendered preview and
   gets the same top bar style.
-- **Settings:** a card grid of areas. Each area page has the same header, and a left list of areas on wide screens.
+- **Settings:** a card grid of areas. Each area page has the same header and a wrapping row of area links (no side scroller).
 - **Empty states:** every list says what goes there and offers the one action that starts it.
 
 ## Data decisions
@@ -91,3 +91,16 @@ All of these live in `app/components/ui/` and are auto-imported as `Ui…`:
 - **New `POST /api/v1/site-parts`** creates a menu or a top strip (both start off or empty, never live).
 - **New `POST /api/v1/preview/site-part`** draws a live page with draft site parts swapped in, using the same
   preview HTML rules as the page canvas (builder photo and script routes, no analytics, a strict CSP).
+
+## Built (notes from the build)
+
+- **Styles.** flowbite-vue ships its own compiled copy of the utilities. Unlayered, it beat every Tailwind utility
+  (`hidden sm:inline`, `grid lg:hidden`, `p-0 py-2.5` all resolved the wrong way). It now sits in a `flowbite`
+  cascade layer between Tailwind's `base` and `utilities`, and Tailwind scans flowbite-vue so its classes are
+  generated and ordered with ours. The old hand-restated breakpoint rules are gone.
+- **Shell.** A fixed sidebar (Content, Review, Design and setup), an icon rail in the page and site-part editors,
+  and a top bar with a sheet on phones.
+- **Shared pieces** in `app/components/ui`: PageHeader, Card, CardGrid, EmptyState, Section (with an on/off
+  switch), Segmented, Icon.
+- **One menu picker.** The Header screen picks the menu and its look; Brand and Design only points there.
+- **Settings** areas are listed once (`app/utils/settings-areas.ts`) for the grid and for the area navigation.

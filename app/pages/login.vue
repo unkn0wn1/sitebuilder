@@ -36,11 +36,15 @@ async function submit() {
 </script>
 
 <template>
-  <div class="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900 p-6">
-    <div class="w-full max-w-md rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-8 shadow-sm">
+  <div class="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-slate-50 to-slate-100 p-6 dark:from-gray-950 dark:to-gray-900">
+    <div class="mb-6 flex items-center gap-2 text-gray-900 dark:text-white">
+      <span class="grid size-9 place-items-center rounded-lg bg-blue-700 text-white shadow-sm"><UiIcon name="globe" :size="20" /></span>
+      <span class="text-lg font-semibold tracking-tight">sitebuilder</span>
+    </div>
+    <div class="w-full max-w-md rounded-2xl border border-gray-200/80 bg-white p-8 shadow-xl shadow-gray-900/5 dark:border-gray-800 dark:bg-gray-900">
       <div class="mb-6 flex items-start justify-between gap-3">
         <div>
-          <h1 class="mb-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">Sign in</h1>
+          <h1 class="mb-1 text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">Sign in</h1>
           <p class="m-0 text-gray-600 dark:text-gray-400">Use your sitebuilder account.</p>
         </div>
         <BuilderThemeToggle />
