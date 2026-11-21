@@ -736,6 +736,8 @@ describe('published photos', () => {
       { id: 'b_ti1', type: 'TextAndImage', v: 1, props: { heading: 'How your gift helps', content: richTextFromParagraphs(['Food and care.']), image: { media: 'med_00000000000000000000000001', alt: 'Sample' } } },
       { id: 'b_vh1', type: 'VideoHero', v: 1, props: { heading: 'Winter', poster: { media: 'med_00000000000000000000000001', alt: 'Sample' }, video: 'med_00000000000000000000000002' } },
     ]
+    doc.blocks.reverse() // a video hero first also gets a preload link
+    doc.seo.image = 'med_00000000000000000000000001'
     const rendered = await renderPageHtml({ doc, pageId: 'pg_gift', versionId: 'ver_1', path: '/gift', site: site({ mediaComplete: true }) })
     expect(rendered.html).toContain('How your gift helps')
     expect(rendered.html).not.toContain('med_00000000000000000000000001')

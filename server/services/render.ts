@@ -897,9 +897,14 @@ export async function renderPageHtml(input: {
   const description = doc.seo.description?.trim() || ''
   const noindex = doc.seo.noindex || !site.allowIndexing
   const canonical = doc.seo.canonical || (site.origin ? publicUrl(site.origin, input.path) : '')
-  const imageId = doc.seo.image || site.defaultSocialImage
+  const wantedImage = doc.seo.image || site.defaultSocialImage
+  const imageEntry = wantedImage ? site.media[wantedImage] : undefined
+  // Leave out a share image that is not in the library, and use a width that exists for narrow photos.
+  const imageId = wantedImage && (imageEntry || !site.mediaComplete) ? wantedImage : null
   if (imageId) bag.media.add(imageId)
-  const ogImage = imageId ? publicUrl(site.origin, `/media/${imageId}-1280.webp`) : ''
+  const ogWidths = imageEntry ? widthsForMedia(imageEntry) : [1280]
+  const ogW = ogWidths.includes(1280) ? 1280 : ogWidths[ogWidths.length - 1]!
+  const ogImage = imageId ? publicUrl(site.origin, `/media/${imageId}-${ogW}.webp`) : ''
   const analytics = trackingNeedsScript(site.tracking)
   const preload = doc.blocks[0]?.type === 'Hero' || doc.blocks[0]?.type === 'VideoHero' ? firstHeroPreload(doc.blocks[0] as StoredBlock, site) : ''
   const html = `<!DOCTYPE html>
@@ -945,6 +950,7 @@ function firstHeroPreload(block: StoredBlock, site: SiteRenderContext): string {
   const image = (block.props as { image?: ImageRef; poster?: ImageRef }).image ?? (block.props as { poster?: ImageRef }).poster
   if (!image) return ''
   const entry = site.media[image.media]
+  if (!entry && site.mediaComplete) return ''
   const ratio = '16:9'
   const useCrop = entry?.cropRatios.includes(ratio)
   const base = useCrop ? `${image.media}-${ratioKey(ratio)}` : image.media
