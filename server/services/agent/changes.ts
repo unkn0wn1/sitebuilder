@@ -30,7 +30,7 @@ import { inTx, iso, type ActingAs, type ServiceCtx } from '../context'
 import { AppError, notFound } from '../errors'
 import { notify, usersWithRoles } from '../notify'
 import { applyPageOps, binPage, readDoc, requirePage, restoreVersion, undoOp } from '../pages'
-import { unpublishPage } from '../publish'
+import { unpublishOwnAgentPage, unpublishPage } from '../publish'
 import { approveReviewDirect, checksFor, summariseDiff, submitPage } from '../reviews'
 import { editSitePart, readSitePartDoc, requireSitePart, sitePartChecks, submitSitePart } from '../site-parts'
 import { assertCanPublish, recordViolation, takeCall } from './limits'
@@ -574,21 +574,45 @@ export function undoChange(ctx: ServiceCtx, agent: SignedInAgent, changeId: stri
     }
     if (conflicts.length) throw new AppError('conflict', `Cannot undo change ${original.id} automatically, because ${conflicts.join('; ')}. Undoing would also remove the later work. Ask an admin to roll the site back to an earlier release, or make the edit you want as a new change.`, undefined, { conflicts })
 
-    // Pages this change created have no earlier live version. An agent cannot take pages offline, so only an admin
-    // undo handles them: the other parts are put back first, then the new pages are taken offline (publish jobs run in
-    // order, so menus stop linking to them before they go).
+    // Pages this change created have no earlier live version, so undoing means taking them offline. The other parts
+    // are put back first, then the new pages are taken offline (publish jobs run in order, so menus stop linking to
+    // them before they go). An agent may do this for its own change (Spencer, 21 Nov 2026), and only when a rule lets
+    // undo_change go live: taking a page offline cannot wait in Approvals, so otherwise the whole undo is refused.
     const created = targets.filter((t) => t.type === 'page' && !t.beforePublishedVersionId)
+    const ageHours = original.publishedAt ? (ctx.now().getTime() - Date.parse(original.publishedAt)) / 3600_000 : 0
+    const needsPerson = (why: string) =>
+      new AppError('invalid_state', `Undoing change ${original.id} means taking ${created.length === 1 ? `the page "${created[0]!.label}"` : `${created.length} pages (${created.map((t) => `"${t.label}"`).join(', ')})`} offline, and ${why} Taking pages offline cannot wait for approval, so nothing was changed. Tell the person an admin can undo the whole change in one step from Settings > Agents > Changes.`)
+    let offlineBasis = ''
     if (created.length && !input.adminActor) {
-      throw new AppError('invalid_state', `This change created ${created.length === 1 ? `the page "${created[0]!.label}"` : `${created.length} pages (${created.map((t) => `"${t.label}"`).join(', ')})`}, so undoing it means taking ${created.length === 1 ? 'it' : 'them'} offline, which an agent cannot do. Tell the person an admin can undo the whole change in one step from Settings > Agents > Changes.`)
+      const decision = decideChange(
+        created.map((t) => {
+          const page = requirePage(ctx, t.id)
+          const live = readDoc(ctx, page.publishedVersionId!)
+          const holdsMoney = live.blocks.some((b) => isMoneyBlockType(b.type))
+          return {
+            target: { type: 'page' as const, id: page.id, path: page.path, template: page.template, label: page.title, holdsMoney },
+            actions: ['undo_change' as const],
+            stats: { sectionsTouched: 0, wordsChanged: 0, linksAdded: 0, linksRemoved: 0, newLinkDomains: [] },
+            floor: holdsMoney ? (['money_section_touched'] as FloorFlag[]) : [],
+            changeAgeHours: ageHours,
+          }
+        }),
+        decisionInput(ctx, agent.token),
+      )
+      if (decision.outcome === 'deny') throw new AppError('rule_denied', `Your rules do not allow undoing change ${original.id}: ${decision.reasons.join(' ')}`, undefined, { reasons: decision.reasons })
+      if (decision.outcome !== 'publish') throw needsPerson(`your rules need a person to approve that (${decision.reasons.join(' ')}).`)
+      offlineBasis = `Undo of the token's own change ${original.id}, allowed by rule ${decision.ruleIds.join(', ') || '(always-allow)'}`
     }
     const rest = targets.filter((t) => !created.includes(t))
     const actor = input.adminActor ?? agent.actor
     const takeOffline = () => {
       for (const t of created) {
         const page = requirePage(ctx, t.id)
-        if (page.publishedVersionId) unpublishPage(ctx, input.adminActor!, t.id)
+        if (!page.publishedVersionId) continue
+        if (input.adminActor) unpublishPage(ctx, input.adminActor, t.id)
+        else unpublishOwnAgentPage(ctx, agent.actor, t.id, offlineBasis)
       }
-      if (created.length) audit(ctx, input.adminActor!, 'agent.change.pages_taken_offline', { type: 'agent_change', id: original.id }, { pages: created.map((t) => ({ id: t.id, title: t.label, path: t.path })) })
+      if (created.length) audit(ctx, actor, 'agent.change.pages_taken_offline', { type: 'agent_change', id: original.id }, { pages: created.map((t) => ({ id: t.id, title: t.label, path: t.path })), ...(offlineBasis ? { basis: offlineBasis } : {}) })
     }
     if (!rest.length) {
       // Nothing to put back, only pages to take down: no undo change is needed.
@@ -622,8 +646,9 @@ export function undoChange(ctx: ServiceCtx, agent: SignedInAgent, changeId: stri
     }
     handle.save()
     const row = handle.row
-    const ageHours = original.publishedAt ? (ctx.now().getTime() - Date.parse(original.publishedAt)) / 3600_000 : 0
     const evaluation = evaluateTargets(ctx, agent.token, changeTargets(row), { actions: ['undo_change'], changeAgeHours: ageHours })
+    // All or nothing: the new pages only go offline if the rest of the undo goes live with them.
+    if (created.length && !input.adminActor && evaluation.decision.outcome !== 'publish') throw needsPerson(`putting back the rest of it needs a person to approve (${evaluation.decision.reasons.join(' ')}).`)
     const sent = sendChange(ctx, agent, row, { mode: 'publish_if_allowed', evaluation, adminActor: input.adminActor })
     if (created.length) takeOffline()
     return { undo: sent.change, original: requireChange(ctx, original.id), evaluation, published: sent.published, pagesTakenOffline: created.map((t) => t.label) }

@@ -90,26 +90,74 @@ describe('page types as an agent sees them', () => {
 })
 
 describe('undoing a build', () => {
-  it('an agent cannot undo a change that created pages; an admin undo puts parts back and takes the new pages offline', async () => {
-    const { adminUndoChange } = await import('../server/services/agent/admin')
-    const big = [{ label: 'Build', actions: ['create_page', 'edit_menu', 'edit_sections', 'edit_page_details', 'add_link', 'undo_change'], result: 'publish', limits: { maxNewPages: 3, allowNewLinks: true } }]
-    const w = await world(big)
+  const BUILD = ['create_page', 'edit_menu', 'edit_sections', 'edit_page_details', 'add_link']
+  const big = (undo: boolean) => [{ label: 'Build', actions: undo ? [...BUILD, 'undo_change'] : BUILD, result: 'publish', limits: { maxNewPages: 3, allowNewLinks: true } }]
+  async function built(undo: boolean) {
+    const w = await world(big(undo))
     const r = call(w, 'create_pages', { pages: ABOUT, reason: REASON })
     call(w, 'publish_change', { change_id: r.change.id })
     await drain(w)
     expect(call(w, 'get_page', { path: '/about-us' }).page.is_live).toBe(true)
-    const refused: any = await (async () => { try { call(w, 'undo_change', { change_id: r.change.id, reason: REASON }) } catch (e) { return e } })()
-    expect(refused.code).toBe('invalid_state')
-    expect(refused.message).toMatch(/admin can undo the whole change/)
-    const u = adminUndoChange(w.ctx, w.admin, r.change.id, 'Not wanted after all')
-    expect(u.pagesTakenOffline).toEqual(['About us', 'Our team'])
+    return { w, changeId: r.change.id as string }
+  }
+
+  it('an agent undoes its own build: the menu goes back and its new pages go offline', async () => {
+    const { w, changeId } = await built(true)
+    const u = call(w, 'undo_change', { change_id: changeId, reason: 'Owner changed their mind' })
+    expect(u.result.pages_taken_offline).toEqual(['About us', 'Our team'])
     await drain(w)
-    // The first list after the undo goes live already shows the original as undone (it is an earlier row).
-    const { listAllChanges } = await import('../server/services/agent/admin')
-    expect(listAllChanges(w.ctx, w.admin, { limit: 10 }).find((c) => c.id === r.change.id)!.status).toBe('undone')
     expect(call(w, 'get_page', { path: '/about-us' }).page.is_live).toBe(false)
     expect(call(w, 'get_page', { path: '/about-us/our-team' }).page.is_live).toBe(false)
     expect(JSON.stringify(call(w, 'get_site_part', { kind: 'menu' }))).not.toContain('Our team')
+    expect(call(w, 'get_change', { change_id: changeId }).change.status).toBe('undone')
+  })
+
+  it('without a rule that lets undo_change go live, the agent is refused and nothing changes; an admin can undo it', async () => {
+    const { adminUndoChange, listAllChanges } = await import('../server/services/agent/admin')
+    const { w, changeId } = await built(false)
+    const before = listAllChanges(w.ctx, w.admin, { limit: 50 }).length
+    const refused: any = await (async () => { try { call(w, 'undo_change', { change_id: changeId, reason: REASON }) } catch (e) { return e } })()
+    expect(refused.code).toBe('invalid_state')
+    expect(refused.message).toMatch(/admin can undo the whole change/)
+    expect(listAllChanges(w.ctx, w.admin, { limit: 50 })).toHaveLength(before)
+    expect(JSON.stringify(call(w, 'get_site_part', { kind: 'menu' }))).toContain('Our team')
+    expect(call(w, 'get_page', { path: '/about-us' }).page.is_live).toBe(true)
+
+    const u = adminUndoChange(w.ctx, w.admin, changeId, 'Not wanted after all')
+    expect(u.pagesTakenOffline).toEqual(['About us', 'Our team'])
+    await drain(w)
+    expect(listAllChanges(w.ctx, w.admin, { limit: 10 }).find((c) => c.id === changeId)!.status).toBe('undone')
+    expect(call(w, 'get_page', { path: '/about-us' }).page.is_live).toBe(false)
+    expect(call(w, 'get_page', { path: '/about-us/our-team' }).page.is_live).toBe(false)
+    expect(JSON.stringify(call(w, 'get_site_part', { kind: 'menu' }))).not.toContain('Our team')
+  })
+
+  it('an agent cannot take offline a page a person has published since, or a page another token made', async () => {
+    const { w, changeId } = await built(true)
+    const { addToken } = await import('./agent-helpers')
+    const other = addToken(w, { name: 'Other bot', access: 'draft', rules: big(true) })
+    expect(await code(() => callOperation(w.ctx, other.agent, 'undo_change', { change_id: changeId, reason: REASON }))).toBe('not_found')
+
+    const { applyPageOps } = await import('../server/services/pages')
+    const { approveReview, submitPage } = await import('../server/services/reviews')
+    const page = call(w, 'get_page', { path: '/about-us' }).page
+    applyPageOps(w.ctx, w.editor, page.page_id, (await import('../server/services/pages')).getPage(w.ctx, page.page_id).revision, [{ op: 'set_seo', description: 'Edited by a person' }])
+    const sub = submitPage(w.ctx, w.editor, page.page_id)
+    approveReview(w.ctx, w.approver, sub.reviewId, { versionId: sub.versionId })
+    await drain(w)
+    expect(await code(() => call(w, 'undo_change', { change_id: changeId, reason: REASON }))).toBe('conflict')
+    expect(call(w, 'get_page', { path: '/about-us' }).page.is_live).toBe(true)
+  })
+
+  it('an agent undo of a change that only created a page takes it offline without an undo change', async () => {
+    const w = await world([{ label: 'Pages', actions: ['create_page', 'edit_sections', 'edit_page_details', 'undo_change'], result: 'publish' }])
+    const r = call(w, 'create_pages', { pages: [{ title: 'Solo', page_type: 'standard' }], reason: REASON })
+    call(w, 'publish_change', { change_id: r.change.id })
+    await drain(w)
+    const u = call(w, 'undo_change', { change_id: r.change.id, reason: 'Owner changed their mind' })
+    expect(u.result).toMatchObject({ undone: true, pages_taken_offline: ['Solo'] })
+    await drain(w)
+    expect(call(w, 'get_page', { path: '/solo' }).page.is_live).toBe(false)
     expect(call(w, 'get_change', { change_id: r.change.id }).change.status).toBe('undone')
   })
 

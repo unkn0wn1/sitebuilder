@@ -1025,7 +1025,8 @@ export function discardChangeFor(ctx: ServiceCtx, agent: SignedInAgent, input: I
 export function undoChangeFor(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.undoChangeInput>) {
   if (agent.token.access !== 'draft') throw new AppError('forbidden', 'This token is read-only.')
   const r = undoChange(ctx, agent, input.change_id, { reason: input.reason })
-  return { ...changeView(ctx, agent, r.undo!), result: { undone: r.published, undo_goes_live: r.published, undo_sent_for_review: !r.published, original_change_id: input.change_id } }
+  // A change that only created pages needs no undo change: its pages are taken offline and the original is undone.
+  return { ...changeView(ctx, agent, r.undo ?? r.original), result: { undone: r.published, undo_goes_live: r.published, undo_sent_for_review: !r.published, original_change_id: input.change_id, pages_taken_offline: r.pagesTakenOffline } }
 }
 
 export { agentChanges, notFound, getAt }

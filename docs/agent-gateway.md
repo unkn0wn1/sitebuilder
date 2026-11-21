@@ -224,7 +224,7 @@ All of it is reproduced in [agent-gateway-tools.md](agent-gateway-tools.md) so a
 
 Every edit returns the whole change: the diff per page or site part, before and after text, `if_you_publish` (what would happen right now and why), `problems_to_fix`, and `next_steps`, so the AI never has to guess the next call.
 
-An agent will not edit a page that is **waiting for approval** (it would withdraw the review). It will not publish over **someone else's unpublished edits** on the same page. An agent cannot undo a change that created pages. An admin undo takes those pages offline (they stay as drafts) after putting everything else back.
+An agent will not edit a page that is **waiting for approval** (it would withdraw the review). It will not publish over **someone else's unpublished edits** on the same page. An agent can undo its **own** change that created pages: everything else is put back, then those pages go offline (they stay as drafts). It cannot take offline pages other people or other tokens made, or pages someone has published since. This only happens when a rule lets `undo_change` go live; otherwise the undo is refused and an admin undoes it from Settings > Agents > Changes, which always works.
 
 ## Audit, notifications and undo
 

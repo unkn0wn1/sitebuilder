@@ -36,12 +36,14 @@ An AI that edits the site also reads it. Page text, menu labels, search snippets
 | RT14 | Planted text asks for a huge or fake image | Download capped at 25 MB (the declared size is not trusted); the file type is read from the bytes; non-images fail plainly | `agent-media-footer` import |
 | RT15 | Planted text asks the agent to put a script link or a fake phone number in the footer | Links must be safe schemes, phone must be digits; the footer edit is a draft under the `edit_footer` rule like any other change | `agent-media-footer` footer |
 | RT16 | Planted text hides an internal address in another form: IPv4 written inside IPv6 (`[::ffff:127.0.0.1]`, which the URL parser turns into `[::ffff:7f00:1]`), NAT64, 6to4, Teredo, or a decimal IP (`https://2130706433/`) | Every IPv6 form that carries an IPv4 address is unpacked and checked as that IPv4 address, both up front and at connect time. Found in the 21 Nov 2026 local end-to-end run: the hex-mapped form had slipped past and a fetch to loopback was tried | `agent-hardening` net-guard |
+| RT17 | Planted text asks the agent to take pages offline by "undoing" a change | `undo_change` only works on the token's own changes, and only takes offline pages that change created, if nobody has published over them since, and only when a rule lets `undo_change` go live (money pages always need a person). Anything else is refused and nothing changes | `agent-build` undoing a build |
 
 ## Decisions (21 Nov 2026, Spencer)
 
 - **The media library is open to draft tokens.** Importing a photo or changing alt text needs no rule or approval. This is safe because a photo only reaches the live site on a page published through the change rules. The risk accepted: an agent talked into it can fill the library with unwanted photos or change alt text on photos already in use (live pages pick the new alt text up at their next publish). Both are audited against the token and capped (10 waiting imports per token, plus the write rate limit).
 - **No separate first-publish confirmation.** Multi-page builds already go to a person.
 - **The DNS-rebinding gap below is accepted as documented.**
+- **Agents may undo their own changes, including taking their own new pages offline** (RT17). Not other people's pages.
 
 ## Live run (21 Nov 2026, local copy only)
 
