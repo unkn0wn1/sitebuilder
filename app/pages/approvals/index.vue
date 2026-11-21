@@ -27,60 +27,41 @@ async function load() {
 }
 
 watch(filter, load, { immediate: true })
+
+const TYPE: Record<string, { label: string; icon: 'pages' | 'parts' | 'brand' | 'templates' }> = {
+  page: { label: 'Page', icon: 'pages' },
+  site_part: { label: 'Site part', icon: 'parts' },
+  brand: { label: 'Brand and Design', icon: 'brand' },
+  template: { label: 'Page type', icon: 'templates' },
+}
+const stateClass = (state: string) => (state === 'pending' ? 'sb-status-in_review' : state === 'published' ? 'sb-status-published' : 'sb-status-draft')
 </script>
 
 <template>
-  <div class="min-w-0 p-4 sm:p-6">
-    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Approvals</h1>
-        <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">Review submitted pages and site parts, then publish or send them back.</p>
-      </div>
-      <FwbButtonGroup>
-        <FwbButton size="sm" :color="filter === 'pending' ? 'default' : 'light'" @click="filter = 'pending'">Waiting</FwbButton>
-        <FwbButton size="sm" :color="filter === 'all' ? 'default' : 'light'" @click="filter = 'all'">All</FwbButton>
-      </FwbButtonGroup>
-    </div>
+  <div class="sb-page">
+    <UiPageHeader title="Approvals" description="Changes waiting for a second pair of eyes. Open one to see it on the real page, then publish it or send it back.">
+      <UiSegmented v-model="filter" label="Show" :options="[{ value: 'pending', label: 'Waiting' }, { value: 'all', label: 'All' }]" />
+    </UiPageHeader>
     <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
-    <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading reviews…</p>
-    <p v-else-if="!shown.length" class="text-gray-500 dark:text-gray-400">{{ filter === 'pending' ? 'Nothing waiting. Nice work.' : 'No reviews yet.' }}</p>
-    <ul v-else class="m-0 flex list-none flex-col gap-3 p-0 md:hidden">
-      <li v-for="item in shown" :key="item.id" class="min-w-0 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
-        <NuxtLink :to="`/approvals/${item.id}`" class="block break-words font-medium text-gray-900 no-underline hover:underline dark:text-gray-100">{{ item.title }}</NuxtLink>
-        <p class="m-0 mt-1 text-sm text-gray-500 dark:text-gray-400">{{ item.targetType === 'site_part' ? 'Site part' : item.targetType === 'brand' ? 'Brand and Design' : item.targetType === 'template' ? 'Page type' : 'Page' }}</p>
-        <div class="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-          <span class="sb-status" :class="item.state === 'pending' ? 'sb-status-in_review' : item.state === 'published' ? 'sb-status-published' : 'sb-status-draft'">
-            {{ REVIEW_STATE_LABELS[item.state as ReviewState] }}
+    <UiCardGrid v-if="loading">
+      <div v-for="n in 3" :key="n" class="h-40 animate-pulse rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900" />
+    </UiCardGrid>
+    <UiEmptyState v-else-if="!shown.length" icon="approvals" :title="filter === 'pending' ? 'Nothing waiting' : 'No reviews yet'" :description="filter === 'pending' ? 'When someone submits a page or a site part, it shows up here.' : 'Submitted changes and what happened to them will be listed here.'">
+      <FwbButton v-if="filter === 'pending'" color="light" @click="filter = 'all'">Show earlier reviews</FwbButton>
+    </UiEmptyState>
+    <UiCardGrid v-else>
+      <UiCard v-for="item in shown" :key="item.id" :to="`/approvals/${item.id}`">
+        <div class="flex items-start justify-between gap-3">
+          <span class="inline-flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-gray-400">
+            <span class="grid size-8 place-items-center rounded-lg bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"><UiIcon :name="TYPE[item.targetType]?.icon ?? 'pages'" :size="17" /></span>
+            {{ TYPE[item.targetType]?.label ?? 'Page' }}
           </span>
-          <span>{{ item.submittedByName }}, {{ timeAgo(item.createdAt) }}</span>
+          <span class="sb-status" :class="stateClass(item.state)">{{ REVIEW_STATE_LABELS[item.state as ReviewState] }}</span>
         </div>
-        <p class="mb-0 mt-2 break-words text-sm text-gray-600 dark:text-gray-400">{{ item.changeSummary || '—' }}</p>
-      </li>
-    </ul>
-    <div v-if="!loading && shown.length" class="hidden min-w-0 md:block">
-    <FwbTable hoverable>
-      <FwbTableHead>
-        <FwbTableHeadCell>Item</FwbTableHeadCell>
-        <FwbTableHeadCell>Status</FwbTableHeadCell>
-        <FwbTableHeadCell>Submitted</FwbTableHeadCell>
-        <FwbTableHeadCell>Summary</FwbTableHeadCell>
-      </FwbTableHead>
-      <FwbTableBody>
-        <FwbTableRow v-for="item in shown" :key="item.id">
-          <FwbTableCell>
-            <NuxtLink :to="`/approvals/${item.id}`" class="font-medium text-gray-900 dark:text-gray-100 no-underline hover:underline">{{ item.title }}</NuxtLink>
-            <p class="m-0 text-sm text-gray-500 dark:text-gray-400">{{ item.targetType === 'site_part' ? 'Site part' : item.targetType === 'brand' ? 'Brand and Design' : item.targetType === 'template' ? 'Page type' : 'Page' }}</p>
-          </FwbTableCell>
-          <FwbTableCell>
-            <span class="sb-status" :class="item.state === 'pending' ? 'sb-status-in_review' : item.state === 'published' ? 'sb-status-published' : 'sb-status-draft'">
-              {{ REVIEW_STATE_LABELS[item.state as ReviewState] }}
-            </span>
-          </FwbTableCell>
-          <FwbTableCell class="text-gray-600 dark:text-gray-400">{{ item.submittedByName }}, {{ timeAgo(item.createdAt) }}</FwbTableCell>
-          <FwbTableCell class="text-gray-600 dark:text-gray-400">{{ item.changeSummary || '—' }}</FwbTableCell>
-        </FwbTableRow>
-      </FwbTableBody>
-    </FwbTable>
-    </div>
+        <h2 class="mt-4 mb-0 break-words text-base font-semibold text-gray-900 group-hover:text-blue-700 dark:text-white dark:group-hover:text-blue-300">{{ item.title }}</h2>
+        <p class="mt-1 mb-0 line-clamp-3 text-sm text-gray-600 dark:text-gray-400">{{ item.changeSummary || 'No summary' }}</p>
+        <p class="mt-auto mb-0 inline-flex items-center gap-1 pt-4 text-xs text-gray-500 dark:text-gray-400"><UiIcon name="clock" :size="13" /> {{ item.submittedByName }}, {{ timeAgo(item.createdAt) }}</p>
+      </UiCard>
+    </UiCardGrid>
   </div>
 </template>

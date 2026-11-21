@@ -1,11 +1,10 @@
 <script setup lang="ts">
 // The approval preview. A page is drawn by the publish renderer (RenderedPage), with added and changed sections
-// outlined; a site part keeps its own preview.
+// outlined. A site part is drawn on the live home page with the submitted version swapped in.
 import type { PageDoc } from '#shared/page'
 import type { PageDiff } from '#shared/diff'
 import type { SitePartDoc, SitePartKind, MenuDoc } from '#shared/site-parts'
 import type { Device } from '../../utils/page-editor'
-import PartPreview from '../site-parts/PartPreview.vue'
 import RenderedPage, { type BlockMark } from '../preview/RenderedPage.vue'
 import type { PageOption } from '../../utils/site-parts'
 
@@ -21,7 +20,10 @@ const props = defineProps<{
   pages?: PageOption[]
   pageId?: string
   path?: string
+  /** The site part under review. */
+  partId?: string
 }>()
+const partPayload = computed(() => (props.kind === 'site_part' && props.partId ? { parts: [{ partId: props.partId, doc: props.doc }] } : undefined))
 
 const pageDoc = computed(() => (props.kind === 'page' ? (props.doc as PageDoc) : null))
 const rendered = ref<InstanceType<typeof RenderedPage> | null>(null)
@@ -57,15 +59,6 @@ defineExpose({ scrollToBlock })
         </template>
       </RenderedPage>
     </template>
-    <div v-else-if="kind === 'site_part' && sitePartKind" class="min-h-0 overflow-auto p-4">
-      <PartPreview
-        :kind="sitePartKind"
-        :doc="doc as SitePartDoc"
-        :site-name="siteName"
-        :menus="menus ?? {}"
-        :pages="pages ?? []"
-        :device="device === 'mobile' ? 'phone' : 'computer'"
-      />
-    </div>
+    <RenderedPage v-else-if="partPayload" endpoint="/preview/site-part" :payload="partPayload" :device="device" :gutter="32" :selectable="false" />
   </div>
 </template>

@@ -6,7 +6,7 @@ import LinkTargetField from './LinkTargetField.vue'
 import { cloneDraft } from '#shared/clone'
 
 const props = defineProps<{ modelValue: MenuDoc; pages: PageOption[] }>()
-const emit = defineEmits<{ 'update:modelValue': [MenuDoc] }>()
+const emit = defineEmits<{ 'update:modelValue': [MenuDoc]; focus: [index: number | null] }>()
 
 const defaultTarget = computed<LinkTarget>(() =>
   props.pages[0] ? { type: 'page', pageId: props.pages[0].id } : { type: 'url', url: 'https://' },
@@ -84,43 +84,58 @@ function setChild(index: number, childIndex: number, patch: { label?: string; ta
 </script>
 
 <template>
-  <div class="space-y-4">
-    <p class="text-sm text-gray-600 dark:text-gray-400">Links point at a page on this site, so they follow if the page moves. You can nest one level of sub-items.</p>
-    <div v-if="!modelValue.items.length" class="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-      This menu is empty. Add a link to get started.
-    </div>
-    <ol class="space-y-3">
-      <li v-for="(item, index) in modelValue.items" :key="item.id" class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 shadow-sm">
-        <div class="flex flex-col gap-3">
-          <div class="flex flex-wrap items-center gap-2">
-            <FwbInput :model-value="item.label" class="min-w-40 flex-1" @update:model-value="setItem(index, { label: String($event) })" />
-            <div class="flex gap-1">
-              <FwbButton size="sm" color="light" :disabled="index === 0" @click="moveItem(index, -1)">Up</FwbButton>
-              <FwbButton size="sm" color="light" :disabled="index === modelValue.items.length - 1" @click="moveItem(index, 1)">Down</FwbButton>
-              <FwbButton size="sm" color="light" :disabled="item.children.length >= 12" @click="addChild(index)">Add sub-item</FwbButton>
-              <FwbButton size="sm" color="red" outline @click="removeItem(index)">Remove</FwbButton>
-            </div>
-          </div>
-          <LinkTargetField :model-value="item.target" :pages="pages" @update:model-value="setItem(index, { target: $event })" />
+  <div class="space-y-3">
+    <UiEmptyState v-if="!modelValue.items.length" icon="list" title="This menu is empty" description="Add the first link. Links to pages on this site follow the page if it moves.">
+      <FwbButton size="sm" @click="addItem">Add the first link</FwbButton>
+    </UiEmptyState>
+    <ol class="m-0 list-none space-y-3 p-0">
+      <li
+        v-for="(item, index) in modelValue.items"
+        :key="item.id"
+        class="rounded-xl border border-gray-200/90 bg-white dark:border-gray-800 dark:bg-gray-900"
+        @focusin="emit('focus', index)"
+      >
+        <div class="flex items-center gap-2 border-b border-gray-100 px-3 py-2 dark:border-gray-800">
+          <span class="grid size-6 shrink-0 place-items-center rounded-md bg-gray-100 text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">{{ index + 1 }}</span>
+          <input
+            :value="item.label"
+            class="min-w-0 flex-1 rounded-md border-0 bg-transparent px-1 py-1 text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-blue-500 dark:text-white"
+            :aria-label="`Menu item ${index + 1} label`"
+            @input="setItem(index, { label: ($event.target as HTMLInputElement).value })"
+          />
+          <button type="button" class="grid size-7 place-items-center rounded-md text-gray-500 hover:bg-gray-100 disabled:opacity-30 dark:hover:bg-gray-800" title="Move up" :disabled="index === 0" @click="moveItem(index, -1)"><UiIcon name="up" :size="15" /></button>
+          <button type="button" class="grid size-7 place-items-center rounded-md text-gray-500 hover:bg-gray-100 disabled:opacity-30 dark:hover:bg-gray-800" title="Move down" :disabled="index === modelValue.items.length - 1" @click="moveItem(index, 1)"><UiIcon name="downArrow" :size="15" /></button>
+          <button type="button" class="grid size-7 place-items-center rounded-md text-gray-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10" title="Remove" @click="removeItem(index)"><UiIcon name="trash" :size="15" /></button>
         </div>
-        <ol v-if="item.children.length" class="mt-3 space-y-3 border-l-2 border-gray-200 dark:border-gray-700 pl-4">
-          <li v-for="(child, childIndex) in item.children" :key="child.id" class="rounded-md border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-3">
-            <div class="flex flex-col gap-3">
-              <div class="flex flex-wrap items-center gap-2">
-                <FwbInput :model-value="child.label" class="min-w-40 flex-1" @update:model-value="setChild(index, childIndex, { label: String($event) })" />
-                <div class="flex gap-1">
-                  <FwbButton size="sm" color="light" :disabled="childIndex === 0" @click="moveChild(index, childIndex, -1)">Up</FwbButton>
-                  <FwbButton size="sm" color="light" :disabled="childIndex === item.children.length - 1" @click="moveChild(index, childIndex, 1)">Down</FwbButton>
-                  <FwbButton size="sm" color="red" outline @click="removeChild(index, childIndex)">Remove</FwbButton>
-                </div>
+        <div class="space-y-3 p-3">
+          <LinkTargetField :model-value="item.target" :pages="pages" @update:model-value="setItem(index, { target: $event })" />
+          <ol v-if="item.children.length" class="m-0 list-none space-y-2 border-l-2 border-gray-100 p-0 pl-3 dark:border-gray-800">
+            <li v-for="(child, childIndex) in item.children" :key="child.id" class="rounded-lg bg-gray-50 p-3 dark:bg-gray-800/60">
+              <div class="flex items-center gap-1.5">
+                <input
+                  :value="child.label"
+                  class="min-w-0 flex-1 rounded-md border border-gray-200 bg-white px-2 py-1 text-sm text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                  :aria-label="`Sub-item ${childIndex + 1} of ${item.label}`"
+                  @input="setChild(index, childIndex, { label: ($event.target as HTMLInputElement).value })"
+                />
+                <button type="button" class="grid size-7 place-items-center rounded-md text-gray-500 hover:bg-white disabled:opacity-30 dark:hover:bg-gray-900" title="Move up" :disabled="childIndex === 0" @click="moveChild(index, childIndex, -1)"><UiIcon name="up" :size="14" /></button>
+                <button type="button" class="grid size-7 place-items-center rounded-md text-gray-500 hover:bg-white disabled:opacity-30 dark:hover:bg-gray-900" title="Move down" :disabled="childIndex === item.children.length - 1" @click="moveChild(index, childIndex, 1)"><UiIcon name="downArrow" :size="14" /></button>
+                <button type="button" class="grid size-7 place-items-center rounded-md text-gray-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10" title="Remove" @click="removeChild(index, childIndex)"><UiIcon name="trash" :size="14" /></button>
               </div>
-              <LinkTargetField :model-value="child.target" :pages="pages" @update:model-value="setChild(index, childIndex, { target: $event })" />
-            </div>
-          </li>
-        </ol>
+              <div class="mt-2 space-y-2">
+                <LinkTargetField :model-value="child.target" :pages="pages" @update:model-value="setChild(index, childIndex, { target: $event })" />
+              </div>
+            </li>
+          </ol>
+          <button type="button" class="inline-flex items-center gap-1.5 rounded-md text-xs font-medium text-blue-700 hover:underline disabled:opacity-40 dark:text-blue-300" :disabled="item.children.length >= 12" @click="addChild(index)">
+            <UiIcon name="plus" :size="14" /> Add a sub-item
+          </button>
+        </div>
       </li>
     </ol>
-    <FwbButton size="sm" :disabled="modelValue.items.length >= 12" @click="addItem">Add item</FwbButton>
-    <p v-if="modelValue.items.length >= 12" class="text-sm text-gray-500 dark:text-gray-400">The menu can have 12 top-level items. Put the rest in sub-menus.</p>
+    <FwbButton v-if="modelValue.items.length" size="sm" color="light" :disabled="modelValue.items.length >= 12" @click="addItem">
+      <span class="inline-flex items-center gap-1.5"><UiIcon name="plus" :size="14" /> Add a menu item</span>
+    </FwbButton>
+    <p v-if="modelValue.items.length >= 12" class="text-xs text-gray-500 dark:text-gray-400">A menu can have 12 top-level items. Put the rest in sub-menus.</p>
   </div>
 </template>

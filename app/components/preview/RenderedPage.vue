@@ -12,7 +12,11 @@ export type BlockMark = 'added' | 'changed' | 'issue'
 
 const props = withDefaults(
   defineProps<{
-    doc: PageDoc
+    /** A page draft (the page editor and approvals). */
+    doc?: PageDoc
+    /** Or any other preview request, for example draft site parts on a live page (`/preview/site-part`). */
+    endpoint?: string
+    payload?: Record<string, unknown>
     device: Device
     pageId?: string
     path?: string
@@ -23,9 +27,9 @@ const props = withDefaults(
     /** Sections can be clicked to select them (the editor). Off for read-only previews. */
     selectable?: boolean
   }>(),
-  { selectedId: null, marks: () => ({}), gutter: 48, pageId: undefined, path: undefined, selectable: true },
+  { selectedId: null, marks: () => ({}), gutter: 48, pageId: undefined, path: undefined, selectable: true, doc: undefined, endpoint: '/preview/render', payload: undefined },
 )
-const emit = defineEmits<{ select: [id: string | null]; rendered: [] }>()
+const emit = defineEmits<{ select: [id: string | null]; rendered: [doc: Document]; meta: [meta: Record<string, unknown>] }>()
 
 const host = ref<HTMLElement | null>(null)
 const frameA = ref<HTMLIFrameElement | null>(null)
@@ -65,8 +69,10 @@ async function render() {
   }
   inFlight = true
   try {
-    const { html } = await api<{ html: string }>('/preview/render', { method: 'POST', body: { doc: toRaw(props.doc), pageId: props.pageId, path: props.path } })
+    const body = props.payload ? toRaw(props.payload) : { doc: toRaw(props.doc), pageId: props.pageId, path: props.path }
+    const { html, ...meta } = await api<{ html: string } & Record<string, unknown>>(props.endpoint, { method: 'POST', body })
     error.value = ''
+    emit('meta', meta)
     const frame = frameEls[1 - front.value]!.value
     if (frame) frame.srcdoc = html
   } catch (err) {
@@ -135,7 +141,7 @@ function onLoad(i: number) {
   observer.observe(doc.body)
   front.value = i
   ready.value = true
-  emit('rendered')
+  emit('rendered', doc)
 }
 
 /** Scroll the outer box so a section is in view (used when it is picked in the outline or the review list). */
@@ -149,9 +155,18 @@ function scrollToBlock(id: string, smooth = true) {
   if (top >= box.scrollTop && bottom <= box.scrollTop + box.clientHeight) return
   box.scrollTo({ top: Math.max(0, top - 24), behavior: smooth ? 'smooth' : 'auto' })
 }
-defineExpose({ scrollToBlock })
+/** Scroll the outer box to an element of the page (the footer, say). */
+function scrollToSelector(selector: string, smooth = true) {
+  const el = docOf(front.value)?.querySelector<HTMLElement>(selector)
+  const box = host.value
+  const stage = frameEls[front.value]!.value?.parentElement?.parentElement
+  if (!el || !box || !stage) return
+  box.scrollTo({ top: Math.max(0, stage.offsetTop + el.offsetTop * scale.value - 24), behavior: smooth ? 'smooth' : 'auto' })
+}
+const frameDocument = () => docOf(front.value)
+defineExpose({ scrollToBlock, scrollToSelector, frameDocument })
 
-watch(() => props.doc, () => schedule(), { deep: true })
+watch(() => [props.doc, props.payload], () => schedule(), { deep: true })
 watch(() => [props.pageId, props.path, mediaVersion.value], () => schedule(0))
 watch(() => [props.selectedId, props.marks], () => applyMarks(docOf(front.value)), { deep: true })
 watch(
@@ -180,11 +195,11 @@ onMounted(() => {
 
 <template>
   <div ref="host" class="relative min-h-0 min-w-0 flex-1 overflow-auto" data-rendered-page>
-    <p v-if="scale < 1" class="sticky top-0 z-10 m-0 bg-gray-100/90 dark:bg-gray-800/90 px-4 py-1 text-center text-xs text-gray-600 dark:text-gray-400">Shown at {{ Math.round(scale * 100) }}%</p>
+    <p v-if="scale < 1" class="pointer-events-none sticky top-2 z-10 m-0 flex justify-center"><span class="rounded-full bg-gray-900/70 px-2.5 py-0.5 text-[11px] font-medium text-white backdrop-blur">{{ Math.round(scale * 100) }}%</span></p>
     <p v-if="error" class="sticky top-0 z-10 m-0 border-b border-amber-300 bg-amber-50 px-4 py-1 text-center text-xs text-amber-900" role="status">{{ error }} Showing the last version that could be drawn.</p>
     <slot name="above" />
     <div class="flex justify-center p-6" @click.self="emit('select', null)">
-      <div class="relative shadow-md" :style="{ width: `${width * scale}px`, height: `${height * scale}px` }">
+      <div class="relative overflow-hidden rounded-lg shadow-xl ring-1 ring-gray-900/5" :style="{ width: `${width * scale}px`, height: `${height * scale}px` }">
         <div class="absolute left-0 top-0 origin-top-left" :style="{ width: `${width}px`, height: `${height}px`, transform: `scale(${scale})` }">
           <iframe
             ref="frameA"

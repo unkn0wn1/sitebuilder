@@ -36,16 +36,17 @@ const draftWarning = computed(() => selectedPage.value && selectedPage.value.sta
 
 <template>
   <div class="space-y-2">
-    <p v-if="label" class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ label }}</p>
-    <div class="flex flex-wrap gap-3 text-sm">
-      <label class="inline-flex items-center gap-2">
-        <input type="radio" class="text-blue-700 dark:text-blue-400" :checked="mode === 'page'" @change="setMode('page')" />
-        A page on this site
-      </label>
-      <label class="inline-flex items-center gap-2">
-        <input type="radio" class="text-blue-700 dark:text-blue-400" :checked="mode === 'url'" @change="setMode('url')" />
-        A web address
-      </label>
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <p v-if="label" class="m-0 text-sm font-medium text-gray-900 dark:text-white">{{ label }}</p>
+      <UiSegmented
+        :model-value="mode"
+        :options="[
+          { value: 'page', label: 'Page on this site' },
+          { value: 'url', label: 'Web address' },
+        ]"
+        label="Link to"
+        @update:model-value="setMode"
+      />
     </div>
     <FwbSelect
       v-if="mode === 'page'"
@@ -54,6 +55,6 @@ const draftWarning = computed(() => selectedPage.value && selectedPage.value.sta
       @update:model-value="setPage(String($event))"
     />
     <FwbInput v-else :model-value="modelValue.type === 'url' ? modelValue.url : ''" placeholder="https://" @update:model-value="setUrl(String($event))" />
-    <p v-if="draftWarning" class="text-sm text-amber-800">This page isn’t live yet. The link will be a warning until it is published.</p>
+    <p v-if="draftWarning" class="m-0 text-xs text-amber-700 dark:text-amber-400">This page isn’t live yet. The link will be a warning until it is published.</p>
   </div>
 </template>

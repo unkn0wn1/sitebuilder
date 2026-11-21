@@ -197,7 +197,7 @@ watch(id, load, { immediate: true })
       <FwbAlert type="danger">{{ loadError }}</FwbAlert>
       <NuxtLink to="/approvals" class="mt-4 inline-block text-sm">Back to approvals</NuxtLink>
     </div>
-    <div v-else-if="detail" class="flex min-h-0 min-w-0 flex-col md:h-[calc(100vh-3.25rem)]">
+    <div v-else-if="detail" class="flex min-h-0 min-w-0 flex-col md:h-[calc(100dvh-var(--sb-top))]">
       <header class="flex min-w-0 flex-wrap items-center gap-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 sm:px-4">
         <NuxtLink to="/approvals" class="text-sm text-gray-600 dark:text-gray-400 no-underline hover:underline">&lt; Approvals</NuxtLink>
         <h1 class="m-0 min-w-0 break-words text-base font-semibold text-gray-900 dark:text-gray-100">Review: {{ detail.target.title }}</h1>
@@ -258,6 +258,7 @@ watch(id, load, { immediate: true })
             :path="detail.target.type === 'page' ? detail.target.path : undefined"
             :kind="detail.target.type"
             :site-part-kind="detail.target.type === 'site_part' ? detail.target.kind : undefined"
+            :part-id="detail.target.type === 'site_part' ? detail.target.id : undefined"
             :doc="detail.doc as PageDoc | SitePartDoc"
             :diff="detail.diff"
             :show-changes="mode === 'changes'"

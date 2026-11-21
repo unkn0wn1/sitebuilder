@@ -58,38 +58,40 @@ function removeSocial(index: number) {
 </script>
 
 <template>
-  <div class="space-y-6">
-    <FwbSelect
-      :model-value="modelValue.appearance ?? 'light'"
-      :options="[
-        { name: 'Light background', value: 'light' },
-        { name: 'Dark background', value: 'dark' },
-      ]"
-      label="Background"
-      @update:model-value="patch({ appearance: String($event) === 'dark' ? 'dark' : 'light' })"
-    />
-    <p class="text-sm text-gray-600 dark:text-gray-400">A dark footer uses the same dark-background logo setting as the header, if a logo is shown there.</p>
-    <div>
-      <label class="mb-2 block text-sm font-medium text-gray-800 dark:text-gray-200">About this organisation</label>
-      <textarea
-        class="block w-full rounded-lg border border-gray-300 dark:border-gray-600 p-2.5 text-sm"
-        rows="4"
-        :value="modelValue.text ? richTextToPlain(modelValue.text) : ''"
-        @input="setText(($event.target as HTMLTextAreaElement).value)"
-      />
-    </div>
-    <FwbInput :model-value="modelValue.contact.email ?? ''" label="Email" type="email" @update:model-value="setContact('email', String($event))" />
-    <FwbInput :model-value="modelValue.contact.phone ?? ''" label="Phone" @update:model-value="setContact('phone', String($event))" />
-    <FwbInput :model-value="modelValue.contact.address ?? ''" label="Address" @update:model-value="setContact('address', String($event))" />
-    <FwbSelect
-      :model-value="modelValue.legalMenuKey ?? NONE"
-      :options="menuOptions"
-      label="Legal menu (privacy, terms)"
-      @update:model-value="setLegal(String($event))"
-    />
-    <FwbInput :model-value="modelValue.charityNumber ?? ''" label="Charity number" @update:model-value="patch({ charityNumber: String($event).trim() || null })" />
-    <div class="space-y-3">
-      <p class="text-sm font-medium text-gray-800 dark:text-gray-200">Social links</p>
+  <div class="space-y-4">
+    <UiSection title="Colour" icon="footer">
+      <div class="flex items-center justify-between gap-3">
+        <span class="text-sm font-medium text-gray-900 dark:text-white">Background</span>
+        <UiSegmented
+          :model-value="modelValue.appearance ?? 'light'"
+          :options="[{ value: 'light', label: 'Light', icon: 'sun' }, { value: 'dark', label: 'Dark', icon: 'moon' }]"
+          label="Footer background"
+          @update:model-value="patch({ appearance: $event === 'dark' ? 'dark' : 'light' })"
+        />
+      </div>
+      <p class="m-0 text-xs text-gray-500 dark:text-gray-400">A dark footer uses the dark-background logo from Brand and Design.</p>
+    </UiSection>
+
+    <UiSection title="About and contact">
+      <div>
+        <label class="mb-2 block text-sm font-medium text-gray-900 dark:text-white">About this organisation</label>
+        <textarea
+          class="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+          rows="3"
+          :value="modelValue.text ? richTextToPlain(modelValue.text) : ''"
+          @input="setText(($event.target as HTMLTextAreaElement).value)"
+        />
+      </div>
+      <FwbInput :model-value="modelValue.contact.email ?? ''" label="Email" type="email" @update:model-value="setContact('email', String($event))" />
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <FwbInput :model-value="modelValue.contact.phone ?? ''" label="Phone" @update:model-value="setContact('phone', String($event))" />
+        <FwbInput :model-value="modelValue.charityNumber ?? ''" label="Charity number" @update:model-value="patch({ charityNumber: String($event).trim() || null })" />
+      </div>
+      <FwbInput :model-value="modelValue.contact.address ?? ''" label="Address" @update:model-value="setContact('address', String($event))" />
+      <FwbSelect :model-value="modelValue.legalMenuKey ?? NONE" :options="menuOptions" label="Legal menu (privacy, terms)" @update:model-value="setLegal(String($event))" />
+    </UiSection>
+
+    <UiSection title="Social links" :description="`${modelValue.social.length} of ${SOCIAL_NETWORKS.length}`">
       <SocialRow
         v-for="(row, index) in modelValue.social"
         :key="`${row.network}-${index}`"
@@ -98,7 +100,9 @@ function removeSocial(index: number) {
         @change="setSocial(index, $event)"
         @remove="removeSocial(index)"
       />
-      <FwbButton size="sm" color="light" :disabled="!unusedNetworks.length" @click="addSocial">Add social link</FwbButton>
-    </div>
+      <FwbButton size="sm" color="light" :disabled="!unusedNetworks.length" @click="addSocial">
+        <span class="inline-flex items-center gap-1.5"><UiIcon name="plus" :size="14" /> Add social link</span>
+      </FwbButton>
+    </UiSection>
   </div>
 </template>
