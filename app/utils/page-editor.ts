@@ -58,6 +58,40 @@ const STORAGE_PREFIX = 'sb:editor:'
 /** The server takes at most this many ops per save. */
 export const MAX_OPS_PER_SAVE = 50
 
+/** A turned-down field edit kept in the page (see PageEditor.held). Issues name their section by id. */
+export interface HeldEdit {
+  op: Op
+  issues: { blockId?: string; path: string; message: string }[]
+}
+
+function isFieldEdit(op: Op): boolean {
+  return op.op === 'update_props' || op.op === 'set_meta' || op.op === 'set_seo'
+}
+
+function opKeys(op: Op): string[] {
+  if (op.op === 'update_props') return [...Object.keys(op.props ?? {}), ...(op.unset ?? [])].map((k) => `${op.blockId}.${k}`)
+  if (op.op === 'set_meta' || op.op === 'set_seo') return Object.keys(op).filter((k) => k !== 'op').map((k) => `${op.op}.${k}`)
+  return []
+}
+
+/** Does a new op replace a held one: the same fields again, or the section removed? */
+function supersedes(next: Op, held: Op): boolean {
+  if (next.op === 'remove_block' && held.op === 'update_props') return next.blockId === held.blockId
+  const keys = new Set(opKeys(next))
+  const heldKeys = opKeys(held)
+  return heldKeys.length > 0 && heldKeys.every((k) => keys.has(k))
+}
+
+/** Did this field edit write the field a problem names? */
+function fieldTouched(op: Op, issue: { blockId?: string; path: string }): boolean {
+  if (op.op === 'update_props') {
+    if (issue.blockId !== op.blockId) return false
+    const prop = /^props\.([^.]+)/.exec(issue.path)?.[1]
+    return !prop || opKeys(op).includes(`${op.blockId}.${prop}`)
+  }
+  return !issue.blockId && /^(title|seo|slug|meta)/.test(issue.path)
+}
+
 export class PageEditor {
   pageId: string
   title: string
@@ -73,8 +107,14 @@ export class PageEditor {
 
   saveStatus: SaveStatus = 'saved'
   error: string | null = null
-  /** Field problems from the last save the server turned down, shown next to the fields until the next edit. */
-  saveIssues: FieldIssue[] = []
+  /**
+   * Field edits the server turned down (a bad link, a phone number with letters). They stay in the page and in the
+   * field, with the problem shown, so nothing the person typed is lost (Spencer, 21 Nov 2026). They are not saved
+   * until the field is fixed; editing that field again replaces them.
+   */
+  held: HeldEdit[] = []
+  /** Other problems from the last turned-down save, shown until the next edit. */
+  otherIssues: FieldIssue[] = []
   conflict: EditorConflict | null = null
   selectedId: string | null = null
   leftTab: LeftTab = 'add'
@@ -114,6 +154,22 @@ export class PageEditor {
     this.debounceMs = opts.debounceMs ?? 1000
     this.storage = opts.storage
     this.restoreOffline()
+  }
+
+  /** Problems to show next to fields: those of held edits (at the section's current place) and the rest. */
+  get saveIssues(): FieldIssue[] {
+    const out: FieldIssue[] = []
+    for (const h of this.held) {
+      for (const issue of h.issues) {
+        if (!issue.blockId) {
+          out.push({ path: issue.path, message: issue.message })
+          continue
+        }
+        const index = this.doc.blocks.findIndex((b) => b.id === issue.blockId)
+        if (index >= 0) out.push({ path: `blocks.${index}${issue.path ? `.${issue.path}` : ''}`, message: issue.message })
+      }
+    }
+    return [...out, ...this.otherIssues]
   }
 
   get selected() {
@@ -159,7 +215,9 @@ export class PageEditor {
       this.redoStack = []
       this.conflict = null
       this.error = null
-      this.saveIssues = []
+      this.otherIssues = []
+      // An edit to the same field replaces the held one: it is sent, and held again only if still not valid.
+      this.held = this.held.filter((h) => !ops.some((op) => supersedes(op, h.op)))
       this.saveStatus = this.offline ? 'offline' : 'saving'
       this.persist()
       this.scheduleFlush()
@@ -261,7 +319,7 @@ export class PageEditor {
       await this.flush()
       if (!this.pending.length || this.conflict || this.offline) break
     }
-    return !this.pending.length && !this.conflict && !this.offline && !this.inflight
+    return !this.pending.length && !this.conflict && !this.offline && !this.inflight && !this.held.length
   }
 
   setOnline(online: boolean) {
@@ -330,6 +388,7 @@ export class PageEditor {
     if (input.title) this.title = input.title
     if (input.state) this.state = input.state
     this.saved = { doc: this.doc, meta: this.meta }
+    this.applyHeld()
     this.reselect()
   }
 
@@ -366,6 +425,20 @@ export class PageEditor {
     return drop
   }
 
+  /** Put held edits back on top of a fresh copy from the server. One that no longer applies is let go. */
+  private applyHeld() {
+    const still: HeldEdit[] = []
+    for (const h of this.held) {
+      try {
+        this.applyLocal([h.op])
+        still.push(h)
+      } catch {
+        // Its section is gone.
+      }
+    }
+    this.held = still
+  }
+
   private applyLocal(ops: Op[]) {
     const result = applyOps({ doc: this.doc, meta: this.meta }, ops, { registry: blockRegistry, newBlockId: () => newId('block') })
     this.doc = result.state.doc
@@ -394,6 +467,7 @@ export class PageEditor {
         // The next save reports it.
       }
     }
+    this.applyHeld()
     this.reselect()
   }
 
@@ -403,6 +477,7 @@ export class PageEditor {
     if (current.meta) this.meta = current.meta
     this.title = current.doc.title
     this.saved = { doc: this.doc, meta: this.meta }
+    this.applyHeld()
     this.reselect()
   }
 
@@ -448,14 +523,43 @@ export class PageEditor {
 
   /**
    * The server turned the save down (all or nothing). Sending the same ops again would fail the same way and block
-   * every later save, so leave out the op it named (or the whole batch if it named none), rebuild the canvas from the
-   * last saved copy plus what is left, and carry on saving.
+   * every later save, so leave out the ops it named (or the whole batch if it named none) and carry on saving the
+   * rest. A turned-down field edit is held: it stays in the page and the field with its problem, unsaved, until the
+   * field is fixed. Anything else (adding, moving or removing a section) is taken back.
    */
   private dropRejected(error: ApiError, ops: Op[]) {
     const fields = Array.isArray(error.details.fields) ? (error.details.fields as FieldIssue[]) : []
     const drop = this.rejectedOps(fields, ops)
     const keep = ops.filter((_, i) => !drop.has(i))
-    this.saveIssues = fields.filter((f) => typeof f.path === 'string' && /^(blocks\.|title|seo\.)/.test(f.path))
+    let after: PageDoc | null = null
+    try {
+      after = applyOps(this.saved, ops, { registry: blockRegistry, newBlockId: () => newId('block') }).state.doc
+    } catch {
+      after = null
+    }
+    // Server paths name sections by place ("blocks.2.props.cta.href"); keep them by id so moves don't lose them.
+    const located = fields
+      .filter((f) => typeof f.path === 'string')
+      .map((f) => {
+        const m = /^blocks\.(\d+)(?:\.(.*))?$/.exec(f.path!)
+        const blockId = m && after ? after.blocks[Number(m[1])]?.id : undefined
+        if (blockId) return { blockId, path: m![2] ?? '', message: f.message }
+        const o = /^ops\.(\d+)(?:\.(.*))?$/.exec(f.path!)
+        const op = o ? ops[Number(o[1])] : undefined
+        if (op?.op === 'update_props') return { blockId: op.blockId, path: o![2] ?? '', message: f.message }
+        return { path: o ? (o[2] ?? '') : f.path!, message: f.message }
+      })
+    const newlyHeld: HeldEdit[] = []
+    const takenBack: Op[] = []
+    ops.forEach((op, i) => {
+      if (!drop.has(i)) return
+      // A bad value is held; an edit to a section that is gone is taken back.
+      if (error.code === 'validation_failed' && error.details.reason !== 'missing_block' && isFieldEdit(op)) {
+        const issues = located.filter((l) => fieldTouched(op, l))
+        newlyHeld.push({ op, issues: issues.length ? issues : located.length === 1 ? located : [{ blockId: op.op === 'update_props' ? op.blockId : undefined, path: '', message: error.message }] })
+      } else takenBack.push(op)
+    })
+    const held = [...this.held, ...newlyHeld]
     const replay = [...keep, ...this.pending]
     this.doc = this.saved.doc
     this.meta = this.saved.meta
@@ -469,7 +573,12 @@ export class PageEditor {
         // It no longer applies on the saved copy; leave it out too.
       }
     }
-    this.error = `${error.message} That change could not be saved, so it was taken back.`
+    this.held = held
+    this.applyHeld()
+    this.otherIssues = takenBack.length ? located.filter((l) => !newlyHeld.some((h) => h.issues.includes(l))).map((l) => ({ path: l.path, message: l.message })) : []
+    this.error = takenBack.length
+      ? `${error.message} That change could not be saved, so it was taken back.`
+      : `${error.message} What you typed is kept, but it isn't saved until it's fixed.`
     this.saveStatus = this.pending.length ? 'saving' : 'error'
     this.persist()
     if (this.pending.length) this.scheduleFlush()
@@ -501,11 +610,11 @@ export class PageEditor {
   private persist(clear = false) {
     if (!this.storage) return
     const key = STORAGE_PREFIX + this.pageId
-    if (clear || (!this.pending.length && !this.conflict)) {
+    if (!this.held.length && (clear || (!this.pending.length && !this.conflict))) {
       this.storage.removeItem(key)
       return
     }
-    this.storage.setItem(key, JSON.stringify({ revision: this.revision, pending: this.pending, doc: this.doc, meta: this.meta }))
+    this.storage.setItem(key, JSON.stringify({ revision: this.revision, pending: clear ? [] : this.pending, held: this.held, doc: this.doc, meta: this.meta }))
   }
 
   private restoreOffline() {
@@ -513,12 +622,18 @@ export class PageEditor {
     const raw = this.storage.getItem(STORAGE_PREFIX + this.pageId)
     if (!raw) return
     try {
-      const saved = JSON.parse(raw) as { revision: number; pending: Op[] }
-      if (saved.revision === this.revision && Array.isArray(saved.pending) && saved.pending.length) {
+      const saved = JSON.parse(raw) as { revision: number; pending: Op[]; held?: HeldEdit[] }
+      if (saved.revision !== this.revision) return
+      if (Array.isArray(saved.pending) && saved.pending.length) {
         this.pending = saved.pending
         this.applyLocal(saved.pending)
         this.saveStatus = this.offline ? 'offline' : 'saving'
         if (!this.offline) this.scheduleFlush()
+      }
+      if (Array.isArray(saved.held) && saved.held.length) {
+        this.held = saved.held
+        this.applyHeld()
+        if (!this.pending.length) this.saveStatus = 'error'
       }
     } catch {
       this.storage.removeItem(STORAGE_PREFIX + this.pageId)

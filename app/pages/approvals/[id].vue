@@ -182,9 +182,9 @@ async function approve(withOverride = false) {
   }
 }
 
+const preview = ref<InstanceType<typeof ReviewPreview> | null>(null)
 function scrollTo(blockId?: string) {
-  if (!blockId) return
-  document.getElementById(`block-${blockId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  if (blockId) preview.value?.scrollToBlock(blockId)
 }
 
 watch(id, load, { immediate: true })
@@ -253,6 +253,9 @@ watch(id, load, { immediate: true })
           </div>
           <ReviewPreview
             v-else
+            ref="preview"
+            :page-id="detail.target.type === 'page' ? detail.target.id : undefined"
+            :path="detail.target.type === 'page' ? detail.target.path : undefined"
             :kind="detail.target.type"
             :site-part-kind="detail.target.type === 'site_part' ? detail.target.kind : undefined"
             :doc="detail.doc as PageDoc | SitePartDoc"

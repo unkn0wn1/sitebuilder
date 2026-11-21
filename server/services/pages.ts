@@ -219,7 +219,7 @@ export function applyPageOps(ctx: ServiceCtx, actor: ActingAs, pageId: string, b
     } catch (error) {
       if (error instanceof OpError) {
         if (error.kind === 'missing_block' && baseRevision < page.draftRevision) throw new AppError('conflict', error.message, [{ path: error.path, message: error.message }], conflictBody())
-        throw new AppError('validation_failed', error.message, [{ path: error.path, message: error.message }])
+        throw new AppError('validation_failed', error.message, [{ path: error.path, message: error.message }], error.kind === 'missing_block' ? { reason: 'missing_block' } : undefined)
       }
       throw error
     }

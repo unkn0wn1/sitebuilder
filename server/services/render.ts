@@ -4,7 +4,7 @@
 // step can replace the block components later (ADR 0004).
 import { createHash } from 'node:crypto'
 import { eq } from 'drizzle-orm'
-import { createSSRApp, defineComponent, h, type VNode } from 'vue'
+import { cloneVNode, createSSRApp, defineComponent, h, type VNode } from 'vue'
 import { renderToString } from 'vue/server-renderer'
 import { sanitizeBadgeHtml } from '../../shared/badge-html'
 import { formatMoney, hasEnded, progressPercent, endOfUtcDay } from '../../shared/amounts'
@@ -108,6 +108,9 @@ export interface SiteRenderContext {
   /** True when `media` is the whole library (the real site). Then a photo or video that is not in it is left out
    * instead of published as a broken image (a sample placeholder, or a deleted file). */
   mediaComplete?: boolean
+  /** Builder preview of a draft: sections carry data-block-id, a missing photo shows a placeholder, and a section
+   * that cannot be drawn shows a note instead of failing the whole page. Never set for a release. */
+  preview?: boolean
   embeds: Record<string, EmbedCatalogEntry>
 }
 
@@ -212,6 +215,7 @@ export function pictureVNode(
 ): VNode | null {
   if (!image) return null
   const entry = site.media[image.media]
+  if (!entry && site.preview) return h('img', { class: opts.class, src: previewPlaceholder(image.media), alt: image.alt ?? '', width: opts.slot?.width, height: opts.slot?.height, 'data-sample-photo': '' })
   if (!entry && site.mediaComplete) return null
   bag.media.add(image.media)
   if (entry?.kind === 'svg' || entry?.mime === 'image/svg+xml') {
@@ -266,6 +270,28 @@ function gcd(a: number, b: number): number {
 function linkButton(link: { label: string; href: string } | undefined, bag: Collector, className = 'btn'): VNode | null {
   if (!link) return null
   return h('a', { class: className, href: resolvedHref(link.href, bag) }, link.label)
+}
+
+const SAMPLE_ID = 'med_00000000000000000000000001'
+
+/** What a builder preview shows where a photo is not in the library: the sample photo of a new section, or a lost one. */
+export function previewPlaceholder(mediaId: string): string {
+  const [line1, line2] = mediaId === SAMPLE_ID ? ['Sample photo', 'Choose one in the panel'] : ['Photo not found', 'Choose another in the panel']
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="720" viewBox="0 0 960 720"><rect width="960" height="720" fill="#e5e7eb"/><rect x="24" y="24" width="912" height="672" fill="none" stroke="#9ca3af" stroke-width="4" stroke-dasharray="16 12"/><text x="480" y="350" font-family="system-ui,sans-serif" font-size="44" fill="#374151" text-anchor="middle">${line1}</text><text x="480" y="410" font-family="system-ui,sans-serif" font-size="30" fill="#4b5563" text-anchor="middle">${line2}</text></svg>`
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`
+}
+
+/** In a builder preview, mark each section with its block id (for click to select), and never let one bad section
+ * stop the page from drawing. */
+function previewBlock(block: StoredBlock, draw: () => VNode): VNode {
+  let vnode: VNode
+  try {
+    vnode = draw()
+  } catch {
+    vnode = h('section', { class: 'section' }, [h('div', { class: 'wrap' }, [h('p', `This ${block.type} section can't be shown until the problems in the panel on the right are fixed.`)])])
+  }
+  if (vnode && typeof vnode.type === 'string') return cloneVNode(vnode, { 'data-block-id': block.id })
+  return h('div', { 'data-block-id': block.id }, [vnode])
 }
 
 function wrapSection(children: VNode | null | Array<VNode | null>, className = 'section'): VNode {
@@ -754,6 +780,7 @@ function renderShell(doc: PageDoc, site: SiteRenderContext, bag: Collector): VNo
       doc.blocks.map((block) => {
         const eager = firstHero && (block.type === 'Hero' || block.type === 'VideoHero')
         if (block.type === 'Hero' || block.type === 'VideoHero') firstHero = false
+        if (site.preview) return previewBlock(block as StoredBlock, () => renderBlock(block as StoredBlock, site, bag, eager))
         return renderBlock(block as StoredBlock, site, bag, eager)
       }),
     ),
@@ -950,7 +977,7 @@ function firstHeroPreload(block: StoredBlock, site: SiteRenderContext): string {
   const image = (block.props as { image?: ImageRef; poster?: ImageRef }).image ?? (block.props as { poster?: ImageRef }).poster
   if (!image) return ''
   const entry = site.media[image.media]
-  if (!entry && site.mediaComplete) return ''
+  if (!entry && (site.mediaComplete || site.preview)) return ''
   const ratio = '16:9'
   const useCrop = entry?.cropRatios.includes(ratio)
   const base = useCrop ? `${image.media}-${ratioKey(ratio)}` : image.media

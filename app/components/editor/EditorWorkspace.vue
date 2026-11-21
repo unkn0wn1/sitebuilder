@@ -120,7 +120,9 @@ async function submit() {
     if (!(await props.editor.flushAll())) {
       submitError.value = props.editor.conflict
         ? 'Sort out the conflict above before submitting, so the approver sees your latest changes.'
-        : 'Some changes are not saved yet, so they would not be in what the approver sees. Check your connection and try again.'
+        : props.editor.held.length
+          ? 'Fix the fields marked in red first. What you typed there is kept, but it is not saved until it is valid.'
+          : 'Some changes are not saved yet, so they would not be in what the approver sees. Check your connection and try again.'
       return
     }
     await api(`/pages/${props.editor.pageId}/submit`, { method: 'POST', body: {} })

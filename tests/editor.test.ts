@@ -65,7 +65,7 @@ class MemoryApi implements EditorApi {
     try {
       applied = applyOps(this.state, parsed.data.ops as Op[], { registry: blockRegistry, newBlockId: () => newId('block') })
     } catch (e) {
-      if (e instanceof OpError) throw new ApiError(400, 'validation_failed', e.message, { fields: [{ path: e.path, message: e.message }] })
+      if (e instanceof OpError) throw new ApiError(400, 'validation_failed', e.message, { fields: [{ path: e.path, message: e.message }], ...(e.kind === 'missing_block' ? { reason: 'missing_block' } : {}) })
       throw e
     }
     this.state = applied.state
@@ -319,14 +319,74 @@ describe('saving never gets stuck', () => {
     ed.updateProps(id, { attribution: 'www.example.org' })
     await ed.flush()
     expect(ed.saveIssues).toEqual([{ path: 'blocks.0.props.attribution', message: 'Links must start with https://.' }])
-    expect(ed.error).toMatch(/taken back/)
+    // What was typed stays in the field and on the canvas (Spencer, 21 Nov 2026), unsaved.
+    expect(ed.error).toMatch(/kept, but it isn't saved/)
+    expect(ed.doc.blocks[0]!.props.attribution).toBe('www.example.org')
     await ed.flush()
     expect(api.state.doc.blocks[0]!.props.text).toBe('Good edit')
     expect(api.state.doc.blocks[0]!.props.attribution).not.toBe('www.example.org')
     expect(ed.doc.blocks[0]!.props.text).toBe('Good edit')
+    expect(ed.doc.blocks[0]!.props.attribution).toBe('www.example.org')
+    // Other edits keep saving, and the typed value is still shown with its problem.
+    ed.updateProps(id, { text: 'Another good edit' })
+    await ed.flush()
+    expect(api.state.doc.blocks[0]!.props.text).toBe('Another good edit')
+    expect(ed.doc.blocks[0]!.props.attribution).toBe('www.example.org')
     expect(ed.saveIssues).toHaveLength(1)
+    expect(await ed.flushAll()).toBe(false)
+    // Fixing the field replaces the held edit and saves it.
     ed.updateProps(id, { attribution: 'https://example.org' })
     expect(ed.saveIssues).toEqual([])
+    await ed.flush()
+    expect(api.state.doc.blocks[0]!.props.attribution).toBe('https://example.org')
+    expect(await ed.flushAll()).toBe(true)
+    ed.dispose()
+  })
+
+  it('keeps a turned-down value across a reload and when its section moves', async () => {
+    const api = new MemoryApi()
+    const real = api.applyOps.bind(api)
+    api.applyOps = async (pageId, base, ops) => {
+      const after = { ...api.state.doc, blocks: [...api.state.doc.blocks] }
+      const bad = ops.findIndex((o) => o.op === 'update_props' && String((o.props as { attribution?: string }).attribution ?? '').startsWith('www.'))
+      if (bad >= 0) {
+        const index = after.blocks.findIndex((b) => b.id === (ops[bad] as { blockId: string }).blockId)
+        throw new ApiError(400, 'validation_failed', 'Links must start with https://.', { fields: [{ path: `blocks.${index}.props.attribution`, message: 'Links must start with https://.' }] })
+      }
+      return real(pageId, base, ops)
+    }
+    const storage = new Map<string, string>()
+    const store = { getItem: (k: string) => storage.get(k) ?? null, setItem: (k: string, v: string) => void storage.set(k, v), removeItem: (k: string) => void storage.delete(k) }
+    const ed = editor(api, {}, { debounceMs: 0, storage: store })
+    ed.addSection('Quote')
+    ed.addSection('Quote')
+    await ed.flush()
+    const second = ed.doc.blocks[1]!.id
+    ed.updateProps(second, { attribution: 'www.example.org' })
+    await ed.flush()
+    expect(ed.saveIssues).toEqual([{ path: 'blocks.1.props.attribution', message: 'Links must start with https://.' }])
+    ed.moveSection(second, 0)
+    await ed.flush()
+    expect(ed.saveIssues).toEqual([{ path: 'blocks.0.props.attribution', message: 'Links must start with https://.' }])
+    expect(ed.doc.blocks[0]!.props.attribution).toBe('www.example.org')
+    ed.dispose()
+    // Reopen the page: the typed value is still there, still unsaved.
+    const again = editor(api, {}, { debounceMs: 0, storage: store })
+    expect(again.doc.blocks.find((b) => b.id === second)!.props.attribution).toBe('www.example.org')
+    expect(again.saveIssues).toHaveLength(1)
+    again.dispose()
+  })
+
+  it('still takes back an edit to a section someone else removed', async () => {
+    const api = new MemoryApi()
+    const ed = editor(api, {}, { debounceMs: 0 })
+    ed.addSection('Quote')
+    await ed.flush()
+    const id = ed.doc.blocks[0]!.id
+    api.state = { ...api.state, doc: { ...api.state.doc, blocks: [] } }
+    ed.updateProps(id, { text: 'Lost edit' })
+    await ed.flush()
+    expect(ed.held).toHaveLength(0)
     ed.dispose()
   })
 

@@ -1,74 +1,58 @@
 <script setup lang="ts">
-import { canvasScale } from '../../utils/format'
-import { DEVICE_WIDTHS, type PageEditor } from '../../utils/page-editor'
+// The editor's middle area: the page as the publish renderer draws it (RenderedPage), with the selected section's
+// actions in a bar above it. Click a section in the page to select it; edit it in the panel on the right.
+import type { PageEditor } from '../../utils/page-editor'
 import type { FieldIssue } from '#shared/issues'
 import { issuesUnder } from '#shared/field-issues'
-import { CANVAS_SCOPE, SCOPED_THEME_CSS } from '../../utils/theme-css'
+import { blockLabel } from '../../utils/block-fields'
+import RenderedPage, { type BlockMark } from '../preview/RenderedPage.vue'
 
 const props = withDefaults(defineProps<{ editor: PageEditor; issues?: FieldIssue[] }>(), { issues: () => [] })
 
-function blockIssues(index: number) {
-  return issuesUnder(props.issues, `blocks.${index}`)
-}
-
-
-const host = ref<HTMLElement | null>(null)
-const available = ref(1280)
-
-function measure() {
-  available.value = host.value?.clientWidth ?? 1280
-}
-
-onMounted(() => {
-  measure()
-  const observer = new ResizeObserver(measure)
-  if (host.value) observer.observe(host.value)
-  onBeforeUnmount(() => observer.disconnect())
+const marks = computed(() => {
+  const out: Record<string, BlockMark> = {}
+  props.editor.doc.blocks.forEach((b, i) => {
+    if (issuesUnder(props.issues, `blocks.${i}`).length) out[b.id] = 'issue'
+  })
+  return out
 })
-
-const width = computed(() => DEVICE_WIDTHS[props.editor.device])
-const scale = computed(() => canvasScale(Math.max(available.value - 48, 160), width.value))
+const selectedIndex = computed(() => props.editor.doc.blocks.findIndex((b) => b.id === props.editor.selectedId))
+const selected = computed(() => (selectedIndex.value >= 0 ? props.editor.doc.blocks[selectedIndex.value] : undefined))
+const selectedIssues = computed(() => (selectedIndex.value >= 0 ? issuesUnder(props.issues, `blocks.${selectedIndex.value}`) : []))
+const withIssues = computed(() => Object.keys(marks.value).length)
 </script>
 
 <template>
-  <div ref="host" class="sb-canvas-frame relative min-h-0 min-w-0 flex-1 overflow-auto" @click="editor.select(null)">
-    <component :is="'style'">{{ SCOPED_THEME_CSS }}</component>
-    <p v-if="scale < 1" class="sticky top-0 z-10 m-0 bg-gray-100/90 dark:bg-gray-800/90 px-4 py-1 text-center text-xs text-gray-600 dark:text-gray-400">Shown at {{ Math.round(scale * 100) }}%</p>
-    <div class="flex justify-center p-6" :style="{ minHeight: '100%' }">
-      <div
-        :class="CANVAS_SCOPE"
-        class="origin-top bg-[var(--paper,#fffaf3)] shadow-md"
-        :style="{ width: `${width}px`, transform: `scale(${scale})`, marginBottom: scale < 1 ? `${-(1 - scale) * 800}px` : undefined }"
-        @click.stop
-      >
-        <p v-if="!editor.doc.blocks.length" class="p-16 text-center text-gray-500 dark:text-gray-400">This page has no sections yet. Add one from the left.</p>
-        <div v-for="(block, index) in editor.doc.blocks" :key="block.id" class="group relative" :data-block-id="block.id">
-          <EditorSectionView
-            :block="block"
-            :selected="editor.selectedId === block.id"
-            :first-hero="index === 0"
-            @select="editor.select(block.id)"
-            @change-text="(prop, value) => editor.updateProps(block.id, { [prop]: value })"
-          />
-          <div
-            v-if="blockIssues(index).length"
-            class="border-l-4 border-red-500 bg-red-50 px-4 py-2 text-sm text-red-900"
-            :data-field-path="`blocks.${index}`"
-          >
-            <p v-for="(issue, i) in blockIssues(index)" :key="i" class="m-0">{{ issue.message }}</p>
-          </div>
-          <div
-            v-if="editor.selectedId === block.id"
-            class="absolute right-3 top-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap gap-1 rounded-md bg-white/95 dark:bg-gray-800/95 p-1 shadow"
-            @click.stop
-          >
-            <button type="button" class="px-2 py-1 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800" :disabled="index === 0" @click="editor.moveSection(block.id, index - 1)">Up</button>
-            <button type="button" class="px-2 py-1 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800" :disabled="index === editor.doc.blocks.length - 1" @click="editor.moveSection(block.id, index + 1)">Down</button>
-            <button type="button" class="px-2 py-1 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800" @click="editor.duplicateSection(block.id)">Duplicate</button>
-            <button type="button" class="px-2 py-1 text-xs text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950" @click="editor.removeSection(block.id)">Remove</button>
-          </div>
-        </div>
+  <div class="sb-canvas-frame relative flex min-h-0 min-w-0 flex-1 flex-col">
+    <div v-if="selected" class="z-20 flex flex-wrap items-center gap-2 border-b border-gray-200 bg-white px-3 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-800" data-section-bar>
+      <span class="min-w-0 truncate font-medium text-gray-900 dark:text-gray-100">{{ blockLabel(selected.type) }}</span>
+      <span class="text-xs text-gray-500 dark:text-gray-400">Section {{ selectedIndex + 1 }} of {{ editor.doc.blocks.length }}</span>
+      <div class="ml-auto flex flex-wrap gap-1">
+        <button type="button" class="rounded px-2 py-1 text-xs text-gray-700 hover:bg-gray-100 disabled:opacity-40 dark:text-gray-300 dark:hover:bg-gray-700" :disabled="selectedIndex === 0" @click="editor.moveSection(selected.id, selectedIndex - 1)">Up</button>
+        <button type="button" class="rounded px-2 py-1 text-xs text-gray-700 hover:bg-gray-100 disabled:opacity-40 dark:text-gray-300 dark:hover:bg-gray-700" :disabled="selectedIndex === editor.doc.blocks.length - 1" @click="editor.moveSection(selected.id, selectedIndex + 1)">Down</button>
+        <button type="button" class="rounded px-2 py-1 text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700" @click="editor.duplicateSection(selected.id)">Duplicate</button>
+        <button type="button" class="rounded px-2 py-1 text-xs text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950" @click="editor.removeSection(selected.id)">Remove</button>
+        <button type="button" class="rounded px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700" aria-label="Deselect section" @click="editor.select(null)">✕</button>
       </div>
+      <div v-if="selectedIssues.length" class="w-full border-l-4 border-red-500 bg-red-50 px-3 py-1 text-xs text-red-900" :data-field-path="`blocks.${selectedIndex}`">
+        <p v-for="(issue, i) in selectedIssues" :key="i" class="m-0">{{ issue.message }}</p>
+      </div>
+    </div>
+    <p v-else-if="withIssues" class="z-20 m-0 border-b border-red-200 bg-red-50 px-3 py-1.5 text-xs text-red-900">
+      {{ withIssues === 1 ? 'One section has a problem' : `${withIssues} sections have problems` }} (outlined in red). Click it to see what to fix.
+    </p>
+    <div class="flex min-h-0 flex-1 bg-gray-100 dark:bg-gray-900">
+      <p v-if="!editor.doc.blocks.length" class="m-auto p-16 text-center text-gray-500 dark:text-gray-400">This page has no sections yet. Add one from the left.</p>
+      <RenderedPage
+        v-else
+        :doc="editor.doc"
+        :device="editor.device"
+        :page-id="editor.pageId"
+        :path="editor.path"
+        :selected-id="editor.selectedId"
+        :marks="marks"
+        @select="(id) => editor.select(id)"
+      />
     </div>
   </div>
 </template>
