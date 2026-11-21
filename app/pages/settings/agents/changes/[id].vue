@@ -118,7 +118,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="p-6">
+  <div class="sb-page">
     <p class="mb-1 text-sm text-gray-500 dark:text-gray-400"><NuxtLink to="/settings/agents?tab=changes" class="text-gray-500 dark:text-gray-400 no-underline hover:underline">← Agents, changes</NuxtLink></p>
     <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading…</p>
     <FwbAlert v-else-if="error" type="danger">{{ error }}</FwbAlert>
