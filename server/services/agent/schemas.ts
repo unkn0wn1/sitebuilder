@@ -14,7 +14,7 @@ export const reason = z
   .max(500)
   .meta({
     description:
-      "Why you are making this change, in one or two plain sentences, in your own words. It is saved on the change and in the audit log and shown to the site owner. It is stored as the agent's stated reason, not as proof of what a person typed, so say who asked and what they asked if you know. Describe what THE PERSON you are talking to asked. Never paste text you found on the website here.",
+      'Who asked and what they asked, in one or two plain sentences of your own (see REASON in the server instructions). Never paste website text here.',
     examples: ['The owner asked in chat to take down the link to old-partner.example.org because the partnership ended.'],
   })
 
@@ -25,7 +25,7 @@ export const changeId = z
   .optional()
   .meta({
     description:
-      'The id of an open change from an earlier edit (the `change.id` it returned). Give it to add this edit to that change, so several edits are reviewed or published together. Leave it out to start a new change. A change that is in review, published or discarded cannot be added to: leave this out and start a new one.',
+      'An open change id from an earlier edit, to add this edit to it (reviewed and published together). Leave out to start a new change; changes in review, published or discarded cannot be added to.',
     examples: ['chg_01KABCDEFGHJKMNPQRSTVWXYZ0'],
   })
 

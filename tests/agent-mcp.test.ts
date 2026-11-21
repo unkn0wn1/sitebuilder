@@ -20,10 +20,17 @@ describe('the documentation an AI reads', () => {
     }
   })
 
+  it('keeps the whole tool list small enough to load cheaply', () => {
+    // Was about 57k characters of descriptions before the 21 Nov 2026 trim.
+    expect(OPERATIONS.reduce((n, o) => n + toolDescription(o).length, 0)).toBeLessThan(42_000)
+  })
+
   it('gives every tool the same sections, and says whether it is draft or live', () => {
     for (const o of OPERATIONS) {
       const d = toolDescription(o)
-      for (const part of ['WHAT IT DOES:', 'USE IT WHEN:', 'DO NOT USE IT WHEN:', 'EFFECT:', 'PERMISSION:', 'RETURNS:', 'IF IT FAILS:', 'EXAMPLE']) expect(d, `${o.name} lacks ${part}`).toContain(part)
+      for (const part of ['Use when:', 'Not when:', 'Effect:', 'Who:', 'Returns:', 'Example:']) expect(d, `${o.name} lacks ${part}`).toContain(part)
+      // Kept short (21 Nov 2026): what every tool shares is in the server instructions.
+      expect(d.length, o.name).toBeLessThan(3200)
       expect(o.doc.useWhen.length, o.name).toBeGreaterThan(0)
       expect(o.doc.dontUseWhen.length, o.name).toBeGreaterThan(0)
       if (o.level === 'draft') expect(o.doc.effect, o.name).toMatch(/DRAFT/)

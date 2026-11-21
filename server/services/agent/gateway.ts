@@ -202,6 +202,30 @@ export function changeView(ctx: ServiceCtx, agent: SignedInAgent, row0: ChangeRo
   }
 }
 
+/**
+ * What an edit tool returns: the change in brief (one line per page or part), not the whole diff again, so a long
+ * build does not repeat every earlier edit in every reply (Spencer, 21 Nov 2026). get_change and preview_change show
+ * the full diff. `result` (added by each tool) says what this call did.
+ */
+export function editView(ctx: ServiceCtx, agent: SignedInAgent, row: ChangeRow) {
+  const full = changeView(ctx, agent, row)
+  const c = full.change
+  const { draft_preview_note: _note, ...link } = previewLink(row) as Record<string, string>
+  return {
+    change: {
+      id: c.id,
+      title: c.title,
+      status: c.status,
+      ...link,
+      targets: c.targets.map((t) => ({ type: t.type, id: t.id, label: t.label, path: t.path, actions: t.actions, ...('summary' in t ? { summary: t.summary, ...(t.warnings?.length ? { warnings: t.warnings } : {}) } : {}) })),
+      full_diff: 'Call get_change or preview_change to see exactly what differs from the live site.',
+    },
+    ...(full.if_you_publish ? { if_you_publish: { outcome: full.if_you_publish.outcome, reasons: full.if_you_publish.reasons, always_allow: full.if_you_publish.always_allow } } : {}),
+    ...(full.problems_to_fix?.length ? { problems_to_fix: full.problems_to_fix } : {}),
+    next_steps: full.next_steps,
+  }
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // Read
 
@@ -562,7 +586,7 @@ export function editText(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof
     for (const p of partPlans) h.editPart(p.part.id, 'edit_text', p.doc)
   })
   return {
-    ...changeView(ctx, agent, done.change),
+    ...editView(ctx, agent, done.change),
     result: {
       replaced: replaceable,
       pages: pagePlans.map((p) => ({ page_id: p.page.id, title: p.page.title, path: p.page.path, replacements: p.count, examples: p.samples })),
@@ -641,7 +665,7 @@ export function removeLink(ctx: ServiceCtx, agent: SignedInAgent, input: In<type
     for (const x of partDocs) if (x.doc) h.editPart(x.pp.part.id, 'remove_link', x.doc)
   })
   return {
-    ...changeView(ctx, agent, done.change),
+    ...editView(ctx, agent, done.change),
     result: {
       links_removed: removedCount,
       complete: couldNot.length === 0,
@@ -671,7 +695,7 @@ export function replaceLink(ctx: ServiceCtx, agent: SignedInAgent, input: In<typ
     for (const x of partDocs) h.editPart(x.pp.part.id, 'add_link', x.doc)
   })
   return {
-    ...changeView(ctx, agent, done.change),
+    ...editView(ctx, agent, done.change),
     result: {
       links_changed: pageOps.reduce((s, x) => s + x.changed, 0) + partDocs.reduce((s, x) => s + x.changed, 0),
       new_url: input.new_url,
@@ -699,7 +723,7 @@ export function insertRichTextInto(ctx: ServiceCtx, agent: SignedInAgent, input:
   const done = runInChange(ctx, agent, { changeId: input.change_id, title: `Add text to ${page.title}`, reason: input.reason }, (h) => {
     h.editPage(page.id, 'edit_text', [{ op: 'update_props', blockId: block.id, props: { [input.prop]: next } }])
   })
-  return { ...changeView(ctx, agent, done.change), result: { added_to: { page_id: page.id, block_id: block.id, prop: input.prop }, now_reads: richTextToMarkdown(next) } }
+  return { ...editView(ctx, agent, done.change), result: { added_to: { page_id: page.id, block_id: block.id, prop: input.prop }, now_reads: richTextToMarkdown(next) } }
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -726,7 +750,7 @@ export function editComponent(ctx: ServiceCtx, agent: SignedInAgent, input: In<t
   const done = runInChange(ctx, agent, { changeId: input.change_id, title: `Edit ${block.type} on ${page.title}`, reason: input.reason }, (h) => {
     h.editPage(page.id, 'edit_sections', [{ op: 'update_props', blockId: block.id, props: input.props, ...(input.unset?.length ? { unset: input.unset } : {}) }])
   })
-  return { ...changeView(ctx, agent, done.change), result: { page_id: page.id, block_id: block.id } }
+  return { ...editView(ctx, agent, done.change), result: { page_id: page.id, block_id: block.id } }
 }
 
 export function addComponent(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.addComponentInput>) {
@@ -737,7 +761,7 @@ export function addComponent(ctx: ServiceCtx, agent: SignedInAgent, input: In<ty
   const done = runInChange(ctx, agent, { changeId: input.change_id, title: `Add ${input.type} to ${page.title}`, reason: input.reason }, (h) => {
     return h.editPage(page.id, 'edit_sections', [{ op: 'add_block', block: { type: input.type, props: input.props }, ...(input.after_block_id ? { afterBlockId: input.after_block_id } : {}), ...(input.index !== undefined ? { index: input.index } : {}) }])
   })
-  return { ...changeView(ctx, agent, done.change), result: { page_id: page.id, sections_now: done.result.doc.blocks.map((b) => ({ block_id: b.id, type: b.type })) } }
+  return { ...editView(ctx, agent, done.change), result: { page_id: page.id, sections_now: done.result.doc.blocks.map((b) => ({ block_id: b.id, type: b.type })) } }
 }
 
 export function removeComponent(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.removeComponentInput>) {
@@ -745,7 +769,7 @@ export function removeComponent(ctx: ServiceCtx, agent: SignedInAgent, input: In
   const { block } = requireBlock(ctx, page.id, input.block_id)
   checkBlockType(block.type)
   const done = runInChange(ctx, agent, { changeId: input.change_id, title: `Remove ${block.type} from ${page.title}`, reason: input.reason }, (h) => h.editPage(page.id, 'edit_sections', [{ op: 'remove_block', blockId: block.id }]))
-  return { ...changeView(ctx, agent, done.change), result: { page_id: page.id, removed_block_id: block.id, sections_now: done.result.doc.blocks.map((b) => ({ block_id: b.id, type: b.type })) } }
+  return { ...editView(ctx, agent, done.change), result: { page_id: page.id, removed_block_id: block.id, sections_now: done.result.doc.blocks.map((b) => ({ block_id: b.id, type: b.type })) } }
 }
 
 export function moveComponent(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.moveComponentInput>) {
@@ -753,7 +777,7 @@ export function moveComponent(ctx: ServiceCtx, agent: SignedInAgent, input: In<t
   const { block } = requireBlock(ctx, page.id, input.block_id)
   checkBlockType(block.type)
   const done = runInChange(ctx, agent, { changeId: input.change_id, title: `Move ${block.type} on ${page.title}`, reason: input.reason }, (h) => h.editPage(page.id, 'edit_sections', [{ op: 'move_block', blockId: block.id, toIndex: input.to_index }]))
-  return { ...changeView(ctx, agent, done.change), result: { page_id: page.id, sections_now: done.result.doc.blocks.map((b) => ({ block_id: b.id, type: b.type })) } }
+  return { ...editView(ctx, agent, done.change), result: { page_id: page.id, sections_now: done.result.doc.blocks.map((b) => ({ block_id: b.id, type: b.type })) } }
 }
 
 export function setPageDetails(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.setPageDetailsInput>) {
@@ -764,7 +788,7 @@ export function setPageDetails(ctx: ServiceCtx, agent: SignedInAgent, input: In<
     ops.push({ op: 'set_seo', ...(input.seo_title !== undefined ? { title: input.seo_title } : {}), ...(input.seo_description !== undefined ? { description: input.seo_description } : {}), ...(input.noindex !== undefined ? { noindex: input.noindex } : {}) })
   }
   const done = runInChange(ctx, agent, { changeId: input.change_id, title: `Change details of ${page.title}`, reason: input.reason }, (h) => h.editPage(page.id, 'edit_page_details', ops))
-  return { ...changeView(ctx, agent, done.change), result: { page_id: page.id, title: done.result.doc.title, path: done.result.meta.path, seo: done.result.doc.seo } }
+  return { ...editView(ctx, agent, done.change), result: { page_id: page.id, title: done.result.doc.title, path: done.result.meta.path, seo: done.result.doc.seo } }
 }
 
 export function createPageFor(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.createPageInput>) {
@@ -780,7 +804,7 @@ export function createPageFor(ctx: ServiceCtx, agent: SignedInAgent, input: In<t
     return page.id
   })
   const page = requirePage(ctx, done.result)
-  return { ...changeView(ctx, agent, done.change), result: { page_id: page.id, path: page.path, page_type: page.template, note: 'The page exists as a draft only. It is not live until the change is published or approved.' } }
+  return { ...editView(ctx, agent, done.change), result: { page_id: page.id, path: page.path, page_type: page.template, note: 'The page exists as a draft only. It is not live until the change is published or approved.' } }
 }
 
 /** Section types a page type allows, minus the ones no agent may ever add (donation forms, embeds). */
@@ -849,7 +873,7 @@ export function createPagesFor(ctx: ServiceCtx, agent: SignedInAgent, input: In<
     return { made, menus }
   })
   return {
-    ...changeView(ctx, agent, done.change),
+    ...editView(ctx, agent, done.change),
     result: {
       pages_created: done.result.made.map((m) => ({ ref: m.ref, page_id: m.page_id, path: m.path, title: m.title, page_type: m.page_type, added_to_menu: m.menu ? m.menu.menu_key : null })),
       menus_edited: done.result.menus,
@@ -897,7 +921,7 @@ function editMenu(ctx: ServiceCtx, agent: SignedInAgent, base: { menu_key: strin
   const valid = validateSitePartDoc('menu', menu)
   if (!valid.ok) throw new AppError('validation_failed', valid.issues[0]!.message, valid.issues)
   const done = runInChange(ctx, agent, { changeId: base.change_id, title, reason: base.reason }, (h) => h.editPart(part.id, 'edit_menu', valid.doc))
-  return { ...changeView(ctx, agent, done.change), result: { menu_now: (valid.doc as MenuDoc).items.map((i) => ({ item_id: i.id, label: i.label, children: i.children.map((c) => ({ item_id: c.id, label: c.label })) })) } }
+  return { ...editView(ctx, agent, done.change), result: { menu_now: (valid.doc as MenuDoc).items.map((i) => ({ item_id: i.id, label: i.label, children: i.children.map((c) => ({ item_id: c.id, label: c.label })) })) } }
 }
 
 export function removeMenuItem(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.removeMenuItemInput>) {
@@ -944,7 +968,7 @@ export function setBanner(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeo
   const valid = validateSitePartDoc('banner', banner)
   if (!valid.ok) throw new AppError('validation_failed', valid.issues[0]!.message, valid.issues)
   const done = runInChange(ctx, agent, { changeId: input.change_id, title: 'Change the banner', reason: input.reason }, (h) => h.editPart(part.id, 'edit_banner', valid.doc))
-  return { ...changeView(ctx, agent, done.change), result: { banner_now: valid.doc } }
+  return { ...editView(ctx, agent, done.change), result: { banner_now: valid.doc } }
 }
 
 /** Change the footer's words and details (phase 5). Layout, look and which menus it shows stay with people. */
@@ -984,7 +1008,7 @@ export function setFooter(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeo
   const valid = validateSitePartDoc('footer', footer)
   if (!valid.ok) throw new AppError('validation_failed', valid.issues[0]!.message, valid.issues)
   const done = runInChange(ctx, agent, { changeId: input.change_id, title: `Change the footer (${changed.join(', ')})`, reason: input.reason }, (h) => h.editPart(part.id, 'edit_footer', valid.doc))
-  return { ...changeView(ctx, agent, done.change), result: { changed, footer_now: valid.doc } }
+  return { ...editView(ctx, agent, done.change), result: { changed, footer_now: valid.doc } }
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

@@ -74,7 +74,12 @@ describe('editing text', () => {
     const r = call(w, 'edit_text', { find: 'Sign up', replace: 'Join in', everywhere: true, expected_matches: 2, reason: REASON })
     expect(r.result.replaced).toBe(2)
     expect(r.change.targets.map((t: any) => t.label).sort()).toEqual(['Events', 'Menu'])
-    expect(r.change.targets[0].text_changes.length + r.change.targets[1].text_changes.length).toBeGreaterThan(0)
+    // The edit reply is brief; the full diff is in get_change.
+    expect(r.change.targets[0].text_changes).toBeUndefined()
+    expect(r.change.targets.every((t: any) => typeof t.summary === 'string')).toBe(true)
+    const full = call(w, 'get_change', { change_id: r.change.id })
+    expect(full.change.targets[0].text_changes.length + full.change.targets[1].text_changes.length).toBeGreaterThan(0)
+    expect(JSON.stringify(r).length).toBeLessThan(JSON.stringify(full).length)
     expect(JSON.stringify(draftDoc(w))).toContain('Join in')
     expect(r.if_you_publish.outcome).toBe('goes_to_review')
     expect(r.next_steps[0]).toMatch(/NOT make this live|publish_change would NOT/)
