@@ -147,6 +147,14 @@ function nextSteps(row: ChangeRow, ev: ChangeEvaluation | null): string[] {
 
 const OUTCOME_LABEL = { publish: 'goes_live', review: 'goes_to_review', deny: 'refused' } as const
 
+/** Where a person can see the draft pages of a change, rendered, in the builder. Needs their builder sign-in. */
+export function previewLink(row: Pick<ChangeRow, 'id' | 'status'>) {
+  if (row.status === 'discarded') return {}
+  const path = `/settings/agents/changes/${row.id}`
+  const origin = (process.env.SITEBUILDER_ORIGIN ?? '').replace(/\/+$/, '')
+  return { draft_preview_path: path, ...(origin ? { draft_preview_url: `${origin}${path}` } : {}), draft_preview_note: 'Give this link to the person. It shows the changed pages as they will look, the differences, and an Undo button. It needs their builder sign-in; you cannot open it.' }
+}
+
 /** The agent-facing picture of a change. Open changes include what publish_change would do right now. */
 export function changeView(ctx: ServiceCtx, agent: SignedInAgent, row0: ChangeRow, evaluation?: ChangeEvaluation) {
   const row = refreshChange(ctx, row0)
@@ -162,6 +170,7 @@ export function changeView(ctx: ServiceCtx, agent: SignedInAgent, row0: ChangeRo
       applied_at: row.appliedAt,
       published_at: row.publishedAt,
       undo_of: row.undoOf,
+      ...previewLink(row),
       targets: (ev?.targets ?? changeTargets(row).map((t) => ({ target: t, summary: '', textChanges: [], facts: null, blocks: undefined, unchanged: false, blocking: [], warnings: [] }))).map((t) => ({
         type: t.target.type,
         id: t.target.id,
@@ -759,6 +768,64 @@ export function createPageFor(ctx: ServiceCtx, agent: SignedInAgent, input: In<t
   })
   const page = requirePage(ctx, done.result)
   return { ...changeView(ctx, agent, done.change), result: { page_id: page.id, path: page.path, page_type: page.template, note: 'The page exists as a draft only. It is not live until the change is published or approved.' } }
+}
+
+/** Build several pages in one change (phase 5). All or nothing: one bad page, section or menu item and nothing is created. */
+export function createPagesFor(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.createPagesInput>) {
+  const refs = new Set<string>()
+  input.pages.forEach((p, i) => {
+    const at = `pages.${i}`
+    if (p.parent_path && p.parent_ref) throw new AppError('validation_failed', `Page ${i + 1} ("${p.title}") has both parent_path and parent_ref. Give one.`, [{ path: `${at}.parent_ref`, message: 'Give parent_path or parent_ref, not both.' }])
+    if (p.parent_ref && !refs.has(p.parent_ref)) throw new AppError('validation_failed', `Page ${i + 1} ("${p.title}") says parent_ref "${p.parent_ref}", but no EARLIER page in this call has that ref. Parents must come first in the list.`, [{ path: `${at}.parent_ref`, message: 'No earlier page has this ref.' }])
+    if (p.ref) {
+      if (refs.has(p.ref)) throw new AppError('validation_failed', `Two pages share the ref "${p.ref}".`, [{ path: `${at}.ref`, message: 'Refs must be different.' }])
+      refs.add(p.ref)
+    }
+    for (const sec of p.sections) {
+      checkBlockType(sec.type)
+      checkProps(sec.props)
+    }
+  })
+  const done = runInChange(ctx, agent, { changeId: input.change_id, title: input.pages.length === 1 ? `Create page: ${input.pages[0]!.title}` : `Build ${input.pages.length} pages: ${input.pages.map((p) => p.title).join(', ').slice(0, 80)}`, reason: input.reason }, (h) => {
+    const byRef = new Map<string, string>()
+    const made: { ref: string | null; page_id: string; path: string; title: string; page_type: string; menu?: { menu_key: string; label: string; under_label?: string } }[] = []
+    for (const p of input.pages) {
+      const parent = p.parent_ref ? requirePage(ctx, byRef.get(p.parent_ref)!) : p.parent_path ? resolvePage(ctx, { path: p.parent_path }) : null
+      const { page } = createPage(ctx, h.actor, { title: p.title, template: p.page_type, slug: p.slug, parentId: parent?.id ?? null })
+      h.addCreatedPage({ id: page.id, title: page.title, path: page.path, draftRevision: page.draftRevision, template: page.template }, 'create_page')
+      if (p.sections.length) h.editPage(page.id, 'create_page', p.sections.map((sec) => ({ op: 'add_block' as const, block: { type: sec.type, props: sec.props } })))
+      if (p.ref) byRef.set(p.ref, page.id)
+      const row = requirePage(ctx, page.id)
+      made.push({ ref: p.ref ?? null, page_id: page.id, path: row.path, title: page.title, page_type: page.template, ...(p.menu ? { menu: { menu_key: p.menu.menu_key, label: p.menu.label ?? p.title.slice(0, 40), under_label: p.menu.under_label } } : {}) })
+    }
+    const menuKeys = [...new Set(made.flatMap((m) => (m.menu ? [m.menu.menu_key] : [])))]
+    const menus: string[] = []
+    for (const key of menuKeys) {
+      const part = findPart(ctx, 'menu', key)
+      const menu = structuredClone(readSitePartDoc(ctx, part)) as MenuDoc
+      for (const m of made.filter((x) => x.menu?.menu_key === key)) {
+        const item = { id: newItemId(), label: m.menu!.label, target: { type: 'page' as const, pageId: m.page_id } }
+        if (m.menu!.under_label) {
+          const parent = menu.items.find((i) => i.label.toLowerCase() === m.menu!.under_label!.toLowerCase())
+          if (!parent) throw new AppError('not_found', `No top-level item "${m.menu!.under_label}" in the "${key}" menu. Use get_site_part with kind "menu" to see the items.`)
+          parent.children.push(item)
+        } else menu.items.push({ ...item, children: [] })
+      }
+      const valid = validateSitePartDoc('menu', menu)
+      if (!valid.ok) throw new AppError('validation_failed', `The menu "${key}" would become invalid: ${valid.issues[0]!.message}`, valid.issues)
+      h.editPart(part.id, 'edit_menu', valid.doc)
+      menus.push(key)
+    }
+    return { made, menus }
+  })
+  return {
+    ...changeView(ctx, agent, done.change),
+    result: {
+      pages_created: done.result.made.map((m) => ({ ref: m.ref, page_id: m.page_id, path: m.path, title: m.title, page_type: m.page_type, added_to_menu: m.menu ? m.menu.menu_key : null })),
+      menus_edited: done.result.menus,
+      note: 'The pages exist as drafts only. Nothing is live until the change is published or approved. Building more than one page at once is sent to a person unless a rule with a high enough maxNewPages allows it.',
+    },
+  }
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

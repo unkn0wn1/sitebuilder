@@ -6,6 +6,7 @@ import { iso, type ServiceCtx } from '../context'
 import { AppError } from '../errors'
 import { notify, usersWithRoles } from '../notify'
 import { effectiveLimits, type AgentTokenRow } from './tokens'
+import { queueWebhook } from './webhook'
 
 export type CallKind = 'read' | 'write' | 'publish'
 
@@ -52,6 +53,7 @@ export function recordViolation(ctx: ServiceCtx, token: AgentTokenRow): { paused
   audit(ctx, 'system', 'agent.token.auto_paused', { type: 'agent_token', id: token.id }, { name: token.name })
   const owner = ctx.db.select({ id: users.id }).from(users).where(eq(users.id, token.ownerUserId)).get()
   notify(ctx, [...(owner ? [owner.id] : []), ...usersWithRoles(ctx, ['admin'])], 'agent_paused', `The agent token "${token.name}" was paused after repeated blocked attempts.`, { type: 'agent_token', id: token.id })
+  queueWebhook(ctx, 'token_paused', () => ({ text: `The agent token "${token.name}" was paused after repeated blocked attempts.`, token: { id: token.id, name: token.name } }))
   return { paused: true }
 }
 

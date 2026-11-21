@@ -289,7 +289,7 @@ export const releases = sqliteTable('releases', {
   finishedAt: text('finished_at'),
 })
 
-export const JOB_KINDS = ['publish', 'render_preview', 'media_renditions', 'run_checks', 'send_email', 'backup', 'purge_cache', 'bin_cleanup'] as const
+export const JOB_KINDS = ['publish', 'render_preview', 'media_renditions', 'run_checks', 'send_email', 'backup', 'purge_cache', 'bin_cleanup', 'agent_webhook'] as const
 export type JobKind = (typeof JOB_KINDS)[number]
 
 export const jobs = sqliteTable(

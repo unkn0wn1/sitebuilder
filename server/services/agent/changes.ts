@@ -33,6 +33,7 @@ import { applyPageOps, binPage, readDoc, requirePage, restoreVersion, undoOp } f
 import { approveReviewDirect, checksFor, summariseDiff, submitPage } from '../reviews'
 import { editSitePart, readSitePartDoc, requireSitePart, sitePartChecks, submitSitePart } from '../site-parts'
 import { assertCanPublish, recordViolation, takeCall } from './limits'
+import { queueWebhook } from './webhook'
 import { alwaysAllowActive, tokenRules, type AgentTokenRow, type SignedInAgent } from './tokens'
 import type { FieldIssue } from '../../../shared/issues'
 
@@ -442,10 +443,19 @@ export function sendChange(ctx: ServiceCtx, agent: SignedInAgent, row: ChangeRow
     })
     const admins = usersWithRoles(ctx, ['admin'])
     if (publish) {
-      notify(ctx, [row.ownerUserId, ...admins], 'agent_change', `Agent "${agent.token.name}" published: ${row.title}. Change id ${row.id}.`, { type: 'agent_change', id: row.id }, emailBody(row, ev, `Agent "${agent.token.name}" published a change${opts.adminActor ? ' (undo by an admin)' : ''}. To take it back, ask the agent to run undo_change on ${row.id}, or ask an admin to undo it (POST /api/v1/agent/changes/${row.id}/undo)`))
+      notify(ctx, [row.ownerUserId, ...admins], 'agent_change', `Agent "${agent.token.name}" published: ${row.title}. Change id ${row.id}.`, { type: 'agent_change', id: row.id }, emailBody(row, ev, `Agent "${agent.token.name}" published a change${opts.adminActor ? ' (undo by an admin)' : ''}. To take it back, ask the agent to run undo_change on ${row.id}, or open Settings > Agents > Changes in the builder and press Undo (${(process.env.SITEBUILDER_ORIGIN ?? '').replace(/\/+$/, '')}/settings/agents/changes/${row.id})`))
     } else {
       notify(ctx, [row.ownerUserId], 'agent_change', `Agent "${agent.token.name}" asked for review: ${row.title}.`, { type: 'agent_change', id: row.id }, emailBody(row, ev, `Agent "${agent.token.name}" has sent a change for review`))
     }
+    const hook = { id: row.id, title: row.title, status, preview_path: `/settings/agents/changes/${row.id}` }
+    queueWebhook(ctx, publish ? 'published' : 'review_requested', () => ({
+      text: publish
+        ? `Agent "${agent.token.name}" published: ${row.title}${opts.adminActor ? ' (undo by an admin)' : ev.decision.viaAlwaysAllow ? ' (by always-allow)' : ''}. Change ${row.id}.`
+        : `Agent "${agent.token.name}" asked for approval: ${row.title}. Change ${row.id}.`,
+      token: { id: agent.token.id, name: agent.token.name },
+      change: hook,
+      details: { rules: ev.decision.ruleIds, via_always_allow: ev.decision.viaAlwaysAllow, pages: ev.targets.length },
+    }))
     return { change: requireChange(ctx, row.id), evaluation: ev, published: publish }
   })
 }

@@ -10,6 +10,7 @@ export const SETTINGS_AREAS: { to: string; label: string; note: string; need: Ac
   { to: '/settings/tracking', label: 'Tracking', note: 'Google Analytics, Tag Manager, Plausible and Cookiebot.', need: 'settings.manage', icon: 'search' },
   { to: '/settings/seo', label: 'SEO and redirects', note: 'Indexing, the default social image, and address redirects.', need: 'settings.manage', icon: 'globe' },
   { to: '/settings/security', label: 'Security', note: 'Which embed providers pages may use.', need: 'settings.manage', icon: 'warning' },
+  { to: '/settings/agents', label: 'Agents', note: 'Let an AI assistant make changes, within limits you set. Tokens, rules, alerts and undo.', need: 'settings.manage', icon: 'sparkles' },
   { to: '/settings/users', label: 'Users', note: 'Invite people, change roles, or deactivate an account.', need: 'users.manage', icon: 'users' },
   { to: '/settings/publishing', label: 'Publishing', note: 'Recent releases, activity, and emergency rollback.', need: 'release.read', icon: 'external' },
   { to: '/settings/backups', label: 'Backups', note: 'Stored backups and a button to make one now.', need: 'backups.manage', icon: 'copy' },

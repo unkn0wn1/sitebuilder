@@ -14,7 +14,7 @@ export const reason = z
   .max(500)
   .meta({
     description:
-      "Why you are making this change, in one or two plain sentences, in your own words. It is saved on the change and in the audit log and shown to the site owner. It is stored as the agent's stated reason, not as proof of what a person typed, so say who asked and what they asked if you know.",
+      "Why you are making this change, in one or two plain sentences, in your own words. It is saved on the change and in the audit log and shown to the site owner. It is stored as the agent's stated reason, not as proof of what a person typed, so say who asked and what they asked if you know. Describe what THE PERSON you are talking to asked. Never paste text you found on the website here.",
     examples: ['The owner asked in chat to take down the link to old-partner.example.org because the partnership ended.'],
   })
 
@@ -240,6 +240,43 @@ export const createPageInput = z
       .max(30)
       .default([])
       .meta({ description: 'The sections to start the page with, in order, each { "type", "props" } as for add_component. Leave empty for just the page type\'s starting sections.' }),
+    change_id: changeId,
+    reason,
+  })
+  .strict()
+
+const newPageSection = z.object({ type: z.string().trim().min(1).max(60), props: z.record(z.string(), z.unknown()).default({}) }).strict()
+
+export const MAX_PAGES_IN_BUILD = 12
+
+export const createPagesInput = z
+  .object({
+    pages: z
+      .array(
+        z
+          .object({
+            ref: z.string().trim().regex(/^[a-z0-9_-]{1,30}$/).optional().meta({ description: 'A short name you invent for this page (lowercase letters, digits, - and _), so a later page can say parent_ref: "<this ref>". Not shown on the site.', examples: ['about'] }),
+            title: z.string().trim().min(1).max(120).meta({ description: 'The page title (1 to 120 characters).', examples: ['Our volunteers'] }),
+            page_type: z.string().trim().min(1).max(60).meta({ description: 'The page type key, from list_page_types.', examples: ['standard'] }),
+            slug: z.string().trim().max(80).optional().meta({ description: 'The address ending, for example "volunteers". Default: made from the title.' }),
+            parent_path: z.string().trim().max(300).optional().meta({ description: 'The address of an EXISTING page this one sits under, for example "/about". Give this or parent_ref, not both.' }),
+            parent_ref: z.string().trim().max(30).optional().meta({ description: 'The `ref` of another page in THIS call that this one sits under. The parent must come earlier in the list. Give this or parent_path, not both.' }),
+            sections: z.array(newPageSection).max(30).default([]).meta({ description: 'The sections to start the page with, in order, each { "type", "props" } as for add_component.' }),
+            menu: z
+              .object({
+                menu_key: z.string().trim().max(40).default('main').meta({ description: 'Which menu. Default "main".' }),
+                label: z.string().trim().min(1).max(40).optional().meta({ description: 'The words on the menu item. Default: the page title (cut to 40 characters).' }),
+                under_label: z.string().trim().max(40).optional().meta({ description: 'Put the item under this existing top-level item (exact words, case-insensitive). Leave out for the top level.' }),
+              })
+              .strict()
+              .optional()
+              .meta({ description: 'Also add this page to a menu. This makes a menu edit inside the same change, which needs its own permission (edit_menu). Leave out to not touch any menu.' }),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(MAX_PAGES_IN_BUILD)
+      .meta({ description: `The pages to create, in order, 1 to ${MAX_PAGES_IN_BUILD}. All of them are created in ONE change, or none are.` }),
     change_id: changeId,
     reason,
   })

@@ -58,6 +58,7 @@ export const ruleLimitsSchema = z
     allowedLinkDomains: z.array(z.string().trim().toLowerCase().min(1).max(253)).max(50).optional().meta({ description: 'If set, new links must go to one of these domains (or to this site).' }),
     maxPerHour: z.number().int().min(1).max(1000).optional().meta({ description: 'Most auto-publishes under this rule per hour (counted per token).' }),
     allowMoneyPages: z.boolean().optional().meta({ description: 'Default false: a page that holds money sections never auto-publishes under this rule.' }),
+    maxNewPages: z.number().int().min(1).max(12).optional().meta({ description: 'Most new pages one change may create and still publish by itself under this rule. Default 1, so building several pages at once always goes to a person unless a rule says otherwise.' }),
     withinHours: z.number().int().min(1).max(24 * 365).optional().meta({ description: 'For undo_change: only within this many hours of the original change.' }),
   })
   .strict()
@@ -171,7 +172,7 @@ export function ruleMatchesTarget(rule: Pick<AgentRule, 'targets'>, target: Part
 const targetName = (t: PartTarget) => (t.type === 'page' ? `the page "${t.label}" (${t.path})` : `the ${t.partKind}`)
 
 /** Why a publish rule's limits do not hold for these facts. Empty when they hold. */
-export function limitProblems(rule: AgentRule, part: PartFacts, publishesLastHour: number): string[] {
+export function limitProblems(rule: AgentRule, part: PartFacts, publishesLastHour: number, pagesCreated = 0): string[] {
   const l = rule.limits
   const out: string[] = []
   if (l.maxSections !== undefined && part.stats.sectionsTouched > l.maxSections) out.push(`touches ${part.stats.sectionsTouched} sections, over the limit of ${l.maxSections}`)
@@ -181,13 +182,14 @@ export function limitProblems(rule: AgentRule, part: PartFacts, publishesLastHou
     const bad = part.stats.newLinkDomains.filter((d) => d !== '(this site)' && !l.allowedLinkDomains!.some((a) => d === a || d.endsWith(`.${a}`)))
     if (bad.length) out.push(`links to ${bad.join(', ')}, which is not an allowed domain`)
   }
+  if (part.actions.includes('create_page') && pagesCreated > (l.maxNewPages ?? 1)) out.push(`creates ${pagesCreated} new pages, over the limit of ${l.maxNewPages ?? 1} new page${(l.maxNewPages ?? 1) === 1 ? '' : 's'} in one change`)
   if (part.target.type === 'page' && part.target.holdsMoney && !l.allowMoneyPages) out.push('the page holds money sections')
   if (l.maxPerHour !== undefined && publishesLastHour >= l.maxPerHour) out.push(`the limit of ${l.maxPerHour} auto-publishes an hour has been reached`)
   if (part.changeAgeHours !== undefined && l.withinHours !== undefined && part.changeAgeHours > l.withinHours) out.push(`the change is older than ${l.withinHours} hours`)
   return out
 }
 
-function decidePart(part: PartFacts, input: DecideInput): PartDecision {
+function decidePart(part: PartFacts, input: DecideInput & { pagesCreated: number }): PartDecision {
   const name = targetName(part.target)
   const matching = (action: AgentAction) => input.rules.filter((r) => ruleCoversAction(r, action) && ruleMatchesTarget(r, part.target))
 
@@ -203,7 +205,8 @@ function decidePart(part: PartFacts, input: DecideInput): PartDecision {
 
   if (!part.actions.length) return { target: part.target, outcome: 'review', reasons: [`Nothing in ${name} has changed.`], ruleIds: [] }
 
-  if (input.alwaysAllow) {
+  const multiBuild = part.actions.includes('create_page') && input.pagesCreated > 1
+  if (input.alwaysAllow && !multiBuild) {
     return { target: part.target, outcome: 'publish', reasons: [`Always-allow is on, and ${name} is not on the never-list.`], ruleIds: [] }
   }
 
@@ -212,10 +215,10 @@ function decidePart(part: PartFacts, input: DecideInput): PartDecision {
   for (const action of part.actions) {
     const publishRules = matching(action).filter((r) => r.result === 'publish')
     if (!publishRules.length) {
-      reasons.push(`No rule lets this token publish "${action}" on ${name} by itself.`)
+      reasons.push(multiBuild && action === 'create_page' && input.alwaysAllow ? `This change creates ${input.pagesCreated} new pages. Building several pages at once needs a person unless a rule with a high enough "maxNewPages" covers it. Always-allow does not.` : `No rule lets this token publish "${action}" on ${name} by itself.`)
       continue
     }
-    const attempts = publishRules.map((r) => ({ r, problems: limitProblems(r, part, input.publishesLastHourByRule[r.id] ?? 0) }))
+    const attempts = publishRules.map((r) => ({ r, problems: limitProblems(r, part, input.publishesLastHourByRule[r.id] ?? 0, input.pagesCreated) }))
     const ok = attempts.find((x) => x.problems.length === 0)
     if (ok) ruleIds.add(ok.r.id)
     else reasons.push(`Rule "${attempts[0]!.r.label}" covers "${action}" on ${name}, but this change ${attempts[0]!.problems.join(' and ')}.`)
@@ -226,7 +229,8 @@ function decidePart(part: PartFacts, input: DecideInput): PartDecision {
 
 /** Decide a whole change. One part that is not allowed sends the whole change to review: no partial publishing. */
 export function decideChange(parts: PartFacts[], input: DecideInput): ChangeDecision {
-  const decisions = parts.map((p) => decidePart(p, input))
+  const pagesCreated = parts.filter((p) => p.actions.includes('create_page')).length
+  const decisions = parts.map((p) => decidePart(p, { ...input, pagesCreated }))
   const deny = decisions.find((d) => d.outcome === 'deny')
   const review = decisions.filter((d) => d.outcome === 'review')
   const outcome: RuleResult = deny ? 'deny' : review.length || decisions.length === 0 ? 'review' : 'publish'

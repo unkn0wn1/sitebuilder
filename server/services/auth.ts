@@ -205,7 +205,7 @@ export function decryptBytes(key: Buffer, stored: Buffer): Buffer {
 /** Secrets an admin or operator may write through PUT /settings/secrets/:name. */
 export const USER_SECRET_NAMES = ['ai_api_key', 'cloudflare_token', 'google_oauth_client_secret'] as const
 /** Refresh and access tokens, written only by the OAuth callbacks, never by the secrets API. */
-export const INTERNAL_SECRET_NAMES = ['gmail_oauth', 'xai_oauth'] as const
+export const INTERNAL_SECRET_NAMES = ['gmail_oauth', 'xai_oauth', 'agent_webhook'] as const
 export const SECRET_NAMES = [...USER_SECRET_NAMES, ...INTERNAL_SECRET_NAMES] as const
 export type SecretName = (typeof SECRET_NAMES)[number]
 
