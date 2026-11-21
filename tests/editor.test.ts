@@ -3,7 +3,7 @@ import { ApiError } from '../app/utils/api'
 import { canvasScale, timeAgo } from '../app/utils/format'
 import { PageEditor, type EditorApi, type EditorSnapshot, type OpsResult } from '../app/utils/page-editor'
 import { newId } from '../shared/ids'
-import { applyOps, type Op, type PageMeta } from '../shared/ops'
+import { applyOps, OpError, opsRequestSchema, type Op, type PageMeta } from '../shared/ops'
 import { emptyPageDoc, type PageDoc } from '../shared/page'
 import { blockRegistry } from '../app/utils/block-fields'
 import { richTextFromParagraphs } from '../shared/richtext'
@@ -58,7 +58,16 @@ class MemoryApi implements EditorApi {
       })
     }
     if (baseRevision > this.revision) throw new ApiError(409, 'conflict', 'Your copy of this page is newer than the server.')
-    const applied = applyOps(this.state, ops, { registry: blockRegistry, newBlockId: () => newId('block') })
+    // Like the server: the request schema first, then all-or-nothing apply with the failing op's path.
+    const parsed = opsRequestSchema.safeParse({ baseRevision, ops })
+    if (!parsed.success) throw new ApiError(400, 'validation_failed', parsed.error.issues[0]!.message, { fields: [{ path: parsed.error.issues[0]!.path.join('.'), message: parsed.error.issues[0]!.message }] })
+    let applied: ReturnType<typeof applyOps>
+    try {
+      applied = applyOps(this.state, parsed.data.ops as Op[], { registry: blockRegistry, newBlockId: () => newId('block') })
+    } catch (e) {
+      if (e instanceof OpError) throw new ApiError(400, 'validation_failed', e.message, { fields: [{ path: e.path, message: e.message }] })
+      throw e
+    }
     this.state = applied.state
     this.revision += applied.applied.length
     const opIds = applied.applied.map((a, i) => {
@@ -248,6 +257,120 @@ describe('PageEditor', () => {
     expect(ed.inspectorTab).toBe('section')
     ed.select(null)
     expect(ed.inspectorTab).toBe('page')
+    ed.dispose()
+  })
+})
+
+describe('saving never gets stuck', () => {
+  it('saves a new section and an edit to it in the same batch, with the id the builder chose', async () => {
+    vi.useFakeTimers()
+    const api = new MemoryApi()
+    const ed = editor(api, {}, { debounceMs: 1000 })
+    ed.addSection('Quote')
+    const id = ed.doc.blocks[0]!.id
+    ed.updateProps(id, { text: 'Edited before the first save' })
+    await vi.advanceTimersByTimeAsync(1000)
+    await ed.flush()
+    expect(api.calls).toHaveLength(1)
+    expect(ed.saveStatus).toBe('saved')
+    expect(api.state.doc.blocks[0]).toMatchObject({ id, props: { text: 'Edited before the first save' } })
+    ed.dispose()
+  })
+
+  it('leaves out an op the server turns down and keeps saving later edits', async () => {
+    const api = new MemoryApi()
+    const ed = editor(api, {}, { debounceMs: 0 })
+    ed.addSection('Quote')
+    await ed.flush()
+    const id = ed.doc.blocks[0]!.id
+    // Someone else removes the section on the server; the builder still edits it, then edits the page title.
+    api.state = { ...api.state, doc: { ...api.state.doc, blocks: [] } }
+    ed.updateProps(id, { text: 'Lost edit' })
+    ed.setMeta({ title: 'New title' })
+    await ed.flush()
+    await ed.flush()
+    expect(ed.error).toMatch(/could not be saved/)
+    expect(ed.pending).toHaveLength(0)
+    expect(api.state.doc.title).toBe('New title')
+    ed.setMeta({ title: 'Newer title' })
+    await ed.flush()
+    expect(ed.saveStatus).toBe('saved')
+    expect(api.state.doc.title).toBe('Newer title')
+    ed.dispose()
+  })
+
+  it('leaves out only the edit whose value the server turned down, shows why, and saves the rest', async () => {
+    const api = new MemoryApi()
+    // Like the server, check the whole document after the ops.
+    const real = api.applyOps.bind(api)
+    api.applyOps = async (pageId, base, ops) => {
+      const bad = ops.findIndex((o) => o.op === 'update_props' && typeof (o.props as { attribution?: string }).attribution === 'string' && (o.props as { attribution: string }).attribution.startsWith('www.'))
+      if (bad >= 0) {
+        api.calls.push(ops)
+        throw new ApiError(400, 'validation_failed', 'Links must start with https://.', { fields: [{ path: 'blocks.0.props.attribution', message: 'Links must start with https://.' }] })
+      }
+      return real(pageId, base, ops)
+    }
+    const ed = editor(api, {}, { debounceMs: 0 })
+    ed.addSection('Quote')
+    await ed.flush()
+    const id = ed.doc.blocks[0]!.id
+    ed.updateProps(id, { text: 'Good edit' })
+    ed.updateProps(id, { attribution: 'www.example.org' })
+    await ed.flush()
+    expect(ed.saveIssues).toEqual([{ path: 'blocks.0.props.attribution', message: 'Links must start with https://.' }])
+    expect(ed.error).toMatch(/taken back/)
+    await ed.flush()
+    expect(api.state.doc.blocks[0]!.props.text).toBe('Good edit')
+    expect(api.state.doc.blocks[0]!.props.attribution).not.toBe('www.example.org')
+    expect(ed.doc.blocks[0]!.props.text).toBe('Good edit')
+    expect(ed.saveIssues).toHaveLength(1)
+    ed.updateProps(id, { attribution: 'https://example.org' })
+    expect(ed.saveIssues).toEqual([])
+    ed.dispose()
+  })
+
+  it('sends more than 50 changes in several saves', async () => {
+    const api = new MemoryApi()
+    const ed = editor(api, {}, { debounceMs: 0 })
+    ed.addSection('Quote')
+    await ed.flush()
+    const id = ed.doc.blocks[0]!.id
+    for (let i = 0; i < 120; i++) ed.updateProps(id, { text: `Edit ${i}` })
+    await ed.flush()
+    for (let i = 0; i < 10 && ed.pending.length; i++) await ed.flush()
+    expect(api.calls.slice(1).every((c) => c.length <= 50)).toBe(true)
+    expect(api.state.doc.blocks[0]!.props.text).toBe('Edit 119')
+    expect(ed.saveStatus).toBe('saved')
+    ed.dispose()
+  })
+
+  it('flushAll says whether everything reached the server', async () => {
+    const api = new MemoryApi()
+    const ed = editor(api, {}, { debounceMs: 0 })
+    ed.addSection('Quote')
+    for (let i = 0; i < 70; i++) ed.updateProps(ed.doc.blocks[0]!.id, { text: `Edit ${i}` })
+    expect(await ed.flushAll()).toBe(true)
+    expect(api.state.doc.blocks[0]!.props.text).toBe('Edit 69')
+    ed.setOnline(false)
+    ed.setMeta({ title: 'Offline title' })
+    expect(await ed.flushAll()).toBe(false)
+    ed.dispose()
+  })
+
+  it('keeps edits made while a save is in flight on the canvas', async () => {
+    const api = new MemoryApi()
+    const ed = editor(api, {}, { debounceMs: 0 })
+    ed.addSection('Quote')
+    await ed.flush()
+    const id = ed.doc.blocks[0]!.id
+    ed.updateProps(id, { text: 'First' })
+    const saving = ed.flush()
+    ed.updateProps(id, { attribution: 'Typed while saving' })
+    await saving
+    expect(ed.doc.blocks[0]!.props).toMatchObject({ text: 'First', attribution: 'Typed while saving' })
+    await ed.flush()
+    expect(api.state.doc.blocks[0]!.props).toMatchObject({ text: 'First', attribution: 'Typed while saving' })
     ed.dispose()
   })
 })

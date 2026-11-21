@@ -5,6 +5,7 @@ import type { PageDoc, PageSeo } from '#shared/page'
 import type { TemplateRules } from '#shared/templates'
 import { canSubmit, type WorkflowState } from '#shared/workflow'
 import { ApiError } from './api'
+import type { FieldIssue } from '#shared/issues'
 import { blockRegistry } from './block-fields'
 import { cloneDraft } from '#shared/clone'
 
@@ -54,6 +55,8 @@ export interface UndoEntry {
 }
 
 const STORAGE_PREFIX = 'sb:editor:'
+/** The server takes at most this many ops per save. */
+export const MAX_OPS_PER_SAVE = 50
 
 export class PageEditor {
   pageId: string
@@ -70,6 +73,8 @@ export class PageEditor {
 
   saveStatus: SaveStatus = 'saved'
   error: string | null = null
+  /** Field problems from the last save the server turned down, shown next to the fields until the next edit. */
+  saveIssues: FieldIssue[] = []
   conflict: EditorConflict | null = null
   selectedId: string | null = null
   leftTab: LeftTab = 'add'
@@ -86,6 +91,8 @@ export class PageEditor {
   private debounceMs: number
   private storage?: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
   private selectedIndex = -1
+  /** The last copy the server confirmed. Pending ops are replayed on it when the server turns one down. */
+  private saved: { doc: PageDoc; meta: PageMeta }
 
   constructor(
     private readonly api: EditorApi,
@@ -103,6 +110,7 @@ export class PageEditor {
     this.revision = snapshot.revision
     this.meta = snapshot.meta
     this.rules = snapshot.rules
+    this.saved = { doc: snapshot.doc, meta: snapshot.meta }
     this.debounceMs = opts.debounceMs ?? 1000
     this.storage = opts.storage
     this.restoreOffline()
@@ -151,6 +159,7 @@ export class PageEditor {
       this.redoStack = []
       this.conflict = null
       this.error = null
+      this.saveIssues = []
       this.saveStatus = this.offline ? 'offline' : 'saving'
       this.persist()
       this.scheduleFlush()
@@ -166,7 +175,9 @@ export class PageEditor {
     }
     const def = blockRegistry.get(type)
     const props = cloneDraft((def?.sample ?? {}) as Record<string, unknown>)
-    const op: Op = afterId ? { op: 'add_block', afterBlockId: afterId, block: { type, props } } : { op: 'add_block', block: { type, props } }
+    // The id is chosen here so edits to the new section can go in the same save as adding it.
+    const block = { id: newId('block'), type, props }
+    const op: Op = afterId ? { op: 'add_block', afterBlockId: afterId, block } : { op: 'add_block', block }
     this.queue([op])
     const last = this.doc.blocks.at(-1)
     if (afterId) {
@@ -201,7 +212,7 @@ export class PageEditor {
   duplicateSection(id: string) {
     const block = this.doc.blocks.find((b) => b.id === id)
     if (!block) return
-    this.queue([{ op: 'add_block', afterBlockId: id, block: { type: block.type, props: cloneDraft(block.props) } }])
+    this.queue([{ op: 'add_block', afterBlockId: id, block: { id: newId('block'), type: block.type, props: cloneDraft(block.props) } }])
     const idx = this.doc.blocks.findIndex((b) => b.id === id)
     const added = this.doc.blocks[idx + 1]
     if (added) this.select(added.id)
@@ -232,8 +243,8 @@ export class PageEditor {
       return
     }
     if (!this.pending.length || this.conflict || this.offline) return
-    const ops = this.pending
-    this.pending = []
+    const ops = this.pending.slice(0, MAX_OPS_PER_SAVE)
+    this.pending = this.pending.slice(MAX_OPS_PER_SAVE)
     const work = this.send(ops)
     this.inflight = work
     try {
@@ -242,6 +253,15 @@ export class PageEditor {
       if (this.inflight === work) this.inflight = null
     }
     if (this.pending.length && !this.conflict && !this.offline) this.scheduleFlush()
+  }
+
+  /** Save everything queued (in as many saves as it takes). True only when nothing is left unsaved. */
+  async flushAll(): Promise<boolean> {
+    for (let i = 0; i < 20; i++) {
+      await this.flush()
+      if (!this.pending.length || this.conflict || this.offline) break
+    }
+    return !this.pending.length && !this.conflict && !this.offline && !this.inflight
   }
 
   setOnline(online: boolean) {
@@ -309,11 +329,41 @@ export class PageEditor {
     if (input.path) this.path = input.path
     if (input.title) this.title = input.title
     if (input.state) this.state = input.state
+    this.saved = { doc: this.doc, meta: this.meta }
     this.reselect()
   }
 
   dispose() {
     if (this.timer) clearTimeout(this.timer)
+  }
+
+  /** Which ops in a turned-down save to leave out: the one named, or the ones that touched the fields named. */
+  private rejectedOps(fields: FieldIssue[], ops: Op[]): Set<number> {
+    const named = /^ops\.(\d+)(?:\.|$)/.exec(fields[0]?.path ?? '')
+    if (named && Number(named[1]) < ops.length) return new Set([Number(named[1])])
+    // The whole document is checked after the ops: map "blocks.N.props.key" back to the ops that wrote it.
+    let after: PageDoc | null = null
+    try {
+      after = applyOps(this.saved, ops, { registry: blockRegistry, newBlockId: () => newId('block') }).state.doc
+    } catch {
+      after = null
+    }
+    const bad = new Set<string>()
+    let meta = false
+    for (const f of fields) {
+      const m = /^blocks\.(\d+)\.props\.([^.]+)/.exec(f.path ?? '')
+      const id = m && after ? after.blocks[Number(m[1])]?.id : undefined
+      if (id) bad.add(`${id}.${m![2]}`)
+      if (/^(title|seo\.|slug)/.test(f.path ?? '')) meta = true
+    }
+    const drop = new Set<number>()
+    ops.forEach((op, i) => {
+      if (op.op === 'update_props' && [...Object.keys(op.props ?? {}), ...(op.unset ?? [])].some((k) => bad.has(`${op.blockId}.${k}`))) drop.add(i)
+      if (op.op === 'add_block' && op.block.id && [...bad].some((b) => b.startsWith(`${op.block.id}.`))) drop.add(i)
+      if (meta && (op.op === 'set_meta' || op.op === 'set_seo')) drop.add(i)
+    })
+    if (!drop.size) ops.forEach((_, i) => drop.add(i))
+    return drop
   }
 
   private applyLocal(ops: Op[]) {
@@ -332,6 +382,18 @@ export class PageEditor {
       if (result.meta.path) this.path = result.meta.path
     }
     this.title = result.doc.title
+    this.saved = { doc: this.doc, meta: this.meta }
+    // Ops queued while this save was in flight still apply on top of what the server sent back.
+    if (this.pending.length) {
+      try {
+        const replay = applyOps({ doc: this.doc, meta: this.meta }, this.pending, { registry: blockRegistry, newBlockId: () => newId('block') })
+        this.doc = replay.state.doc
+        this.meta = replay.state.meta
+        this.title = this.doc.title
+      } catch {
+        // The next save reports it.
+      }
+    }
     this.reselect()
   }
 
@@ -340,6 +402,7 @@ export class PageEditor {
     this.revision = current.revision
     if (current.meta) this.meta = current.meta
     this.title = current.doc.title
+    this.saved = { doc: this.doc, meta: this.meta }
     this.reselect()
   }
 
@@ -373,10 +436,43 @@ export class PageEditor {
       this.saveStatus = this.pending.length ? 'saving' : 'saved'
       this.persist(true)
     } catch (error) {
+      if (error instanceof ApiError && error.status >= 400 && error.status < 500 && error.code !== 'conflict' && error.status !== 401 && error.status !== 403) {
+        this.dropRejected(error, ops)
+        return
+      }
       // Put the ops back so Keep mine / retry / offline still has them.
       this.pending = [...ops, ...this.pending]
       this.fail(error, ops)
     }
+  }
+
+  /**
+   * The server turned the save down (all or nothing). Sending the same ops again would fail the same way and block
+   * every later save, so leave out the op it named (or the whole batch if it named none), rebuild the canvas from the
+   * last saved copy plus what is left, and carry on saving.
+   */
+  private dropRejected(error: ApiError, ops: Op[]) {
+    const fields = Array.isArray(error.details.fields) ? (error.details.fields as FieldIssue[]) : []
+    const drop = this.rejectedOps(fields, ops)
+    const keep = ops.filter((_, i) => !drop.has(i))
+    this.saveIssues = fields.filter((f) => typeof f.path === 'string' && /^(blocks\.|title|seo\.)/.test(f.path))
+    const replay = [...keep, ...this.pending]
+    this.doc = this.saved.doc
+    this.meta = this.saved.meta
+    this.title = this.saved.doc.title
+    this.pending = []
+    for (const op of replay) {
+      try {
+        this.applyLocal([op])
+        this.pending.push(op)
+      } catch {
+        // It no longer applies on the saved copy; leave it out too.
+      }
+    }
+    this.error = `${error.message} That change could not be saved, so it was taken back.`
+    this.saveStatus = this.pending.length ? 'saving' : 'error'
+    this.persist()
+    if (this.pending.length) this.scheduleFlush()
   }
 
   private fail(error: unknown, pendingForConflict?: Op[]) {

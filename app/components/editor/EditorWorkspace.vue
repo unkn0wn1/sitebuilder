@@ -13,6 +13,8 @@ const assistant = useAssistant(() => props.editor)
 const submitting = ref(false)
 const submitError = ref('')
 const submitIssues = ref<FieldIssue[]>([])
+// Problems from the submit check, plus any field the last save was turned down for.
+const shownIssues = computed(() => [...props.editor.saveIssues, ...submitIssues.value])
 const showMobileFields = ref(false)
 const showMobileRail = ref(false)
 
@@ -115,7 +117,12 @@ async function submit() {
   submitIssues.value = []
   submitting.value = true
   try {
-    await props.editor.flush()
+    if (!(await props.editor.flushAll())) {
+      submitError.value = props.editor.conflict
+        ? 'Sort out the conflict above before submitting, so the approver sees your latest changes.'
+        : 'Some changes are not saved yet, so they would not be in what the approver sees. Check your connection and try again.'
+      return
+    }
     await api(`/pages/${props.editor.pageId}/submit`, { method: 'POST', body: {} })
     emit('submitted')
   } catch (error) {
@@ -196,8 +203,8 @@ async function submit() {
       <div v-if="showMobileRail" class="fixed inset-0 z-30 bg-black/40 md:hidden" data-testid="mobile-rail-backdrop" @click="showMobileRail = false" />
       <EditorLeftRail v-if="showMobileRail" :editor="editor" :assistant="assistant" overlay @close="showMobileRail = false" />
       <EditorLeftRail class="max-md:hidden" :editor="editor" :assistant="assistant" />
-      <EditorCanvas :editor="editor" :issues="submitIssues" />
-      <EditorInspectorPanel :editor="editor" :issues="submitIssues" />
+      <EditorCanvas :editor="editor" :issues="shownIssues" />
+      <EditorInspectorPanel :editor="editor" :issues="shownIssues" />
     </div>
   </div>
 </template>

@@ -13,6 +13,9 @@ export const slugSchema = z
 
 const blockInput = z
   .object({
+    // Optional id chosen by the caller (the builder picks one so it can edit the new section before the save
+    // comes back). Left out, the server picks one.
+    id: blockIdSchema.optional(),
     type: z.string().min(1).max(60),
     props: z.record(z.string(), z.unknown()).default({}),
   })
@@ -127,7 +130,9 @@ export function applyOps(state: DraftState, ops: InternalOp[], ctx: ApplyContext
         let index = op.index ?? doc.blocks.length
         if (op.afterBlockId) index = indexOf(doc, op.afterBlockId, `${path}.afterBlockId`) + 1
         index = clampIndex(index, doc.blocks.length)
-        const block: StoredBlock = { id: ctx.newBlockId(), type: op.block.type, v: def.version, props: op.block.props }
+        const id = op.block.id ?? ctx.newBlockId()
+        if (doc.blocks.some((b) => b.id === id)) throw new OpError('That section is already on the page.', `${path}.block.id`)
+        const block: StoredBlock = { id, type: op.block.type, v: def.version, props: op.block.props }
         doc.blocks.splice(index, 0, block)
         const normalised: InternalOp = { op: 'restore_block', index, block: cloneDraft(block) }
         applied.push({ op: normalised, inverse: { op: 'remove_block', blockId: block.id }, touches: [`block:${block.id}`] })
