@@ -2,28 +2,13 @@
 import type { ThemePreference } from '../../utils/theme'
 
 const { preference, setPreference } = useColorMode()
-
-const options: { id: ThemePreference; label: string; title: string }[] = [
-  { id: 'system', label: 'System', title: 'Use the computer’s light or dark setting' },
-  { id: 'light', label: 'Light', title: 'Light appearance' },
-  { id: 'dark', label: 'Dark', title: 'Dark appearance' },
+const options: { value: ThemePreference; label: string; icon: 'desktop' | 'sun' | 'moon' }[] = [
+  { value: 'system', label: 'System', icon: 'desktop' },
+  { value: 'light', label: 'Light', icon: 'sun' },
+  { value: 'dark', label: 'Dark', icon: 'moon' },
 ]
 </script>
 
 <template>
-  <div class="inline-flex shrink-0 rounded-md border border-gray-200 p-0.5 dark:border-gray-600" role="group" aria-label="Colour theme">
-    <button
-      v-for="option in options"
-      :key="option.id"
-      type="button"
-      class="rounded px-1.5 py-0.5 text-xs sm:px-2"
-      :class="preference === option.id ? 'bg-gray-900 font-medium text-white dark:bg-gray-100 dark:text-gray-900' : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100'"
-      :aria-pressed="preference === option.id"
-      :title="option.title"
-      @click="setPreference(option.id)"
-    >
-      <span class="hidden sm:inline">{{ option.label }}</span>
-      <span class="sm:hidden">{{ option.id === 'system' ? 'Sys' : option.label }}</span>
-    </button>
-  </div>
+  <UiSegmented :model-value="preference" :options="options" label="Colour theme" compact @update:model-value="setPreference" />
 </template>
