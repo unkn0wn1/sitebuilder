@@ -4,10 +4,12 @@ import { and, desc, eq, inArray, like, or, sql } from 'drizzle-orm'
 import { diffPages } from '../../../shared/diff'
 import { ACTION_LABELS, AGENT_ACTIONS } from '../../../shared/agent/rules'
 import { RULE_PRESETS } from '../../../shared/agent/presets'
-import { agentChanges, agentTokens, auditEvents } from '../../db/schema'
+import { agentChanges, agentTokens, auditEvents, reviews } from '../../db/schema'
+import { approveReview } from '../reviews'
+import { audit } from '../audit'
 import { readDoc, requirePage } from '../pages'
 import { readSitePartDoc, requireSitePart } from '../site-parts'
-import type { ActingAs, ServiceCtx } from '../context'
+import { inTx, type ActingAs, type ServiceCtx } from '../context'
 import { AppError, forbidden, notFound } from '../errors'
 import { can } from '../../../shared/roles'
 import { changeTargets, refreshChange, requireChange, undoChange, type ChangeRow } from './changes'
@@ -104,4 +106,41 @@ export function previewForAdmin(ctx: ServiceCtx, admin: ActingAs, id: string) {
   const tokenName = ctx.db.select({ name: agentTokens.name }).from(agentTokens).where(eq(agentTokens.id, fresh.tokenId)).get()?.name ?? 'Deleted token'
   const undoable = fresh.status === 'published' && !fresh.undoOf
   return { change: { id: fresh.id, title: fresh.title, status: fresh.status, reasonByAgent: fresh.reason, tokenId: fresh.tokenId, tokenName, createdAt: fresh.createdAt, publishedAt: fresh.publishedAt, undoOf: fresh.undoOf, decision: fresh.decision }, mode: finished ? ('after_publish' as const) : ('draft' as const), undoable, items }
+}
+
+/** The reviews of a change that are still waiting for a decision. */
+function pendingReviewsOf(ctx: ServiceCtx, row: ChangeRow) {
+  return changeTargets(row)
+    .filter((t) => t.reviewId)
+    .map((t) => ({ target: t, review: ctx.db.select().from(reviews).where(eq(reviews.id, t.reviewId!)).get() }))
+    .filter((x): x is { target: typeof x.target; review: NonNullable<typeof x.review> } => x.review?.state === 'pending')
+}
+
+/**
+ * Approve every page and part of an agent change that is waiting, in one step and all or nothing (Spencer, 21 Nov
+ * 2026). Each one goes through the normal approval, so self-approval settings and blocking checks still apply.
+ */
+export function approveWholeChange(ctx: ServiceCtx, actor: ActingAs, id: string, input: { overrideReason?: string } = {}) {
+  if (actor.agent || actor.aiSessionId || !can(actor, 'review.decide')) throw forbidden('Only a person who can approve can approve a change.')
+  return inTx(ctx, () => {
+    const row = requireChange(ctx, id)
+    if (row.siteId !== ctx.siteId) throw notFound('That change')
+    const fresh = refreshChange(ctx, row)
+    if (fresh.status !== 'review') throw new AppError('invalid_state', `This change is "${fresh.status}". Only a change waiting for approval can be approved.`, undefined, { status: fresh.status })
+    const pending = pendingReviewsOf(ctx, fresh)
+    if (!pending.length) throw new AppError('invalid_state', 'Nothing in this change is waiting for approval.')
+    for (const { review } of pending) approveReview(ctx, actor, review.id, { versionId: review.versionId, overrideReason: input.overrideReason })
+    audit(ctx, actor, 'agent.change.approved_whole', { type: 'agent_change', id: fresh.id }, { reviews: pending.map((p) => p.review.id), overrideReason: input.overrideReason ?? null })
+    return { approved: pending.map((p) => p.target.label), change: { id: fresh.id, title: fresh.title } }
+  })
+}
+
+/** The agent change a review belongs to, if any, with how many of its reviews are still waiting. */
+export function changeForReview(ctx: ServiceCtx, actor: ActingAs, reviewId: string) {
+  if (!can(actor, 'review.decide')) return { change: null }
+  const rows = ctx.db.select().from(agentChanges).where(and(eq(agentChanges.siteId, ctx.siteId), eq(agentChanges.status, 'review'), like(agentChanges.targets, `%${reviewId}%`))).all()
+  const row = rows.find((r) => changeTargets(r).some((t) => t.reviewId === reviewId))
+  if (!row) return { change: null }
+  const withReview = changeTargets(row).filter((t) => t.reviewId)
+  return { change: { id: row.id, title: row.title, pending: pendingReviewsOf(ctx, row).length, total: withReview.length } }
 }

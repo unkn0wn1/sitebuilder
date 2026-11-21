@@ -63,6 +63,23 @@ async function load() {
     loading.value = false
   }
 }
+const approving = ref(false)
+const approveError = ref('')
+const pendingCount = computed(() => (data.value?.change.status === 'review' ? data.value.items.length : 0))
+async function approveAll() {
+  if (!data.value || !window.confirm(`Approve and publish all ${data.value.items.length} pages and parts in this change?`)) return
+  approving.value = true
+  approveError.value = ''
+  try {
+    const r = await api<{ approved: string[] }>(`/agent/changes/${data.value.change.id}/approve`, { method: 'POST', body: {} })
+    message.value = `Approved and publishing: ${r.approved.join(', ')}.`
+    await load()
+  } catch (err) {
+    approveError.value = err instanceof ApiError ? err.message : 'Could not approve this change.'
+  } finally {
+    approving.value = false
+  }
+}
 function undone(text: string) {
   undoing.value = false
   message.value = text
@@ -111,9 +128,13 @@ onMounted(() => {
           <h1 class="m-0 break-words text-2xl font-semibold text-gray-900 dark:text-gray-100">{{ data.change.title }}</h1>
           <p class="m-0 mt-1 text-sm text-gray-600 dark:text-gray-400"><strong>{{ CHANGE_STATUS_LABELS[data.change.status] }}.</strong> {{ summary }} By <strong>{{ data.change.tokenName }}</strong>, {{ when(data.change.createdAt) }}. <code>{{ data.change.id }}</code></p>
         </div>
-        <FwbButton v-if="data.undoable" color="red" @click="undoing = true">Undo this change</FwbButton>
+        <div class="flex flex-wrap gap-2">
+          <FwbButton v-if="pendingCount" :disabled="approving" @click="approveAll">{{ approving ? 'Approving…' : `Approve whole change (${pendingCount})` }}</FwbButton>
+          <FwbButton v-if="data.undoable" color="red" @click="undoing = true">Undo this change</FwbButton>
+        </div>
       </div>
       <FwbAlert v-if="message" type="success" class="mb-4">{{ message }}</FwbAlert>
+      <FwbAlert v-if="approveError" type="danger" class="mb-4">{{ approveError }}</FwbAlert>
       <p class="mb-2 max-w-3xl rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-sm text-gray-700 dark:text-gray-300">
         <span class="text-gray-500 dark:text-gray-400">The agent's own words for why (not proof of what anyone asked):</span> “{{ data.change.reasonByAgent }}”
       </p>

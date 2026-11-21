@@ -126,3 +126,40 @@ describe('undoing a build', () => {
     expect(call(w, 'get_change', { change_id: r.change.id }).change.status).toBe('undone')
   })
 })
+
+describe('approve whole change', () => {
+  it('an approver approves every page and part of a change in one step', async () => {
+    const { approveWholeChange, changeForReview } = await import('../server/services/agent/admin')
+    const w = await world()
+    const r = call(w, 'create_pages', { pages: ABOUT, reason: REASON })
+    const sent = call(w, 'publish_change', { change_id: r.change.id })
+    expect(sent.change.status).toBe('review')
+    const { reviews } = await import('../server/db/schema')
+    const firstReview = w.ctx.db.select().from(reviews).all().find((x) => x.state === 'pending')!.id
+    const info = changeForReview(w.ctx, w.approver, firstReview)
+    expect(info.change).toMatchObject({ id: r.change.id, pending: 3, total: 3 })
+    expect(changeForReview(w.ctx, w.editor, firstReview).change).toBeNull()
+
+    expect(await code(() => approveWholeChange(w.ctx, w.editor, r.change.id))).toBe('forbidden')
+    const done = approveWholeChange(w.ctx, w.approver, r.change.id)
+    expect(done.approved).toHaveLength(3)
+    await drain(w)
+    expect(call(w, 'get_change', { change_id: r.change.id }).change.status).toBe('published')
+    expect(call(w, 'get_page', { path: '/about-us' }).page.is_live).toBe(true)
+    expect(await code(() => approveWholeChange(w.ctx, w.approver, r.change.id))).toBe('invalid_state')
+  })
+
+  it('is all or nothing: one item that cannot be approved approves none', async () => {
+    const { approveWholeChange } = await import('../server/services/agent/admin')
+    const w = await world()
+    const r = call(w, 'create_pages', { pages: ABOUT, reason: REASON })
+    call(w, 'publish_change', { change_id: r.change.id })
+    const { reviews } = await import('../server/db/schema')
+    const { eq } = await import('drizzle-orm')
+    // The approver submitted one of them themselves and self-approval is off.
+    const one = w.ctx.db.select().from(reviews).where(eq(reviews.state, 'pending')).all()[0]!
+    w.ctx.db.update(reviews).set({ submittedBy: w.approver.id }).where(eq(reviews.id, one.id)).run()
+    expect(await code(() => approveWholeChange(w.ctx, w.approver, r.change.id))).toBe('forbidden')
+    expect(w.ctx.db.select().from(reviews).where(eq(reviews.state, 'pending')).all()).toHaveLength(3)
+  })
+})
