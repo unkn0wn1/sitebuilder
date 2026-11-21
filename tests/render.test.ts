@@ -425,6 +425,7 @@ describe('public-site renderer', () => {
         type: 'TrustStrip',
         v: 1,
         props: {
+          eyebrow: 'Trusted',
           heading: 'Give with confidence',
           intro: 'Regulator ratings and travel recommendations are grouped separately.',
           items: [
@@ -435,6 +436,7 @@ describe('public-site renderer', () => {
       },
     ]
     const rendered = await renderPageHtml({ doc, pageId: 'pg_trust', versionId: 'ver_1', path: '/trust', site: site() })
+    expect(rendered.html).toContain('<p class="eyebrow">Trusted</p>')
     expect(rendered.html).toContain('Rated by')
     expect(rendered.html).toContain('Recommended on')
     expect(rendered.html).toContain('class="trust-strip"')

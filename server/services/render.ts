@@ -536,6 +536,7 @@ function renderTrustStrip(p: Record<string, unknown>, site: SiteRenderContext, b
     else groups.push({ label, items: [item] })
   }
   return wrapSection([
+    p.eyebrow ? h('p', { class: 'eyebrow' }, String(p.eyebrow)) : null,
     p.heading ? h('h2', String(p.heading)) : null,
     p.intro ? h('p', { class: 'lede' }, String(p.intro)) : null,
     h(

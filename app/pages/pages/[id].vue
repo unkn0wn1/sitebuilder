@@ -60,6 +60,8 @@ async function load() {
   try {
     const data = await api<PagePayload>(`/pages/${route.params.id}`)
     const instance = new PageEditor(editorApi, snapshotOf(data), { storage: window.localStorage })
+    // On a phone, show the page as a phone sees it rather than a desktop page scaled to a quarter.
+    if (window.innerWidth < 768) instance.setDevice('mobile')
     editor.value = reactive(instance) as PageEditor
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : "That page couldn't be opened."

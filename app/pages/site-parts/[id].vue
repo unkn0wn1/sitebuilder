@@ -20,7 +20,7 @@ const loadError = ref('')
 const pages = ref<PageOption[]>([])
 const menus = ref<SitePartListItem[]>([])
 const menuDocs = ref<Record<string, MenuDoc>>({})
-const device = ref<'computer' | 'phone'>('computer')
+const device = ref<'computer' | 'phone'>(import.meta.client && window.innerWidth < 768 ? 'phone' : 'computer')
 const showSubmit = ref(false)
 const submitNote = ref('')
 const previewMenus = computed(() => {

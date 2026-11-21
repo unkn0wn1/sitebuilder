@@ -71,11 +71,13 @@ function inlineText(nodes: TextNode[] | undefined): string {
 }
 
 /** Plain text, for checks, search and AI context. */
-export function richTextToPlain(doc: RichTextDoc): string {
+export function richTextToPlain(doc: RichTextDoc | null | undefined): string {
   const parts: string[] = []
-  for (const node of doc.content) {
+  // Tolerate a half-made value (an empty list item, a string from older data) instead of breaking the editor.
+  if (typeof doc === 'string') return doc
+  for (const node of doc?.content ?? []) {
     if (node.type === 'paragraph' || node.type === 'heading') parts.push(inlineText(node.content))
-    else for (const item of node.content) for (const p of item.content) parts.push(inlineText(p.content))
+    else for (const item of node.content ?? []) for (const p of item.content ?? []) parts.push(inlineText(p.content))
   }
   return parts.join('\n')
 }
