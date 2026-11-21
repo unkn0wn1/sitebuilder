@@ -17,7 +17,7 @@ import type { ActingAs, ServiceCtx } from '../server/services/context'
 import { applyPageOps, createPage } from '../server/services/pages'
 import { STARTER_TEMPLATES } from '../server/services/seed-data'
 import { createEmbed, createSite, getOnlySite, listEmbeds } from '../server/services/site'
-import { createSitePart } from '../server/services/site-parts'
+import { createSitePart, publishUntouchedStarterPart } from '../server/services/site-parts'
 import { createTemplate } from '../server/services/templates'
 import { CallToAction, Hero, Quote } from '../shared/blocks/library'
 import { createDefaultRegistry } from '../shared/blocks/registry'
@@ -51,11 +51,16 @@ for (const [key, rules] of Object.entries(STARTER_TEMPLATES)) {
   }
 }
 
-const haveParts = new Set(db.select({ key: siteParts.key }).from(siteParts).all().map((p) => p.key))
-for (const [kind, key, label] of [['header', 'header', 'Header'], ['footer', 'footer', 'Footer'], ['menu', 'main', 'Main menu']] as const) {
-  if (!haveParts.has(key)) {
-    createSitePart(ctx, kind, key, label, actor)
-    log(`added site part ${label}`)
+const haveParts = new Map(db.select({ key: siteParts.key, id: siteParts.id }).from(siteParts).all().map((p) => [p.key, p.id]))
+// The starter header, menu and footer are live from the start, so the first page published has them (Spencer, 21 Nov 2026).
+const STARTER_PARTS = [['header', 'header', 'Header', true], ['footer', 'footer', 'Footer', true], ['menu', 'main', 'Main menu', true]] as const
+for (const [kind, key, label, live] of STARTER_PARTS) {
+  const existing = haveParts.get(key)
+  if (!existing) {
+    createSitePart(ctx, kind, key, label, actor, { live })
+    log(`added site part ${label}${live ? ' (live)' : ''}`)
+  } else if (live && publishUntouchedStarterPart(ctx, existing)) {
+    log(`made the untouched starter ${label} live`)
   }
 }
 

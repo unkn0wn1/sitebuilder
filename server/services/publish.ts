@@ -128,6 +128,20 @@ export function createPublishHandler(writer: ReleaseWriter = noopReleaseWriter):
         throw new Error('Publish job has nothing to do.')
       }
 
+      // Parts made live at setup (the starter menu and footer) join the first release, and any later one that lacks them.
+      const missingParts = ctx.db
+        .select({ id: siteParts.id, versionId: siteParts.publishedVersionId })
+        .from(siteParts)
+        .where(and(eq(siteParts.siteId, ctx.siteId), isNotNull(siteParts.publishedVersionId)))
+        .all()
+        .filter((p) => !manifest.siteParts[p.id])
+      if (missingParts.length) {
+        for (const p of missingParts) manifest.siteParts[p.id] = p.versionId!
+        changedSitePartIds.push(...missingParts.map((p) => p.id))
+        changedPageIds = uniqueIds([...changedPageIds, ...Object.keys(manifest.pages)])
+        purgeTags = ['shell']
+      }
+
       stampTemplates(ctx, manifest, review?.targetType === 'template' ? { id: review.targetId, versionId: review.versionId } : undefined)
       stampLinkedPageIds(ctx, manifest, previousManifest)
 

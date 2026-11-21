@@ -34,13 +34,16 @@ export function listSiteParts(ctx: ServiceCtx) {
     .map(({ publishedVersionId, draftVersionId, ...p }) => ({ ...p, isLive: !!publishedVersionId, hasUnpublishedChanges: !!publishedVersionId && publishedVersionId !== draftVersionId }))
 }
 
-/** Create a site part with an empty starting document (setup and seeds). */
-export function createSitePart(ctx: ServiceCtx, kind: SitePartKind, key: string, label: string, actor: ActingAs = SYSTEM): string {
+/**
+ * Create a site part with an empty starting document (setup and seeds). With live, the starting document is live
+ * at once (the starter menu and footer, so a new site's first publish has them; Spencer, 21 Nov 2026).
+ */
+export function createSitePart(ctx: ServiceCtx, kind: SitePartKind, key: string, label: string, actor: ActingAs = SYSTEM, opts: { live?: boolean } = {}): string {
   return inTx(ctx, () => {
     const id = newId('sitePart', ctx.now().getTime())
     ctx.db.insert(siteParts).values({ id, siteId: ctx.siteId, kind, key, label, createdAt: iso(ctx), updatedAt: iso(ctx) }).run()
     const versionId = insertVersion(ctx, 'site_part', id, defaultSitePartDoc(kind), actor, 'created', true)
-    ctx.db.update(siteParts).set({ draftVersionId: versionId }).where(eq(siteParts.id, id)).run()
+    ctx.db.update(siteParts).set(opts.live ? { draftVersionId: versionId, publishedVersionId: versionId, workflowState: 'published' } : { draftVersionId: versionId }).where(eq(siteParts.id, id)).run()
     return id
   })
 }
@@ -179,4 +182,19 @@ export function sitePartsLinkingTo(ctx: ServiceCtx, pageId: string): string[] {
     }
   }
   return out
+}
+
+/**
+ * Make a starter part live if nobody has touched it since setup: never published and still on its one starting
+ * version. Used when setup runs again on a site made before starters went live. Returns whether it did.
+ */
+export function publishUntouchedStarterPart(ctx: ServiceCtx, id: string): boolean {
+  return inTx(ctx, () => {
+    const part = requireSitePart(ctx, id)
+    if (part.publishedVersionId || !part.draftVersionId || part.workflowState !== 'draft') return false
+    const count = ctx.db.select({ id: versions.id }).from(versions).where(and(eq(versions.targetType, 'site_part'), eq(versions.targetId, id))).all().length
+    if (count !== 1) return false
+    ctx.db.update(siteParts).set({ publishedVersionId: part.draftVersionId, workflowState: 'published', updatedAt: iso(ctx) }).where(eq(siteParts.id, id)).run()
+    return true
+  })
 }
