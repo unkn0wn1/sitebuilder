@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { Hero, SAMPLE_VIDEO_ID, VideoHero } from '../shared/blocks/library'
+import { Hero, SAMPLE_MEDIA_ID, SAMPLE_VIDEO_ID, VideoHero } from '../shared/blocks/library'
 import { emptyPageDoc } from '../shared/page'
 import { HERO_CAROUSEL_CSS, THEME_CSS } from '../shared/theme-css'
 import { HERO_JS, renderPageHtml, styleHash } from '../server/services/render'
@@ -141,8 +141,7 @@ describe('hero modes', () => {
     expect(videoBody).not.toContain('<source src=')
     expect(bodyOf(image.html)).not.toContain('<video')
     expect(HERO_CAROUSEL_CSS.toLowerCase()).not.toContain('overflow')
-    expect(THEME_CSS).toContain('.hero-carousel { min-height: clamp(22rem, 100vh, 52rem); overflow: hidden; }')
-    expect(THEME_CSS).toContain('.hero-carousel { min-height: clamp(22rem, 100svh, 52rem); overflow: hidden; }')
+    expect(THEME_CSS).toContain('.hero-carousel { min-height:clamp(22rem, 100vh, 52rem);min-height:clamp(22rem, 100svh, 52rem);overflow:hidden;}')
     expect(THEME_CSS).toMatch(/\.hero \{\s*position: relative;\s*min-height: min\(70vh, 36rem\);/)
     expect(THEME_CSS).not.toMatch(/\.hero \{[^}]*overflow/)
     expect(HERO_CAROUSEL_CSS).not.toContain('@keyframes')
@@ -151,5 +150,27 @@ describe('hero modes', () => {
     expect(HERO_JS).not.toContain('</script')
     expect(HERO_JS).not.toContain('document.addEventListener')
     expect(HERO_JS.toLowerCase()).not.toContain('scroll')
+  })
+
+  it('preloads a leading image hero, video hero, and carousel as AVIF at both widths', async () => {
+    const base = `/media/${SAMPLE_MEDIA_ID}`
+    const cases = [
+      HERO_MODE_CASES.find((entry) => entry.name === 'hero-image')!,
+      {
+        name: 'video-hero',
+        doc: heroDoc('b_videohero', VideoHero.sample as Record<string, unknown>, 'VideoHero'),
+        site,
+      },
+      HERO_MODE_CASES.find((entry) => entry.name === 'hero-image-carousel')!,
+    ]
+    for (const entry of cases) {
+      const rendered = await renderPageHtml({ ...SECTION_RENDER, doc: entry.doc, site: entry.site })
+      const links = [...rendered.html.matchAll(/<link rel="preload"[^>]*>/g)].map((match) => match[0])
+      expect(links, entry.name).toEqual([
+        `<link rel="preload" as="image" href="${base}-640.avif" type="image/avif" media="(max-width: 640px)">`,
+        `<link rel="preload" as="image" href="${base}-1280.avif" type="image/avif" media="(min-width: 641px)">`,
+      ])
+      expect(links.some((link) => /href="[^"]+\.webp"/.test(link)), entry.name).toBe(false)
+    }
   })
 })

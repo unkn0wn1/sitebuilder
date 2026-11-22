@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'sha256-F7zO0RdLaNXXlOOb/j086gK8rxUmXgX1pOIIlAmx6D8='; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'sha256-JCAVT+FA9Gl54GedGkG7O0cK87MQDDjj370sb2PvquM='; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none';">
   <title>Sections | Example charity</title>
   
   
@@ -62,7 +62,7 @@ a { color:var(--accent);}
 .site-header-centred .site-header-inner { flex-direction:column;}
 .nav-mega details ul, .nav-mega-panel { min-width:18rem;padding:1rem 1.25rem;display:grid;gap:.35rem 1.5rem;grid-template-columns:repeat(auto-fit, minmax(8rem, 1fr));box-shadow:0 .5rem 1.25rem color-mix(in srgb, var(--ink) 12%, transparent);}
 .nav-hamburger { position:relative;}
-.nav-hamburger > summary { font-weight:600;color:var(--ink);cursor:pointer;list-style:none;border:1px solid var(--line);border-radius:.3rem;padding:.4rem .8rem;}
+.nav-hamburger > summary, .hero-reserve .reserve-menu { font-weight:600;color:var(--ink);cursor:pointer;list-style:none;border:1px solid var(--line);border-radius:.3rem;padding:.4rem .8rem;}
 .nav-hamburger > summary::-webkit-details-marker { display:none;}
 .nav-hamburger .nav-panel { position:absolute;right:0;margin:.4rem 0 0;padding:.75rem 1rem;min-width:14rem;background:var(--paper);border:1px solid var(--line);z-index:6;display:flex;flex-direction:column;gap:.5rem;}
 .nav-hamburger .nav-panel details ul { position:static;border:0;padding:.25rem 0 .25rem .75rem;}
@@ -99,7 +99,7 @@ a { color:var(--accent);}
 .cta-btn, .btn { background:var(--accent);color:var(--accent-ink);border:0;}
 .btn-secondary { background:var(--surface);color:var(--ink);border:2px solid var(--line);}
 .btn:hover, .cta-btn:hover { background:var(--accent-strong);transform:translateY(-1px);}
-.btn:focus-visible, .cta-btn:focus-visible, .btn-secondary:focus-visible { outline:3px solid var(--highlight);outline-offset:3px;}
+.btn:focus-visible, .cta-btn:focus-visible, .btn-secondary:focus-visible { outline:2px solid var(--ink);outline-offset:3px;box-shadow:0 0 0 3px var(--paper);}
 .btn:active, .cta-btn:active, .btn-secondary:active { transform:none;}
 .btn-secondary:hover { transform:translateY(-1px);}
 .cta-band h2 { font-size: clamp(30px, 7.5vw, 52px); line-height: 1.08; letter-spacing: -0.015em; }
@@ -113,9 +113,8 @@ a { color:var(--accent);}
   .btn:hover, .cta-btn:hover, .btn-secondary:hover { transform:none;}
 }
 .hero { position: relative; min-height: min(70vh, 36rem); display: flex; align-items: flex-end; color: #fff; isolation: isolate; }
-.hero-carousel { min-height: clamp(22rem, 100vh, 52rem); overflow: hidden; }
-.hero-carousel { min-height: clamp(22rem, 100svh, 52rem); overflow: hidden; }
-.hero-media, .hero-video, .hero img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; }
+.hero-carousel { min-height:clamp(22rem, 100vh, 52rem);min-height:clamp(22rem, 100svh, 52rem);overflow:hidden;}
+.hero-media, .hero-video, .hero-media img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; }
 .hero::after { content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(to top, color-mix(in srgb, var(--ink) 62%, transparent) 0%, color-mix(in srgb, var(--ink) 28%, transparent) 26%, color-mix(in srgb, var(--ink) 0%, transparent) 48%), linear-gradient(to bottom, color-mix(in srgb, var(--ink) 34%, transparent) 0%, color-mix(in srgb, var(--ink) 0%, transparent) 18%);}
 .hero-inner { width:min(100% - 2 * var(--space), var(--max));margin:0 auto 8vh;}
 .hero h1 { font-size: var(--fs-display); line-height: 1.05; letter-spacing: -0.01em; margin: 0 0 0.5rem; max-width: 16ch; }
@@ -183,7 +182,8 @@ a { color:var(--accent);}
 .lede { color:var(--muted);max-width:38em;margin:0 0 1.25rem;}
 .eyebrow { text-transform:uppercase;letter-spacing:.08em;font-size:var(--fs-eyebrow);font-weight:700;color:var(--accent-strong);margin:0 0 .5rem;}
 .tier-give { display:flex;flex-direction:column;height:100%;color:inherit;text-decoration:none;}
-.tier-give:hover, .tier-give:focus-visible { box-shadow:inset 0 0 0 2px var(--accent), var(--shadow-selected);}
+.tier-give:hover { box-shadow:inset 0 0 0 2px var(--accent), var(--shadow-selected);}
+.tier-give:focus-visible { outline:2px solid var(--ink);outline-offset:3px;box-shadow:inset 0 0 0 2px var(--accent), var(--shadow-selected), 0 0 0 3px var(--paper);}
 .tier-body { padding:1rem;}
 .tier-amount { font-size: clamp(22px, 5.5vw, 28px); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; margin: 0 0 0.25rem; }
 .tier-frequency { font-size:.85rem;font-weight:600;color:var(--muted);margin:0 0 .5rem;text-transform:capitalize;}
@@ -214,7 +214,7 @@ a { color:var(--accent);}
 .trust-badge iframe { max-width:100%;height:auto;}
 </style>
   <link rel="preload" as="image" href="/media/med_00000000000000000000000001-640.avif" type="image/avif" media="(max-width: 640px)">
-  <link rel="preload" as="image" href="/media/med_00000000000000000000000001-1280.webp" type="image/webp" media="(min-width: 641px)">
+  <link rel="preload" as="image" href="/media/med_00000000000000000000000001-1280.avif" type="image/avif" media="(min-width: 641px)">
 </head>
 <body>
   <div><a class="skip" href="#main">Skip to content</a><!----><header class="site-header"><div class="site-header-inner"><a class="site-title" href="/">Example charity</a><!----><!----></div></header><main id="main"><section class="hero" aria-label="Keep them warm this winter"><picture class="hero-media"><source type="image/avif" srcset="/media/med_00000000000000000000000001-320.avif 320w, /media/med_00000000000000000000000001-640.avif 640w, /media/med_00000000000000000000000001-960.avif 960w, /media/med_00000000000000000000000001-1280.avif 1280w" sizes="100vw"><source type="image/webp" srcset="/media/med_00000000000000000000000001-320.webp 320w, /media/med_00000000000000000000000001-640.webp 640w, /media/med_00000000000000000000000001-960.webp 960w, /media/med_00000000000000000000000001-1280.webp 1280w" sizes="100vw"><img src="/media/med_00000000000000000000000001-1280.webp" alt="A rescued puppy wrapped in a blanket" width="1280" height="720" loading="eager" decoding="async" fetchpriority="high"></picture><div class="hero-inner"><h1>Keep them warm this winter</h1><p>Your gift pays for blankets, food and treatment.</p><a class="btn" href="#donate">Donate now</a></div></section></main><footer class="site-footer"><div class="site-footer-inner"><!----><!----><!----><!----><!----></div></footer></div>

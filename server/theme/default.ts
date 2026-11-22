@@ -147,9 +147,9 @@ for (var root of document.querySelectorAll("[data-countdown]")) {
 }
 `
 
-/** See-through header, served as /header.js only when a page asks for it. Progressive: without it the header stays solid. */
-export const HEADER_JS = `// Transparent over a hero at the top of the page, solid once scrolled or while a menu is open.
-// A banner strip above the header stays in the page flow; the fixed header sits just below it until it scrolls away.
+/** See-through header, served as /header.js only when a page asks for it. A leading hero already includes .js-over. */
+export const HEADER_JS = `// Transparent over a leading hero, solid once scrolled or while a menu is open.
+// The page already has .js-over and reserves the bar. These measurements must not move layout.
 (function () {
   var over = document.querySelector('.site-header-over');
   var first = document.querySelector('main > :first-child');
@@ -162,8 +162,8 @@ export const HEADER_JS = `// Transparent over a hero at the top of the page, sol
     over.classList.toggle('is-solid', solid);
     var gap = strip ? Math.max(0, Math.round(strip.getBoundingClientRect().bottom)) : 0;
     over.style.setProperty('--strip', gap + 'px');
-    // Measure the transparent bar only (plus once at start), so the hero padding does not jump when the
-    // bar turns solid on scroll. On the document element: the hero is not inside the header, so it would not inherit.
+    // Record the transparent bar height once. Layout CSS does not read this, so turning solid cannot jump the hero.
+    // On the document element: the hero is not inside the header, so it would not inherit.
     if (!solid || !measured) {
       document.documentElement.style.setProperty('--sb-header-h', Math.round(over.getBoundingClientRect().height) + 'px');
       measured = true;

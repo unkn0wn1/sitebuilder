@@ -75,7 +75,7 @@ a { color:var(--accent);}
 .site-header-centred .site-header-inner { flex-direction:column;}
 .nav-mega details ul, .nav-mega-panel { min-width:18rem;padding:1rem 1.25rem;display:grid;gap:.35rem 1.5rem;grid-template-columns:repeat(auto-fit, minmax(8rem, 1fr));box-shadow:0 .5rem 1.25rem color-mix(in srgb, var(--ink) 12%, transparent);}
 .nav-hamburger { position:relative;}
-.nav-hamburger > summary { font-weight:600;color:var(--ink);cursor:pointer;list-style:none;border:1px solid var(--line);border-radius:.3rem;padding:.4rem .8rem;}
+.nav-hamburger > summary, .hero-reserve .reserve-menu { font-weight:600;color:var(--ink);cursor:pointer;list-style:none;border:1px solid var(--line);border-radius:.3rem;padding:.4rem .8rem;}
 .nav-hamburger > summary::-webkit-details-marker { display:none;}
 .nav-hamburger .nav-panel { position:absolute;right:0;margin:.4rem 0 0;padding:.75rem 1rem;min-width:14rem;background:var(--paper);border:1px solid var(--line);z-index:6;display:flex;flex-direction:column;gap:.5rem;}
 .nav-hamburger .nav-panel details ul { position:static;border:0;padding:.25rem 0 .25rem .75rem;}
@@ -112,7 +112,7 @@ a { color:var(--accent);}
 .cta-btn, .btn { background:var(--accent);color:var(--accent-ink);border:0;}
 .btn-secondary { background:var(--surface);color:var(--ink);border:2px solid var(--line);}
 .btn:hover, .cta-btn:hover { background:var(--accent-strong);transform:translateY(-1px);}
-.btn:focus-visible, .cta-btn:focus-visible, .btn-secondary:focus-visible { outline:3px solid var(--highlight);outline-offset:3px;}
+.btn:focus-visible, .cta-btn:focus-visible, .btn-secondary:focus-visible { outline:2px solid var(--ink);outline-offset:3px;box-shadow:0 0 0 3px var(--paper);}
 .btn:active, .cta-btn:active, .btn-secondary:active { transform:none;}
 .btn-secondary:hover { transform:translateY(-1px);}
 .cta-band h2 { font-size: clamp(30px, 7.5vw, 52px); line-height: 1.08; letter-spacing: -0.015em; }
@@ -126,9 +126,8 @@ a { color:var(--accent);}
   .btn:hover, .cta-btn:hover, .btn-secondary:hover { transform:none;}
 }
 .hero { position: relative; min-height: min(70vh, 36rem); display: flex; align-items: flex-end; color: #fff; isolation: isolate; }
-.hero-carousel { min-height: clamp(22rem, 100vh, 52rem); overflow: hidden; }
-.hero-carousel { min-height: clamp(22rem, 100svh, 52rem); overflow: hidden; }
-.hero-media, .hero-video, .hero img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; }
+.hero-carousel { min-height:clamp(22rem, 100vh, 52rem);min-height:clamp(22rem, 100svh, 52rem);overflow:hidden;}
+.hero-media, .hero-video, .hero-media img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; }
 .hero::after { content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(to top, color-mix(in srgb, var(--ink) 62%, transparent) 0%, color-mix(in srgb, var(--ink) 28%, transparent) 26%, color-mix(in srgb, var(--ink) 0%, transparent) 48%), linear-gradient(to bottom, color-mix(in srgb, var(--ink) 34%, transparent) 0%, color-mix(in srgb, var(--ink) 0%, transparent) 18%);}
 .hero-inner { width:min(100% - 2 * var(--space), var(--max));margin:0 auto 8vh;}
 .hero h1 { font-size: var(--fs-display); line-height: 1.05; letter-spacing: -0.01em; margin: 0 0 0.5rem; max-width: 16ch; }
@@ -196,7 +195,8 @@ a { color:var(--accent);}
 .lede { color:var(--muted);max-width:38em;margin:0 0 1.25rem;}
 .eyebrow { text-transform:uppercase;letter-spacing:.08em;font-size:var(--fs-eyebrow);font-weight:700;color:var(--accent-strong);margin:0 0 .5rem;}
 .tier-give { display:flex;flex-direction:column;height:100%;color:inherit;text-decoration:none;}
-.tier-give:hover, .tier-give:focus-visible { box-shadow:inset 0 0 0 2px var(--accent), var(--shadow-selected);}
+.tier-give:hover { box-shadow:inset 0 0 0 2px var(--accent), var(--shadow-selected);}
+.tier-give:focus-visible { outline:2px solid var(--ink);outline-offset:3px;box-shadow:inset 0 0 0 2px var(--accent), var(--shadow-selected), 0 0 0 3px var(--paper);}
 .tier-body { padding:1rem;}
 .tier-amount { font-size: clamp(22px, 5.5vw, 28px); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; margin: 0 0 0.25rem; }
 .tier-frequency { font-size:.85rem;font-weight:600;color:var(--muted);margin:0 0 .5rem;text-transform:capitalize;}
@@ -276,11 +276,12 @@ export const FOOTER_COLUMNS_CSS = `
 @media (max-width:800px) { .ft-grid { grid-template-columns:1fr;gap:2rem;} .ft-wrap { padding-top:2.25rem;} }
 `
 
-/** Transparent over a top hero once /header.js adds .js-over. Without that class the header stays the normal solid bar.
- *  content-box keeps .hero's min-height as the photo area and adds the bar above it. .hero has no side padding,
- *  so a phone width stays full-bleed, and the absolute photo (inset 0) still paints through the padded area. */
+/** See-through bar when the page emits .js-over (a leading hero). The bar sticks inside .over-frame, over the hero.
+ *  A non-carousel hero keeps a .hero-reserve copy of the closed bar so the photo runs underneath it and the
+ *  copy stays at the end of a min(70vh, 36rem) row. No leading hero: the header stays solid and in flow.
+ *  Layout does not read --sb-header-h or --strip. /header.js may still set them. */
 export const OVER_HERO_CSS = `
-.site-header-over.js-over { position:fixed;top:var(--strip, 0px);left:0;right:0;z-index:50;background:linear-gradient(to bottom, color-mix(in srgb, var(--ink) 60%, transparent), color-mix(in srgb, var(--ink) 0%, transparent));border-bottom:0;transition:background-color .25s, box-shadow .25s;}
+header.site-header-over.js-over { position:sticky;top:0;z-index:50;align-self:start;background:linear-gradient(to bottom, color-mix(in srgb, var(--ink) 60%, transparent), color-mix(in srgb, var(--ink) 0%, transparent));border-bottom:0;transition:background-color .25s, box-shadow .25s;}
 .site-header-over.js-over.is-solid { background:var(--paper);box-shadow:0 .25rem 1rem color-mix(in srgb, var(--ink) 18%, transparent);}
 .site-header-dark.site-header-over.js-over.is-solid { background:var(--ink);}
 .site-header-over.js-over:not(.is-solid) .nav a,
@@ -289,13 +290,15 @@ export const OVER_HERO_CSS = `
 .site-header-over.js-over:not(.is-solid) .nav-hamburger > summary { color: var(--paper); text-shadow: 0 1px 3px color-mix(in srgb, var(--ink) 50%, transparent); }
 .site-header-over.js-over:not(.is-solid) .nav-hamburger > summary { border-color:color-mix(in srgb, var(--paper) 70%, transparent);}
 .site-header-over.js-over:not(.is-solid) .site-title { background:var(--surface);padding:.3rem .9rem;border-radius:var(--radius-pill);box-shadow:var(--shadow-card);}
-.site-header-dark.site-header-over.js-over:not(.is-solid) .site-title { background: transparent; padding: 0; border-radius: 0; box-shadow: none; color: var(--paper); text-shadow: 0 1px 3px color-mix(in srgb, var(--ink) 50%, transparent); }
+.site-header-dark.site-header-over.js-over:not(.is-solid) .site-title { background: transparent;padding:0;border-radius:0;box-shadow:none;color:var(--paper);text-shadow:0 1px 3px color-mix(in srgb, var(--ink) 50%, transparent);}
 .site-header-over.js-over:not(.is-solid) .cta-btn { border:2px solid color-mix(in srgb, var(--paper) 90%, transparent);box-shadow:0 0 0 .3rem color-mix(in srgb, var(--accent) 40%, transparent);}
-@media (prefers-reduced-motion: reduce) { .site-header-over.js-over { transition: none; } }
-.site-header-over.js-over ~ main > .hero:first-child { box-sizing: content-box; padding-top: var(--sb-header-h, 0px); }
-.site-header-over.js-over ~ main > .hero.hero-carousel:first-child { min-height:clamp(22rem, calc(100vh - var(--sb-header-h, 0px)), 52rem);}
-.site-header-over.js-over ~ main > .hero.hero-carousel:first-child { min-height:clamp(22rem, calc(100svh - var(--sb-header-h, 0px)), 52rem);}
-.site-header-over.js-over:has(.nav-hamburger[open]) { position: absolute; top: var(--strip, 0px); left: 0; right: 0; }
+@media (prefers-reduced-motion: reduce){.site-header-over.js-over{transition:none}}
+.over-frame { display:grid;}
+.over-frame > header.site-header-over.js-over,.over-frame > main { grid-area:1/1;}
+.hero-lead { display:grid;grid-template-rows:auto minmax(min(70vh,36rem),auto);min-height:0;}
+.hero-lead .hero-inner { grid-row:2;align-self:end;}
+.hero-reserve { visibility:hidden;border-bottom:0;grid-row:1;}
+@media (min-width:641px){.hero-reserve:not(.site-header-hamburger) .reserve-menu{display:none}}
 .site-header-over.js-over:not(.is-solid) .nav a, .site-header-over.js-over:not(.is-solid) .nav summary { font-weight: 600; }
 `
 
@@ -322,7 +325,7 @@ export const HERO_CAROUSEL_CSS = `
 .hero-carousel .hero-controls { position:absolute;z-index:2;left:50%;bottom:max(1.1rem, calc(env(safe-area-inset-bottom) + .75rem));transform:translateX(-50%);display:flex;align-items:center;gap:.15rem;padding:.25rem .35rem;max-width:calc(100% - 2 * var(--space));border-radius:var(--radius-pill);background:color-mix(in srgb, var(--ink) 38%, transparent);border:1px solid color-mix(in srgb, var(--paper) 22%, transparent);backdrop-filter:blur(10px);}
 .hero-carousel :is(.hero-prev, .hero-next, .hero-pause) { width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--paper); display: grid; place-items: center; cursor: pointer; transition: background-color 0.15s; }
 .hero-carousel :is(.hero-prev, .hero-next, .hero-pause):is(:hover, :focus-visible) { background:color-mix(in srgb, var(--paper) 20%, transparent);}
-.hero-carousel .hero-controls button:focus-visible { outline:3px solid var(--highlight);outline-offset:2px;}
+.hero-carousel .hero-controls button:focus-visible { outline:2px solid var(--ink);outline-offset:3px;box-shadow:0 0 0 3px var(--paper);}
 .hero-carousel .hero-controls svg { width:24px;height:24px;display:block;}
 .hero-carousel .hero-pause .ico-play { display:none;}
 .hero-carousel .hero-pause[aria-pressed="true"] .ico-pause { display:none;}

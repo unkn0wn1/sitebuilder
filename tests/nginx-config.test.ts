@@ -82,6 +82,52 @@ describe('nginx config', () => {
     expect(analytics).not.toContain('Content-Security-Policy')
   })
 
+  it('sends nosniff and a referrer policy on the public site, including locations that replace headers', () => {
+    const nosniff = 'add_header X-Content-Type-Options "nosniff" always;'
+    const referrer = 'add_header Referrer-Policy "strict-origin-when-cross-origin" always;'
+    const pageCsp = 'add_header Content-Security-Policy $content_csp always;'
+    const publicBlock = template.slice(0, template.indexOf('# Builder'))
+    const builderBlock = template.slice(template.indexOf('# Builder'))
+    const serverHeaders = publicBlock.slice(0, publicBlock.indexOf('\n  location '))
+    expect(serverHeaders).toContain(pageCsp)
+    expect(serverHeaders).toContain(nosniff)
+    expect(serverHeaders).toContain(referrer)
+    expect(template.match(/add_header Content-Security-Policy \$content_csp always;/g)).toHaveLength(1)
+
+    const locationBody = (marker: string) => {
+      const start = publicBlock.indexOf(marker)
+      expect(start, marker).toBeGreaterThanOrEqual(0)
+      expect(publicBlock.indexOf(marker, start + marker.length), marker).toBe(-1)
+      const open = publicBlock.indexOf('{', start)
+      let depth = 0
+      for (let i = open; i < publicBlock.length; i++) {
+        if (publicBlock[i] === '{') depth += 1
+        else if (publicBlock[i] === '}') {
+          depth -= 1
+          if (depth === 0) return publicBlock.slice(open + 1, i)
+        }
+      }
+      throw new Error(`unclosed ${marker}`)
+    }
+    const scripts = ['location = /embed.js {', 'location = /header.js {', 'location = /hero.js {', 'location = /analytics.js {']
+    const media = ['location ~* ^/media/(.+\\.svg)$ {', 'location /media/ {']
+    for (const marker of [...scripts, ...media]) {
+      const body = locationBody(marker)
+      expect(body, marker).toContain(nosniff)
+      expect(body, marker).toContain(referrer)
+      expect(body.split(nosniff).length - 1, marker).toBe(1)
+      expect(body.split(referrer).length - 1, marker).toBe(1)
+    }
+    for (const marker of scripts) expect(locationBody(marker), marker).not.toContain('Content-Security-Policy')
+    expect(locationBody('location /media/ {')).not.toContain('Content-Security-Policy')
+    expect(locationBody('location ~* ^/media/(.+\\.svg)$ {')).toContain(
+      'add_header Content-Security-Policy "default-src \'none\'; style-src \'unsafe-inline\'; sandbox" always;',
+    )
+    expect(locationBody('location / {')).not.toContain('add_header')
+    expect(builderBlock).not.toContain('X-Content-Type-Options')
+    expect(builderBlock).not.toContain('Referrer-Policy')
+  })
+
   it('does not give 404 or 410 an edge cache', () => {
     const body = edgeCacheMapBody()
     const line = (status: string) => body.split('\n').find((row) => new RegExp(`^\\s*${status}\\s`).test(row))

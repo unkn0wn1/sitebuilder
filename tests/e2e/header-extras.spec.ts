@@ -113,37 +113,39 @@ async function headerLook(page: Page) {
       jsOver: el.classList.contains('js-over'),
       solid: el.classList.contains('is-solid'),
       fixed: style.position === 'fixed',
+      sticky: style.position === 'sticky',
       gradient: style.backgroundImage.includes('linear-gradient'),
       paper: style.backgroundColor === paper,
     }
   }, PAPER)
 }
 
-/** Heading stays below the fixed bar, the photo still covers that bar, and the text stays inside the phone width. */
+/** Heading stays below the bar, the photo still covers that bar, and the text stays inside the phone width. */
 async function heroFit(page: Page) {
   return page.evaluate(() => {
     const header = document.querySelector('header')
     const hero = document.querySelector('main > .hero')
+    const reserve = hero?.querySelector('.hero-reserve')
     const h1 = hero?.querySelector('h1')
     const photo = hero?.querySelector('.hero-media')
     const inner = hero?.querySelector('.hero-inner')
-    if (!header || !hero || !h1 || !photo || !inner) return null
+    if (!header || !hero || !reserve || !h1 || !photo || !inner) return null
     const hb = header.getBoundingClientRect()
+    const rb = reserve.getBoundingClientRect()
     const h1b = h1.getBoundingClientRect()
     const pb = photo.getBoundingClientRect()
     const ib = inner.getBoundingClientRect()
     const heroBox = hero.getBoundingClientRect()
     const cs = getComputedStyle(hero)
-    const padTop = parseFloat(cs.paddingTop)
     const root = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
     const minH = Math.min(window.innerHeight * 0.7, 36 * root)
-    const contentH = heroBox.height - padTop - parseFloat(cs.paddingBottom)
+    const contentH = heroBox.height - rb.height
     const vw = document.documentElement.clientWidth
     return {
       boxSizing: cs.boxSizing,
       padLeft: cs.paddingLeft,
       padRight: cs.paddingRight,
-      padMatchesHeader: Math.abs(padTop - Math.round(hb.height)) <= 0.5,
+      reserveMatchesHeader: Math.abs(rb.height - hb.height) <= 1,
       h1Clears: h1b.top >= hb.bottom - 0.5,
       photoCoversHeader: pb.top <= hb.top + 0.5 && pb.bottom >= hb.bottom - 0.5 && pb.left <= heroBox.left + 1 && pb.right >= heroBox.right - 1,
       innerInside: ib.left >= -0.5 && ib.right <= vw + 0.5 && ib.width < vw,
@@ -153,14 +155,30 @@ async function heroFit(page: Page) {
 }
 
 const HERO_FIT = {
-  boxSizing: 'content-box',
+  boxSizing: 'border-box',
   padLeft: '0px',
   padRight: '0px',
-  padMatchesHeader: true,
+  reserveMatchesHeader: true,
   h1Clears: true,
   photoCoversHeader: true,
   innerInside: true,
   contentKeepsMinHeight: true,
+}
+
+async function heroBox(page: Page) {
+  return page.evaluate(() => {
+    const hero = document.querySelector('main > .hero')
+    const reserve = document.querySelector('.hero-reserve')
+    const header = document.querySelector('header')
+    const main = document.querySelector('main')
+    return {
+      hero: hero?.getBoundingClientRect().height ?? null,
+      reserve: reserve?.getBoundingClientRect().height ?? null,
+      headerTop: header?.getBoundingClientRect().top ?? null,
+      heroTop: hero?.getBoundingClientRect().top ?? null,
+      mainTop: main?.getBoundingClientRect().top ?? null,
+    }
+  })
 }
 
 async function heroPad(page: Page) {
@@ -174,25 +192,35 @@ async function heroPad(page: Page) {
 
 test('see-through header and mega tiles, from renderer HTML, with no sign-in', async ({ page }) => {
   await show(page, 'hero', 'run')
-  expect(await headerLook(page)).toEqual({ over: true, jsOver: true, solid: false, fixed: true, gradient: true, paper: false })
+  expect(await headerLook(page)).toEqual({ over: true, jsOver: true, solid: false, fixed: false, sticky: true, gradient: true, paper: false })
   await expect(page.locator('header > .site-header-inner > nav a').first()).toHaveCSS('font-weight', '600')
   expect(await heroFit(page)).toEqual(HERO_FIT)
+
+  const beforeVars = await heroBox(page)
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty('--sb-header-h', '320px')
+    document.querySelector('header')!.style.setProperty('--strip', '90px')
+  })
+  expect(await heroBox(page)).toEqual(beforeVars)
 
   await page.setViewportSize({ width: 390, height: 800 })
   await expect.poll(() => heroFit(page)).toEqual(HERO_FIT)
   await page.setViewportSize({ width: 1440, height: 900 })
   await expect.poll(() => heroFit(page)).toEqual(HERO_FIT)
 
-  // Turning solid on scroll keeps the hero padding as it was, so nothing jumps mid-scroll.
-  const padAtTop = (await heroPad(page))?.padTop
+  // Turning solid on scroll must not change the hero or the reserve. The bar stays stuck to the viewport.
+  const atTop = await heroBox(page)
   await page.evaluate(() => window.scrollTo(0, 80))
-  await expect.poll(() => headerLook(page)).toEqual({ over: true, jsOver: true, solid: true, fixed: true, gradient: false, paper: true })
+  await expect.poll(() => headerLook(page)).toEqual({ over: true, jsOver: true, solid: true, fixed: false, sticky: true, gradient: false, paper: true })
   await expect(page.locator('header > .site-header-inner > nav a').first()).toHaveCSS('font-weight', '500')
-  expect((await heroPad(page))?.padTop).toBe(padAtTop)
+  const moved = await heroBox(page)
+  expect(moved.hero).toBe(atTop.hero)
+  expect(moved.reserve).toBe(atTop.reserve)
+  expect(moved.headerTop).toBeLessThanOrEqual(1)
   await page.evaluate(() => window.scrollTo(0, 0))
   await expect.poll(() => heroFit(page)).toEqual(HERO_FIT)
   await page.evaluate(() => window.scrollTo(0, 80))
-  await expect.poll(() => headerLook(page)).toEqual({ over: true, jsOver: true, solid: true, fixed: true, gradient: false, paper: true })
+  await expect.poll(() => headerLook(page)).toEqual({ over: true, jsOver: true, solid: true, fixed: false, sticky: true, gradient: false, paper: true })
 
   const images = page.locator('header nav .nav-mega-tiles img')
   await expect(images).toHaveCount(1)
@@ -228,12 +256,14 @@ test('see-through header and mega tiles, from renderer HTML, with no sign-in', a
   ])
 
   await show(page, 'section', 'run')
-  expect(await headerLook(page)).toEqual({ over: true, jsOver: false, solid: false, fixed: false, gradient: false, paper: false })
+  expect(await headerLook(page)).toEqual({ over: true, jsOver: false, solid: false, fixed: false, sticky: false, gradient: false, paper: false })
   expect(await heroPad(page)).toEqual({ padTop: '0px', boxSizing: 'border-box' })
+  expect(await page.locator('.hero-reserve').count()).toBe(0)
+  expect(await page.locator('.over-frame').count()).toBe(0)
 
   await show(page, 'hero', 'omit')
-  expect(await headerLook(page)).toEqual({ over: true, jsOver: false, solid: false, fixed: false, gradient: false, paper: false })
-  expect(await heroPad(page)).toEqual({ padTop: '0px', boxSizing: 'border-box' })
+  expect(await headerLook(page)).toEqual({ over: true, jsOver: true, solid: false, fixed: false, sticky: true, gradient: true, paper: false })
+  expect(await heroFit(page)).toEqual(HERO_FIT)
 })
 
 test('simple, centred and mega headers collapse to Menu and Donate on a phone', async ({ page }) => {
@@ -247,12 +277,19 @@ test('simple, centred and mega headers collapse to Menu and Donate on a phone', 
     await page.setViewportSize({ width: 390, height: 800 })
     await page.setContent(browserHtml(rendered.html, 'run'), { waitUntil: 'load' })
 
+    const phoneGap = await page.evaluate(() => {
+      const header = document.querySelector('header')!.getBoundingClientRect().height
+      const reserve = document.querySelector('.hero-reserve')!.getBoundingClientRect().height
+      return Math.abs(header - reserve)
+    })
+    expect(phoneGap).toBeLessThanOrEqual(1)
+
     await expect(page.locator('header > .site-header-inner > nav')).toHaveCSS('display', 'none')
     const summary = page.locator('header details.nav-hamburger > summary')
     await expect(summary).toBeVisible()
     await expect(summary).toHaveText('Menu')
     await expect(page.getByRole('link', { name: 'Donate', exact: true })).toBeVisible()
-    if (style === 'centred') await expect(page.locator('.site-header-inner')).toHaveCSS('flex-direction', 'row')
+    if (style === 'centred') await expect(page.locator('header > .site-header-inner')).toHaveCSS('flex-direction', 'row')
 
     const menu = page.locator('header details.nav-hamburger')
     await menu.locator('> summary').click()
@@ -281,9 +318,17 @@ test('simple, centred and mega headers collapse to Menu and Donate on a phone', 
     expect(open?.overflowY).not.toBe('auto')
     expect(open?.overflowY).not.toBe('scroll')
     expect(open?.solid).toBe(true)
-    expect(open?.position).not.toBe('fixed')
+    expect(open?.position).toBe('sticky')
 
+    await menu.locator('> summary').click()
+    await expect(menu).toHaveJSProperty('open', false)
     await page.setViewportSize({ width: 1440, height: 900 })
+    const desktopGap = await page.evaluate(() => {
+      const header = document.querySelector('header')!.getBoundingClientRect().height
+      const reserve = document.querySelector('.hero-reserve')!.getBoundingClientRect().height
+      return Math.abs(header - reserve)
+    })
+    expect(desktopGap).toBeLessThanOrEqual(1)
     await expect(menu).toHaveCSS('display', 'none')
     await expect(page.locator('header > .site-header-inner > nav')).toBeVisible()
     await expect(page.locator('header summary').first()).toHaveText('About')

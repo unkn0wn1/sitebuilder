@@ -66,7 +66,7 @@ export const headerDocSchema = z
     /** A small link, for example "Report an ill or injured animal". A hamburger header draws it twice and CSS shows one. */
     utility: callToAction.nullable().default(null),
     appearance: z.enum(['light', 'dark']).default('light'),
-    /** Transparent over a hero at the top of the page, solid once scrolled. Always the normal solid header without JavaScript. */
+    /** Transparent over a hero at the top of the page, solid once scrolled. That page ships the see-through bar in HTML, so it holds without JavaScript. Any other page stays the solid bar. */
     overHero: z.boolean().default(false),
   })
   .strict()
