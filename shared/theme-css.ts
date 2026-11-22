@@ -235,20 +235,29 @@ a { color: var(--accent); }
 .hero-inner { width: min(100% - 2 * var(--space), var(--max)); margin: 0 auto 8vh; }
 .hero h1 { font-size: var(--fs-display); line-height: 1.05; letter-spacing: -0.01em; margin: 0 0 0.5rem; max-width: 16ch; }
 .hero p { font-size: var(--fs-body); max-width: 36ch; margin: 0 0 1.25rem; color: color-mix(in srgb, white 80%, var(--highlight)); }
-.section { padding: 3.5rem 0; }
+.section { padding: var(--section-y) 0; }
 .section h2 { font-size: var(--fs-h2); line-height: 1.1; margin: 0 0 1rem; }
-.prose :where(p, ul, ol) { max-width: 40rem; margin: 0 0 1rem; }
+.prose { max-width: 65ch; font-size: var(--fs-body); line-height: var(--lh-body); }
+.prose :where(p, ul, ol) { margin: 0 0 1rem; }
+.prose h2 { font-size: var(--fs-h2); line-height: 1.1; }
+.prose h3, .prose h4 { font-size: var(--fs-h3); }
 .prose h2, .prose h3, .prose h4 { margin: 1.5rem 0 0.5rem; }
 .split { display: grid; gap: 2rem; align-items: center; }
+.figure { margin: 0; }
+.figure figcaption { color: var(--muted); font-size: 0.9rem; margin-top: 0.5rem; }
+.gallery { display: grid; gap: clamp(10px, 1.5vw, 16px); grid-template-columns: 1fr; }
+.gallery > * { min-width: 0; }
+.split img, .figure img, .gallery img, .before-after figure img { border-radius: var(--radius-media); }
+.quote { border-left: 4px solid var(--decor); margin: 0; padding: 0.25rem 0 0.25rem 1.25rem; font-size: var(--fs-h2); font-weight: 800; line-height: 1.15; }
+.quote footer { margin-top: 0.75rem; color: var(--muted); font-size: var(--fs-body); font-weight: 600; }
 @media (min-width: 700px) {
   .split { grid-template-columns: 1fr 1fr; }
   .split-image-left .split-copy { order: 2; }
+  .gallery { grid-template-columns: 1fr 1fr; }
 }
-.figure { margin: 0; }
-.figure figcaption { color: var(--muted); font-size: 0.9rem; margin-top: 0.5rem; }
-.gallery { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); }
-.quote { border-left: 4px solid var(--accent); margin: 0; padding: 0.25rem 0 0.25rem 1.25rem; font-size: 1.35rem; }
-.quote footer { margin-top: 0.75rem; color: var(--muted); font-size: 1rem; }
+@media (min-width: 1024px) {
+  .gallery { grid-template-columns: 1fr 1fr 1fr; }
+}
 .stats { display: grid; gap: 1.5rem; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); }
 .stat-value { font-size: 2rem; font-weight: 700; display: block; }
 .stat-label { color: var(--muted); }
