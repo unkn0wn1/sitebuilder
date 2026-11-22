@@ -1452,7 +1452,7 @@ function firstHeroPreload(block: StoredBlock, site: SiteRenderContext): string {
   const w = widths.includes(1280) ? 1280 : widths[widths.length - 1] ?? 1280
   const small = widths.includes(640) ? 640 : widths[0] ?? w
   return `<link rel="preload" as="image" href="/media/${base}-${small}.avif" type="image/avif" media="(max-width: 640px)">
-  <link rel="preload" as="image" href="/media/${base}-${w}.webp" type="image/webp" media="(min-width: 641px)">`
+  <link rel="preload" as="image" href="/media/${base}-${w}.avif" type="image/avif" media="(min-width: 641px)">`
 }
 
 /** Public origin for sitemaps, robots and canonical URLs. Falls back to PUBLIC_HOST when the site has no primary domain yet. */
