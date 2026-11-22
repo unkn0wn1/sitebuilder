@@ -12,7 +12,9 @@ export default defineNitroPlugin((nitro) => {
       const { db } = getDbHandle()
       started = true
       clearInterval(timer)
-      bootPlugins(db)
+      void bootPlugins(db).catch(() => {
+        console.error(JSON.stringify({ level: 'error', msg: 'plugins did not load' }))
+      })
     } catch (error) {
       if (error instanceof AppError && error.code === 'not_set_up') return
       started = true

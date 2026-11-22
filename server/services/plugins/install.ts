@@ -86,7 +86,7 @@ function reconcileSettings(previous: unknown, manifest: PluginManifest): Record<
   return next
 }
 
-export function installPluginArchive(ctx: ServiceCtx, actor: ActingAs, archive: Buffer, signature: Buffer | null): InstallResult {
+export async function installPluginArchive(ctx: ServiceCtx, actor: ActingAs, archive: Buffer, signature: Buffer | null): Promise<InstallResult> {
   if (!can(actor, 'settings.manage')) throw forbidden()
   let files: { path: string; bytes: Buffer }[]
   try {
@@ -110,7 +110,7 @@ export function installPluginArchive(ctx: ServiceCtx, actor: ActingAs, archive: 
     keys: OFFICIAL_KEYS,
   })
   if (!verdict.ok) reject([{ path: 'signature', message: verdict.message || SIGNATURE_UNREADABLE }])
-  const rendered = testRenderPlugin({ manifest, files })
+  const rendered = await testRenderPlugin({ manifest, files })
   if (!rendered.ok) reject([{ path: rendered.path, message: rendered.message }])
 
   const needsOwner = origins.length > 0 && !actor.isOperator
@@ -192,7 +192,7 @@ export function installPluginArchive(ctx: ServiceCtx, actor: ActingAs, archive: 
       contentHash: hashed.hex,
     })
   })
-  const registry = applyPluginRegistry(ctx)
+  const registry = await applyPluginRegistry(ctx)
   const storedType = `${manifest.id}/${manifest.blocks[0]?.type ?? ''}`
   if (status === 'enabled' && !registry.has(storedType)) reject([{ path: '(plugin)', message: 'This plugin could not be loaded.' }])
   if (status === 'pending_owner') {

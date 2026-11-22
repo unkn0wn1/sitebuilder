@@ -7,13 +7,17 @@ import { eq } from 'drizzle-orm'
 import { cloneVNode, createSSRApp, defineComponent, h, type VNode } from 'vue'
 import { renderToString } from 'vue/server-renderer'
 import { sanitizeBadgeHtml } from '../../shared/badge-html'
-import { CssRejected, sanitizeCss, STYLE_MAX_BYTES } from '../../shared/css/sanitize'
+import { CssRejected, PLUGIN_CSS_PAGE_MAX_BYTES, sanitizeCss, STYLE_MAX_BYTES } from '../../shared/css/sanitize'
 import { formatMoney, hasEnded, progressPercent, endOfUtcDay } from '../../shared/amounts'
 import { virtuousPrefill } from '../../shared/donate-prefill'
 import type { ImageRef } from '../../shared/blocks/define'
 import type { StoredBlock } from '../../shared/blocks/registry'
 import { migratePageDoc, type PageDoc } from '../../shared/page'
-import type { RichTextDoc, TextNode } from '../../shared/richtext'
+import { isSafeHref, type RichTextDoc, type TextNode } from '../../shared/richtext'
+import { evaluateComputed } from '../../shared/plugins/compute'
+import { pluginTypeSlug } from '../../shared/plugins/html-allow'
+import type { TemplateHooks } from '../../shared/plugins/template'
+import { getPluginRuntime, type PluginBlockRuntime } from './plugins/runtime'
 import {
   migrateSitePartDoc,
   type BannerDoc,
@@ -113,6 +117,8 @@ export interface SiteRenderContext {
    * that cannot be drawn shows a note instead of failing the whole page. Never set for a release. */
   preview?: boolean
   embeds: Record<string, EmbedCatalogEntry>
+  /** When set, plugin blocks are drawn from this map and the process registry is left alone. */
+  pluginBlocks?: Record<string, PluginBlockRuntime>
 }
 
 interface Collector {
@@ -123,6 +129,7 @@ interface Collector {
   scriptSrcs: Set<string>
   frameSrcs: Set<string>
   imgSrcs: Set<string>
+  fontSrcs: Set<string>
   connectSrcs: Set<string>
   needsEmbedJs: boolean
   needsHeaderJs: boolean
@@ -133,7 +140,7 @@ interface Collector {
 }
 
 function newCollector(site: SiteRenderContext): Collector {
-  return { media: new Set(), links: new Set(), linkedPageIds: new Set(), siteParts: new Set(), scriptSrcs: new Set(), frameSrcs: new Set(), imgSrcs: new Set(), connectSrcs: new Set(), needsEmbedJs: false, needsHeaderJs: false, needsHeroJs: false, pageIdByPath: pageIdByPath(site.pagesById), origin: site.origin, aliases: site.pathAliases ?? new Map() }
+  return { media: new Set(), links: new Set(), linkedPageIds: new Set(), siteParts: new Set(), scriptSrcs: new Set(), frameSrcs: new Set(), imgSrcs: new Set(), fontSrcs: new Set(), connectSrcs: new Set(), needsEmbedJs: false, needsHeaderJs: false, needsHeroJs: false, pageIdByPath: pageIdByPath(site.pagesById), origin: site.origin, aliases: site.pathAliases ?? new Map() }
 }
 
 /** Record an internal target and return the href that should be written (the live path, if known). */
@@ -288,7 +295,8 @@ function authoredCss(value: unknown): string {
   return typeof value === 'string' && value.trim() ? value : ''
 }
 
-function emitSectionCss(block: StoredBlock): string {
+function emitSectionCss(block: StoredBlock, site: SiteRenderContext): string {
+  if (block.type.includes('/') && !pluginBlockRuntime(site, block.type)) return ''
   const css = authoredCss(block.css)
   if (!css) return ''
   return sanitizeCss(css, { scope: 'section', sectionId: block.id, mode: 'emit' })
@@ -475,7 +483,62 @@ function carouselVideo(slide: Record<string, unknown>, site: SiteRenderContext, 
   })
 }
 
-function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector, firstHero: boolean): VNode {
+export const MISSING_PLUGIN_TEXT = 'This section belongs to a plugin that is turned off or was removed. You can remove it. Turning the plugin back on brings it back.'
+
+function pluginBlockRuntime(site: SiteRenderContext, storedType: string): PluginBlockRuntime | undefined {
+  if (site.pluginBlocks) return site.pluginBlocks[storedType]
+  return getPluginRuntime(storedType)
+}
+
+function missingPluginNote(): VNode {
+  return h('section', { class: 'section' }, [h('div', { class: 'wrap' }, [h('p', MISSING_PLUGIN_TEXT)])])
+}
+
+function pluginLinkNode(value: unknown, bag: Collector): VNode | null {
+  if (!value || typeof value !== 'object') return null
+  const label = (value as { label?: unknown }).label
+  const href = (value as { href?: unknown }).href
+  if (typeof label !== 'string' || !label || typeof href !== 'string' || !isSafeHref(href)) return null
+  return h('a', { class: 'btn', href: resolvedHref(href, bag) }, label)
+}
+
+function renderPluginBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector): VNode | null {
+  const runtime = pluginBlockRuntime(site, block.type)
+  if (!runtime) return site.preview ? missingPluginNote() : null
+  for (const origin of runtime.csp.img) bag.imgSrcs.add(origin)
+  for (const origin of runtime.csp.font) bag.fontSrcs.add(origin)
+  for (const origin of runtime.csp.frame) bag.frameSrcs.add(origin)
+  for (const origin of runtime.csp.connect) bag.connectSrcs.add(origin)
+  const props = block.props as Record<string, unknown>
+  const hooks: TemplateHooks = {
+    richtext: (value) => {
+      if (!value || typeof value !== 'object' || (value as { type?: unknown }).type !== 'doc' || !Array.isArray((value as { content?: unknown }).content)) return null
+      const nodes = renderRichText(value as RichTextDoc, bag)
+      return nodes.length ? nodes : null
+    },
+    image: (value, slot) => {
+      if (!value || typeof value !== 'object' || typeof (value as { media?: unknown }).media !== 'string') return null
+      return pictureVNode(value as ImageRef, site, bag, { slot })
+    },
+    link: (value) => pluginLinkNode(value, bag),
+  }
+  const vnode = runtime.render(
+    {
+      props,
+      computed: evaluateComputed(runtime.computed, props),
+      settings: runtime.settings,
+      sectionId: block.id,
+      blockSlug: pluginTypeSlug(block.type),
+    },
+    hooks,
+  )
+  if (!runtime.css) return vnode
+  if (vnode && typeof vnode.type === 'string') return cloneVNode(vnode, { 'data-sb-plugin': block.type })
+  return h('div', { 'data-sb-plugin': block.type }, [vnode])
+}
+
+function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector, firstHero: boolean): VNode | null {
+  if (block.type.includes('/')) return renderPluginBlock(block, site, bag)
   const p = block.props as Record<string, unknown>
   switch (block.type) {
     case 'Hero': {
@@ -1068,7 +1131,9 @@ function renderShell(doc: PageDoc, site: SiteRenderContext, bag: Collector): VNo
       doc.blocks.map((block) => {
         const eager = firstHero && (block.type === 'Hero' || block.type === 'VideoHero')
         if (block.type === 'Hero' || block.type === 'VideoHero') firstHero = false
-        const vnode = site.preview ? previewBlock(block as StoredBlock, () => renderBlock(block as StoredBlock, site, bag, eager)) : renderBlock(block as StoredBlock, site, bag, eager)
+        const drawn = () => renderBlock(block as StoredBlock, site, bag, eager)
+        const vnode = site.preview ? previewBlock(block as StoredBlock, () => drawn() ?? missingPluginNote()) : drawn()
+        if (!vnode) return null
         return withSectionCss(block as StoredBlock, vnode)
       }),
     ),
@@ -1231,7 +1296,7 @@ export function buildCsp(bag: Collector, tracking: SiteSettings['tracking'], css
     `script-src ${[...scripts].join(' ')}`,
     `style-src 'self' ${styleHash(css)}`,
     `img-src ${[...images].join(' ')}`,
-    `font-src 'self'`,
+    bag.fontSrcs.size ? `font-src 'self' ${[...bag.fontSrcs].join(' ')}` : `font-src 'self'`,
     `connect-src ${[...connect].join(' ')}`,
     `frame-src ${frames.size ? [...frames].join(' ') : "'none'"}`,
     `base-uri 'self'`,
@@ -1293,6 +1358,52 @@ function menuHasTiles(site: SiteRenderContext): boolean {
   return !!menu?.doc.items.some((item) => item.children.some((child) => child.featured))
 }
 
+
+function emitPluginCss(doc: PageDoc, site: SiteRenderContext): string {
+  let css = ''
+  const seen = new Set<string>()
+  for (const block of doc.blocks) {
+    if (seen.has(block.type)) continue
+    const runtime = pluginBlockRuntime(site, block.type)
+    if (!runtime?.css) continue
+    seen.add(block.type)
+    css += sanitizeCss(runtime.css, { scope: 'plugin', pluginType: block.type, mode: 'emit' })
+  }
+  if (Buffer.byteLength(css, 'utf8') > PLUGIN_CSS_PAGE_MAX_BYTES) throw new CssRejected(1, 1, "This page's plugin CSS is over the limit.")
+  return css
+}
+
+const HEAD_SETTING = /^\{\{settings\.([a-z][a-zA-Z0-9]{0,31})\}\}$/
+
+function headText(value: string, settings: Record<string, unknown>): string {
+  const match = HEAD_SETTING.exec(value)
+  if (!match) return value
+  const raw = settings[match[1] ?? '']
+  return typeof raw === 'string' ? raw : ''
+}
+
+function emitPluginHead(doc: PageDoc, site: SiteRenderContext): string {
+  let html = ''
+  const seen = new Set<string>()
+  for (const block of doc.blocks) {
+    const runtime = pluginBlockRuntime(site, block.type)
+    if (!runtime || seen.has(runtime.pluginId)) continue
+    seen.add(runtime.pluginId)
+    for (const tag of runtime.head) {
+      if (tag.tag === 'meta') {
+        const content = escapeHtml(headText(tag.content, runtime.settings))
+        if (tag.name) html += `<meta name="${escapeHtml(tag.name)}" content="${content}">\n  `
+        else if (tag.property) html += `<meta property="${escapeHtml(tag.property)}" content="${content}">\n  `
+      } else {
+        const href = escapeHtml(headText(tag.href, runtime.settings))
+        const rel = tag.rel === 'preconnect' ? 'preconnect' : 'alternate'
+        html += `<link rel="${rel}" href="${href}">\n  `
+      }
+    }
+  }
+  return html
+}
+
 export async function renderPageHtml(input: {
   doc: PageDoc
   pageId: string
@@ -1303,9 +1414,10 @@ export async function renderPageHtml(input: {
   const bag = newCollector(input.site)
   const { doc, site } = input
   const carouselCss = doc.blocks.some((block) => heroCarouselActive(block as StoredBlock)) ? HERO_CAROUSEL_CSS : ''
-  const css = (site.themeCss ?? THEME_CSS) + shellOptionCss(site) + carouselCss + emitSiteCss(site.brand) + doc.blocks.map((block) => emitSectionCss(block as StoredBlock)).join('')
+  const pluginCss = emitPluginCss(doc, site)
+  const css = (site.themeCss ?? THEME_CSS) + shellOptionCss(site) + carouselCss + emitSiteCss(site.brand) + pluginCss + doc.blocks.map((block) => emitSectionCss(block as StoredBlock, site)).join('')
   if (css.toLowerCase().includes('</')) throw new CssRejected(1, 1, 'The generated CSS was rejected.')
-  if (Buffer.byteLength(css, 'utf8') > STYLE_MAX_BYTES) throw new CssRejected(1, 1, 'This page CSS is over the 65,536 byte limit.')
+  if (Buffer.byteLength(css, 'utf8') > STYLE_MAX_BYTES) throw new CssRejected(1, 1, `This page CSS is over the ${STYLE_MAX_BYTES.toLocaleString('en-GB')} byte limit.`)
   const app = createSSRApp(
     defineComponent({
       name: 'PublishedPage',
@@ -1329,6 +1441,7 @@ export async function renderPageHtml(input: {
   const ogImage = imageId ? publicUrl(site.origin, `/media/${imageId}-${ogW}.webp`) : ''
   const analytics = trackingNeedsScript(site.tracking)
   const preload = doc.blocks[0]?.type === 'Hero' || doc.blocks[0]?.type === 'VideoHero' ? firstHeroPreload(doc.blocks[0] as StoredBlock, site) : ''
+  const pluginHead = emitPluginHead(doc, site)
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1341,7 +1454,7 @@ export async function renderPageHtml(input: {
   ${canonical ? `<link rel="canonical" href="${escapeHtml(canonical)}">` : ''}
   ${ogImage ? `<meta property="og:image" content="${escapeHtml(ogImage)}">` : ''}
   <meta property="og:title" content="${escapeHtml(title)}">
-  <style>${css}</style>
+  ${pluginHead}<style>${css}</style>
   ${preload}
 </head>
 <body>

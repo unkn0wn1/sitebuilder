@@ -661,7 +661,7 @@ describe('custom CSS in rendered HTML', () => {
     expect(styleText(again.html)).toBe(styleText(bare.html))
   })
 
-  it('refuses a style sheet over 65,536 bytes', async () => {
+  it('refuses a style sheet over 73,728 bytes', async () => {
     const doc = emptyPageDoc('Big')
     const rule = `.a{${'color:#112233;'.repeat(500)}}`
     expect(Buffer.byteLength(rule, 'utf8')).toBeLessThanOrEqual(8192)
@@ -672,7 +672,7 @@ describe('custom CSS in rendered HTML', () => {
       props: { heading: 'Big', image: IMG },
       css: rule,
     }))
-    await expect(renderPageHtml({ doc, pageId: 'pg_big', versionId: 'ver_1', path: '/big', site: site() })).rejects.toThrow('This page CSS is over the 65,536 byte limit.')
+    await expect(renderPageHtml({ doc, pageId: 'pg_big', versionId: 'ver_1', path: '/big', site: site() })).rejects.toThrow('This page CSS is over the 73,728 byte limit.')
   })
 
   it('throws on hostile stored CSS and does not return HTML', async () => {

@@ -3,10 +3,12 @@
 import { generate, parse, walk, type CssNode } from 'css-tree'
 import { CssRejected } from './errors'
 import { DATA_URL_MAX_CHARS, MAX_RULES, SECTION_CSS_MAX_BYTES, SECTION_ID, SITE_CSS_MAX_BYTES } from './limits'
+import { PLUGIN_CSS_MAX_BYTES } from '../plugins/limits'
+import { PLUGIN_STORED_TYPE, pluginTypeSlug } from '../plugins/html-allow'
 import { prefixSectionCss } from './prefix'
 
 export { CssRejected, cssIssueMessage } from './errors'
-export { DATA_URL_MAX_CHARS, MAX_RULES, SECTION_CSS_MAX_BYTES, SITE_CSS_MAX_BYTES, STYLE_MAX_BYTES } from './limits'
+export { DATA_URL_MAX_CHARS, MAX_RULES, PLUGIN_CSS_PAGE_MAX_BYTES, SECTION_CSS_MAX_BYTES, SITE_CSS_MAX_BYTES, STYLE_MAX_BYTES } from './limits'
 
 const ALLOWED_AT_RULES = new Set(['media', 'supports', 'container', 'keyframes'])
 
@@ -48,8 +50,10 @@ const SCAN_PATTERNS: { test: (flat: string) => boolean; message: string }[] = [
 ]
 
 export interface SanitizeOptions {
-  scope: 'section' | 'site'
+  scope: 'section' | 'site' | 'plugin'
   sectionId?: string
+  /** Stored block type, for example hello-note/Note. Required when emitting plugin CSS. */
+  pluginType?: string
   mode: 'check' | 'emit'
 }
 
@@ -141,7 +145,7 @@ function utf8Bytes(source: string): number {
 }
 
 function assertBytes(source: string, scope: SanitizeOptions['scope']) {
-  const cap = scope === 'site' ? SITE_CSS_MAX_BYTES : SECTION_CSS_MAX_BYTES
+  const cap = scope === 'site' ? SITE_CSS_MAX_BYTES : scope === 'plugin' ? PLUGIN_CSS_MAX_BYTES : SECTION_CSS_MAX_BYTES
   if (utf8Bytes(source) > cap) {
     const shown = cap.toLocaleString('en-GB')
     throw new CssRejected(1, 1, `Custom CSS is limited to ${shown} bytes.`)
@@ -315,6 +319,13 @@ export function sanitizeCss(source: string, options: SanitizeOptions): string {
   if (options.scope === 'section') {
     if (!options.sectionId || !SECTION_ID.test(options.sectionId)) throw new CssRejected(1, 1, 'The section id is not valid.')
     prefixSectionCss(ast, options.sectionId)
+  }
+  if (options.scope === 'plugin') {
+    if (!options.pluginType || options.pluginType.length > 60 || !PLUGIN_STORED_TYPE.test(options.pluginType)) {
+      throw new CssRejected(1, 1, 'This block type is not valid.')
+    }
+    const slug = pluginTypeSlug(options.pluginType)
+    prefixSectionCss(ast, slug, { attribute: 'data-sb-plugin', value: options.pluginType, keyframePrefix: slug })
   }
   return beltGenerated(generate(ast))
 }

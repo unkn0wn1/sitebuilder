@@ -7,11 +7,12 @@ import { contentHash } from '../../../shared/plugins/hash'
 import { blockDefinitions, parseManifest } from '../../../shared/plugins/manifest'
 import { BUNDLE_ID } from '../../../shared/theme-css'
 import type { Db } from '../../db/client'
-import { pluginFiles, plugins } from '../../db/schema'
+import { pluginFiles, pluginSettings, plugins } from '../../db/schema'
 import { getOnlySite } from '../site'
 import type { ServiceCtx } from '../context'
 import { setBlockRegistry } from '../../utils/state'
 import { testRenderPlugin } from './render-check'
+import { clearPluginRuntimes, replacePluginRuntimes, type PluginBlockRuntime } from './runtime'
 
 const FILE_MISMATCH = 'The stored files do not match this plugin.'
 const MANIFEST_INVALID = 'The plugin manifest is not valid.'
@@ -39,7 +40,7 @@ function bytesOf(value: Buffer | Uint8Array): Buffer {
   return Buffer.isBuffer(value) ? value : Buffer.from(value)
 }
 
-function loadOne(db: Db, row: typeof plugins.$inferSelect): { ok: true; defs: BlockDefinition[] } | { ok: false; message: string } {
+async function loadOne(db: Db, row: typeof plugins.$inferSelect): Promise<{ ok: true; defs: BlockDefinition[]; blocks: PluginBlockRuntime[] } | { ok: false; message: string }> {
   try {
     if (row.trust !== 'official' && row.trust !== 'self') return { ok: false, message: MANIFEST_INVALID }
     const stored = db
@@ -65,22 +66,23 @@ function loadOne(db: Db, row: typeof plugins.$inferSelect): { ok: true; defs: Bl
     const parsed = parseManifest(raw, new Map(files.map((file) => [file.path, file.bytes])))
     if (!parsed.ok) return { ok: false, message: parsed.issues[0]?.message ?? MANIFEST_INVALID }
     if (parsed.value.manifest.id !== row.pluginId || parsed.value.manifest.version !== row.version) return { ok: false, message: MANIFEST_INVALID }
-    const rendered = testRenderPlugin({ manifest: parsed.value.manifest, files })
+    const rendered = await testRenderPlugin({ manifest: parsed.value.manifest, files })
     if (!rendered.ok) return { ok: false, message: rendered.message }
-    return { ok: true, defs: blockDefinitions(parsed.value.manifest, row.trust) }
+    return { ok: true, defs: blockDefinitions(parsed.value.manifest, row.trust), blocks: rendered.blocks }
   } catch {
     return { ok: false, message: LOAD_FAILED }
   }
 }
 
 /** Re-check enabled rows, disable the ones that fail, and build a registry of the rest. */
-export function syncEnabledPlugins(db: Db, siteId: string, now: Date): BlockRegistry {
+export async function syncEnabledPlugins(db: Db, siteId: string, now: Date): Promise<BlockRegistry> {
   const rows = db.select().from(plugins).where(and(eq(plugins.siteId, siteId), eq(plugins.status, 'enabled'))).all()
   rows.sort((a, b) => (a.pluginId < b.pluginId ? -1 : a.pluginId > b.pluginId ? 1 : 0))
   const defs: BlockDefinition[] = []
+  const runtimes: PluginBlockRuntime[] = []
   const seen = new Set<string>()
   for (const row of rows) {
-    const loaded = loadOne(db, row)
+    const loaded = await loadOne(db, row)
     if (!loaded.ok) {
       const message = loaded.message.slice(0, 300)
       db.update(plugins)
@@ -101,23 +103,35 @@ export function syncEnabledPlugins(db: Db, siteId: string, now: Date): BlockRegi
     }
     for (const def of fresh) seen.add(def.type)
     defs.push(...fresh)
+    const saved = db
+      .select()
+      .from(pluginSettings)
+      .where(and(eq(pluginSettings.siteId, row.siteId), eq(pluginSettings.pluginId, row.pluginId)))
+      .get()
+    const savedDoc = saved?.doc && typeof saved.doc === 'object' && !Array.isArray(saved.doc) ? saved.doc : {}
+    for (const block of loaded.blocks) {
+      block.settings = { ...block.settings, ...savedDoc }
+      runtimes.push(block)
+    }
   }
+  replacePluginRuntimes(runtimes)
   return createDefaultRegistry(defs)
 }
 
-export function applyPluginRegistry(ctx: ServiceCtx): BlockRegistry {
-  const registry = syncEnabledPlugins(ctx.db, ctx.siteId, ctx.now())
+export async function applyPluginRegistry(ctx: ServiceCtx): Promise<BlockRegistry> {
+  const registry = await syncEnabledPlugins(ctx.db, ctx.siteId, ctx.now())
   setBlockRegistry(registry)
   ctx.registry = registry
   return registry
 }
 
-/** Boot hook. No site yet: leave the core registry in place. */
-export function bootPlugins(db: Db, now: Date = new Date()): void {
+/** Boot hook. No site yet: leave the core registry in place and drop plugin runtimes. */
+export async function bootPlugins(db: Db, now: Date = new Date()): Promise<void> {
   const site = getOnlySite(db)
   if (!site) {
+    clearPluginRuntimes()
     setBlockRegistry(createDefaultRegistry())
     return
   }
-  setBlockRegistry(syncEnabledPlugins(db, site.id, now))
+  setBlockRegistry(await syncEnabledPlugins(db, site.id, now))
 }

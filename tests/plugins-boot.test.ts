@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { auditEvents, pluginFiles, pluginSettings, plugins, versions } from '../server/db/schema'
 import { installPluginArchive } from '../server/services/plugins/install'
 import { bootPlugins, effectiveBundleId } from '../server/services/plugins/load'
+import { clearPluginRuntimes, getPluginRuntime } from '../server/services/plugins/runtime'
 import { AppError } from '../server/services/errors'
 import { getBlockRegistry, setBlockRegistry } from '../server/utils/state'
 import { createDefaultRegistry, BlockMigrationError } from '../shared/blocks/registry'
@@ -18,6 +19,7 @@ import { setup } from './helpers'
 
 afterEach(() => {
   setBlockRegistry(createDefaultRegistry())
+  clearPluginRuntimes()
 })
 
 function manifest(over: Record<string, unknown> = {}) {
@@ -48,9 +50,9 @@ function pack(doc: unknown, html = '<section>Hello</section>') {
   ])
 }
 
-function catchError(run: () => void): AppError {
+async function catchError(run: () => unknown): Promise<AppError> {
   try {
-    run()
+    await run()
   } catch (error) {
     if (error instanceof AppError) return error
     throw error
@@ -59,13 +61,13 @@ function catchError(run: () => void): AppError {
 }
 
 describe('plugin install and boot', () => {
-  it('installs an unsigned package for an admin and keeps a slash page that has no plugin', () => {
+  it('installs an unsigned package for an admin and keeps a slash page that has no plugin', async () => {
     const { ctx, admin, editor } = setup()
-    const denied = catchError(() => installPluginArchive(ctx, editor, pack(manifest()), null))
+    const denied = await catchError(() => installPluginArchive(ctx, editor, pack(manifest()), null))
     expect(denied.code).toBe('forbidden')
 
     const slipped = gzipSync(encodeRawTar([{ name: Buffer.from('../x'), typeflag: 48, data: Buffer.from('x') }]))
-    const rejected = catchError(() => installPluginArchive(ctx, admin, slipped, null))
+    const rejected = await catchError(() => installPluginArchive(ctx, admin, slipped, null))
     expect(rejected.code).toBe('validation_failed')
     expect(rejected.fields).toEqual([{ path: '(archive)', message: 'A file path in the archive is not allowed.' }])
     expect(rejected.message.includes('..')).toBe(false)
@@ -74,11 +76,11 @@ describe('plugin install and boot', () => {
       { path: 'plugin.json', bytes: Buffer.from('not-json {') },
       { path: 'note.html', bytes: Buffer.from('<section>Hello</section>') },
     ])
-    const unreadable = catchError(() => installPluginArchive(ctx, admin, badJson, null))
+    const unreadable = await catchError(() => installPluginArchive(ctx, admin, badJson, null))
     expect(unreadable.fields).toEqual([{ path: 'plugin.json', message: 'plugin.json is not valid JSON.' }])
     expect(unreadable.message.includes('not-json')).toBe(false)
 
-    const result = installPluginArchive(ctx, admin, pack(manifest()), null)
+    const result = await installPluginArchive(ctx, admin, pack(manifest()), null)
     expect(result).toMatchObject({ status: 'enabled', pluginId: 'hello-note', version: '1.0.0', trust: 'self' })
     expect(ctx.registry.has('hello-note/Note')).toBe(true)
     expect(getBlockRegistry().has('Hero')).toBe(true)
@@ -89,7 +91,7 @@ describe('plugin install and boot', () => {
     expect(events[0]?.details).toMatchObject({ pluginId: 'hello-note', version: '1.0.0', trust: 'self', status: 'enabled' })
     expect(JSON.stringify(events[0]?.details).includes('<section>')).toBe(false)
 
-    const again = catchError(() => installPluginArchive(ctx, admin, pack(manifest()), null))
+    const again = await catchError(() => installPluginArchive(ctx, admin, pack(manifest()), null))
     expect(again.code).toBe('conflict')
     expect(again.message).toBe('This plugin is already installed at this version.')
 
@@ -114,7 +116,7 @@ describe('plugin install and boot', () => {
     expect(() => registry.migrate({ id: 'b_hero0001', type: 'Herro', v: 1, props: {} })).toThrow(/Unknown section type "Herro"/)
   })
 
-  it('keeps settings on upgrade, refuses a newer install and a block downgrade', () => {
+  it('keeps settings on upgrade, refuses a newer install and a block downgrade', async () => {
     const { ctx, admin, clock } = setup()
     const settings = {
       type: 'object',
@@ -123,7 +125,7 @@ describe('plugin install and boot', () => {
         tone: { type: 'string', max: 20, default: 'calm' },
       },
     }
-    const first = installPluginArchive(ctx, admin, pack(manifest({ permissions: ['blocks', 'settings'], settings })), null)
+    const first = await installPluginArchive(ctx, admin, pack(manifest({ permissions: ['blocks', 'settings'], settings })), null)
     expect(first.status).toBe('enabled')
     const installedAt = ctx.db.select().from(plugins).where(eq(plugins.pluginId, 'hello-note')).get()?.installedAt
     ctx.db.insert(pluginSettings).values({
@@ -134,13 +136,14 @@ describe('plugin install and boot', () => {
       updatedBy: admin.id,
     }).run()
     clock.advance(1000)
-    const upgraded = installPluginArchive(ctx, admin, pack(manifest({ version: '1.0.1', permissions: ['blocks', 'settings'], settings })), null)
+    const upgraded = await installPluginArchive(ctx, admin, pack(manifest({ version: '1.0.1', permissions: ['blocks', 'settings'], settings })), null)
     expect(upgraded).toMatchObject({ status: 'enabled', version: '1.0.1' })
     const row = ctx.db.select().from(pluginSettings).where(eq(pluginSettings.pluginId, 'hello-note')).get()
     expect(row?.doc).toEqual({ headline: 'Keep', tone: 'calm' })
+    expect(getPluginRuntime('hello-note/Note')?.settings).toEqual({ headline: 'Keep', tone: 'calm' })
     expect(ctx.db.select().from(plugins).where(eq(plugins.pluginId, 'hello-note')).get()?.installedAt).toBe(installedAt)
 
-    const older = catchError(() => installPluginArchive(ctx, admin, pack(manifest({ version: '1.0.0', permissions: ['blocks', 'settings'], settings })), null))
+    const older = await catchError(() => installPluginArchive(ctx, admin, pack(manifest({ version: '1.0.0', permissions: ['blocks', 'settings'], settings })), null))
     expect(older.message).toBe('A newer version is already installed.')
 
     ctx.db.insert(versions).values({
@@ -158,7 +161,7 @@ describe('plugin install and boot', () => {
       createdAt: ctx.now().toISOString(),
       updatedAt: ctx.now().toISOString(),
     }).run()
-    const downgrade = catchError(() => installPluginArchive(ctx, admin, pack(manifest({
+    const downgrade = await catchError(() => installPluginArchive(ctx, admin, pack(manifest({
       version: '1.0.2',
       permissions: ['blocks', 'settings'],
       settings,
@@ -177,30 +180,33 @@ describe('plugin install and boot', () => {
     expect(ctx.db.select().from(plugins).where(eq(plugins.pluginId, 'hello-note')).get()?.version).toBe('1.0.1')
   })
 
-  it('holds a package that needs an origin until the owner installs one', () => {
+  it('holds a package that needs an origin until the owner installs one', async () => {
     const { ctx, admin } = setup()
     const waiting = manifest({
       id: 'origin-note',
       csp: { img: ['https://images.example'], frame: [], script: [], connect: [], font: [] },
     })
-    const pending = installPluginArchive(ctx, admin, pack(waiting), null)
+    const pending = await installPluginArchive(ctx, admin, pack(waiting), null)
     expect(pending.status).toBe('needs_owner')
     if (pending.status !== 'needs_owner') throw new Error('expected owner review')
     expect(pending.origins).toEqual([{ directive: 'img', origin: 'https://images.example' }])
     expect(pending.trust).toBe('self')
     expect(getBlockRegistry().has('origin-note/Note')).toBe(false)
+    expect(getPluginRuntime('origin-note/Note')).toBeUndefined()
     expect(ctx.db.select().from(plugins).where(eq(plugins.pluginId, 'origin-note')).get()?.status).toBe('pending_owner')
     expect(ctx.db.select().from(pluginFiles).where(eq(pluginFiles.pluginId, 'origin-note')).all().length).toBeGreaterThan(0)
 
     const owned = manifest({ id: 'owner-note', csp: { img: ['https://images.example'], frame: [], script: [], connect: [], font: [] } })
-    const enabled = installPluginArchive(ctx, { ...admin, isOperator: true }, pack(owned), null)
+    const enabled = await installPluginArchive(ctx, { ...admin, isOperator: true }, pack(owned), null)
     expect(enabled).toMatchObject({ status: 'enabled', pluginId: 'owner-note', trust: 'self' })
     expect(getBlockRegistry().has('owner-note/Note')).toBe(true)
+    expect(getPluginRuntime('owner-note/Note')?.pluginId).toBe('owner-note')
     expect(getBlockRegistry().has('origin-note/Note')).toBe(false)
+    expect(getPluginRuntime('origin-note/Note')).toBeUndefined()
     expect(getBlockRegistry().has('Hero')).toBe(true)
   })
 
-  it('renames stored props and still refuses a stored block from a newer version', () => {
+  it('renames stored props and still refuses a stored block from a newer version', async () => {
     const { ctx, admin } = setup()
     const doc = manifest({
       blocks: [{
@@ -215,23 +221,23 @@ describe('plugin install and boot', () => {
       }],
       migrations: { Note: { '1->2': 'rename:title->heading' } },
     })
-    installPluginArchive(ctx, admin, pack(doc), null)
+    await installPluginArchive(ctx, admin, pack(doc), null)
     const migrated = getBlockRegistry().migrate({ id: 'b_old00001', type: 'hello-note/Note', v: 1, props: { title: 'Stay' } })
     expect(migrated).toMatchObject({ v: 2, props: { heading: 'Stay' } })
     expect(migrated.props.title).toBeUndefined()
     expect(() => getBlockRegistry().migrate({ id: 'b_new00001', type: 'hello-note/Note', v: 3, props: { heading: 'Hello' } })).toThrow(/newer version/)
   })
 
-  it('disables one corrupt plugin on boot and keeps the healthy one', () => {
+  it('disables one corrupt plugin on boot and keeps the healthy one', async () => {
     const { ctx, admin } = setup()
-    installPluginArchive(ctx, admin, pack(manifest({ id: 'alpha-note' })), null)
-    installPluginArchive(ctx, admin, pack(manifest({ id: 'beta-note' })), null)
+    await installPluginArchive(ctx, admin, pack(manifest({ id: 'alpha-note' })), null)
+    await installPluginArchive(ctx, admin, pack(manifest({ id: 'beta-note' })), null)
     ctx.db.update(plugins).set({ contentHash: '0'.repeat(64) }).where(eq(plugins.pluginId, 'alpha-note')).run()
     const lines: string[] = []
     const spy = vi.spyOn(console, 'error').mockImplementation((line?: unknown) => {
       lines.push(String(line))
     })
-    bootPlugins(ctx.db, ctx.now())
+    await bootPlugins(ctx.db, ctx.now())
     spy.mockRestore()
     const alpha = ctx.db.select().from(plugins).where(eq(plugins.pluginId, 'alpha-note')).get()
     const beta = ctx.db.select().from(plugins).where(eq(plugins.pluginId, 'beta-note')).get()
@@ -241,6 +247,8 @@ describe('plugin install and boot', () => {
     expect(getBlockRegistry().has('Hero')).toBe(true)
     expect(getBlockRegistry().has('beta-note/Note')).toBe(true)
     expect(getBlockRegistry().has('alpha-note/Note')).toBe(false)
+    expect(getPluginRuntime('beta-note/Note')?.pluginId).toBe('beta-note')
+    expect(getPluginRuntime('alpha-note/Note')).toBeUndefined()
     expect(ctx.db.select().from(pluginFiles).where(eq(pluginFiles.pluginId, 'alpha-note')).all().length).toBeGreaterThan(0)
     expect(lines.some((line) => line.includes('plugin disabled on boot') && line.includes('alpha-note'))).toBe(true)
     expect(lines.join('\n').includes('<section>')).toBe(false)
@@ -255,7 +263,7 @@ describe('plugin install and boot', () => {
     expect(effectiveBundleId([alpha])).toMatch(/^theme-default-5-[0-9a-f]{12}$/)
   })
 
-  it('stores a signed unknown key as self-installed and refuses an unreadable stored version', () => {
+  it('stores a signed unknown key as self-installed and refuses an unreadable stored version', async () => {
     const { ctx, admin } = setup()
     const { publicKey, privateKey } = generateKeyPairSync('ed25519')
     const raw = rawEd25519PublicKey(publicKey)
@@ -268,12 +276,12 @@ describe('plugin install and boot', () => {
       pluginId: 'hello-note',
       version: '1.0.0',
     })
-    const installed = installPluginArchive(ctx, admin, archive, Buffer.from(signature))
+    const installed = await installPluginArchive(ctx, admin, archive, Buffer.from(signature))
     expect(installed.trust).toBe('self')
     expect(ctx.db.select().from(plugins).where(eq(plugins.pluginId, 'hello-note')).get()?.signingKeyId).toBe(officialKeyId(raw))
 
     ctx.db.update(plugins).set({ version: 'nope' }).where(eq(plugins.pluginId, 'hello-note')).run()
-    const clash = catchError(() => installPluginArchive(ctx, admin, pack(manifest({ version: '1.0.1' })), null))
+    const clash = await catchError(() => installPluginArchive(ctx, admin, pack(manifest({ version: '1.0.1' })), null))
     expect(clash.code).toBe('conflict')
     expect(clash.message).toBe('This plugin is already installed at this version.')
     expect(ctx.db.select().from(plugins).where(eq(plugins.pluginId, 'hello-note')).get()?.version).toBe('nope')
