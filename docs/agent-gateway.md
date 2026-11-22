@@ -259,7 +259,7 @@ We design for models with at least 256k tokens of context, and keep everything a
 | Guides and recipes | 18,000 | about 40,000 characters |
 | Rules (`get_site` with a token's rules) | 10,000 | rules are refused on save above 18,000 characters |
 | Behaviours | 12,000 | reserved, not built |
-| soul.md (AI personality) | 16,000 | reserved, not built |
+| soul.md (AI personality) | 16,000 | Settings, AI personality; saves over 48,000 characters (comments not counted) are refused |
 | Headroom | 20,000 | |
 
 Some clients cut text shorter than this. Claude Code keeps 2,048 characters of each tool description and of the server instructions, and Codex keeps about 1,000 bytes of a tool description for plugin-installed servers. So every tool description stays within 2,048 characters, its first line (what the tool is and does) within 1,000 bytes, and the server instructions open with a short ESSENTIALS block that stands alone within 2,048 characters. The full instructions are also the resource `sitebuilder://guide/instructions`.

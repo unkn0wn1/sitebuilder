@@ -1,8 +1,9 @@
-// Same numbers as AGENT_BUDGET_TOKENS.soul and CHARS_PER_TOKEN in shared/agent/context-budget.ts on fix/audit-bugs; when both branches are on main, import from there.
+// The soul.md budget comes from the agent context budget (shared/agent/context-budget.ts), so the two can't drift.
+import { AGENT_BUDGET_TOKENS, CHARS_PER_TOKEN } from '../agent/context-budget'
 import { DEFAULT_SOUL_TEXT } from './default-soul'
 
-export const SOUL_BUDGET_TOKENS = 16_000
-export const CHARS_PER_TOKEN = 3
+export { CHARS_PER_TOKEN }
+export const SOUL_BUDGET_TOKENS = AGENT_BUDGET_TOKENS.soul
 export const SOUL_CHAR_LIMIT = SOUL_BUDGET_TOKENS * CHARS_PER_TOKEN
 export const SOUL_RAW_MAX = 200_000
 

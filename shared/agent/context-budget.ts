@@ -25,7 +25,7 @@ export const AGENT_BUDGET_TOKENS = {
   rules: 10_000,
   /** Ready-made behaviours (not built yet; reserved). */
   behaviours: 12_000,
-  /** soul.md, the admin-edited AI personality (not built yet; reserved, comments stripped before counting). */
+  /** soul.md, the admin-edited AI personality (shared/soul; comments stripped before counting). */
   soul: 16_000,
   /** Unallocated, so one item can grow without re-planning. */
   headroom: 20_000,
