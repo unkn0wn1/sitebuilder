@@ -79,6 +79,19 @@ describe('CSS sanitiser rejections', () => {
     if (fragment) expect(err.message.toLowerCase()).toContain(fragment.toLowerCase())
   })
 
+  it('checks the byte cap in the browser, where Node Buffer does not exist', () => {
+    const saved = globalThis.Buffer
+    Reflect.deleteProperty(globalThis, 'Buffer')
+    try {
+      const emitted = sanitizeCss('& { outline: 3px solid #b5471d; }', { scope: 'section', sectionId: 'b_hero1', mode: 'emit' })
+      expect(emitted).toContain('data-sb-css')
+      expect(emitted).toMatch(/outline:3px solid #b5471d/i)
+      expect(() => sanitizeCss('a{color:red}'.repeat(800), { scope: 'section', sectionId: 'b_hero1', mode: 'check' })).toThrow(/8,192/)
+    } finally {
+      globalThis.Buffer = saved
+    }
+  })
+
   it('rejects a section over 8,192 bytes and a site sheet over 32,768 bytes', () => {
     const section = `/* ${MARKER} */` + 'a{color:red}'.repeat(800)
     expect(Buffer.byteLength(section, 'utf8')).toBeGreaterThan(8192)

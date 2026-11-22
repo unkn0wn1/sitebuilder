@@ -135,9 +135,14 @@ function scanSource(source: string): ScanHit | null {
   return null
 }
 
+/** UTF-8 size. TextEncoder, not Buffer: the editor runs this check in the browser. */
+function utf8Bytes(source: string): number {
+  return new TextEncoder().encode(source).length
+}
+
 function assertBytes(source: string, scope: SanitizeOptions['scope']) {
   const cap = scope === 'site' ? SITE_CSS_MAX_BYTES : SECTION_CSS_MAX_BYTES
-  if (Buffer.byteLength(source, 'utf8') > cap) {
+  if (utf8Bytes(source) > cap) {
     const shown = cap.toLocaleString('en-GB')
     throw new CssRejected(1, 1, `Custom CSS is limited to ${shown} bytes.`)
   }
