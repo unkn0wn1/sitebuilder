@@ -74,6 +74,9 @@ describe('see-through header', () => {
     expect(THEME_CSS).toMatch(/\.hero \{\s*position: relative;\s*min-height: min\(70vh, 36rem\);/)
     expect(THEME_CSS).not.toMatch(/\.hero \{[^}]*padding/)
     expect(THEME_CSS).toMatch(/\.hero-media, \.hero-video, \.hero img \{\s*position: absolute;\s*inset: 0;/)
+    expect(THEME_CSS).toMatch(/\.hero h1 \{ font-size: var\(--fs-display\); line-height: 1\.05; letter-spacing: -0\.01em; margin: 0 0 0\.5rem; max-width: 16ch; \}/)
+    expect(THEME_CSS).toContain('linear-gradient(to top, color-mix(in srgb, var(--ink) 62%, transparent) 0%, color-mix(in srgb, var(--ink) 28%, transparent) 26%, color-mix(in srgb, var(--ink) 0%, transparent) 48%)')
+    expect(THEME_CSS).toContain('linear-gradient(to bottom, color-mix(in srgb, var(--ink) 34%, transparent) 0%, color-mix(in srgb, var(--ink) 0%, transparent) 18%)')
     expect(on.deps.bundleId).toBe(BUNDLE_ID)
 
     const off = await render()

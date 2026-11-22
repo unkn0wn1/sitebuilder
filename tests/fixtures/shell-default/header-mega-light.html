@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'sha256-XhHhQvDctD8YzKAhvhpgHP3KwX3hTTxZ2YxN5iu+MR0='; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'sha256-Q0ICHCwgBeii9P9wb+m90zOWVSFx8t5PJKN2DhYo3pQ='; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none';">
   <title>Home | Example charity</title>
   
   
@@ -215,11 +215,13 @@ a { color: var(--accent); }
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: linear-gradient(to top, rgba(20, 12, 8, 0.72) 0%, rgba(20, 12, 8, 0.15) 55%, rgba(20, 12, 8, 0.2) 100%);
+  background:
+    linear-gradient(to top, color-mix(in srgb, var(--ink) 62%, transparent) 0%, color-mix(in srgb, var(--ink) 28%, transparent) 26%, color-mix(in srgb, var(--ink) 0%, transparent) 48%),
+    linear-gradient(to bottom, color-mix(in srgb, var(--ink) 34%, transparent) 0%, color-mix(in srgb, var(--ink) 0%, transparent) 18%);
 }
 .hero-inner { width: min(100% - 2 * var(--space), var(--max)); margin: 0 auto 8vh; }
-.hero h1 { font-size: clamp(2rem, 5vw, 4rem); line-height: 1.1; margin: 0 0 0.5rem; max-width: 16ch; }
-.hero p { font-size: 1.15rem; max-width: 36ch; margin: 0 0 1.25rem; }
+.hero h1 { font-size: var(--fs-display); line-height: 1.05; letter-spacing: -0.01em; margin: 0 0 0.5rem; max-width: 16ch; }
+.hero p { font-size: var(--fs-body); max-width: 36ch; margin: 0 0 1.25rem; color: color-mix(in srgb, white 80%, var(--highlight)); }
 .section { padding: 3.5rem 0; }
 .section h2 { font-size: var(--fs-h2); line-height: 1.1; margin: 0 0 1rem; }
 .prose :where(p, ul, ol) { max-width: 40rem; margin: 0 0 1rem; }
