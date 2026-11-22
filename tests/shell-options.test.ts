@@ -96,7 +96,9 @@ describe('optional shell parts', () => {
     expect(rendered.html.split('class="util"').length - 1).toBe(2)
     const panel = rendered.html.match(/<div class="nav-panel">([\s\S]*?)<\/div>/)?.[1]
     expect(panel).toContain('class="util" href="/about-us">Report an animal</a>')
-    const bar = rendered.html.match(/<div class="site-header-inner">([\s\S]*?)<\/header>/)?.[1].replace(/<div class="nav-panel">[\s\S]*?<\/div>/, '')
+    const inner = rendered.html.match(/<div class="site-header-inner">([\s\S]*?)<\/header>/)?.[1]
+    expect(inner).toBeTruthy()
+    const bar = (inner ?? '').replace(/<div class="nav-panel">[\s\S]*?<\/div>/, '')
     expect(bar).toContain('class="util" href="/about-us">Report an animal</a>')
     expect(rendered.deps.linkedPageIds).toContain('pg_about')
     expectFullCss(rendered, UTILITY_CSS)

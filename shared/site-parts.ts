@@ -125,9 +125,13 @@ export function migrateSitePartDoc(kind: SitePartKind, raw: unknown): unknown {
   return raw ?? defaultSitePartDoc(kind)
 }
 
-export function validateSitePartDoc(kind: SitePartKind, raw: unknown): { ok: true; doc: SitePartDoc } | { ok: false; issues: FieldIssue[] } {
+export function validateSitePartDoc<K extends SitePartKind>(
+  kind: K,
+  raw: unknown,
+): { ok: true; doc: z.infer<(typeof SITE_PART_SCHEMAS)[K]> } | { ok: false; issues: FieldIssue[] } {
   const parsed = SITE_PART_SCHEMAS[kind].safeParse(migrateSitePartDoc(kind, raw))
-  return parsed.success ? { ok: true, doc: parsed.data } : { ok: false, issues: zodIssues(parsed.error) }
+  // The schema map is indexed by a generic kind, so the parsed value stays a union until it is tied back to K.
+  return parsed.success ? { ok: true, doc: parsed.data as z.infer<(typeof SITE_PART_SCHEMAS)[K]> } : { ok: false, issues: zodIssues(parsed.error) }
 }
 
 /** Every link target in a site part, with a path for error messages. */
