@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { AppError } from '../server/services/errors'
 import { runJobsOnce } from '../server/services/jobs'
 import { applyPageOps, binPage, createPage } from '../server/services/pages'
-import { createPublishHandler, currentRelease, rollbackSite } from '../server/services/publish'
+import { createPublishHandler, currentRelease, pagesLinkingTo, rollbackSite } from '../server/services/publish'
 import { approveReview, getReview, sendBackReview, submitPage } from '../server/services/reviews'
 import { createSitePart, editSitePart, getSitePart, listSiteParts, listSitePartVersions, submitSitePart } from '../server/services/site-parts'
 import { defaultSitePartDoc, sitePartLinks, validateSitePartDoc, type BannerDoc, type FooterDoc, type HeaderDoc } from '../shared/site-parts'
@@ -211,5 +211,50 @@ describe('site parts saved before the optional shell fields', () => {
     expect(getSitePart(s.ctx, headerId).doc).toEqual(headerSaved.doc)
     expect(getSitePart(s.ctx, footerId).doc).toEqual(footerSaved.doc)
     expect(getSitePart(s.ctx, bannerId).doc).toEqual(bannerSaved.doc)
+  })
+})
+
+async function publishPart(s: ReturnType<typeof setup>, id: string, doc: unknown) {
+  const saved = editSitePart(s.ctx, s.approver, id, getSitePart(s.ctx, id).revision, doc)
+  const sub = submitSitePart(s.ctx, s.approver, id)
+  approveReview(s.ctx, s.admin, sub.reviewId, { versionId: sub.versionId })
+  await runJobsOnce(s.ctx, handlers)
+  return saved
+}
+
+describe('footer links menu in the shell', () => {
+  it('re-renders the site when a page in the columns links menu moves, and ignores that menu on a simple footer', async () => {
+    const columns = setup()
+    const about = await livePage(columns, 'About us')
+    const menuId = createSitePart(columns.ctx, 'menu', 'footer-links', 'Footer links')
+    await publishPart(columns, menuId, {
+      schemaVersion: 1,
+      items: [{ id: 'b_about001', label: 'About us', target: { type: 'page', pageId: about.id }, children: [] }],
+    })
+    const footerId = createSitePart(columns.ctx, 'footer', 'footer', 'Footer')
+    await publishPart(columns, footerId, { schemaVersion: 1, layout: 'columns', linksMenuKey: 'footer-links', linksTitle: 'More' })
+    expect(pagesLinkingTo(columns.ctx, currentRelease(columns.ctx)!.manifest, about.id).viaShell).toBe(true)
+
+    const simple = setup()
+    const page = await livePage(simple, 'About us')
+    const simpleMenu = createSitePart(simple.ctx, 'menu', 'footer-links', 'Footer links')
+    await publishPart(simple, simpleMenu, {
+      schemaVersion: 1,
+      items: [{ id: 'b_about001', label: 'About us', target: { type: 'page', pageId: page.id }, children: [] }],
+    })
+    const simpleFooter = createSitePart(simple.ctx, 'footer', 'footer', 'Footer')
+    await publishPart(simple, simpleFooter, { schemaVersion: 1, layout: 'simple', linksMenuKey: 'footer-links' })
+    expect(pagesLinkingTo(simple.ctx, currentRelease(simple.ctx)!.manifest, page.id).viaShell).toBe(false)
+
+    const legal = setup()
+    const legalPage = await livePage(legal, 'Privacy')
+    const legalMenu = createSitePart(legal.ctx, 'menu', 'legal', 'Legal')
+    await publishPart(legal, legalMenu, {
+      schemaVersion: 1,
+      items: [{ id: 'b_priv0001', label: 'Privacy', target: { type: 'page', pageId: legalPage.id }, children: [] }],
+    })
+    const legalFooter = createSitePart(legal.ctx, 'footer', 'footer', 'Footer')
+    await publishPart(legal, legalFooter, { schemaVersion: 1, legalMenuKey: 'legal' })
+    expect(pagesLinkingTo(legal.ctx, currentRelease(legal.ctx)!.manifest, legalPage.id).viaShell).toBe(true)
   })
 })
