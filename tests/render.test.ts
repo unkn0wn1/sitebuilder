@@ -487,6 +487,7 @@ describe('filesystem releases and Cloudflare purge', () => {
     expect(tags).toContain(`page-${first.page.id} shell`)
     expect(tags).toContain('"/winter-appeal"')
     expect(readFileSync(join(root, 'releases', release1, 'csp.map'), 'utf8')).toContain('style-src')
+    expect(existsSync(join(root, 'releases', release1, 'header.js'))).toBe(false)
     const inode1 = statSync(pageFile).ino
 
     const second = await publishStandard(s, 'About us', 'Who we are')

@@ -22,9 +22,9 @@ import {
   type MenuDoc,
   type SitePartKind,
 } from '../../shared/site-parts'
-import { BUNDLE_ID, EMBED_JS, THEME_CSS } from '../theme/default'
+import { BUNDLE_ID, EMBED_JS, HEADER_JS, THEME_CSS } from '../theme/default'
 import { migrateBrandDoc, validateBrandDoc, type BrandDoc } from '../../shared/brand'
-import { BANNER_ACCENT_CSS, FOOTER_COLUMNS_CSS, HEART_CSS, UTILITY_CSS, themeCssFromTokens } from '../../shared/theme-css'
+import { BANNER_ACCENT_CSS, FOOTER_COLUMNS_CSS, HEART_CSS, OVER_HERO_CSS, UTILITY_CSS, themeCssFromTokens } from '../../shared/theme-css'
 import { embeds, media, mediaCrops, pages, redirects, siteParts, sites, versions, type ReleaseManifest } from '../db/schema'
 import type { ServiceCtx } from './context'
 import { widthsFor } from './media'
@@ -32,7 +32,7 @@ import { readSettings, type SiteSettings } from '../../shared/settings'
 import { renderRobotsTxt } from '../../shared/robots'
 import { aliasesFromRedirects, pageIdByPath, pageIdForHref, pathForPageId } from '../../shared/internal-links'
 
-export { BUNDLE_ID, EMBED_JS, THEME_CSS }
+export { BUNDLE_ID, EMBED_JS, HEADER_JS, THEME_CSS }
 
 export function styleHash(css: string = THEME_CSS): string {
   return `'sha256-${createHash('sha256').update(css).digest('base64')}'`
@@ -124,13 +124,14 @@ interface Collector {
   imgSrcs: Set<string>
   connectSrcs: Set<string>
   needsEmbedJs: boolean
+  needsHeaderJs: boolean
   pageIdByPath: Map<string, string>
   origin: string | null
   aliases: Map<string, string>
 }
 
 function newCollector(site: SiteRenderContext): Collector {
-  return { media: new Set(), links: new Set(), linkedPageIds: new Set(), siteParts: new Set(), scriptSrcs: new Set(), frameSrcs: new Set(), imgSrcs: new Set(), connectSrcs: new Set(), needsEmbedJs: false, pageIdByPath: pageIdByPath(site.pagesById), origin: site.origin, aliases: site.pathAliases ?? new Map() }
+  return { media: new Set(), links: new Set(), linkedPageIds: new Set(), siteParts: new Set(), scriptSrcs: new Set(), frameSrcs: new Set(), imgSrcs: new Set(), connectSrcs: new Set(), needsEmbedJs: false, needsHeaderJs: false, pageIdByPath: pageIdByPath(site.pagesById), origin: site.origin, aliases: site.pathAliases ?? new Map() }
 }
 
 /** Record an internal target and return the href that should be written (the live path, if known). */
@@ -660,7 +661,7 @@ function menuStyleOf(site: SiteRenderContext): HeaderDoc['style'] {
   return site.header?.doc.style ?? site.brand?.menuStyle ?? 'simple'
 }
 
-function headerClass(style: HeaderDoc['style'] | undefined, appearance?: HeaderDoc['appearance']): string {
+function headerClass(style: HeaderDoc['style'] | undefined, appearance?: HeaderDoc['appearance'], overHero = false): string {
   const base =
     style === 'centred'
       ? 'site-header site-header-centred'
@@ -669,7 +670,8 @@ function headerClass(style: HeaderDoc['style'] | undefined, appearance?: HeaderD
         : style === 'hamburger'
           ? 'site-header site-header-hamburger'
           : 'site-header'
-  return appearance === 'dark' ? `${base} site-header-dark` : base
+  const withLook = appearance === 'dark' ? `${base} site-header-dark` : base
+  return overHero ? `${withLook} site-header-over` : withLook
 }
 
 /** A small heart for Donate buttons. Decorative: the button text carries the meaning. */
@@ -777,6 +779,8 @@ function renderShell(doc: PageDoc, site: SiteRenderContext, bag: Collector): VNo
 
   const bannerLink = showBanner && banner.doc.link ? resolveLink(banner.doc.link.target, banner.doc.link.label, site, bag) : null
   const headerCta = header?.doc.cta ? resolveLink(header.doc.cta.target, header.doc.cta.label, site, bag) : null
+  const overHero = !!header?.doc.overHero
+  if (overHero) bag.needsHeaderJs = true
   let firstHero = true
   const menuKey = site.header?.doc.menuKey ?? 'main'
   // Hamburger hides its links until the menu opens, so the utility link is also beside the Menu button.
@@ -790,7 +794,7 @@ function renderShell(doc: PageDoc, site: SiteRenderContext, bag: Collector): VNo
           bannerLink ? [' ', h('a', { href: bannerLink.href }, bannerLink.label)] : null,
         ])
       : null,
-    h('header', { class: headerClass(menuStyleOf(site), site.header?.doc.appearance) }, [
+    h('header', { class: headerClass(menuStyleOf(site), site.header?.doc.appearance, overHero) }, [
       h('div', { class: 'site-header-inner' }, [
         h('a', { class: 'site-title', href: '/' }, logoOrName(site, bag, { dark: site.header?.doc.appearance === 'dark' })),
         renderNav(site, bag),
@@ -1015,6 +1019,7 @@ export function shellOptionCss(site: SiteRenderContext): string {
   if (site.header?.doc.cta?.icon === 'heart') extra += HEART_CSS
   if (site.header?.doc.utility) extra += UTILITY_CSS
   if (site.footer?.doc.layout === 'columns') extra += FOOTER_COLUMNS_CSS
+  if (site.header?.doc.overHero) extra += OVER_HERO_CSS
   const banner = site.banner
   if (banner && banner.doc.enabled && banner.doc.message && banner.doc.tone === 'accent') extra += BANNER_ACCENT_CSS
   return extra
@@ -1071,7 +1076,7 @@ export async function renderPageHtml(input: {
 <body>
   ${body}
   ${bag.needsEmbedJs ? '<script type="module" src="/embed.js"></script>' : ''}
-  ${analytics ? '<script src="/analytics.js" defer></script>' : ''}
+  ${analytics ? '<script src="/analytics.js" defer></script>' : ''}${bag.needsHeaderJs ? '\n  <script src="/header.js" defer></script>' : ''}
 </body>
 </html>
 `

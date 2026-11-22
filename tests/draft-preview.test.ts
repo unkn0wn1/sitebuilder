@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { renderDraftPreview, previewCsp } from '../server/services/draft-preview'
+import { previewHtml, renderDraftPreview, previewCsp } from '../server/services/draft-preview'
 import { emptyPageDoc } from '../shared/page'
 import { richTextFromParagraphs } from '../shared/richtext'
 import { setup } from './helpers'
@@ -19,7 +19,7 @@ describe('editor and approval previews use the publish renderer', () => {
     expect(html).toContain('data-block-id="b_hero0001"')
     expect(html).toContain('data-block-id="b_text0001"')
     expect(html).toMatch(/<meta http-equiv="Content-Security-Policy" content="[^"]*script-src 'self';/)
-    expect(html).not.toMatch(/src="\/(menu|islands|embed|analytics)\.js"/)
+    expect(html).not.toMatch(/src="\/(menu|islands|embed|header|analytics)\.js"/)
   })
 
   it('shows a placeholder where a photo is not in the library, and points real photos at a builder route', async () => {
@@ -48,6 +48,14 @@ describe('editor and approval previews use the publish renderer', () => {
     ]
     const { html } = await renderDraftPreview(s.ctx, doc)
     expect(html).toContain('Still here')
+  })
+
+  it('points a see-through header script at the builder asset route', () => {
+    const html = previewHtml('<script src="/header.js" defer></script>\n<script type="module" src="/embed.js"></script>', "default-src 'self'; script-src 'self';")
+    expect(html).toContain('src="/api/v1/preview/assets/header.js"')
+    expect(html).toContain('src="/api/v1/preview/assets/embed.js"')
+    expect(html).not.toContain('src="/header.js"')
+    expect(html).not.toContain('src="/embed.js"')
   })
 
   it('only lets the builder’s own scripts run, talks to nothing and frames nothing', () => {

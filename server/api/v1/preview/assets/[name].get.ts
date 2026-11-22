@@ -1,9 +1,9 @@
 import { setResponseHeader } from 'h3'
 import { notFound } from '../../../../services/errors'
 import { defineApi, param, requireCan } from '../../../../utils/api'
-import { EMBED_JS } from '../../../../theme/default'
+import { EMBED_JS, HEADER_JS } from '../../../../theme/default'
 
-const FILES: Record<string, string> = { 'embed.js': EMBED_JS }
+const FILES: Record<string, string> = { 'embed.js': EMBED_JS, 'header.js': HEADER_JS }
 
 // The public site's small scripts (the donation form loader), for builder previews.
 export default defineApi((event) => {

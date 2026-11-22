@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { THEME_CSS, renderPageHtml, type SiteRenderContext } from '../server/services/render'
+import { BUNDLE_ID, THEME_CSS, renderPageHtml, type SiteRenderContext } from '../server/services/render'
 import { validateSitePartDoc } from '../shared/site-parts'
 import { SHELL_CASES, type ShellCase } from './fixtures/shell-default/cases'
 
@@ -15,6 +15,8 @@ describe('default shell HTML matches the fixtures taken before the renderer chan
     const expected = readFileSync(join(fixtureDir, `${name}.html`), 'utf8')
     expect(rendered.html).toBe(expected)
     expect(rendered.html).toContain('<style>' + THEME_CSS + '</style>')
+    expect(rendered.deps.bundleId).toBe(BUNDLE_ID)
+    expect(rendered.html).toContain(rendered.csp)
   })
 
   it.each(SHELL_CASES.map((c) => c.name))('%s stays byte-identical after the new defaults are filled in', async (name) => {
@@ -22,6 +24,9 @@ describe('default shell HTML matches the fixtures taken before the renderer chan
     const rendered = await renderPageHtml({ doc: shellCase.doc, pageId: 'pg_home', versionId: 'ver_1', path: '/', site: withParsedDefaults(shellCase) })
     const expected = readFileSync(join(fixtureDir, `${name}.html`), 'utf8')
     expect(rendered.html).toBe(expected)
+    expect(rendered.deps.bundleId).toBe(BUNDLE_ID)
+    expect(rendered.html).toContain(rendered.csp)
+    expect(rendered.html).toContain('<style>' + THEME_CSS + '</style>')
   })
 })
 
@@ -41,6 +46,18 @@ function withParsedDefaults(shellCase: ShellCase): SiteRenderContext {
     const parsed = validateSitePartDoc('banner', site.banner.doc)
     if (!parsed.ok) throw new Error(parsed.issues.map((issue) => issue.message).join('; '))
     site.banner = { id: site.banner.id, doc: parsed.doc }
+  }
+  if (site.header) site.header.doc.overHero = false
+  for (const [key, menu] of Object.entries(site.menus)) {
+    const parsed = validateSitePartDoc('menu', menu.doc)
+    if (!parsed.ok) throw new Error(parsed.issues.map((issue) => issue.message).join('; '))
+    for (const item of parsed.doc.items) {
+      for (const child of item.children) {
+        child.featured = false
+        delete child.image
+      }
+    }
+    site.menus[key] = { id: menu.id, doc: parsed.doc }
   }
   return site
 }

@@ -294,6 +294,22 @@ export const FOOTER_COLUMNS_CSS = `
 @media (max-width: 800px) { .ft-grid { grid-template-columns: 1fr; gap: 2rem; } .ft-wrap { padding-top: 2.25rem; } }
 `
 
+/** Transparent over a top hero once /header.js adds .js-over. Without that class the header stays the normal solid bar. */
+export const OVER_HERO_CSS = `
+.site-header-over.js-over { position: fixed; top: var(--strip, 0px); left: 0; right: 0; z-index: 50; background: linear-gradient(to bottom, rgba(20, 12, 8, 0.6), rgba(20, 12, 8, 0)); border-bottom: 0; transition: background-color 0.25s, box-shadow 0.25s; }
+.site-header-over.js-over.is-solid { background: var(--paper); box-shadow: 0 0.25rem 1rem rgba(0, 0, 0, 0.18); }
+.site-header-dark.site-header-over.js-over.is-solid { background: var(--ink); }
+.site-header-over.js-over:not(.is-solid) .nav a,
+.site-header-over.js-over:not(.is-solid) .nav summary,
+.site-header-over.js-over:not(.is-solid) .util,
+.site-header-over.js-over:not(.is-solid) .nav-hamburger > summary { color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
+.site-header-over.js-over:not(.is-solid) .nav-hamburger > summary { border-color: rgba(255, 255, 255, 0.7); }
+.site-header-over.js-over:not(.is-solid) .site-title { background: #fff; padding: 0.3rem 0.9rem; border-radius: 999px; box-shadow: 0 0.15rem 0.6rem rgba(0, 0, 0, 0.25); }
+.site-header-dark.site-header-over.js-over:not(.is-solid) .site-title { background: transparent; padding: 0; border-radius: 0; box-shadow: none; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
+.site-header-over.js-over:not(.is-solid) .cta-btn { border: 2px solid rgba(255, 255, 255, 0.9); box-shadow: 0 0 0 0.3rem color-mix(in srgb, var(--accent) 40%, transparent); }
+@media (prefers-reduced-motion: reduce) { .site-header-over.js-over { transition: none; } }
+`
+
 
 /** Build public CSS from a brand pack, keeping the default rules and swapping tokens and fonts. */
 export function themeCssFromTokens(tokens: ThemeTokens, fonts?: { body: string; heading: string | null }): string {
