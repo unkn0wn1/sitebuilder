@@ -19,6 +19,7 @@ import { readDoc, requirePage, sealDraft } from './pages'
 import { getOrCreateBrand, readBrandDoc } from './brand'
 import { readSitePartDoc, requireSitePart, sitePartChecks } from './site-parts'
 import { brandContrastChecks } from '../../shared/brand'
+import { assertCanApproveCustomCss } from './css-gate'
 import { getTemplateRules, readTemplateDoc, requireTemplate } from './templates'
 import { templateChecks } from '../../shared/templates'
 
@@ -160,6 +161,7 @@ export function approveReview(ctx: ServiceCtx, actor: ActingAs, reviewId: string
     if (checks.blocking.length && !input.overrideReason) {
       throw new AppError('validation_failed', 'There are problems to fix, or approve with a reason.', checks.blocking)
     }
+    assertCanApproveCustomCss(ctx, actor, review)
 
     const jobId = enqueueJob(ctx, 'publish', { reviewId }, { createdBy: actor.id })
     ctx.db
@@ -189,6 +191,7 @@ export function approveReviewDirect(ctx: ServiceCtx, actor: ActingAs, reviewId: 
     const target = loadReviewTarget(ctx, review.targetType, review.targetId)
     const checks = targetChecks(ctx, target, review.versionId)
     if (checks.blocking.length) throw new AppError('validation_failed', 'There are problems to fix first.', checks.blocking)
+    assertCanApproveCustomCss(ctx, actor, review)
     const jobId = enqueueJob(ctx, 'publish', { reviewId }, { createdBy: actor.id })
     ctx.db
       .update(reviews)

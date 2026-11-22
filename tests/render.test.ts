@@ -1,11 +1,11 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, readFileSync, statSync, existsSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, lstatSync, statSync, existsSync, writeFileSync } from 'node:fs'
 import sharp from 'sharp'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
-import { auditEvents, jobs, redirects, releases, sites } from '../server/db/schema'
+import { auditEvents, jobs, redirects, releases, sites, versions } from '../server/db/schema'
 import { createPurgeCacheHandler, setPurgeHttp } from '../server/services/cloudflare'
 import { editBrand, submitBrand } from '../server/services/brand'
 import { createMediaRenditionsHandler, updateMedia, uploadMedia } from '../server/services/media'
@@ -17,6 +17,7 @@ import {
   EMBED_JS,
   STYLE_HASH,
   THEME_CSS,
+  escapeHtml,
   htmlPathFor,
   nginxMapLines,
   publicUrl,
@@ -26,8 +27,10 @@ import {
   robotsTxt,
   siteOrigin,
   sitemapXml,
+  styleHash,
   type SiteRenderContext,
 } from '../server/services/render'
+import { CssRejected } from '../shared/css/sanitize'
 import { emptyPageDoc } from '../shared/page'
 import { defaultBrandDoc } from '../shared/brand'
 import { defaultSitePartDoc, type HeaderDoc } from '../shared/site-parts'
@@ -566,6 +569,104 @@ http {
 
 })
 
+function styleText(html: string): string {
+  const match = html.match(/<style>([\s\S]*?)<\/style>/)
+  if (!match?.[1]) throw new Error('missing style element')
+  return match[1]
+}
+
+function treeContains(dir: string, needle: string): boolean {
+  if (!existsSync(dir)) return false
+  for (const name of readdirSync(dir)) {
+    const path = join(dir, name)
+    const info = lstatSync(path)
+    if (info.isSymbolicLink()) continue
+    if (info.isDirectory()) {
+      if (treeContains(path, needle)) return true
+      continue
+    }
+    if (readFileSync(path).includes(Buffer.from(needle))) return true
+  }
+  return false
+}
+
+describe('custom CSS in rendered HTML', () => {
+  it('keeps a page with no CSS byte-identical to the theme style', async () => {
+    const doc = emptyPageDoc('Plain')
+    doc.blocks = [{ id: 'b_hero1', type: 'Hero', v: 1, props: { heading: 'Plain', image: IMG } }]
+    const rendered = await renderPageHtml({ doc, pageId: 'pg_plain', versionId: 'ver_1', path: '/plain', site: site() })
+    expect(rendered.html).toContain('<style>' + THEME_CSS + '</style>')
+    expect(rendered.html).not.toContain('data-sb-css')
+    expect(rendered.csp).toContain(STYLE_HASH)
+    expect(rendered.html).toContain(escapeHtml(rendered.csp))
+  })
+
+  it('scopes one section, then matches the previous bytes when that CSS is removed', async () => {
+    const doc = emptyPageDoc('Scoped')
+    doc.blocks = [
+      { id: 'b_hero1', type: 'Hero', v: 1, props: { heading: 'Scoped', image: IMG } },
+      { id: 'b_text1', type: 'RichText', v: 1, props: { content: richTextFromParagraphs(['Hello']) } },
+    ]
+    const plain = await renderPageHtml({ doc, pageId: 'pg_scoped', versionId: 'ver_1', path: '/scoped', site: site() })
+    doc.blocks[0]!.css = '.wrap { color: #123456 }'
+    const styled = await renderPageHtml({ doc, pageId: 'pg_scoped', versionId: 'ver_1', path: '/scoped', site: site() })
+    const css = styleText(styled.html)
+    expect(css.startsWith(THEME_CSS)).toBe(true)
+    expect(css.indexOf('[data-sb-css="b_hero1"]')).toBeGreaterThanOrEqual(THEME_CSS.length)
+    expect(styled.html.match(/data-sb-css="b_hero1"/g)).toHaveLength(2)
+    expect(styled.html).toContain('data-sb-css="b_hero1"')
+    expect(styled.html).not.toContain('data-sb-css="b_text1"')
+    expect(styled.csp).toContain(styleHash(css))
+    expect(styled.html).toContain(escapeHtml(styled.csp))
+    delete doc.blocks[0]!.css
+    const again = await renderPageHtml({ doc, pageId: 'pg_scoped', versionId: 'ver_1', path: '/scoped', site: site() })
+    expect(again.html).toBe(plain.html)
+  })
+
+  it('places site CSS after the theme and before section CSS, without a section prefix', async () => {
+    const doc = emptyPageDoc('Brand')
+    doc.blocks = [
+      { id: 'b_hero1', type: 'Hero', v: 1, props: { heading: 'Brand', image: IMG }, css: '.wrap { color: #123456 }' },
+      { id: 'b_text1', type: 'RichText', v: 1, props: { content: richTextFromParagraphs(['Hello']) } },
+    ]
+    const brand = { ...defaultBrandDoc(), customCss: 'a.sitewide { color: #abcdef }' } as NonNullable<SiteRenderContext['brand']>
+    const rendered = await renderPageHtml({ doc, pageId: 'pg_brand', versionId: 'ver_1', path: '/brand', site: site({ brand }) })
+    const css = styleText(rendered.html)
+    const siteAt = css.indexOf('a.sitewide')
+    const sectionAt = css.indexOf('[data-sb-css="b_hero1"]')
+    expect(css.startsWith(THEME_CSS)).toBe(true)
+    expect(siteAt).toBeGreaterThanOrEqual(THEME_CSS.length)
+    expect(sectionAt).toBeGreaterThan(siteAt)
+    expect(css.slice(0, sectionAt)).not.toContain('data-sb-css')
+    expect(rendered.csp).toContain(styleHash(css))
+  })
+
+  it('refuses a style sheet over 65,536 bytes', async () => {
+    const doc = emptyPageDoc('Big')
+    const rule = `.a{${'color:#112233;'.repeat(500)}}`
+    expect(Buffer.byteLength(rule, 'utf8')).toBeLessThanOrEqual(8192)
+    doc.blocks = Array.from({ length: 12 }, (_, i) => ({
+      id: `b_big${String(i).padStart(2, '0')}`,
+      type: 'Hero' as const,
+      v: 1,
+      props: { heading: 'Big', image: IMG },
+      css: rule,
+    }))
+    await expect(renderPageHtml({ doc, pageId: 'pg_big', versionId: 'ver_1', path: '/big', site: site() })).rejects.toThrow('This page CSS is over the 65,536 byte limit.')
+  })
+
+  it('throws on hostile stored CSS and does not return HTML', async () => {
+    const doc = emptyPageDoc('Hostile')
+    doc.blocks = [{ id: 'b_hero1', type: 'Hero', v: 1, props: { heading: 'Hostile', image: IMG }, css: 'a { background: url(javascript:MARKER9f3c) }' }]
+    await expect(renderPageHtml({ doc, pageId: 'pg_bad', versionId: 'ver_1', path: '/bad', site: site() })).rejects.toBeInstanceOf(CssRejected)
+    try {
+      await renderPageHtml({ doc, pageId: 'pg_bad', versionId: 'ver_1', path: '/bad', site: site() })
+    } catch (error) {
+      expect((error as Error).message).not.toContain('MARKER9f3c')
+    }
+  })
+})
+
 async function publishStandard(s: ReturnType<typeof setup>, title: string, heading: string) {
   const { page } = createPage(s.ctx, s.editor, { title, template: 'standard' })
   applyPageOps(s.ctx, s.editor, page.id, 0, [{ op: 'add_block', block: { type: 'Hero', props: { heading, image: IMG } } }])
@@ -913,5 +1014,73 @@ describe('published photos', () => {
     }
     expect(err?.code).toBe('validation_failed')
     expect(err.fields).toEqual(expect.arrayContaining([expect.objectContaining({ path: 'blocks.0.props.image', message: expect.stringMatching(/not in the media library/) })]))
+  })
+})
+
+describe('published custom CSS', () => {
+  it('writes the style hash into the page and into csp.map', async () => {
+    const s = setup()
+    s.ctx.db.update(sites).set({ primaryDomain: 'example.org' }).where(eq(sites.id, s.ctx.siteId)).run()
+    const root = mkdtempSync(join(tmpdir(), 'sb-css-release-'))
+    const writer = createFileReleaseWriter(root, { keep: 10 })
+    const handlers = {
+      publish: createPublishHandler(writer),
+      send_email: { run: () => ({ skipped: true }) },
+      purge_cache: { run: () => ({ skipped: true }) },
+    }
+    const { page } = createPage(s.ctx, s.editor, { title: 'Styled page', template: 'standard' })
+    applyPageOps(s.ctx, s.editor, page.id, 0, [{ op: 'add_block', block: { id: 'b_css01', type: 'Hero', props: { heading: 'Styled', image: IMG } } }])
+    const draft = getPage(s.ctx, page.id)
+    const doc = structuredClone(draft.doc)
+    const block = doc.blocks.find((item) => item.id === 'b_css01')
+    if (!block) throw new Error('missing section')
+    block.css = '.wrap { color: #123456 }'
+    s.ctx.db.update(versions).set({ doc }).where(eq(versions.id, draft.page.draftVersionId!)).run()
+    const sub = submitPage(s.ctx, s.editor, page.id)
+    approveReview(s.ctx, s.admin, sub.reviewId, { versionId: sub.versionId })
+    while (await runJobsOnce(s.ctx, handlers)) {}
+
+    const releaseId = readCurrentReleaseId(root)!
+    const html = readFileSync(join(root, 'releases', releaseId, 'styled-page', 'index.html'), 'utf8')
+    const css = styleText(html)
+    const hash = styleHash(css)
+    expect(html).toContain('data-sb-css="b_css01"')
+    const meta = html.match(/http-equiv="Content-Security-Policy" content="([^"]*)"/)?.[1] ?? ''
+    expect(meta).toContain(escapeHtml(hash))
+    expect(readFileSync(join(root, 'releases', releaseId, 'csp.map'), 'utf8')).toContain(hash)
+  })
+
+  it('does not write rejected CSS into a release', async () => {
+    const s = setup()
+    const root = mkdtempSync(join(tmpdir(), 'sb-css-reject-'))
+    const writer = createFileReleaseWriter(root, { keep: 10 })
+    const handlers = {
+      publish: createPublishHandler(writer),
+      send_email: { run: () => ({ skipped: true }) },
+      purge_cache: { run: () => ({ skipped: true }) },
+    }
+    const { page } = createPage(s.ctx, s.editor, { title: 'Bad css', template: 'standard' })
+    applyPageOps(s.ctx, s.editor, page.id, 0, [{ op: 'add_block', block: { id: 'b_css01', type: 'Hero', props: { heading: 'Bad', image: IMG } } }])
+    const draft = getPage(s.ctx, page.id)
+    const doc = structuredClone(draft.doc)
+    const block = doc.blocks.find((item) => item.id === 'b_css01')
+    if (!block) throw new Error('missing section')
+    block.css = '.wrap { color: #123456 }'
+    s.ctx.db.update(versions).set({ doc }).where(eq(versions.id, draft.page.draftVersionId!)).run()
+    const sub = submitPage(s.ctx, s.editor, page.id)
+    const { jobId } = approveReview(s.ctx, s.admin, sub.reviewId, { versionId: sub.versionId })
+    const sealed = s.ctx.db.select().from(versions).where(eq(versions.id, sub.versionId)).get()
+    const hostile = structuredClone(sealed!.doc) as { blocks: { id?: string; css?: string }[] }
+    const target = hostile.blocks.find((item) => item.id === 'b_css01')
+    if (!target) throw new Error('missing section')
+    target.css = '@import "https://evil.example/MARKER9f3c.css";'
+    s.ctx.db.update(versions).set({ doc: hostile }).where(eq(versions.id, sub.versionId)).run()
+    await runJobsOnce(s.ctx, handlers)
+    const job = s.ctx.db.select().from(jobs).where(eq(jobs.id, jobId)).get()
+    expect(job?.state).not.toBe('done')
+    expect(job?.lastError ?? '').not.toContain('MARKER9f3c')
+    expect(currentRelease(s.ctx)).toBeUndefined()
+    expect(treeContains(root, 'MARKER9f3c')).toBe(false)
+    expect(s.ctx.db.select().from(releases).all().every((row) => !(row.error ?? '').includes('MARKER9f3c'))).toBe(true)
   })
 })

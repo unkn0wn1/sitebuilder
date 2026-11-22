@@ -34,6 +34,8 @@ const ACTIONS = {
   'template.read': 'editor',
   'template.edit': 'admin',
   'brand.edit': 'admin',
+  /** Custom CSS on a section or the brand. Admin only: roles are a ladder, not per-person grants. */
+  'design.css': 'admin',
   'users.manage': 'admin',
   'settings.manage': 'admin',
   'site.rollback': 'admin',

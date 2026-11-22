@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm'
 import { cloneVNode, createSSRApp, defineComponent, h, type VNode } from 'vue'
 import { renderToString } from 'vue/server-renderer'
 import { sanitizeBadgeHtml } from '../../shared/badge-html'
+import { CssRejected, sanitizeCss, STYLE_MAX_BYTES } from '../../shared/css/sanitize'
 import { formatMoney, hasEnded, progressPercent, endOfUtcDay } from '../../shared/amounts'
 import { virtuousPrefill } from '../../shared/donate-prefill'
 import type { ImageRef } from '../../shared/blocks/define'
@@ -280,6 +281,31 @@ export function previewPlaceholder(mediaId: string): string {
   const [line1, line2] = mediaId === SAMPLE_ID ? ['Sample photo', 'Choose one in the panel'] : ['Photo not found', 'Choose another in the panel']
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="720" viewBox="0 0 960 720"><rect width="960" height="720" fill="#e5e7eb"/><rect x="24" y="24" width="912" height="672" fill="none" stroke="#9ca3af" stroke-width="4" stroke-dasharray="16 12"/><text x="480" y="350" font-family="system-ui,sans-serif" font-size="44" fill="#374151" text-anchor="middle">${line1}</text><text x="480" y="410" font-family="system-ui,sans-serif" font-size="30" fill="#4b5563" text-anchor="middle">${line2}</text></svg>`
   return `data:image/svg+xml,${encodeURIComponent(svg)}`
+}
+
+function authoredCss(value: unknown): string {
+  return typeof value === 'string' && value.trim() ? value : ''
+}
+
+function emitSectionCss(block: StoredBlock): string {
+  const css = authoredCss(block.css)
+  if (!css) return ''
+  return sanitizeCss(css, { scope: 'section', sectionId: block.id, mode: 'emit' })
+}
+
+function emitSiteCss(brand: SiteRenderContext['brand']): string {
+  if (!brand) return ''
+  const css = authoredCss((brand as { customCss?: unknown }).customCss)
+  if (!css) return ''
+  return sanitizeCss(css, { scope: 'site', mode: 'emit' })
+}
+
+/** The attribute is added only when this section has CSS, so pages without it stay byte-identical. */
+function withSectionCss(block: StoredBlock, vnode: VNode): VNode {
+  if (!authoredCss(block.css)) return vnode
+  const attrs = { 'data-sb-css': block.id }
+  if (vnode && typeof vnode.type === 'string') return cloneVNode(vnode, attrs)
+  return h('div', attrs, [vnode])
 }
 
 /** In a builder preview, mark each section with its block id (for click to select), and never let one bad section
@@ -867,8 +893,8 @@ function renderShell(doc: PageDoc, site: SiteRenderContext, bag: Collector): VNo
       doc.blocks.map((block) => {
         const eager = firstHero && (block.type === 'Hero' || block.type === 'VideoHero')
         if (block.type === 'Hero' || block.type === 'VideoHero') firstHero = false
-        if (site.preview) return previewBlock(block as StoredBlock, () => renderBlock(block as StoredBlock, site, bag, eager))
-        return renderBlock(block as StoredBlock, site, bag, eager)
+        const vnode = site.preview ? previewBlock(block as StoredBlock, () => renderBlock(block as StoredBlock, site, bag, eager)) : renderBlock(block as StoredBlock, site, bag, eager)
+        return withSectionCss(block as StoredBlock, vnode)
       }),
     ),
     renderFooter(site, bag, footer),
@@ -1101,7 +1127,9 @@ export async function renderPageHtml(input: {
 }): Promise<RenderedPage> {
   const bag = newCollector(input.site)
   const { doc, site } = input
-  const css = (site.themeCss ?? THEME_CSS) + shellOptionCss(site)
+  const css = (site.themeCss ?? THEME_CSS) + shellOptionCss(site) + emitSiteCss(site.brand) + doc.blocks.map((block) => emitSectionCss(block as StoredBlock)).join('')
+  if (css.toLowerCase().includes('</')) throw new CssRejected(1, 1, 'The generated CSS was rejected.')
+  if (Buffer.byteLength(css, 'utf8') > STYLE_MAX_BYTES) throw new CssRejected(1, 1, 'This page CSS is over the 65,536 byte limit.')
   const app = createSSRApp(
     defineComponent({
       name: 'PublishedPage',

@@ -12,6 +12,8 @@ export interface StoredBlock {
   /** Version of the block type this block was written with. */
   v: number
   props: Record<string, unknown>
+  /** Author's custom CSS for this section. Omitted when empty. Scoped at render. */
+  css?: string
 }
 
 export class BlockMigrationError extends Error {}

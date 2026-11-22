@@ -3,6 +3,7 @@
 // drift from the published page. The HTML is adjusted only so it works inside the builder: photos and the page
 // scripts come from signed-in builder routes, analytics and third-party scripts are left out, and sections carry
 // their block id for click to select.
+import { CssRejected, cssIssueMessage } from '../../shared/css/sanitize'
 import { emptyPageDoc, migratePageDoc, type PageDoc } from '../../shared/page'
 import { validateSitePartDoc, type BannerDoc, type FooterDoc, type HeaderDoc, type MenuDoc } from '../../shared/site-parts'
 import type { ServiceCtx } from './context'
@@ -15,6 +16,16 @@ export const PREVIEW_MEDIA_PREFIX = '/api/v1/preview/media/'
 export const PREVIEW_ASSET_PREFIX = '/api/v1/preview/assets/'
 export const PREVIEW_ASSETS = ['embed.js', 'header.js'] as const
 
+/** Publish throws on bad CSS. A draft preview shows the line and column instead of failing the editor. */
+async function renderPreviewPage(input: Parameters<typeof renderPageHtml>[0]) {
+  try {
+    return await renderPageHtml(input)
+  } catch (error) {
+    if (error instanceof CssRejected) throw new AppError('validation_failed', cssIssueMessage(error))
+    throw error
+  }
+}
+
 export async function renderDraftPreview(ctx: ServiceCtx, raw: unknown, opts: { pageId?: string; path?: string } = {}) {
   const doc: PageDoc = migratePageDoc(raw, ctx.registry)
   const manifest = structuredClone(currentRelease(ctx)?.manifest ?? EMPTY_MANIFEST)
@@ -25,7 +36,7 @@ export async function renderDraftPreview(ctx: ServiceCtx, raw: unknown, opts: { 
   const site = loadSiteRenderContext(ctx, manifest)
   site.preview = true
   site.tracking = { ga4: null, gtm: null, plausible: null, cookiebot: null }
-  const rendered = await renderPageHtml({ doc, pageId, versionId: 'ver_preview', path, site })
+  const rendered = await renderPreviewPage({ doc, pageId, versionId: 'ver_preview', path, site })
   return { html: previewHtml(rendered.html, rendered.csp) }
 }
 
@@ -76,7 +87,7 @@ export async function renderSitePartPreview(ctx: ServiceCtx, input: { parts: { p
     // A menu nothing uses yet is shown in the header, so there is something to look at.
     if (menuUse === 'unused' && site.header) site.header = { ...site.header, doc: { ...site.header.doc, menuKey: key } }
   }
-  const rendered = await renderPageHtml({ doc, pageId, versionId: 'ver_preview', path, site })
+  const rendered = await renderPreviewPage({ doc, pageId, versionId: 'ver_preview', path, site })
   return { html: previewHtml(rendered.html, rendered.csp), page: chosen ? { id: chosen, path } : null, menuUse }
 }
 

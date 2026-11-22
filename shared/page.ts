@@ -5,6 +5,8 @@ import { mediaId } from './blocks/define'
 import type { BlockRegistry, StoredBlock } from './blocks/registry'
 import { checkTemplateRules, type TemplateRules } from './templates'
 import { cloneDraft } from './clone'
+import { CssRejected, cssIssueMessage, sanitizeCss } from './css/sanitize'
+import { SECTION_CSS_MAX_BYTES } from './css/limits'
 
 export const CURRENT_PAGE_SCHEMA_VERSION = 1
 
@@ -16,6 +18,8 @@ export const storedBlockSchema = z
     type: z.string().min(1).max(60),
     v: z.number().int().min(1),
     props: z.record(z.string(), z.unknown()),
+    /** Author's CSS. Empty or whitespace is dropped in validatePageDoc, not stored as "". */
+    css: z.string().max(SECTION_CSS_MAX_BYTES).optional(),
   })
   .strict()
 
@@ -70,6 +74,18 @@ export function emptyPageDoc(title: string): PageDoc {
   return { schemaVersion: CURRENT_PAGE_SCHEMA_VERSION, title, seo: seoSchema.parse({}), blocks: [] }
 }
 
+/** Keep a non-empty CSS string only when the sanitiser accepts it. Blank clears the field. */
+function sectionCss(value: unknown): { css?: string; issue?: string } {
+  if (typeof value !== 'string' || !value.trim()) return {}
+  try {
+    sanitizeCss(value, { scope: 'section', mode: 'check' })
+    return { css: value }
+  } catch (error) {
+    if (error instanceof CssRejected) return { issue: cssIssueMessage(error) }
+    throw error
+  }
+}
+
 /**
  * Validate a (migrated) document: shape, every block's props, and the template's rules.
  * Returns the normalised document (defaults filled in) or the issues.
@@ -89,8 +105,14 @@ export function validatePageDoc(
     if (ids.has(block.id)) issues.push({ path: `blocks.${i}.id`, message: 'Two sections have the same id.' })
     ids.add(block.id)
     const result = registry.validate(block as StoredBlock, `blocks.${i}.props`)
-    if (result.ok) blocks.push({ ...(block as StoredBlock), props: result.props })
-    else issues.push(...result.issues)
+    const css = sectionCss(block.css)
+    if (css.issue) issues.push({ path: `blocks.${i}.css`, message: css.issue })
+    if (result.ok && !css.issue) {
+      const stored: StoredBlock = { ...(block as StoredBlock), props: result.props }
+      if (css.css) stored.css = css.css
+      else delete stored.css
+      blocks.push(stored)
+    } else if (!result.ok) issues.push(...result.issues)
   })
   if (rules) issues.push(...checkTemplateRules(shape.data.blocks.map((b) => b.type), rules, opts))
   if (issues.length) return { ok: false, issues }
