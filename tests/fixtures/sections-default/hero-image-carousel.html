@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'sha256-loZO0mut1oFdLeGSL4S8kbTV602jWZfAo7Q6/HVqh3M='; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'sha256-hf/aoU1KcTg8lCo6OFkAqwXG1WesQfbBLRrAHv465CQ='; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none';">
   <title>Sections | Example charity</title>
   
   
@@ -246,7 +246,7 @@ a { color: var(--accent); }
   .gallery { grid-template-columns: 1fr 1fr 1fr; }
 }
 .stats { display: grid; gap: 1.5rem; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); }
-.stat-value { font-size: 2rem; font-weight: 700; display: block; }
+.stat-value { display: block; font-size: var(--fs-stat); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .stat-label { color: var(--muted); }
 .cards { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
 .card, .tier, .donate-box, .stats > div {
@@ -257,7 +257,7 @@ a { color: var(--accent); }
 .card, .donate-box { border-radius: var(--radius-card); }
 .tier, .stats > div { border-radius: var(--radius-tile); }
 .card, .tier { overflow: hidden; }
-.stats > div { background: var(--paper); }
+.stats > div { background: var(--paper); padding: 1rem; }
 .card-body { padding: 1rem; }
 .cta-band { background: var(--band); padding: 3.5rem 0; text-align: center; }
 .cta-band.tone-accent { background: var(--accent); color: var(--accent-ink); }
@@ -293,8 +293,8 @@ a { color: var(--accent); }
 .tier-other { color: var(--muted); margin: 1rem 0 0; }
 .donate-prefill-hint { margin: 0 0 0.85rem; padding: 0.7rem 0.9rem; border-radius: 0.4rem; background: var(--band); border: 2px solid var(--accent); font-weight: 600; }
 .donate-prefill-hint[hidden] { display: none; }
-.goal-progress { width: 100%; height: 0.75rem; accent-color: var(--accent); }
-.progress-meta { margin: 0.75rem 0 0; font-weight: 600; }
+.goal-progress { width: 100%; height: 12px; border: 0; border-radius: var(--radius-pill); accent-color: var(--accent); overflow: hidden; }
+.progress-meta { margin: 0.75rem 0 0; font-weight: 800; }
 .progress-match, .progress-date { color: var(--muted); margin: 0.35rem 0 0; }
 .match-banner { background: var(--band); padding: 1.25rem 0; }
 .match-banner.tone-primary, .match-banner.tone-accent { background: var(--accent); color: var(--accent-ink); }
