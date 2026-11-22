@@ -216,6 +216,8 @@ a { color: var(--accent); }
   color: #fff;
   isolation: isolate;
 }
+.hero-carousel { min-height: clamp(22rem, 100vh, 52rem); overflow: hidden; }
+.hero-carousel { min-height: clamp(22rem, 100svh, 52rem); overflow: hidden; }
 .hero-media, .hero-video, .hero img {
   position: absolute;
   inset: 0;
@@ -404,6 +406,8 @@ export const OVER_HERO_CSS = `
 .site-header-over.js-over:not(.is-solid) .cta-btn { border: 2px solid color-mix(in srgb, var(--paper) 90%, transparent); box-shadow: 0 0 0 0.3rem color-mix(in srgb, var(--accent) 40%, transparent); }
 @media (prefers-reduced-motion: reduce) { .site-header-over.js-over { transition: none; } }
 .site-header-over.js-over ~ main > .hero:first-child { box-sizing: content-box; padding-top: var(--sb-header-h, 0px); }
+.site-header-over.js-over ~ main > .hero.hero-carousel:first-child { min-height: clamp(22rem, calc(100vh - var(--sb-header-h, 0px)), 52rem); }
+.site-header-over.js-over ~ main > .hero.hero-carousel:first-child { min-height: clamp(22rem, calc(100svh - var(--sb-header-h, 0px)), 52rem); }
 `
 
 /** Photo tiles beside the links in a mega panel. Appended only when a mega menu actually has tiles. */
@@ -426,9 +430,9 @@ export const TILE_CSS = `
 export const HERO_CAROUSEL_CSS = `
 .hero-carousel .hero-stage { position: absolute; inset: 0; touch-action: pan-y; }
 .hero-carousel .hero-slide { position: absolute; inset: 0; }
-.hero-carousel .hero-controls { position: absolute; z-index: 2; left: 50%; bottom: max(1.1rem, calc(env(safe-area-inset-bottom) + 0.75rem)); transform: translateX(-50%); display: flex; align-items: center; gap: 0.15rem; padding: 0.25rem 0.35rem; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--ink) 38%, transparent); border: 1px solid color-mix(in srgb, var(--paper) 22%, transparent); backdrop-filter: blur(10px); }
-.hero-carousel .hero-prev, .hero-carousel .hero-next, .hero-carousel .hero-pause { width: 48px; height: 48px; min-width: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--paper); display: grid; place-items: center; cursor: pointer; transition: background-color 0.15s; }
-.hero-carousel .hero-prev:hover, .hero-carousel .hero-next:hover, .hero-carousel .hero-pause:hover, .hero-carousel .hero-prev:focus-visible, .hero-carousel .hero-next:focus-visible, .hero-carousel .hero-pause:focus-visible { background: color-mix(in srgb, var(--paper) 20%, transparent); }
+.hero-carousel .hero-controls { position: absolute; z-index: 2; left: 50%; bottom: max(1.1rem, calc(env(safe-area-inset-bottom) + 0.75rem)); transform: translateX(-50%); display: flex; align-items: center; gap: 0.15rem; padding: 0.25rem 0.35rem; max-width: calc(100% - 2 * var(--space)); border-radius: var(--radius-pill); background: color-mix(in srgb, var(--ink) 38%, transparent); border: 1px solid color-mix(in srgb, var(--paper) 22%, transparent); backdrop-filter: blur(10px); }
+.hero-carousel :is(.hero-prev, .hero-next, .hero-pause) { width: 48px; height: 48px; min-width: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--paper); display: grid; place-items: center; cursor: pointer; transition: background-color 0.15s; }
+.hero-carousel :is(.hero-prev, .hero-next, .hero-pause):is(:hover, :focus-visible) { background: color-mix(in srgb, var(--paper) 20%, transparent); }
 .hero-carousel .hero-controls button:focus-visible { outline: 3px solid var(--highlight); outline-offset: 2px; }
 .hero-carousel .hero-controls svg { width: 24px; height: 24px; display: block; }
 .hero-carousel .hero-pause .ico-play { display: none; }
@@ -439,7 +443,12 @@ export const HERO_CAROUSEL_CSS = `
 .hero-carousel .hero-dot[aria-current="true"]::after { background: var(--paper); transform: scale(1.45); }
 .hero-carousel .hero-sr, .hero-carousel .hero-live { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 .hero-carousel [hidden] { display: none; }
-@media (prefers-reduced-motion: reduce) { .hero-carousel .hero-prev, .hero-carousel .hero-next, .hero-carousel .hero-pause, .hero-carousel .hero-dot::after { transition: none; } }
+@media (max-width: 640px) {
+  .hero-carousel .hero-controls { gap: 0; padding: 0.15rem 0.2rem; }
+  .hero-carousel :is(.hero-prev, .hero-next, .hero-pause) { width: 44px; height: 44px; }
+  .hero-carousel .hero-dot { width: 24px; min-width: 24px; min-height: 24px; }
+}
+@media (prefers-reduced-motion: reduce) { .hero-carousel :is(.hero-prev, .hero-next, .hero-pause), .hero-carousel .hero-dot::after { transition: none; } }
 `
 
 

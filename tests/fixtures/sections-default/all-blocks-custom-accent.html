@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.virtuoussoftware.com; style-src 'self' 'sha256-b1v5hXlP6OfUk5tyzzDgBHIJT+99Rm/0iEoqnEbq6RU='; img-src 'self' data:; font-src 'self'; connect-src 'self' https://cdn.virtuoussoftware.com; frame-src 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.virtuoussoftware.com; style-src 'self' 'sha256-RMbPSurHQUb975vI5guTvSXSD/PCEMtcTprecZ11Y54='; img-src 'self' data:; font-src 'self'; connect-src 'self' https://cdn.virtuoussoftware.com; frame-src 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none';">
   <title>Sections | Example charity</title>
   
   
@@ -203,6 +203,8 @@ a { color: var(--accent); }
   color: #fff;
   isolation: isolate;
 }
+.hero-carousel { min-height: clamp(22rem, 100vh, 52rem); overflow: hidden; }
+.hero-carousel { min-height: clamp(22rem, 100svh, 52rem); overflow: hidden; }
 .hero-media, .hero-video, .hero img {
   position: absolute;
   inset: 0;
