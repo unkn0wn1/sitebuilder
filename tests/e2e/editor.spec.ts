@@ -4,6 +4,16 @@ import { mkdirSync } from 'node:fs'
 const email = process.env.SEED_ADMIN_EMAIL ?? 'admin@example.org'
 const password = process.env.SEED_ADMIN_PASSWORD ?? 'sb-demo-pass-17'
 const screenshotDir = process.env.EDITOR_SCREENSHOT_DIR ?? '/workspace'
+const SECTION_CSS = '& { outline: 3px solid #b5471d; }'
+
+function sectionCssSaved(page: Page) {
+  return page.waitForResponse((res) => {
+    if (!res.ok() || res.request().method() !== 'POST') return false
+    if (!/\/api\/v1\/pages\/[^/]+\/ops$/.test(new URL(res.url()).pathname)) return false
+    const body = res.request().postData() ?? ''
+    return body.includes('set_block_css') && body.includes(SECTION_CSS)
+  })
+}
 
 async function docsShot(page: Page, name: string, fullPage = true) {
   if (process.env.SB_SCREENSHOTS !== '1') return
@@ -61,10 +71,13 @@ test('editor opens a page with rails, canvas and inspector', async ({ page }) =>
 
   const cssPanel = page.getByTestId('custom-css')
   await cssPanel.locator('summary').click()
-  await cssPanel.getByRole('textbox', { name: 'CSS' }).fill('& { outline: 3px solid #b5471d; }')
+  const cssSaved = sectionCssSaved(page)
+  await cssPanel.getByRole('textbox', { name: 'CSS' }).fill(SECTION_CSS)
+  await expect(page.getByTestId('save-status')).toHaveText('Saving…', { timeout: 15_000 })
   await expect.poll(() => previewHasOutline(page), { timeout: 20_000 }).toBe(true)
   const hero = page.getByRole('button', { name: /Hero/ }).first()
   await expect(hero).toContainText('{ }')
+  await cssSaved
   await expect(page.getByTestId('save-status')).toHaveText('Saved', { timeout: 15_000 })
   await docsShot(page, 'custom-css-inspector.png')
 
@@ -75,4 +88,15 @@ test('editor opens a page with rails, canvas and inspector', async ({ page }) =>
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
   await expect(page.getByRole('alertdialog')).toHaveCount(0)
+
+  // Saved was already on screen before the edit. Reload and read the stored text back.
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Winter appeal' })).toBeVisible({ timeout: 20_000 })
+  await page.getByRole('button', { name: 'Outline' }).click()
+  await page.getByRole('button', { name: /Hero/ }).first().click()
+  const savedPanel = page.getByTestId('custom-css')
+  await savedPanel.locator('summary').click()
+  await expect(savedPanel.getByRole('textbox', { name: 'CSS' })).toHaveValue(SECTION_CSS)
+  await expect(page.getByRole('button', { name: /Hero/ }).first()).toContainText('{ }')
+  await expect(page.getByTestId('save-status')).toHaveText('Saved')
 })
