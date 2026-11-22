@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { api, ApiError } from '../../utils/api'
 import { penceToPounds, poundsToPence } from '#shared/ai-pricing'
+import { CURATED_XAI_MODELS, DEFAULT_XAI_MODEL, LEGACY_DEFAULT_MODELS, PROVIDER_DEFAULT_MODELS } from '#shared/ai-models'
 import type { SiteSettings } from '#shared/settings'
 import SettingsNav from '../../components/settings/SettingsNav.vue'
 
@@ -13,12 +14,7 @@ const PROVIDERS = [
   { value: 'custom', name: 'Custom (OpenAI-compatible)' },
 ] as const
 
-const DEFAULT_MODELS: Record<string, string> = {
-  xai: 'grok-4',
-  openai: 'gpt-4o',
-  anthropic: 'claude-sonnet-4-5',
-  custom: '',
-}
+const SWAPPABLE_MODELS = new Set<string>([...Object.values(PROVIDER_DEFAULT_MODELS), ...LEGACY_DEFAULT_MODELS, ...CURATED_XAI_MODELS])
 
 interface SettingsPayload {
   settings: SiteSettings
@@ -39,7 +35,9 @@ const keyValue = ref('')
 const enabled = ref(false)
 const provider = ref<SiteSettings['ai']['provider']>('xai')
 const baseUrl = ref('')
-const model = ref('grok-4')
+const model = ref(DEFAULT_XAI_MODEL)
+const modelIds = ref<string[]>([...CURATED_XAI_MODELS])
+const modelSource = ref<'live' | 'curated'>('curated')
 const smallModel = ref('')
 const monthlyPounds = ref('20')
 const sessionPounds = ref('2')
@@ -58,6 +56,28 @@ const xaiVerificationUriComplete = ref<string | null>(null)
 const xaiExpiresAt = ref(0)
 const xaiPollError = ref('')
 let pollTimer: ReturnType<typeof setTimeout> | null = null
+
+const modelOptions = computed(() => {
+  const ids = [...modelIds.value]
+  if (model.value && !ids.includes(model.value)) ids.push(model.value)
+  return ids.map((id) => ({ value: id, name: id }))
+})
+
+async function loadModels() {
+  if (provider.value !== 'xai') return
+  try {
+    const data = await api<{ source: 'live' | 'curated'; models: { id: string }[] }>('/settings/ai/models')
+    modelSource.value = data.source
+    const ids = data.models.map((item) => item.id)
+    if (model.value && !ids.includes(model.value)) ids.push(model.value)
+    modelIds.value = ids
+  } catch {
+    modelSource.value = 'curated'
+    const ids: string[] = [...CURATED_XAI_MODELS]
+    if (model.value && !ids.includes(model.value)) ids.push(model.value)
+    modelIds.value = ids
+  }
+}
 
 function poundsField(value: string, label: string): number {
   const n = Number(value)
@@ -86,6 +106,7 @@ async function load() {
     xaiOauthEnabled.value = !!data.xaiOauth?.enabled
     xaiOauthConnected.value = !!data.xaiOauth?.connected
     xaiOauthAccount.value = data.xaiOauth?.account ?? null
+    await loadModels()
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : 'Could not load settings.'
   }
@@ -103,11 +124,11 @@ onMounted(load)
 
 function onProviderChange(value: string) {
   const next = value as SiteSettings['ai']['provider']
-  const previousDefault = Object.values(DEFAULT_MODELS)
-  if (!model.value || previousDefault.includes(model.value)) {
-    model.value = DEFAULT_MODELS[next] ?? model.value
+  if (!model.value.trim() || SWAPPABLE_MODELS.has(model.value)) {
+    model.value = PROVIDER_DEFAULT_MODELS[next] ?? model.value
   }
   provider.value = next
+  if (next === 'xai') void loadModels()
 }
 
 async function save() {
@@ -157,6 +178,7 @@ async function save() {
       },
     })
     saved.value = 'Saved.'
+    if (provider.value === 'xai') await loadModels()
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : 'Could not save those settings.'
   } finally {
@@ -327,8 +349,12 @@ onBeforeUnmount(() => {
         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Needed for a custom or local server. For the named providers, leave this blank unless you have a reason to change it.</p>
       </div>
 
-      <div class="mb-4">
-        <FwbInput v-model="model" label="Model" placeholder="grok-4" required />
+      <div v-if="provider === 'xai'" class="mb-4">
+        <FwbSelect :model-value="model" label="Model" :options="modelOptions" @update:model-value="model = String($event)" />
+        <p v-if="modelSource === 'curated'" class="mt-1 text-sm text-gray-500 dark:text-gray-400">Showing the usual xAI models. A saved key lists the models on the account.</p>
+      </div>
+      <div v-else class="mb-4">
+        <FwbInput v-model="model" label="Model" :placeholder="PROVIDER_DEFAULT_MODELS[provider] || 'Model id'" required />
       </div>
       <div class="mb-4">
         <FwbInput v-model="smallModel" label="Cheaper model (optional)" placeholder="For small jobs such as alt text" />

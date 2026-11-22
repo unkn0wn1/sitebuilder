@@ -99,7 +99,7 @@ This is the one place the agent produces code, and it never reaches the live sit
 
 ## Decided
 
-- Grok is the default for the pilot ([12-ai-harness.md](12-ai-harness.md#bring-your-own-model)).
+- Grok is the default for the pilot ([12-ai-harness.md](12-ai-harness.md#bring-your-own-model)). The default xAI model id is `grok-4.7`.
 - Tool calls are applied to the canvas live, one by one, with progress streamed to the panel ([04-gui.md](04-gui.md#assistant-states)).
 - Context per task is defined in [12-ai-harness.md](12-ai-harness.md#context): the current page, the sitemap (titles and addresses), memory. No other pages' content.
 - The agent writes copy from scratch or polishes, as asked. Its summary says which.
