@@ -3,6 +3,7 @@
 import { z } from 'zod'
 import { zodIssues, type FieldIssue } from './issues'
 import { blockIdSchema } from './page'
+import { imageRef } from './blocks/define'
 import { richTextDoc, safeHref } from './richtext'
 
 export const SITE_PART_KINDS = ['header', 'footer', 'menu', 'banner'] as const
@@ -34,8 +35,14 @@ export const linkTargetSchema = z.discriminatedUnion('type', [
 ])
 export type LinkTarget = z.infer<typeof linkTargetSchema>
 
-const menuChild = z.object({ id: blockIdSchema, label: label(40), target: linkTargetSchema }).strict()
-const menuItem = z.object({ id: blockIdSchema, label: label(40), target: linkTargetSchema, children: z.array(menuChild).max(12).default([]) }).strict()
+// A child can be a featured photo tile in a mega panel. Additive fields, so stored menus stay valid.
+const menuChild = z
+  .object({ id: blockIdSchema, label: label(40), target: linkTargetSchema, image: imageRef.optional(), featured: z.boolean().optional() })
+  .strict()
+const menuItem = z
+  .object({ id: blockIdSchema, label: label(40), target: linkTargetSchema, children: z.array(menuChild).max(12).default([]) })
+  .strict()
+  .refine((item) => item.children.filter((c) => c.featured).length <= 5, { message: 'Feature at most 5 tiles per menu item.', path: ['children'] })
 
 const uniqueIds = (items: { id: string; children?: { id: string }[] }[]) => {
   const ids = items.flatMap((i) => [i.id, ...(i.children ?? []).map((c) => c.id)])
@@ -59,6 +66,8 @@ export const headerDocSchema = z
     /** A small link above the bar, for example "Report an ill or injured animal". Also shown in the mobile menu. */
     utility: callToAction.nullable().default(null),
     appearance: z.enum(['light', 'dark']).default('light'),
+    /** Transparent over a hero at the top of the page, solid once scrolled. Always the normal solid header without JavaScript. */
+    overHero: z.boolean().default(false),
   })
   .strict()
 
