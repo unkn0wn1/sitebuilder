@@ -65,7 +65,14 @@ describe('see-through header', () => {
     expect(OVER_HERO_CSS).toContain('linear-gradient(to bottom, rgba(20, 12, 8, 0.6), rgba(20, 12, 8, 0))')
     expect(OVER_HERO_CSS).toContain('text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5)')
     expect(OVER_HERO_CSS).toContain('prefers-reduced-motion: reduce')
+    expect(OVER_HERO_CSS).toContain('.site-header-over.js-over ~ main > .hero:first-child { box-sizing: content-box; padding-top: var(--sb-header-h, 0px); }')
     expect(THEME_CSS).not.toContain('site-header-over')
+    expect(THEME_CSS).not.toContain('--sb-header-h')
+    expect(THEME_CSS).not.toContain('content-box')
+    // No side padding on .hero, so content-box does not change the phone width. The photo is inset 0, so it still covers the bar.
+    expect(THEME_CSS).toMatch(/\.hero \{\s*position: relative;\s*min-height: min\(70vh, 36rem\);/)
+    expect(THEME_CSS).not.toMatch(/\.hero \{[^}]*padding/)
+    expect(THEME_CSS).toMatch(/\.hero-media, \.hero-video, \.hero img \{\s*position: absolute;\s*inset: 0;/)
     expect(on.deps.bundleId).toBe(BUNDLE_ID)
 
     const off = await render()
@@ -86,9 +93,11 @@ describe('see-through header', () => {
   })
 })
 
-function runHeaderJs(opts: { firstClass: string | null; scrollY?: number; detailsOpen?: boolean; stripBottom?: number | null }) {
+function runHeaderJs(opts: { firstClass: string | null; scrollY?: number; detailsOpen?: boolean; stripBottom?: number | null; headerHeight?: number }) {
   const classes = new Set<string>()
   let strip = ''
+  const rootVars: Record<string, string> = {}
+  const metrics = { headerHeight: opts.headerHeight ?? 64 }
   const listeners: { type: string; fn: () => void }[] = []
   const windowListeners: Record<string, () => void> = {}
   const headerEl = {
@@ -101,6 +110,7 @@ function runHeaderJs(opts: { firstClass: string | null; scrollY?: number; detail
       contains(name: string) { return classes.has(name) },
     },
     style: { setProperty(_name: string, value: string) { strip = value } },
+    getBoundingClientRect() { return { height: metrics.headerHeight, bottom: 0 } },
     querySelector(sel: string) {
       if (sel === 'details[open]') return opts.detailsOpen ? {} : null
       return null
@@ -110,6 +120,7 @@ function runHeaderJs(opts: { firstClass: string | null; scrollY?: number; detail
   const banner = opts.stripBottom == null ? null : { getBoundingClientRect: () => ({ bottom: opts.stripBottom }) }
   const sandbox = {
     document: {
+      documentElement: { style: { setProperty(name: string, value: string) { rootVars[name] = value } } },
       querySelector(sel: string) {
         if (sel === '.site-header-over') return headerEl
         if (sel === 'main > :first-child') return opts.firstClass == null ? null : { className: opts.firstClass }
@@ -126,6 +137,8 @@ function runHeaderJs(opts: { firstClass: string | null; scrollY?: number; detail
   return {
     classes,
     strip: () => strip,
+    headerVar: () => rootVars['--sb-header-h'],
+    setHeaderHeight(h: number) { metrics.headerHeight = h },
     setScroll(y: number) {
       sandbox.window.scrollY = y
       windowListeners.scroll?.()
@@ -339,31 +352,41 @@ describe('mega menu photo tiles', () => {
 
 describe('see-through header script', () => {
   it('floats over a hero and turns solid after scrolling or when a menu is open', () => {
-    const view = runHeaderJs({ firstClass: 'hero', stripBottom: 28 })
+    const view = runHeaderJs({ firstClass: 'hero', stripBottom: 28, headerHeight: 73.6 })
     expect(view.classes.has('js-over')).toBe(true)
     expect(view.classes.has('is-solid')).toBe(false)
     expect(view.strip()).toBe('28px')
+    expect(view.headerVar()).toBe('74px')
 
+    // Turning solid on scroll does not re-pad the hero (no jump mid-scroll).
+    view.setHeaderHeight(64)
     view.setScroll(41)
     expect(view.classes.has('is-solid')).toBe(true)
+    expect(view.headerVar()).toBe('74px')
+    // Back at the top the transparent bar is measured again (for example after the title wraps).
+    view.setHeaderHeight(91)
     view.setScroll(0)
     expect(view.classes.has('is-solid')).toBe(false)
+    expect(view.headerVar()).toBe('91px')
 
     view.setStrip(-12)
     view.resize()
     expect(view.strip()).toBe('0px')
+    expect(view.headerVar()).toBe('91px')
 
-    const open = runHeaderJs({ firstClass: 'hero extra', detailsOpen: true, stripBottom: null })
+    const open = runHeaderJs({ firstClass: 'hero extra', detailsOpen: true, stripBottom: null, headerHeight: 80 })
     expect(open.classes.has('js-over')).toBe(true)
     expect(open.classes.has('is-solid')).toBe(true)
     expect(open.strip()).toBe('0px')
+    expect(open.headerVar()).toBe('80px')
   })
 
   it('stays solid when the first block is not a hero', () => {
     for (const firstClass of ['section', 'vcar', 'hero-inner', null]) {
-      const view = runHeaderJs({ firstClass })
+      const view = runHeaderJs({ firstClass, headerHeight: 80 })
       expect(view.classes.has('js-over')).toBe(false)
       expect(view.classes.has('is-solid')).toBe(false)
+      expect(view.headerVar()).toBeUndefined()
     }
   })
 })

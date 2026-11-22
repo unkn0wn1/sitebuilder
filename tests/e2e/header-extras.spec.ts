@@ -119,10 +119,76 @@ async function headerLook(page: Page) {
   }, PAPER)
 }
 
+/** Heading stays below the fixed bar, the photo still covers that bar, and the text stays inside the phone width. */
+async function heroFit(page: Page) {
+  return page.evaluate(() => {
+    const header = document.querySelector('header')
+    const hero = document.querySelector('main > .hero')
+    const h1 = hero?.querySelector('h1')
+    const photo = hero?.querySelector('.hero-media')
+    const inner = hero?.querySelector('.hero-inner')
+    if (!header || !hero || !h1 || !photo || !inner) return null
+    const hb = header.getBoundingClientRect()
+    const h1b = h1.getBoundingClientRect()
+    const pb = photo.getBoundingClientRect()
+    const ib = inner.getBoundingClientRect()
+    const heroBox = hero.getBoundingClientRect()
+    const cs = getComputedStyle(hero)
+    const padTop = parseFloat(cs.paddingTop)
+    const root = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
+    const minH = Math.min(window.innerHeight * 0.7, 36 * root)
+    const contentH = heroBox.height - padTop - parseFloat(cs.paddingBottom)
+    const vw = document.documentElement.clientWidth
+    return {
+      boxSizing: cs.boxSizing,
+      padLeft: cs.paddingLeft,
+      padRight: cs.paddingRight,
+      padMatchesHeader: Math.abs(padTop - Math.round(hb.height)) <= 0.5,
+      h1Clears: h1b.top >= hb.bottom - 0.5,
+      photoCoversHeader: pb.top <= hb.top + 0.5 && pb.bottom >= hb.bottom - 0.5 && pb.left <= heroBox.left + 1 && pb.right >= heroBox.right - 1,
+      innerInside: ib.left >= -0.5 && ib.right <= vw + 0.5 && ib.width < vw,
+      contentKeepsMinHeight: contentH + 1 >= minH,
+    }
+  })
+}
+
+const HERO_FIT = {
+  boxSizing: 'content-box',
+  padLeft: '0px',
+  padRight: '0px',
+  padMatchesHeader: true,
+  h1Clears: true,
+  photoCoversHeader: true,
+  innerInside: true,
+  contentKeepsMinHeight: true,
+}
+
+async function heroPad(page: Page) {
+  return page.evaluate(() => {
+    const hero = document.querySelector('main .hero')
+    if (!hero) return null
+    const cs = getComputedStyle(hero)
+    return { padTop: cs.paddingTop, boxSizing: cs.boxSizing }
+  })
+}
+
 test('see-through header and mega tiles, from renderer HTML, with no sign-in', async ({ page }) => {
   await show(page, 'hero', 'run')
   expect(await headerLook(page)).toEqual({ over: true, jsOver: true, solid: false, fixed: true, gradient: true, paper: false })
+  expect(await heroFit(page)).toEqual(HERO_FIT)
 
+  await page.setViewportSize({ width: 390, height: 800 })
+  await expect.poll(() => heroFit(page)).toEqual(HERO_FIT)
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await expect.poll(() => heroFit(page)).toEqual(HERO_FIT)
+
+  // Turning solid on scroll keeps the hero padding as it was, so nothing jumps mid-scroll.
+  const padAtTop = (await heroPad(page))?.padTop
+  await page.evaluate(() => window.scrollTo(0, 80))
+  await expect.poll(() => headerLook(page)).toEqual({ over: true, jsOver: true, solid: true, fixed: true, gradient: false, paper: true })
+  expect((await heroPad(page))?.padTop).toBe(padAtTop)
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await expect.poll(() => heroFit(page)).toEqual(HERO_FIT)
   await page.evaluate(() => window.scrollTo(0, 80))
   await expect.poll(() => headerLook(page)).toEqual({ over: true, jsOver: true, solid: true, fixed: true, gradient: false, paper: true })
 
@@ -160,7 +226,9 @@ test('see-through header and mega tiles, from renderer HTML, with no sign-in', a
 
   await show(page, 'section', 'run')
   expect(await headerLook(page)).toEqual({ over: true, jsOver: false, solid: false, fixed: false, gradient: false, paper: false })
+  expect(await heroPad(page)).toEqual({ padTop: '0px', boxSizing: 'border-box' })
 
   await show(page, 'hero', 'omit')
   expect(await headerLook(page)).toEqual({ over: true, jsOver: false, solid: false, fixed: false, gradient: false, paper: false })
+  expect(await heroPad(page)).toEqual({ padTop: '0px', boxSizing: 'border-box' })
 })

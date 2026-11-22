@@ -294,7 +294,9 @@ export const FOOTER_COLUMNS_CSS = `
 @media (max-width: 800px) { .ft-grid { grid-template-columns: 1fr; gap: 2rem; } .ft-wrap { padding-top: 2.25rem; } }
 `
 
-/** Transparent over a top hero once /header.js adds .js-over. Without that class the header stays the normal solid bar. */
+/** Transparent over a top hero once /header.js adds .js-over. Without that class the header stays the normal solid bar.
+ *  content-box keeps .hero's min-height as the photo area and adds the bar above it. .hero has no side padding,
+ *  so a phone width stays full-bleed, and the absolute photo (inset 0) still paints through the padded area. */
 export const OVER_HERO_CSS = `
 .site-header-over.js-over { position: fixed; top: var(--strip, 0px); left: 0; right: 0; z-index: 50; background: linear-gradient(to bottom, rgba(20, 12, 8, 0.6), rgba(20, 12, 8, 0)); border-bottom: 0; transition: background-color 0.25s, box-shadow 0.25s; }
 .site-header-over.js-over.is-solid { background: var(--paper); box-shadow: 0 0.25rem 1rem rgba(0, 0, 0, 0.18); }
@@ -308,6 +310,7 @@ export const OVER_HERO_CSS = `
 .site-header-dark.site-header-over.js-over:not(.is-solid) .site-title { background: transparent; padding: 0; border-radius: 0; box-shadow: none; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
 .site-header-over.js-over:not(.is-solid) .cta-btn { border: 2px solid rgba(255, 255, 255, 0.9); box-shadow: 0 0 0 0.3rem color-mix(in srgb, var(--accent) 40%, transparent); }
 @media (prefers-reduced-motion: reduce) { .site-header-over.js-over { transition: none; } }
+.site-header-over.js-over ~ main > .hero:first-child { box-sizing: content-box; padding-top: var(--sb-header-h, 0px); }
 `
 
 /** Photo tiles beside the links in a mega panel. Appended only when a mega menu actually has tiles. */
