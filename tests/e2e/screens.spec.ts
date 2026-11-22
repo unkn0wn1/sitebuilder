@@ -19,7 +19,14 @@ function shot(name: string) {
   return `${screenshotDir}/${name}`
 }
 
+async function docsShot(page: Page, name: string, fullPage = true) {
+  if (process.env.SB_SCREENSHOTS !== '1') return
+  mkdirSync('docs/screenshots', { recursive: true })
+  await page.screenshot({ path: `docs/screenshots/${name}`, fullPage })
+}
+
 test('settings, media library and inspector crop', async ({ page }) => {
+  test.setTimeout(90_000)
   await signIn(page)
 
   await page.goto('/settings/ai')
@@ -27,6 +34,37 @@ test('settings, media library and inspector crop', async ({ page }) => {
   await expect(page.getByLabel('API key')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Test connection' })).toBeVisible()
   await page.screenshot({ path: shot('settings-ai.png'), fullPage: true })
+
+  await expect(page.getByRole('combobox', { name: 'Model' })).toHaveValue('grok-4.7')
+  await expect(page.getByRole('option', { name: 'grok-4.6' })).toBeAttached()
+  await docsShot(page, 'model-select.png')
+
+  await page.getByRole('link', { name: 'AI personality' }).click()
+  await expect(page.getByRole('heading', { name: 'AI personality' })).toBeVisible({ timeout: 20_000 })
+  const personality = page.getByRole('textbox', { name: 'Personality' })
+  await expect(personality).toHaveValue(/Write in plain English, with British spelling\./, { timeout: 20_000 })
+  await expect(page.getByText('of 48,000 characters the AI sees')).toBeVisible()
+  await docsShot(page, 'ai-personality.png')
+
+  await page.getByRole('button', { name: 'Full screen' }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Exit full screen' })).toBeVisible()
+  const cm = page.locator('.cm-content')
+  await cm.click()
+  await page.keyboard.press('Control+End')
+  const sentence = 'The helpline answers in a warm voice.'
+  await cm.pressSequentially(sentence)
+  await docsShot(page, 'fullscreen-editor.png', false)
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  await expect(personality).toHaveValue(/Write in plain English, with British spelling\./)
+  await expect(personality).toHaveValue(new RegExp(sentence.replace(/[.]/g, '\\.')))
+  await page.getByRole('button', { name: 'Save' }).click()
+  await expect(page.getByText('Saved.')).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'AI personality' })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('textbox', { name: 'Personality' })).toHaveValue(new RegExp(sentence.replace(/[.]/g, '\\.')), { timeout: 20_000 })
 
   await page.getByRole('link', { name: 'Media' }).click()
   await expect(page.getByRole('heading', { name: 'Media' })).toBeVisible({ timeout: 20_000 })

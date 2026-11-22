@@ -29,6 +29,7 @@ import { isSafeHref } from '../../../shared/richtext'
 import type { FieldIssue } from '../../../shared/issues'
 import { validateSitePartDoc, type MenuDoc, type SitePartDoc, type SitePartKind, type BannerDoc, type FooterDoc, type HeaderDoc } from '../../../shared/site-parts'
 import { agentChanges, pages, sites, siteParts } from '../../db/schema'
+import { strippedSoul } from '../soul'
 import type { ServiceCtx } from '../context'
 import { AppError, notFound } from '../errors'
 import { createPage, getPage, listPages, readDoc, requirePage } from '../pages'
@@ -294,6 +295,7 @@ export function getSite(ctx: ServiceCtx, agent: SignedInAgent) {
   const token = agent.token
   const rules = tokenRules(token)
   const always = alwaysAllowActive(token, ctx.now())
+  const personality = strippedSoul(ctx)
   return {
     site: { name: site.name, primary_domain: site.primaryDomain, default_locale: site.defaultLocale },
     you: {
@@ -323,6 +325,7 @@ export function getSite(ctx: ServiceCtx, agent: SignedInAgent) {
     default_rate_limits: DEFAULT_LIMITS,
     gateway_version: GATEWAY_VERSION,
     start_here: 'Read the sitebuilder://guide/overview resource, or use a prompt such as take_link_down. The usual order is: search_content or find_links, an edit tool, preview_change, then publish_change or request_publish.',
+    ...(personality ? { personality } : {}),
   }
 }
 

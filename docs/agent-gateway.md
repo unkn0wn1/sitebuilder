@@ -196,6 +196,7 @@ On connect the MCP server sends instructions, and offers:
 
 - **Tools**: 37 of them, each with a long description (what, when, when not, before, effect, permission, returns, errors, example) and a full input schema with a description and example on every field.
 - **Resources**: guides at `sitebuilder://guide/overview`, `tools`, `rules`, `content-model`, `markdown`, `errors`, and `sitebuilder://you` (its own live permissions).
+- `get_site.personality` and `sitebuilder://soul` are read-only tone, agents cannot change settings, and an approved `update_soul` is the follow-up that would let a person accept a new personality.
 - **Prompts and recipes**, with the same text as resources at `sitebuilder://recipe/<name>`: `take_a_link_down`, `update_policy_text`, `change_words`, `edit_a_section`, `create_a_page`, `publish_or_ask`, `undo_a_change`, `menu_and_banner`, `when_you_are_refused`.
 
 All of it is reproduced in [agent-gateway-tools.md](agent-gateway-tools.md) so a person can read what the AI reads.
@@ -258,7 +259,7 @@ We design for models with at least 256k tokens of context, and keep everything a
 | Guides and recipes | 18,000 | about 40,000 characters |
 | Rules (`get_site` with a token's rules) | 10,000 | rules are refused on save above 18,000 characters |
 | Behaviours | 12,000 | reserved, not built |
-| soul.md (AI personality) | 16,000 | reserved, not built |
+| soul.md (AI personality) | 16,000 | Settings, AI personality; saves over 48,000 characters (comments not counted) are refused |
 | Headroom | 20,000 | |
 
 Some clients cut text shorter than this. Claude Code keeps 2,048 characters of each tool description and of the server instructions, and Codex keeps about 1,000 bytes of a tool description for plugin-installed servers. So every tool description stays within 2,048 characters, its first line (what the tool is and does) within 1,000 bytes, and the server instructions open with a short ESSENTIALS block that stands alone within 2,048 characters. The full instructions are also the resource `sitebuilder://guide/instructions`.

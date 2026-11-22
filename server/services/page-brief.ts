@@ -19,6 +19,8 @@ import {
 import { composePageFromPlan, extractJson, planFromAnswers, type ComposeEmbed, type ComposeImage } from '../../shared/page-compose'
 import { isTrustMedia, type TrustMedia, type TrustStripSource } from '../../shared/trust-marks'
 import { enrichPlanSections, formatPlannerGuidance } from '../../shared/ai/block-guide'
+import { personalitySection } from '../../shared/soul'
+import { strippedSoul } from './soul'
 import { aiSessions, media, pageBriefs, pages } from '../db/schema'
 import { audit } from './audit'
 import { addAiUsage, monthCostMicros } from './ai'
@@ -217,11 +219,11 @@ function finalisePlan(plan: PagePlan, row: BriefRow): PagePlan {
   return enrichPlanSections(plan, { prompt: row.prompt, answers })
 }
 
-function interviewSystemPrompt(ctxInfo: { templates: string[]; embeds: ComposeEmbed[] }, asked: string[], questionCount: number): string {
+export function interviewSystemPrompt(ctxInfo: { templates: string[]; embeds: ComposeEmbed[] }, asked: string[], questionCount: number, stripped = ''): string {
   const embedList = ctxInfo.embeds.length
     ? ctxInfo.embeds.map((e) => `${e.name} (${e.id}${e.kind ? `, ${e.kind}` : ''})`).join('; ')
     : 'none registered'
-  return `You help a charity staff member plan a new web page. Reply with one JSON object only, no markdown and no commentary.
+  const base = `You help a charity staff member plan a new web page. Reply with one JSON object only, no markdown and no commentary.
 
 Ask one question at a time, at most ${MAX_BRIEF_QUESTIONS} questions in total, only to fill gaps on: purpose, audience, usage (campaign, evergreen, story, event, standard, home), content they already have, the call to action or donation (including a Virtuous form if they have one), and look and feel (tone: primary, neutral or accent — the current brand pack is already applied). Do not re-ask what they already answered. Already asked: ${asked.join(', ') || 'none'}. Questions asked so far: ${questionCount}.
 
@@ -240,6 +242,9 @@ Do not invent statistics, totals, ratings, deadlines or quotes as if they were f
 The page will stay a draft and will not be published.
 
 ${formatPlannerGuidance()}`
+  const section = personalitySection(stripped)
+  if (!section) return base
+  return `${base}\n\n${section}\n\nThe reply is still a single JSON object.`
 }
 
 async function callModel(ctx: ServiceCtx, actor: ActingAs, sessionId: string, system: string, user: string): Promise<{ text: string } | { error: string }> {
@@ -282,7 +287,7 @@ async function nextTurn(ctx: ServiceCtx, actor: ActingAs, row: BriefRow, warning
 
   if (forcePlan) {
     const user = buildUserMessage(row.prompt, answers, 'Return a plan now. Do not ask another question.')
-    const called = row.sessionId ? await callModel(ctx, actor, row.sessionId, interviewSystemPrompt(info, asked, answers.length), user) : { error: 'no session' }
+    const called = row.sessionId ? await callModel(ctx, actor, row.sessionId, interviewSystemPrompt(info, asked, answers.length, strippedSoul(ctx)), user) : { error: 'no session' }
     let plan: PagePlan | undefined
     if ('text' in called) {
       try {
@@ -301,7 +306,7 @@ async function nextTurn(ctx: ServiceCtx, actor: ActingAs, row: BriefRow, warning
   }
 
   const user = buildUserMessage(row.prompt, answers, 'Ask the next useful question, or return a plan if you already have enough.')
-  const called = row.sessionId ? await callModel(ctx, actor, row.sessionId, interviewSystemPrompt(info, asked, answers.length), user) : { error: 'no session' }
+  const called = row.sessionId ? await callModel(ctx, actor, row.sessionId, interviewSystemPrompt(info, asked, answers.length, strippedSoul(ctx)), user) : { error: 'no session' }
   if ('text' in called) {
     try {
       const parsed = parseTurn(extractJson(called.text), new Set(asked))

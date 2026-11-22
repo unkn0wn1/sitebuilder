@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { costMicrosFor, penceToMicros, penceToPounds, poundsToPence } from '../shared/ai-pricing'
+import { PENCE_TO_MICROS, costMicrosFor, penceToMicros, penceToPounds, poundsToPence } from '../shared/ai-pricing'
 import { assistantText, assistantTools, mockProvider, openAiCompatibleProvider, ProviderError } from '../server/services/ai-provider'
 
 describe('cost estimates', () => {
@@ -9,6 +9,8 @@ describe('cost estimates', () => {
     expect(costMicrosFor('unknown-model', 1000, 500)).toBe(3000)
     expect(costMicrosFor('grok-4', 0, 0)).toBe(0)
     expect(costMicrosFor('grok-4', 1, 0)).toBeGreaterThan(0)
+    // grok-4.7 is $2 in per 1M, booked at 160 pence.
+    expect(costMicrosFor('grok-4.7', 1_000_000, 0)).toBe(160 * PENCE_TO_MICROS)
   })
 
   it('converts caps between pence and pounds', () => {

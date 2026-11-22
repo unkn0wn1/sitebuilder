@@ -8,6 +8,14 @@ export const PENCE_TO_MICROS = 10_000
 export const DEFAULT_PRICE = { inPencePerMillion: 100, outPencePerMillion: 400 }
 
 const BOOK: Record<string, { inPencePerMillion: number; outPencePerMillion: number }> = {
+  // $2 in / $6 out per 1M, at 80 pence per US dollar (the same rate as the gpt-4o row: 200 pence is $2.50).
+  'grok-4.7': { inPencePerMillion: 160, outPencePerMillion: 480 },
+  'grok-4.6': { inPencePerMillion: 160, outPencePerMillion: 480 },
+  'grok-4.5': { inPencePerMillion: 160, outPencePerMillion: 480 },
+  'grok-4.3': { inPencePerMillion: 160, outPencePerMillion: 480 },
+  'grok-4.20-0309-reasoning': { inPencePerMillion: 160, outPencePerMillion: 480 },
+  'grok-4.20-0309-non-reasoning': { inPencePerMillion: 160, outPencePerMillion: 480 },
+  'grok-build-0.1': { inPencePerMillion: 160, outPencePerMillion: 480 },
   'grok-4': { inPencePerMillion: 80, outPencePerMillion: 400 },
   'grok-3': { inPencePerMillion: 80, outPencePerMillion: 400 },
   'grok-2': { inPencePerMillion: 40, outPencePerMillion: 200 },

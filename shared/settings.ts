@@ -1,7 +1,9 @@
 // Site settings stored on the sites row. One schema so reads, writes and the GUI agree.
 // See docs/04-gui.md (Settings) and ADR 0011 (named tracking integrations).
 import { z } from 'zod'
+import { DEFAULT_XAI_MODEL, normaliseAiSettings } from './ai-models'
 import { cloneDraft } from './clone'
+import { SOUL_RAW_MAX } from './soul'
 
 const id = (re: RegExp, example: string) => z.string().trim().regex(re, `Should look like ${example}.`)
 
@@ -48,7 +50,7 @@ export const siteSettingsSchema = z
         provider: z.enum(['openai', 'xai', 'anthropic', 'custom']).default('xai'),
         /** Override the provider's default base URL (required for custom). */
         baseUrl: z.string().trim().url().max(300).nullable().default(null),
-        model: z.string().trim().min(1).max(120).default('grok-4'),
+        model: z.string().trim().min(1).max(120).default(DEFAULT_XAI_MODEL),
         /** Optional cheaper model for small jobs such as alt text. */
         smallModel: z.string().trim().min(1).max(120).nullable().default(null),
         monthlyCapPence: z.number().int().min(0).max(1_000_000).default(2000),
@@ -60,12 +62,14 @@ export const siteSettingsSchema = z
         enabled: false,
         provider: 'xai',
         baseUrl: null,
-        model: 'grok-4',
+        model: DEFAULT_XAI_MODEL,
         smallModel: null,
         monthlyCapPence: 2000,
         sessionCapPence: 200,
         requestCapPence: 50,
       }),
+    /** Assistant personality. Null means the shipped default. Changed through PUT /settings/soul, not PATCH /settings. */
+    soul: z.string().max(SOUL_RAW_MAX).nullable().default(null),
     mail: z
       .object({
         from: z.string().trim().toLowerCase().max(254).nullable().default(null),
@@ -126,7 +130,7 @@ export type SettingsPatch = z.infer<typeof settingsPatchSchema>
 /** Read stored settings leniently: unknown or broken values fall back to defaults rather than failing. */
 export function readSettings(raw: unknown): SiteSettings {
   const parsed = siteSettingsSchema.safeParse(raw ?? {})
-  if (parsed.success) return parsed.data
+  if (parsed.success) return normaliseSettings(parsed.data)
   const base = siteSettingsSchema.parse({})
   if (raw && typeof raw === 'object') {
     for (const [key, value] of Object.entries(raw)) {
@@ -134,7 +138,7 @@ export function readSettings(raw: unknown): SiteSettings {
       if (one?.success) (base as Record<string, unknown>)[key] = one.data
     }
   }
-  return base
+  return normaliseSettings(base)
 }
 
 export function mergeSettings(current: SiteSettings, patch: Omit<SettingsPatch, 'name' | 'primaryDomain'>): SiteSettings {
@@ -144,5 +148,9 @@ export function mergeSettings(current: SiteSettings, patch: Omit<SettingsPatch, 
     const cur = next[key]
     next[key] = value && typeof value === 'object' && !Array.isArray(value) && cur && typeof cur === 'object' ? { ...cur, ...value } : value
   }
-  return siteSettingsSchema.parse(next)
+  return normaliseSettings(siteSettingsSchema.parse(next))
+}
+
+function normaliseSettings(settings: SiteSettings): SiteSettings {
+  return { ...settings, ai: normaliseAiSettings(settings.ai) }
 }

@@ -34,7 +34,7 @@
       "get": {
         "operationId": "get_site",
         "summary": "Start here: the site, what this token may do, and what no agent may ever do.",
-        "description": "Start here: the site, what this token may do, and what no agent may ever do. Returns the site name and domain, this token's access level, its rules (which kinds of change may go live by themselves and which need a person), its rate limits, the never-list, and what each action name means.\nUse when: At the start of every conversation, before anything else. When you are unsure whether you are allowed to do something.\nNot when: You already called it in this conversation and nothing has changed.\nEffect: Nothing changes. Safe to call at any time.\nWho: Read-only tokens too.\nReturns: `site`, `you` (access, rules, `always_allow` and `always_allow_meaning`, `can_publish_by_yourself`, rate limits), `never_list`, `actions`, `start_here`.\nExample: {}",
+        "description": "Start here: the site, what this token may do, and what no agent may ever do. Returns the site name and domain, this token's access level, its rules (which kinds of change may go live by themselves and which need a person), its rate limits, the never-list, and what each action name means.\nUse when: At the start of every conversation, before anything else. When you are unsure whether you are allowed to do something.\nNot when: You already called it in this conversation and nothing has changed.\nEffect: Nothing changes. Safe to call at any time.\nWho: Read-only tokens too.\nReturns: `site`, `you` (access, rules, `always_allow` and `always_allow_meaning`, `can_publish_by_yourself`, rate limits), `never_list`, `actions`, `start_here`, `personality` (tone of voice only, omitted when empty).\nExample: {}",
         "tags": [
           "Read"
         ],
@@ -45,7 +45,7 @@
         ],
         "responses": {
           "200": {
-            "description": "`site`, `you` (access, rules, `always_allow` and `always_allow_meaning`, `can_publish_by_yourself`, rate limits), `never_list`, `actions`, `start_here`.",
+            "description": "`site`, `you` (access, rules, `always_allow` and `always_allow_meaning`, `can_publish_by_yourself`, rate limits), `never_list`, `actions`, `start_here`, `personality` (tone of voice only, omitted when empty).",
             "content": {
               "application/json": {
                 "schema": {

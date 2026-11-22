@@ -20,6 +20,8 @@ describe('reading', () => {
     const r = call(w, 'get_site', {})
     expect(r.site.name).toBe('Test charity')
     expect(r.you).toMatchObject({ token_name: 'Claude at 3am', access: 'draft', can_publish_by_yourself: true })
+    expect(r.personality).toContain('Write in plain English, with British spelling.')
+    expect(r.personality).not.toContain('<!--')
     expect(r.never_list.sections_that_cannot_be_touched).toEqual(['DonationEmbed', 'Embed'])
     expect(r.actions.remove_link).toBeTruthy()
     expect(JSON.stringify(r)).not.toContain(w.secret)
