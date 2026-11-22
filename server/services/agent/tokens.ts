@@ -1,6 +1,7 @@
 // Agent tokens: create, list, change, revoke, and sign in with one. The secret is shown once and stored only as a hash.
 // A token belongs to the admin who made it and can never do more than they can. See ADR 0018.
 import { randomBytes, timingSafeEqual } from 'node:crypto'
+import { AGENT_RULES_MAX_CHARS } from '../../../shared/agent/context-budget'
 import { and, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { ALWAYS_ALLOW_MAX_DAYS, normaliseRules, type AgentRule } from '../../../shared/agent/rules'
@@ -107,6 +108,11 @@ function checkIpList(list: string[] | null | undefined) {
 function parseRules(raw: unknown[]): AgentRule[] {
   const r = normaliseRules(raw)
   if (!r.ok) throw new AppError('validation_failed', r.message, [{ path: 'rules', message: r.message }])
+  // Every agent loads its rules (get_site), so they must fit the agent context budget (shared/agent/context-budget.ts).
+  if (JSON.stringify(r.rules).length > AGENT_RULES_MAX_CHARS) {
+    const message = `These rules are too long for an AI to load (over ${AGENT_RULES_MAX_CHARS.toLocaleString('en-GB')} characters). Use fewer rules, or shorter lists of addresses and domains.`
+    throw new AppError('validation_failed', message, [{ path: 'rules', message }])
+  }
   return r.rules
 }
 

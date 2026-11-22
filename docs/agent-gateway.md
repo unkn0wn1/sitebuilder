@@ -247,6 +247,22 @@ An agent will not edit a page that is **waiting for approval** (it would withdra
 
 Per-token limits can be changed when the token is made or edited.
 
+### How much an AI has to load
+
+We design for models with at least 256k tokens of context, and keep everything an agent loads from us inside 128k tokens, so the other half is free for the conversation. The split lives in `shared/agent/context-budget.ts` and `tests/agent-mcp.test.ts` checks the real text against it. Characters are counted at 3 a token, which overcounts English and is about right for JSON.
+
+| Item | Budget (tokens) | Today |
+| --- | --- | --- |
+| Server instructions | 4,000 | about 5,700 characters |
+| Tool list (`tools/list`: names, descriptions, schemas) | 48,000 | about 100,000 characters |
+| Guides and recipes | 18,000 | about 40,000 characters |
+| Rules (`get_site` with a token's rules) | 10,000 | rules are refused on save above 18,000 characters |
+| Behaviours | 12,000 | reserved, not built |
+| soul.md (AI personality) | 16,000 | reserved, not built |
+| Headroom | 20,000 | |
+
+Some clients cut text shorter than this. Claude Code keeps 2,048 characters of each tool description and of the server instructions, and Codex keeps about 1,000 bytes of a tool description for plugin-installed servers. So every tool description stays within 2,048 characters, its first line (what the tool is and does) within 1,000 bytes, and the server instructions open with a short ESSENTIALS block that stands alone within 2,048 characters. The full instructions are also the resource `sitebuilder://guide/instructions`.
+
 ## How text and links are found
 
 - **Text** is the words a visitor reads: headings, paragraphs, buttons, captions, SEO description, menu labels. Not amounts, ids, image settings or code. Rich text is searched one run at a time, so a phrase that is partly bold or a link is found in parts.

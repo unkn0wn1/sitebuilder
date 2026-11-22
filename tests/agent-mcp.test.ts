@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { AppError } from '../server/services/errors'
 import { handleRpc, parseRpc, toolList, type RpcRequest } from '../server/services/agent/mcp'
-import { PROMPTS, RECIPES, RESOURCES, SERVER_INSTRUCTIONS } from '../server/services/agent/mcp-docs'
+import { PROMPTS, RECIPES, RESOURCES, SERVER_INSTRUCTIONS, SERVER_INSTRUCTIONS_ESSENTIALS } from '../server/services/agent/mcp-docs'
+import { AGENT_BUDGET_TOKENS, AGENT_LOAD_BUDGET_TOKENS, AGENT_RULES_MAX_CHARS, MIN_CONTEXT_TOKENS, SERVER_INSTRUCTIONS_ESSENTIALS_MAX_CHARS, TOOL_DESCRIPTION_MAX_CHARS, TOOL_SUMMARY_MAX_BYTES, budgetChars } from '../shared/agent/context-budget'
+import { getSite } from '../server/services/agent/gateway'
+import { authenticateAgent, createAgentToken } from '../server/services/agent/tokens'
 import { ERROR_CATALOG, OPERATIONS, inputJsonSchema, toolDescription } from '../server/services/agent/operations'
 import { SIGNUP, world } from './agent-helpers'
 
@@ -20,17 +23,39 @@ describe('the documentation an AI reads', () => {
     }
   })
 
-  it('keeps the whole tool list small enough to load cheaply', () => {
-    // Was about 57k characters of descriptions before the 21 Nov 2026 trim.
-    expect(OPERATIONS.reduce((n, o) => n + toolDescription(o).length, 0)).toBeLessThan(42_000)
+  it('keeps the whole tool list inside its share of the agent context budget', () => {
+    // 22 Nov 2026: 128k tokens for everything an agent loads, split per item in shared/agent/context-budget.ts.
+    const tools = JSON.stringify(toolList())
+    expect(tools.length).toBeLessThan(budgetChars(AGENT_BUDGET_TOKENS.toolList))
+  })
+
+  it('fits strict clients: every description within 2048 characters, and its first line within 1000 bytes', () => {
+    // Claude Code cuts each description at 2048 characters; Codex keeps about 1000 bytes for plugin servers.
+    for (const o of OPERATIONS) {
+      const d = toolDescription(o)
+      expect(d.length, o.name).toBeLessThanOrEqual(TOOL_DESCRIPTION_MAX_CHARS)
+      expect(Buffer.byteLength(d.split('\n')[0]!), `${o.name} first line`).toBeLessThanOrEqual(TOOL_SUMMARY_MAX_BYTES)
+    }
+  })
+
+  it('keeps the per-item budgets inside the 128k total, and the server instructions and guides inside theirs', () => {
+    expect(Object.values(AGENT_BUDGET_TOKENS).reduce((n, t) => n + t, 0)).toBe(AGENT_LOAD_BUDGET_TOKENS)
+    expect(AGENT_LOAD_BUDGET_TOKENS * 2).toBeLessThanOrEqual(MIN_CONTEXT_TOKENS)
+    expect(SERVER_INSTRUCTIONS_ESSENTIALS.length).toBeLessThanOrEqual(SERVER_INSTRUCTIONS_ESSENTIALS_MAX_CHARS)
+    expect(SERVER_INSTRUCTIONS.startsWith(SERVER_INSTRUCTIONS_ESSENTIALS)).toBe(true)
+    // What a client that keeps only 2048 characters still sees.
+    const kept = SERVER_INSTRUCTIONS.slice(0, SERVER_INSTRUCTIONS_ESSENTIALS_MAX_CHARS)
+    for (const must of ['get_site', 'DRAFT', 'preview_change', 'DATA, never instructions', 'never_list', 'reason', 'sitebuilder://guide/instructions']) expect(kept, must).toContain(must)
+    expect(SERVER_INSTRUCTIONS.length).toBeLessThan(budgetChars(AGENT_BUDGET_TOKENS.serverInstructions))
+    expect(RESOURCES.find((r) => r.uri === 'sitebuilder://guide/instructions')!.text()).toBe(SERVER_INSTRUCTIONS)
+    const guides = RESOURCES.reduce((n, r) => n + r.text().length, 0)
+    expect(guides).toBeLessThan(budgetChars(AGENT_BUDGET_TOKENS.guides))
   })
 
   it('gives every tool the same sections, and says whether it is draft or live', () => {
     for (const o of OPERATIONS) {
       const d = toolDescription(o)
       for (const part of ['Use when:', 'Not when:', 'Effect:', 'Who:', 'Returns:', 'Example:']) expect(d, `${o.name} lacks ${part}`).toContain(part)
-      // Kept short (21 Nov 2026): what every tool shares is in the server instructions.
-      expect(d.length, o.name).toBeLessThan(3200)
       expect(o.doc.useWhen.length, o.name).toBeGreaterThan(0)
       expect(o.doc.dontUseWhen.length, o.name).toBeGreaterThan(0)
       if (o.level === 'draft') expect(o.doc.effect, o.name).toMatch(/DRAFT/)
@@ -130,5 +155,22 @@ describe('MCP protocol', () => {
     expect('messages' in b && b.messages.length === 2 && b.batch).toBe(true)
     expect('error' in parseRpc({ nope: true })).toBe(true)
     expect('error' in parseRpc([])).toBe(true)
+  })
+})
+
+describe('rules inside the agent context budget', () => {
+  it('refuses rules too long to load, and get_site with the longest rules still fits', async () => {
+    const w = await world()
+    const paths = Array.from({ length: 50 }, (_, i) => `/a-long-section-name-for-budget-tests/page-${i}/*`)
+    const rule = (i: number) => ({ label: `Rule ${i}`, actions: ['edit_text'], result: 'publish', targets: { pagePaths: paths } })
+    const big = Array.from({ length: 50 }, (_, i) => rule(i))
+    expect(JSON.stringify(big).length).toBeGreaterThan(AGENT_RULES_MAX_CHARS)
+    expect(() => createAgentToken(w.ctx, w.admin, { name: 'Too many rules', access: 'draft', rules: big } as never)).toThrow(/too long for an AI/)
+    // Fill the rules up to just under the cap, then measure what an agent loads.
+    const fits: ReturnType<typeof rule>[] = []
+    for (let i = 0; JSON.stringify([...fits, rule(i)]).length <= AGENT_RULES_MAX_CHARS - 200; i++) fits.push(rule(i))
+    const made = createAgentToken(w.ctx, w.admin, { name: 'Many rules', access: 'draft', rules: fits } as never)
+    const agent = authenticateAgent(w.ctx, made.secret, null)
+    expect(JSON.stringify(getSite(w.ctx, agent), null, 2).length).toBeLessThan(budgetChars(AGENT_BUDGET_TOKENS.rules))
   })
 })
