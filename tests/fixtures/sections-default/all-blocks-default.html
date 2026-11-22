@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.virtuoussoftware.com; style-src 'self' 'sha256-y/Mk4nt9VTf+Ksix4No/klTt1W53Y85ZNsvui74MrlA='; img-src 'self' data:; font-src 'self'; connect-src 'self' https://cdn.virtuoussoftware.com; frame-src 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.virtuoussoftware.com; style-src 'self' 'sha256-XhHhQvDctD8YzKAhvhpgHP3KwX3hTTxZ2YxN5iu+MR0='; img-src 'self' data:; font-src 'self'; connect-src 'self' https://cdn.virtuoussoftware.com; frame-src 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none';">
   <title>Sections | Example charity</title>
   
   
@@ -238,7 +238,15 @@ a { color: var(--accent); }
 .stat-value { font-size: 2rem; font-weight: 700; display: block; }
 .stat-label { color: var(--muted); }
 .cards { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
-.card { border: 1px solid var(--line); border-radius: 0.5rem; overflow: hidden; background: var(--paper); }
+.card, .tier, .donate-box, .stats > div {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-card);
+}
+.card, .donate-box { border-radius: var(--radius-card); }
+.tier, .stats > div { border-radius: var(--radius-tile); }
+.card, .tier { overflow: hidden; }
+.stats > div { background: var(--paper); }
 .card-body { padding: 1rem; }
 .cta-band { background: var(--band); padding: 3.5rem 0; text-align: center; }
 .cta-band.tone-accent { background: var(--accent); color: var(--accent-ink); }
@@ -246,7 +254,8 @@ a { color: var(--accent); }
 .faq details { border-bottom: 1px solid var(--line); padding: 0.75rem 0; }
 .faq summary { cursor: pointer; font-weight: 600; }
 .donate, .embed { background: var(--band); padding: 3.5rem 0; }
-.donate-box, .embed-box {
+.donate-box { padding: 1.5rem; min-height: 12rem; }
+.embed-box {
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 0.5rem;
@@ -265,7 +274,6 @@ a { color: var(--accent); }
 .lede { color: var(--muted); max-width: 38em; margin: 0 0 1.25rem; }
 .eyebrow { text-transform: uppercase; letter-spacing: 0.08em; font-size: var(--fs-eyebrow); font-weight: 700; color: var(--accent-strong); margin: 0 0 0.5rem; }
 .tiers { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
-.tier { border: 1px solid var(--line); border-radius: 0.5rem; overflow: hidden; background: var(--paper); }
 .tier-give { display: flex; flex-direction: column; height: 100%; color: inherit; text-decoration: none; }
 .tier-give:hover, .tier-give:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
 .tier-body { padding: 1rem; }
