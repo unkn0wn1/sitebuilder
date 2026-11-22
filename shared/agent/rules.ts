@@ -4,8 +4,8 @@
 // The order of the decision is fixed and is the contract the docs promise:
 //   1. A matching deny rule stops the change.            (deny beats everything)
 //   2. The floor: some facts force a human review.       (never auto-publishes, even with always-allow)
-//      custom_css is set when CSS text was added, changed or cleared. Removing a
-//      whole section is not that flag: the CSS goes away because the section went away.
+//      custom_css is set when CSS text was added, changed, cleared, or removed
+//      with the section that held it. A section with no custom CSS is not that flag.
 //   3. The action edit_css always needs a person.        (before always-allow and publish rules, including "*")
 //   4. Always-allow, if switched on and not expired.     (publishes, no rule needed)
 //   5. Every action in every part needs a publish rule whose limits hold. Anything else goes to review.

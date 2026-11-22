@@ -29,7 +29,7 @@ HOW CHANGES WORK
 
 READING TOOL DESCRIPTIONS
 - REPLIES: edit tools return `change` in brief (id, status, preview link, one summary line per page or part), `if_you_publish` (would it go live now, and why), `problems_to_fix` (only when there are some), `result` (what this call did) and `next_steps`. get_change and preview_change return the full `change` with `text_changes` and `section_changes`: exactly what differs from the live site.
-- "Who" says which tokens may call it. "Rule action" is the action a rule on your token must allow for the change to go live by itself; without one it goes to a person. Custom CSS (set_block_css) always needs a person, even when a rule or always-allow would otherwise publish it.
+- "Who" says which tokens may call it. "Rule action" is the action a rule on your token must allow for the change to go live by itself; without one it goes to a person. Custom CSS (set_block_css) always needs a person, even when a rule or always-allow would otherwise publish it. Removing a section that has custom CSS also needs a person.
 - Errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in sitebuilder://guide/errors. Ids in examples are placeholders: use real ones.
 
 START
@@ -621,7 +621,7 @@ Kind: draft. REST: `POST /agent/v1/edits/remove-component`.
 ### Description sent to the AI
 
 ```text
-Remove one section from a page. Removes the section from the draft. The page must still have the sections its page type requires, which is checked when the change is sent.
+Remove one section from a page. Removes the section from the draft. The page must still have the sections its page type requires, which is checked when the change is sent. If that section has custom CSS, the change always needs a person, even under a publish rule or always-allow.
 Use when: A whole section must go, for example a call-to-action pointing at something that no longer exists.
 Not when: Only a link or some words must go: remove_link or edit_text. The section is a donation form or embed: never allowed.
 First: get_page for the block_id.

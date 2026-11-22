@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { evaluateTargets, type ChangeTarget } from '../server/services/agent/changes'
 import { callOperation } from '../server/services/agent/operations'
 import { AppError } from '../server/services/errors'
-import { applyPageOps, createPage, getPage, readDoc, requirePage } from '../server/services/pages'
+import { applyPageOps, createPage, getPage, readDoc, requirePage, restoreVersion } from '../server/services/pages'
+import { authenticateAgent, enableAlwaysAllow } from '../server/services/agent/tokens'
 import { approveReview, submitPage } from '../server/services/reviews'
 import { createSitePart, editSitePart, requireSitePart, submitSitePart } from '../server/services/site-parts'
 import { richTextToMarkdown } from '../shared/agent/content'
 import { richTextFromParagraphs } from '../shared/richtext'
 import { IMG } from './helpers'
-import { PUBLISH_ALL, SIGNUP, code, drain, world, type World } from './agent-helpers'
+import { PASSWORD_FOR_TESTS, PUBLISH_ALL, SIGNUP, code, drain, world, type World } from './agent-helpers'
 
 const REASON = 'Testing the agent gateway'
 const call = (w: World, name: string, input: Record<string, unknown>) => callOperation(w.ctx, w.agent, name, input) as any
@@ -456,7 +457,7 @@ describe('custom CSS', () => {
     expect(call(w, 'list_changes', {}).changes).toHaveLength(0)
   })
 
-  it('flags a CSS text change even when the recorded action is edit_sections, and not a removal', async () => {
+  it('flags a CSS text change even when the recorded action is edit_sections', async () => {
     const changed = await world(PUBLISH_ALL)
     const hero = blockOf(changed, 'Hero')
     applyPageOps(changed.ctx, changed.admin, changed.pageId, requirePage(changed.ctx, changed.pageId).draftRevision, [{ op: 'set_block_css', blockId: hero.id, css: SHEET }])
@@ -480,15 +481,114 @@ describe('custom CSS', () => {
     const clearedEv = judge(cleared)
     expect(clearedEv.targets[0]!.facts.floor).toEqual(['custom_css'])
     expect(clearedEv.decision.outcome).toBe('review')
+  })
 
-    const removed = await world(PUBLISH_ALL)
-    const goneHero = blockOf(removed, 'Hero')
-    applyPageOps(removed.ctx, removed.admin, removed.pageId, requirePage(removed.ctx, removed.pageId).draftRevision, [{ op: 'set_block_css', blockId: goneHero.id, css: SHEET }])
-    await publishDraft(removed)
-    applyPageOps(removed.ctx, removed.admin, removed.pageId, requirePage(removed.ctx, removed.pageId).draftRevision, [{ op: 'remove_block', blockId: goneHero.id }])
-    const removedEv = judge(removed)
-    expect(removedEv.targets[0]!.facts.floor).not.toContain('custom_css')
-    expect(removedEv.decision.outcome).toBe('publish')
+  const SECTIONS = [{ label: 'Sections', actions: ['edit_sections'], result: 'publish' }]
+
+  async function publishCss(w: World) {
+    const hero = blockOf(w, 'Hero')
+    applyPageOps(w.ctx, w.admin, w.pageId, requirePage(w.ctx, w.pageId).draftRevision, [{ op: 'set_block_css', blockId: hero.id, css: SHEET }])
+    await publishDraft(w)
+    return hero.id
+  }
+
+  it('sends removal of a section that has CSS to review under an edit_sections publish rule', async () => {
+    const w = await world(SECTIONS)
+    const heroId = await publishCss(w)
+    const r = call(w, 'remove_component', { path: '/events', block_id: heroId, reason: REASON })
+    expect(r.change.targets[0].actions).toEqual(['edit_sections'])
+    expect(r.if_you_publish.outcome).toBe('goes_to_review')
+    expect(r.if_you_publish.reasons[0]).toMatch(/^Custom CSS always needs a person to review it\./)
+    const ev = judge(w)
+    expect(ev.targets[0]!.facts.actions).toEqual(['edit_sections'])
+    expect(ev.targets[0]!.facts.floor).toContain('custom_css')
+    expect(ev.decision.outcome).toBe('review')
+    const sent = call(w, 'publish_change', { change_id: r.change.id })
+    expect(sent.result).toMatchObject({ published: false, sent_for_review: true })
+    expect(sent.change.status).toBe('review')
+    const live = readDoc(w.ctx, requirePage(w.ctx, w.pageId).publishedVersionId!)
+    expect(live.blocks.find((b) => b.id === heroId)?.css).toBe(SHEET)
+  })
+
+  it('sends removal of a section that has CSS to review under always-allow', async () => {
+    const w = await world([])
+    await publishCss(w)
+    enableAlwaysAllow(w.ctx, w.admin, w.tokenId, { permanent: true, siteName: 'Test charity', password: PASSWORD_FOR_TESTS })
+    w.agent = authenticateAgent(w.ctx, w.secret, null)
+    const heroId = blockOf(w, 'Hero').id
+    const r = call(w, 'remove_component', { path: '/events', block_id: heroId, reason: REASON })
+    expect(r.if_you_publish.outcome).toBe('goes_to_review')
+    expect(r.if_you_publish.always_allow).toBe(false)
+    expect(r.if_you_publish.reasons[0]).toMatch(/^Custom CSS always needs a person to review it\./)
+    const ev = judge(w)
+    expect(ev.targets[0]!.facts.floor).toContain('custom_css')
+    expect(ev.decision.outcome).toBe('review')
+    expect(ev.decision.viaAlwaysAllow).toBe(false)
+  })
+
+  it('sends removal of a section that has CSS to review under a publish rule for every action', async () => {
+    const w = await world(PUBLISH_ALL)
+    const heroId = await publishCss(w)
+    applyPageOps(w.ctx, w.admin, w.pageId, requirePage(w.ctx, w.pageId).draftRevision, [{ op: 'remove_block', blockId: heroId }])
+    const ev = judge(w)
+    expect(ev.targets[0]!.facts.actions).toEqual(['edit_sections'])
+    expect(ev.targets[0]!.facts.floor).toContain('custom_css')
+    expect(ev.decision.outcome).toBe('review')
+    expect(ev.decision.reasons[0]).toMatch(/^Custom CSS always needs a person to review it\./)
+  })
+
+  it('still auto-publishes removal of a section that has no CSS under an edit_sections publish rule', async () => {
+    const w = await world(SECTIONS)
+    const richId = blockOf(w, 'RichText').id
+    const r = call(w, 'remove_component', { path: '/events', block_id: richId, reason: REASON })
+    expect(r.if_you_publish.outcome).toBe('goes_live')
+    const ev = judge(w)
+    expect(ev.targets[0]!.facts.floor).not.toContain('custom_css')
+    expect(ev.decision.outcome).toBe('publish')
+  })
+
+  it('lets a deny rule refuse removal of a section that has CSS before a draft is written', async () => {
+    const w = await world([{ label: 'No sections', actions: ['edit_sections'], result: 'deny' }, { label: 'Everything', actions: '*', result: 'publish' }])
+    const heroId = await publishCss(w)
+    const before = JSON.stringify(draftDoc(w))
+    expect(await code(() => call(w, 'remove_component', { path: '/events', block_id: heroId, reason: REASON }))).toBe('rule_denied')
+    expect(JSON.stringify(draftDoc(w))).toBe(before)
+    expect(call(w, 'list_changes', {}).changes).toHaveLength(0)
+  })
+
+  it('treats a page restore that drops a CSS section as a CSS change, including for undo', async () => {
+    const w = await world(PUBLISH_ALL)
+    const beforeId = requirePage(w.ctx, w.pageId).publishedVersionId!
+    applyPageOps(w.ctx, w.admin, w.pageId, requirePage(w.ctx, w.pageId).draftRevision, [{ op: 'add_block', block: { type: 'Quote', props: w.ctx.registry.get('Quote')!.sample, css: SHEET } }])
+    await publishDraft(w)
+    restoreVersion(w.ctx, w.admin, w.pageId, beforeId)
+    const ev = evaluateTargets(w.ctx, w.agent.token, [asSections(w)], { actions: ['undo_change'] })
+    expect(ev.targets[0]!.facts.actions).toEqual(['undo_change'])
+    expect(ev.targets[0]!.facts.floor).toContain('custom_css')
+    expect(ev.decision.outcome).toBe('review')
+    expect(ev.decision.reasons[0]).toMatch(/^Custom CSS always needs a person to review it\./)
+  })
+
+  it('sends an undo that removes a section added with CSS to review', async () => {
+    const { approveWholeChange } = await import('../server/services/agent/admin')
+    const w = await world([{ label: 'Sections and undo', actions: ['edit_sections', 'undo_change'], result: 'publish' }])
+    const add = call(w, 'add_component', { path: '/events', type: 'Quote', props: w.ctx.registry.get('Quote')!.sample, reason: REASON })
+    const quoteId = add.result.sections_now.find((s: { type: string }) => s.type === 'Quote').block_id as string
+    const set = call(w, 'set_block_css', { path: '/events', block_id: quoteId, css: SHEET, change_id: add.change.id, reason: REASON })
+    expect(set.if_you_publish.outcome).toBe('goes_to_review')
+    const sent = call(w, 'publish_change', { change_id: add.change.id })
+    expect(sent.result.sent_for_review).toBe(true)
+    w.setSelfApproval(true)
+    approveWholeChange(w.ctx, w.admin, add.change.id)
+    await drain(w)
+    const published = call(w, 'get_change', { change_id: add.change.id })
+    expect(published.change.status).toBe('published')
+    const u = call(w, 'undo_change', { change_id: add.change.id, reason: REASON })
+    expect(u.result.undo_goes_live).toBe(false)
+    expect(u.result.undo_sent_for_review).toBe(true)
+    expect(u.decision.reasons[0]).toMatch(/^Custom CSS always needs a person to review it\./)
+    const live = readDoc(w.ctx, requirePage(w.ctx, w.pageId).publishedVersionId!)
+    expect(live.blocks.find((b) => b.id === quoteId)?.css).toBe(SHEET)
   })
 })
 

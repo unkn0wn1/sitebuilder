@@ -161,6 +161,45 @@ describe('REST', () => {
   })
 })
 
+describe('removing a section that has custom CSS', () => {
+  it('stays pending review under an edit_sections publish rule, and the live page is unchanged', async () => {
+    const created = await admin.post('/pages', { title: 'Styled note', template: 'standard' })
+    const id = created.body.page.id as string
+    const sheet = 'a { color: #123456 }'
+    const added = await admin.post(`/pages/${id}/ops`, {
+      baseRevision: 0,
+      ops: [
+        { op: 'set_seo', description: 'A styled note' },
+        { op: 'add_block', block: { type: 'RichText', props: { content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Keep this.' }] }] } } } },
+        { op: 'add_block', block: { type: 'Quote', props: { text: 'They gave him a second chance.', attribution: 'A volunteer' } } },
+      ],
+    })
+    expect(added.status).toBe(200)
+    const quoteId = added.body.doc.blocks.find((b: { type: string }) => b.type === 'Quote').id as string
+    const styled = await admin.post(`/pages/${id}/ops`, { baseRevision: added.body.revision, ops: [{ op: 'set_block_css', blockId: quoteId, css: sheet }] })
+    expect(styled.status).toBe(200)
+    const sub = await admin.post(`/pages/${id}/submit`, {})
+    const ok = await admin.post(`/reviews/${sub.body.reviewId}/approve`, { versionId: sub.body.versionId })
+    expect((await admin.job(ok.body.jobId)).state).toBe('done')
+    const publishedVersionId = (await admin.get(`/pages/${id}`)).body.page.publishedVersionId as string
+
+    const made = await admin.post('/agent/tokens', { name: 'Section editor', access: 'draft', rules: [{ label: 'Sections', actions: ['edit_sections'], result: 'publish' }] })
+    expect(made.status).toBe(200)
+    const token = made.body.secret as string
+    const removed = await rest('/edits/remove-component', { method: 'POST', token, body: { page_id: id, block_id: quoteId, reason: 'The owner asked to remove the styled quote.' } })
+    expect(removed.status).toBe(200)
+    expect(removed.body.if_you_publish.outcome).toBe('goes_to_review')
+    expect(removed.body.if_you_publish.reasons[0]).toMatch(/Custom CSS always needs a person to review it/)
+    const changeId = removed.body.change.id as string
+    const published = await rest(`/changes/${changeId}/publish`, { method: 'POST', token, body: {} })
+    expect(published.status).toBe(200)
+    expect(published.body.result.published).toBe(false)
+    expect(published.body.change.status).toBe('review')
+    const live = await admin.get(`/pages/${id}/versions/${publishedVersionId}`)
+    expect(live.body.doc.blocks.find((b: { id: string }) => b.id === quoteId).css).toBe(sheet)
+  })
+})
+
 describe('MCP', () => {
   it('initialises, lists, and runs tools', async () => {
     const init = await mcp('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } })

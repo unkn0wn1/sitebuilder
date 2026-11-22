@@ -1,5 +1,6 @@
 // Approving or publishing a review that changes custom CSS needs design.css (admin).
 // Storing CSS on a draft does not. Agents and editors can carry it; an admin has to let it go live.
+// pageCssChanged already treats a removed section that had non-empty CSS as a change, so this gate already requires design.css for that review.
 import { eq } from 'drizzle-orm'
 import { brandCssChanged, pageCssChanged } from '../../shared/css/changed'
 import { can } from '../../shared/roles'

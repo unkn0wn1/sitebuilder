@@ -324,7 +324,7 @@ export function getSite(ctx: ServiceCtx, agent: SignedInAgent) {
         'Theme, colours, fonts, logo',
         'Site settings other than the AI personality. A draft token may propose one. A person approves it. Users, tokens, secrets, and every other setting stay closed.',
         'Raw HTML, scripts, tracking',
-        'Section CSS is drafted with set_block_css and always needs a person. Site-wide CSS has no agent tool.',
+        'Section CSS is drafted with set_block_css and always needs a person. Removing a section that has custom CSS also needs a person. Site-wide CSS has no agent tool.',
       ],
     },
     actions: Object.fromEntries((Object.keys(ACTION_LABELS) as AgentAction[]).map((a) => [a, ACTION_LABELS[a]])),
