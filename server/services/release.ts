@@ -13,6 +13,7 @@ import { mediaDir as defaultMediaDir } from '../utils/state'
 import {
   BUNDLE_ID,
   EMBED_JS,
+  HEADER_JS,
   htmlPathFor,
   loadPageDoc,
   loadSiteRenderContext,
@@ -154,13 +155,18 @@ function writeSiteFiles(ctx: ServiceCtx, dest: string, manifest: ReleaseManifest
   writeNew(join(dest, 'cache-tags.map'), nginxMapLines(tagEntries))
 
   const cspEntries: { uri: string; value: string }[] = []
+  let needsHeaderJs = false
   for (const [id, entry] of Object.entries(manifest.pages)) {
     const file = join(dest, htmlPathFor(entry.path))
     if (!existsSync(file)) continue
     const html = readFileSync(file, 'utf8')
+    if (html.includes('src="/header.js"')) needsHeaderJs = true
     const match = html.match(/http-equiv="Content-Security-Policy" content="([^"]*)"/)
     if (match?.[1]) cspEntries.push({ uri: entry.path, value: unescapeHtml(match[1]) })
   }
+  // Write header.js into this release only. Do not delete it here: a hard-linked copy from the previous
+  // release stays put, and nothing outside this release directory is removed.
+  if (needsHeaderJs) writeNew(join(dest, 'header.js'), HEADER_JS)
   writeNew(join(dest, 'csp.map'), nginxMapLines(cspEntries))
 
   const rows = ctx.db.select().from(redirects).where(eq(redirects.siteId, ctx.siteId)).all()

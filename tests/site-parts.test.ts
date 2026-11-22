@@ -188,6 +188,76 @@ describe('site parts saved before the optional shell fields', () => {
     expect(sitePartLinks('header', parsedOld.doc).map((l) => l.path)).toEqual(['cta.target'])
   })
 
+  it('parses headers and menus saved before see-through and photo tiles', () => {
+    const header = validateSitePartDoc('header', oldHeader)
+    const headerBare = validateSitePartDoc('header', { schemaVersion: 1 })
+    expect(header.ok && headerBare.ok).toBe(true)
+    if (!header.ok || !headerBare.ok) return
+    expect(header.doc.overHero).toBe(false)
+    expect(headerBare.doc.overHero).toBe(false)
+
+    const oldMenu = {
+      schemaVersion: 1,
+      items: [
+        { id: 'b_home0001', label: 'Home', target: { type: 'url', url: '/' } },
+        {
+          id: 'b_about001',
+          label: 'About',
+          target: { type: 'url', url: '/about' },
+          children: [{ id: 'b_team0001', label: 'Our team', target: { type: 'url', url: '/about/team' } }],
+        },
+      ],
+    }
+    const menu = validateSitePartDoc('menu', oldMenu)
+    expect(menu.ok).toBe(true)
+    if (!menu.ok) return
+    expect(menu.doc.items[1]!.children[0]!.featured).toBeUndefined()
+    expect(menu.doc.items[1]!.children[0]!.image).toBeUndefined()
+    expect(validateSitePartDoc('menu', menu.doc).ok).toBe(true)
+
+    const explicit = validateSitePartDoc('menu', {
+      schemaVersion: 1,
+      items: [
+        {
+          id: 'b_about001',
+          label: 'About',
+          target: { type: 'url', url: '/about' },
+          children: [{ id: 'b_team0001', label: 'Our team', target: { type: 'url', url: '/about/team' }, featured: false }],
+        },
+      ],
+    })
+    expect(explicit.ok).toBe(true)
+    if (!explicit.ok) return
+    expect(explicit.doc.items[0]!.children[0]!.featured).toBe(false)
+    expect(explicit.doc.items[0]!.children[0]!.image).toBeUndefined()
+  })
+
+  it('accepts up to five photo tiles on a menu item and rejects a sixth', () => {
+    const child = (n: number, featured: boolean) => ({
+      id: `b_tile000${n}`,
+      label: `Tile ${n}`,
+      target: { type: 'url' as const, url: `/tile-${n}` },
+      featured,
+      image: { media: 'med_00000000000000000000000009', alt: `Tile ${n}` },
+    })
+    const five = validateSitePartDoc('menu', {
+      schemaVersion: 1,
+      items: [{ id: 'b_about001', label: 'About', target: { type: 'url', url: '/about' }, children: [1, 2, 3, 4, 5].map((n) => child(n, true)) }],
+    })
+    expect(five.ok).toBe(true)
+    const six = validateSitePartDoc('menu', {
+      schemaVersion: 1,
+      items: [{ id: 'b_about001', label: 'About', target: { type: 'url', url: '/about' }, children: [1, 2, 3, 4, 5, 6].map((n) => child(n, true)) }],
+    })
+    expect(six.ok).toBe(false)
+    if (six.ok) return
+    expect(six.issues.some((issue) => issue.message === 'Feature at most 5 tiles per menu item.')).toBe(true)
+    expect(validateSitePartDoc('menu', {
+      schemaVersion: 1,
+      items: [{ id: 'b_about001', label: 'About', target: { type: 'url', url: '/about' }, children: [{ id: 'b_tile0001', label: 'Tile', target: { type: 'url', url: '/t' }, featured: true, image: { media: 'not-a-photo' } }] }],
+    }).ok).toBe(false)
+  })
+
   it('saves an old-shape header, footer and banner through the editor save path', () => {
     const s = setup()
     const headerId = createSitePart(s.ctx, 'header', 'header', 'Header')

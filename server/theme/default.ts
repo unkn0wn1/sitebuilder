@@ -147,3 +147,25 @@ for (var root of document.querySelectorAll("[data-countdown]")) {
 }
 `
 
+/** See-through header, served as /header.js only when a page asks for it. Progressive: without it the header stays solid. */
+export const HEADER_JS = `// Transparent over a hero at the top of the page, solid once scrolled or while a menu is open.
+// A banner strip above the header stays in the page flow; the fixed header sits just below it until it scrolls away.
+(function () {
+  var over = document.querySelector('.site-header-over');
+  var first = document.querySelector('main > :first-child');
+  var strip = document.querySelector('.banner');
+  if (!over || !first || !/ hero /.test(' ' + first.className + ' ')) return;
+  over.classList.add('js-over');
+  var syncOver = function () {
+    var solid = window.scrollY > 40 || !!over.querySelector('details[open]');
+    over.classList.toggle('is-solid', solid);
+    var gap = strip ? Math.max(0, Math.round(strip.getBoundingClientRect().bottom)) : 0;
+    over.style.setProperty('--strip', gap + 'px');
+  };
+  window.addEventListener('resize', syncOver);
+  window.addEventListener('scroll', syncOver, { passive: true });
+  over.addEventListener('toggle', syncOver, true);
+  syncOver();
+})();
+`
+

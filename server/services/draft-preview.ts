@@ -13,7 +13,7 @@ import { requireSitePart } from './site-parts'
 
 export const PREVIEW_MEDIA_PREFIX = '/api/v1/preview/media/'
 export const PREVIEW_ASSET_PREFIX = '/api/v1/preview/assets/'
-export const PREVIEW_ASSETS = ['embed.js'] as const
+export const PREVIEW_ASSETS = ['embed.js', 'header.js'] as const
 
 export async function renderDraftPreview(ctx: ServiceCtx, raw: unknown, opts: { pageId?: string; path?: string } = {}) {
   const doc: PageDoc = migratePageDoc(raw, ctx.registry)
@@ -85,7 +85,7 @@ export function previewHtml(html: string, csp: string): string {
   const policy = previewCsp(csp)
   return html
     .replace(/(["'(\s,])\/media\//g, `$1${PREVIEW_MEDIA_PREFIX}`)
-    .replace(/src="\/(embed)\.js"/g, (_m, name: string) => `src="${PREVIEW_ASSET_PREFIX}${name}.js"`)
+    .replace(/src="\/(embed|header)\.js"/g, (_m, name: string) => `src="${PREVIEW_ASSET_PREFIX}${name}.js"`)
     .replace(/<script src="\/analytics\.js"[^>]*><\/script>/g, '')
     .replace(/<meta http-equiv="Content-Security-Policy" content="[^"]*">/, `<meta http-equiv="Content-Security-Policy" content="${policy.replace(/"/g, '&quot;')}">`)
 }
