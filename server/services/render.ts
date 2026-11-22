@@ -210,11 +210,18 @@ function widthsForMedia(entry: MediaCatalogEntry | undefined, cropRatio?: string
   return [...DEFAULT_WIDTHS]
 }
 
+// 1160px is the viewport where the 70rem wrap, plus two 1.25rem gutters, stops growing.
+const HERO_SIZES = '100vw'
+const GRID_SIZES = '(min-width: 1160px) 364px, (min-width: 1024px) 33vw, (min-width: 700px) 50vw, 100vw'
+const HALF_SIZES = '(min-width: 1160px) 560px, (min-width: 700px) 50vw, 100vw'
+const FIGURE_SIZES = '(min-width: 1160px) 70rem, calc(100vw - 2.5rem)'
+const TRUST_SIZES = '10rem'
+
 export function pictureVNode(
   image: ImageRef | undefined,
   site: SiteRenderContext,
   bag: Collector,
-  opts: { slot?: { width: number; height: number }; eager?: boolean; class?: string },
+  opts: { slot?: { width: number; height: number }; eager?: boolean; class?: string; sizes: string },
 ): VNode | null {
   if (!image) return null
   const entry = site.media[image.media]
@@ -247,8 +254,8 @@ export function pictureVNode(
   const width = opts.slot?.width ?? entry?.width ?? fallbackW
   const height = opts.slot?.height ?? entry?.height ?? undefined
   return h('picture', { class: opts.class }, [
-    h('source', { type: 'image/avif', srcset: avif, sizes: '100vw' }),
-    h('source', { type: 'image/webp', srcset: webp, sizes: '100vw' }),
+    h('source', { type: 'image/avif', srcset: avif, sizes: opts.sizes }),
+    h('source', { type: 'image/webp', srcset: webp, sizes: opts.sizes }),
     h('img', {
       src: `/media/${base}-${fallbackW}.webp`,
       alt,
@@ -357,7 +364,7 @@ function renderVideoHeroSection(
   const mime = clip?.mime === 'video/webm' ? 'video/webm' : 'video/mp4'
   return h('section', { class: reserve ? 'hero hero-lead' : 'hero', 'aria-label': String(heading ?? '') }, [
     ...(reserve ? [reserve] : []),
-    pictureVNode(poster, site, bag, { slot: { width: 1280, height: 720 }, eager: firstHero, class: 'hero-media' }),
+    pictureVNode(poster, site, bag, { slot: { width: 1280, height: 720 }, eager: firstHero, class: 'hero-media', sizes: HERO_SIZES }),
     playVideo
       ? h('video', { class: 'hero-video', autoplay: true, muted: true, loop: true, playsinline: true, preload: 'none', 'aria-hidden': 'true' }, [
           h('source', { src: `/media/${videoId}.${ext}`, type: mime, media: '(min-width: 641px)' }),
@@ -411,7 +418,7 @@ function renderHeroCarousel(block: StoredBlock, site: SiteRenderContext, bag: Co
         const slideSubheading = slideText(slide.subheading)
         const image = (slide.image as ImageRef | undefined) ?? (p.poster as ImageRef | undefined) ?? (p.image as ImageRef | undefined)
         const children: VNode[] = []
-        const picture = pictureVNode(image, site, bag, { slot: { width: 1280, height: 720 }, eager: firstHero && index === 0, class: 'hero-media' })
+        const picture = pictureVNode(image, site, bag, { slot: { width: 1280, height: 720 }, eager: firstHero && index === 0, class: 'hero-media', sizes: HERO_SIZES })
         if (picture) children.push(picture)
         if (videoMode) {
           const video = carouselVideo(slide, site, bag)
@@ -500,7 +507,7 @@ function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector
       }
       return h('section', { class: reserve ? 'hero hero-lead' : 'hero', 'aria-label': String(p.heading ?? '') }, [
         ...(reserve ? [reserve] : []),
-        pictureVNode(p.image as ImageRef | undefined, site, bag, { slot: { width: 1280, height: 720 }, eager: firstHero, class: 'hero-media' }),
+        pictureVNode(p.image as ImageRef | undefined, site, bag, { slot: { width: 1280, height: 720 }, eager: firstHero, class: 'hero-media', sizes: HERO_SIZES }),
         h('div', { class: 'hero-inner' }, [
           h('h1', String(p.heading ?? '')),
           p.subheading ? h('p', String(p.subheading)) : null,
@@ -520,14 +527,14 @@ function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector
             p.heading ? h('h2', String(p.heading)) : null,
             ...renderRichText(p.content as RichTextDoc, bag),
           ]),
-          pictureVNode(p.image as ImageRef | undefined, site, bag, { slot: { width: 960, height: 720 } }),
+          pictureVNode(p.image as ImageRef | undefined, site, bag, { slot: { width: 960, height: 720 }, sizes: HALF_SIZES }),
         ]),
       )
     }
     case 'Image':
       return wrapSection(
         h('figure', { class: 'figure' }, [
-          pictureVNode(p.image as ImageRef | undefined, site, bag, { slot: { width: 1280, height: 853 } }),
+          pictureVNode(p.image as ImageRef | undefined, site, bag, { slot: { width: 1280, height: 853 }, sizes: FIGURE_SIZES }),
           p.caption ? h('figcaption', String(p.caption)) : null,
         ]),
       )
@@ -535,7 +542,7 @@ function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector
       const images = (p.images as ImageRef[] | undefined) ?? []
       return wrapSection([
         p.heading ? h('h2', String(p.heading)) : null,
-        h('div', { class: 'gallery' }, images.map((img) => pictureVNode(img, site, bag, { slot: { width: 800, height: 800 } }))),
+        h('div', { class: 'gallery' }, images.map((img) => pictureVNode(img, site, bag, { slot: { width: 800, height: 800 }, sizes: GRID_SIZES }))),
       ])
     }
     case 'Quote':
@@ -558,7 +565,7 @@ function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector
           { class: 'cards' },
           cards.map((card) =>
             h('article', { class: 'card' }, [
-              pictureVNode(card.image, site, bag, { slot: { width: 640, height: 480 } }),
+              pictureVNode(card.image, site, bag, { slot: { width: 640, height: 480 }, sizes: GRID_SIZES }),
               h('div', { class: 'card-body' }, [
                 h('h3', card.title),
                 card.text ? h('p', card.text) : null,
@@ -658,7 +665,7 @@ function renderImpactTiers(p: Record<string, unknown>, site: SiteRenderContext, 
         if (prefill.label) attrs['data-donate-label'] = prefill.label
         return h('article', { class: 'tier' }, [
           h('a', attrs, [
-            pictureVNode(item.image, site, bag, { slot: { width: 640, height: 480 } }),
+            pictureVNode(item.image, site, bag, { slot: { width: 640, height: 480 }, sizes: GRID_SIZES }),
             h('div', { class: 'tier-body' }, [
               h('p', { class: 'tier-amount' }, item.amount),
               item.title ? h('h3', item.title) : null,
@@ -719,8 +726,8 @@ function renderStoryBeforeAfter(p: Record<string, unknown>, site: SiteRenderCont
     p.heading ? h('h2', String(p.heading)) : null,
     h('div', { class: 'prose' }, renderRichText(p.content as RichTextDoc, bag)),
     h('div', { class: 'before-after' }, [
-      h('figure', [pictureVNode(p.before as ImageRef | undefined, site, bag, { slot: { width: 960, height: 720 } }), h('figcaption', String(p.beforeCaption ?? 'Before'))]),
-      h('figure', [pictureVNode(p.after as ImageRef | undefined, site, bag, { slot: { width: 960, height: 720 } }), h('figcaption', String(p.afterCaption ?? 'After'))]),
+      h('figure', [pictureVNode(p.before as ImageRef | undefined, site, bag, { slot: { width: 960, height: 720 }, sizes: HALF_SIZES }), h('figcaption', String(p.beforeCaption ?? 'Before'))]),
+      h('figure', [pictureVNode(p.after as ImageRef | undefined, site, bag, { slot: { width: 960, height: 720 }, sizes: HALF_SIZES }), h('figcaption', String(p.afterCaption ?? 'After'))]),
     ]),
     p.quote ? h('blockquote', { class: 'quote' }, [h('p', String(p.quote)), p.attribution ? h('footer', String(p.attribution)) : null]) : null,
     linkButton(asLink(p.cta), bag),
@@ -760,7 +767,7 @@ function renderTrustStrip(p: Record<string, unknown>, site: SiteRenderContext, b
             { class: 'trust-strip' },
             group.items.map((item) => {
               const badge = item.badgeHtml ? applyBadgeHtml(item.badgeHtml, bag) : ''
-              const logo = pictureVNode(item.logo, site, bag, { class: 'trust-logo' })
+              const logo = pictureVNode(item.logo, site, bag, { class: 'trust-logo', sizes: TRUST_SIZES })
               const inner: Array<VNode | string | null> = [
                 badge ? h('div', { class: 'trust-badge', innerHTML: badge }) : null,
                 logo,
