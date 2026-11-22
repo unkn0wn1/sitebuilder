@@ -31,6 +31,9 @@ export const ID_PREFIXES = {
   agentToken: 'agt',
   agentChange: 'chg',
   agentSoulProposal: 'slp',
+  plugin: 'plg',
+  pluginFile: 'plf',
+  pluginProposal: 'prp',
 } as const
 
 export type IdKind = keyof typeof ID_PREFIXES

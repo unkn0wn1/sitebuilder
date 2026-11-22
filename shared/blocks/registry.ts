@@ -44,7 +44,11 @@ export function createRegistry(defs: BlockDefinition[]): BlockRegistry {
 
     migrate(block) {
       const def = byType.get(block.type)
-      if (!def) throw new BlockMigrationError(`Unknown section type "${block.type}".`)
+      // A slash means a plugin block. When that plugin is off or gone, keep the stored section.
+      if (!def) {
+        if (block.type.includes('/')) return block
+        throw new BlockMigrationError(`Unknown section type "${block.type}".`)
+      }
       if (block.v > def.version) throw new BlockMigrationError(`Section ${block.id} was written by a newer version (${block.type} v${block.v}).`)
       let props = block.props
       for (let v = block.v; v < def.version; v++) {
@@ -57,7 +61,10 @@ export function createRegistry(defs: BlockDefinition[]): BlockRegistry {
 
     validate(block, pathPrefix = 'props') {
       const def = byType.get(block.type)
-      if (!def) return { ok: false, issues: [{ path: 'type', message: `"${block.type}" is not an allowed section.` }] }
+      if (!def) {
+        if (block.type.includes('/')) return { ok: true, props: block.props }
+        return { ok: false, issues: [{ path: 'type', message: `"${block.type}" is not an allowed section.` }] }
+      }
       if (block.v !== def.version) return { ok: false, issues: [{ path: 'v', message: 'Section needs migrating before it can be checked.' }] }
       const parsed = def.props.safeParse(block.props)
       if (!parsed.success) return { ok: false, issues: zodIssues(parsed.error, pathPrefix) }

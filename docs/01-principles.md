@@ -19,7 +19,7 @@ Every design decision is checked against these. When two pull in different direc
 
 ## 3. Guardrails by design, not by policy
 
-- The AI never writes HTML or JavaScript. It may draft section CSS through the same sanitiser and scope as a person, and a person must approve it. It does not write site-wide CSS. It can only call tools that add, edit or move approved blocks, or draft that section CSS.
+- The AI never writes HTML or JavaScript. It may draft section CSS through the same sanitiser and scope as a person, and a person must approve it. It does not write site-wide CSS. It can only call tools that add, edit or move approved blocks, or draft that section CSS. It may propose a declarative plugin, which a person approves before it exists.
 - Every change is validated against the block schemas and the locked brand.
 - Nothing is published without a human approving it.
 - Every change is recorded and can be undone, and history is kept as versions. Anything can be rolled back.

@@ -35,7 +35,7 @@ sitebuilder does one thing: lets people build and update fast, beautiful website
 
 These are deliberate. They keep the project small, fast and secure.
 
-- **No plugin marketplace.** Functionality comes from a curated block library. New blocks are added through code review, not installed by anyone at runtime.
+- **No public plugin marketplace.** Admins can install a declarative plugin (a checked manifest, templates and CSS, no server code and no visitor JavaScript). New code blocks still go through review. Agents do not put HTML or JavaScript on a page.
 - **No payments.** Donations and payments come from embedded forms (for example Virtuous).
 - **No ecommerce.** No shop, cart, stock or checkout. Embed a dedicated shop if needed.
 - **No visitor accounts or memberships.** No logins, paywalls or member areas on the public site.
