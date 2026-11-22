@@ -3,7 +3,7 @@
 // with an atomic symlink replace. sitemap.xml, robots.txt, nginx maps and the dependency
 // map are rewritten on every publish.
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, symlinkSync, unlinkSync, writeFileSync, linkSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import { eq } from 'drizzle-orm'
 import { redirects, releases, type ReleaseManifest } from '../db/schema'
 import type { ServiceCtx } from './context'
@@ -225,11 +225,24 @@ export function hardLinkCopy(src: string, dest: string) {
   }
 }
 
-/** Write a file, breaking any hard link to the previous release first. */
-export function writeNew(path: string, content: string | Buffer) {
-  mkdirSync(dirname(path), { recursive: true })
-  if (existsSync(path)) unlinkSync(path)
-  writeFileSync(path, content)
+let nextWrite = 0
+
+/** Replace `filePath` by renaming a new file over it. The existing inode is never opened for writing, so a hard link from the previous release keeps the old bytes. */
+export function writeNew(filePath: string, content: string | Buffer) {
+  const dir = dirname(filePath)
+  mkdirSync(dir, { recursive: true })
+  const tmp = join(dir, `.${basename(filePath)}.${process.pid}.${nextWrite++}.tmp`)
+  try {
+    writeFileSync(tmp, content)
+    renameSync(tmp, filePath)
+  } catch (error) {
+    try {
+      unlinkSync(tmp)
+    } catch {
+      // The temp was not created, or rename already took it.
+    }
+    throw error
+  }
 }
 
 export function readCurrentReleaseId(root: string): string | null {

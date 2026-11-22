@@ -61,6 +61,7 @@ interface PublishPayload {
   reviewId?: string
   unpublishPageId?: string
   redirectTo?: string | null
+  rebuild?: 'settings'
 }
 
 /** The publish job. One at a time (publish lane). */
@@ -68,6 +69,13 @@ export function createPublishHandler(writer: ReleaseWriter = noopReleaseWriter):
   return {
     async run(ctx, job) {
       const payload = job.payload as PublishPayload
+      // A settings save re-renders the live site. It is not a review or an unpublish.
+      if (payload.rebuild === 'settings') {
+        if (!currentRelease(ctx)) return {}
+        const result = await rebuildPublishedSite(ctx, writer)
+        audit(ctx, 'system', 'site.rebuilt', { type: 'site', id: ctx.siteId }, { reason: 'settings' })
+        return { releaseId: result.releaseId }
+      }
       const prev = currentRelease(ctx)
       const manifest: ReleaseManifest = structuredClone(prev?.manifest ?? EMPTY_MANIFEST)
       const releaseId = newId('release', ctx.now().getTime())
@@ -225,7 +233,9 @@ export function createPublishHandler(writer: ReleaseWriter = noopReleaseWriter):
       const payload = job.payload as PublishPayload
       const message = error instanceof Error ? error.message : String(error)
       inTx(ctx, () => {
-        if (payload.reviewId) {
+        if (payload.rebuild === 'settings') {
+          notify(ctx, usersWithRoles(ctx, ['admin']), 'publish_failed', `Publishing failed: ${message}`, { type: 'site', id: ctx.siteId })
+        } else if (payload.reviewId) {
           const review = requireReview(ctx, payload.reviewId)
           // Back to pending, so an approver can retry by approving again.
           ctx.db.update(reviews).set({ state: 'pending', decisionComment: `Publish failed: ${message}` }).where(eq(reviews.id, review.id)).run()

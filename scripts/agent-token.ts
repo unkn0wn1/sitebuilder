@@ -1,5 +1,5 @@
 #!/usr/bin/env tsx
-// Make, list, revoke and pause agent tokens from the command line (the agent gateway has no Settings screen yet).
+// Make, list, revoke and pause agent tokens from the command line. Settings, Agents does the same in the app; this script is for operators and scripts.
 // The secret is printed once. Only its hash is stored. See docs/agent-gateway.md.
 //
 //   npx tsx scripts/agent-token.ts presets

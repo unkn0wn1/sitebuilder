@@ -29,8 +29,8 @@ export const ACTION_LABELS: Record<AgentAction, string> = {
 
 /** Sections an agent may never add, change, move or remove, even as a draft. They hold donation forms. */
 export const NEVER_BLOCK_TYPES = ['DonationEmbed', 'Embed'] as const
-/** Props that bind a section to a form, an embed or a data source. Agents may not set or change them. */
-export const NEVER_PROP_KEYS = ['embed', 'source', 'campaignId'] as const
+/** Props that bind a section to a form, an embed, a data source, or badge HTML. Agents may not set or change them. */
+export const NEVER_PROP_KEYS = ['embed', 'source', 'campaignId', 'badgeHtml'] as const
 /** Sections that show or ask for money. Agents may draft changes to them, but they never publish without a person. */
 export const MONEY_BLOCK_TYPES = ['ImpactTiers', 'DonationProgress', 'MatchBanner'] as const
 

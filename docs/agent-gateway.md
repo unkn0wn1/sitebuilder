@@ -46,7 +46,7 @@ Bypass switches off Cloudflare's Access logging for those requests. The protecti
 
 ## Make a token
 
-A token has an **owner** (an admin; the token acts as them), an **access level** (`read` or `draft`), **rules**, optional **expiry** and **IP allow-list**, and **rate limits**. The secret starts `sbt_`, is shown once, and is stored only as a hash.
+A token has an **owner** (an admin; the token acts as them), an **access level** (`read` or `draft`), **rules**, optional **expiry** and **IP allow-list**, and **rate limits**. The secret starts `sbt_`, is shown once, and is stored only as a hash. The allow-list is checked against the last `X-Forwarded-For` entry. The shipped nginx overwrites that header with `$remote_addr` after Cloudflare real-ip (`deploy/cloudflare-real-ip.conf`) and clears `CF-Connecting-IP`. The app does not read `CF-Connecting-IP`. Anyone who runs without that nginx must overwrite `X-Forwarded-For` the same way. Appending, or trusting `CF-Connecting-IP` in the app, is not what this build does.
 
 From the command line, on the server:
 
@@ -64,7 +64,7 @@ npm run agent-token -- pause-all     # the kill switch for every token
 npm run agent-token -- resume-all
 ```
 
-Or by the admin API (signed in as an admin, with the usual `Origin` header): `POST /api/v1/agent/tokens` with `{ "name", "access", "rules", "expiresAt", "ipAllow", "limits" }`. There is no Settings screen yet.
+Or by the admin API (signed in as an admin, with the usual `Origin` header): `POST /api/v1/agent/tokens` with `{ "name", "access", "rules", "expiresAt", "ipAllow", "limits" }`. Tokens and rules are also on the Settings screen, under Agents (`app/pages/settings/agents/`).
 
 ### Presets
 
@@ -194,7 +194,7 @@ curl -s -X POST https://builder.example.org/agent/v1/edits/remove-link -H "Autho
 
 On connect the MCP server sends instructions, and offers:
 
-- **Tools**: 29 of them, each with a long description (what, when, when not, before, effect, permission, returns, errors, example) and a full input schema with a description and example on every field.
+- **Tools**: 37 of them, each with a long description (what, when, when not, before, effect, permission, returns, errors, example) and a full input schema with a description and example on every field.
 - **Resources**: guides at `sitebuilder://guide/overview`, `tools`, `rules`, `content-model`, `markdown`, `errors`, and `sitebuilder://you` (its own live permissions).
 - **Prompts and recipes**, with the same text as resources at `sitebuilder://recipe/<name>`: `take_a_link_down`, `update_policy_text`, `change_words`, `edit_a_section`, `create_a_page`, `publish_or_ask`, `undo_a_change`, `menu_and_banner`, `when_you_are_refused`.
 
@@ -247,6 +247,22 @@ An agent will not edit a page that is **waiting for approval** (it would withdra
 
 Per-token limits can be changed when the token is made or edited.
 
+### How much an AI has to load
+
+We design for models with at least 256k tokens of context, and keep everything an agent loads from us inside 128k tokens, so the other half is free for the conversation. The split lives in `shared/agent/context-budget.ts` and `tests/agent-mcp.test.ts` checks the real text against it. Characters are counted at 3 a token, which overcounts English and is about right for JSON.
+
+| Item | Budget (tokens) | Today |
+| --- | --- | --- |
+| Server instructions | 4,000 | about 5,700 characters |
+| Tool list (`tools/list`: names, descriptions, schemas) | 48,000 | about 100,000 characters |
+| Guides and recipes | 18,000 | about 40,000 characters |
+| Rules (`get_site` with a token's rules) | 10,000 | rules are refused on save above 18,000 characters |
+| Behaviours | 12,000 | reserved, not built |
+| soul.md (AI personality) | 16,000 | reserved, not built |
+| Headroom | 20,000 | |
+
+Some clients cut text shorter than this. Claude Code keeps 2,048 characters of each tool description and of the server instructions, and Codex keeps about 1,000 bytes of a tool description for plugin-installed servers. So every tool description stays within 2,048 characters, its first line (what the tool is and does) within 1,000 bytes, and the server instructions open with a short ESSENTIALS block that stands alone within 2,048 characters. The full instructions are also the resource `sitebuilder://guide/instructions`.
+
 ## How text and links are found
 
 - **Text** is the words a visitor reads: headings, paragraphs, buttons, captions, SEO description, menu labels. Not amounts, ids, image settings or code. Rich text is searched one run at a time, so a phrase that is partly bold or a link is found in parts.
@@ -290,4 +306,4 @@ Against a demo site first, with a `drafts` token:
 
 ## What is not built yet
 
-OAuth for connector screens (deferred on purpose: bearer tokens are fine for now), a Settings screen for tokens and rules, rendered preview links, unpublishing or deleting pages by an agent, building a whole multi-page site in one go, and alerts to Slack or a webhook. See the [plan](agent-gateway-plan.md).
+OAuth for connector screens (bearer tokens remain the supported way). An agent still cannot unpublish or delete an arbitrary page. Undo can take offline a page that the same token created. See the [plan](agent-gateway-plan.md).

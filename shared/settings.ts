@@ -16,6 +16,12 @@ export const trackingSchema = z
   })
   .strict()
 
+/** True when both ids are set. The public script then loads Tag Manager and leaves out the separate GA4 tag. */
+export function ga4SkippedBecauseGtm(tracking: { ga4?: string | null; gtm?: string | null }): boolean {
+  const filled = (value: string | null | undefined) => !!value?.trim()
+  return filled(tracking.ga4) && filled(tracking.gtm)
+}
+
 export const siteSettingsSchema = z
   .object({
     titlePattern: z.string().trim().max(80).default('{page} | {site}'),

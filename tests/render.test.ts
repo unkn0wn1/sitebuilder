@@ -1,10 +1,11 @@
-import { mkdtempSync, readFileSync, statSync, existsSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, mkdirSync, readFileSync, statSync, existsSync, writeFileSync } from 'node:fs'
 import sharp from 'sharp'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
-import { jobs, redirects, sites } from '../server/db/schema'
+import { describe, expect, it, vi } from 'vitest'
+import { auditEvents, jobs, redirects, releases, sites } from '../server/db/schema'
 import { createPurgeCacheHandler, setPurgeHttp } from '../server/services/cloudflare'
 import { editBrand, submitBrand } from '../server/services/brand'
 import { createMediaRenditionsHandler, updateMedia, uploadMedia } from '../server/services/media'
@@ -19,6 +20,8 @@ import {
   htmlPathFor,
   nginxMapLines,
   publicUrl,
+  redirectsMap,
+  renderAnalyticsJs,
   renderPageHtml,
   robotsTxt,
   siteOrigin,
@@ -30,7 +33,19 @@ import { defaultBrandDoc } from '../shared/brand'
 import { defaultSitePartDoc, type HeaderDoc } from '../shared/site-parts'
 import { richTextFromParagraphs } from '../shared/richtext'
 import { runJobsOnce } from '../server/services/jobs'
+import { updateSettings } from '../server/services/settings'
 import { IMG, setup } from './helpers'
+
+/** Structural newlines between records are fine. A value must not contain `$`, a raw newline, or an unescaped quote. */
+function assertNginxMapSafe(text: string) {
+  expect(text).not.toContain('$')
+  const lines = text.split('\n')
+  expect(lines.at(-1)).toBe('')
+  for (const line of lines.slice(0, -1)) {
+    const unescaped = line.replace(/\\"/g, '').replace(/\\\\/g, '')
+    expect(unescaped).toMatch(/^"[^"]*" "[^"]*";$/)
+  }
+}
 
 function site(overrides: Partial<SiteRenderContext> = {}): SiteRenderContext {
   return {
@@ -128,10 +143,109 @@ describe('public-site renderer', () => {
 
   it('lists both pretty and file URIs in an nginx map', () => {
     const map = nginxMapLines([{ uri: '/about', value: 'page-pg_about shell' }])
-    expect(map).toContain('"/about" "page-pg_about shell";')
-    expect(map).toContain('"/about/" "page-pg_about shell";')
-    expect(map).toContain('"/about/index.html" "page-pg_about shell";')
+    expect(map).toBe('"/about" "page-pg_about shell";\n"/about/" "page-pg_about shell";\n"/about/index.html" "page-pg_about shell";\n')
     expect(publicUrl('https://example.org', '/about')).toBe('https://example.org/about')
+  })
+
+  it('never writes a raw dollar, newline or unescaped quote into an nginx map', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const tags = nginxMapLines([
+        { uri: '/about', value: 'page-pg_about shell' },
+        { uri: '/evil$', value: 'page-x shell' },
+        { uri: '/bad', value: 'script-src $evil' },
+        { uri: '/nl\n', value: 'page-x shell' },
+        { uri: '/ctl', value: 'page\u0001ok' },
+        { uri: '/quote"', value: 'has "quote"' },
+      ])
+      assertNginxMapSafe(tags)
+      expect(tags).toContain('"/about" "page-pg_about shell";')
+      expect(tags).toContain('"/evil%24" "page-x shell";')
+      expect(tags).not.toContain('/bad')
+      expect(tags).not.toContain('/nl')
+      expect(tags).not.toContain('/ctl')
+      expect(tags).toContain('"/quote\\"" "has \\"quote\\"";')
+
+      const csp = nginxMapLines([{ uri: '/talk', value: "default-src 'self'; frame-ancestors 'none'" }])
+      expect(csp).toContain(`"/talk" "default-src 'self'; frame-ancestors 'none'";`)
+
+      const maps = redirectsMap([
+        { fromPath: '/ok', toPath: '/next', statusCode: 301 },
+        { fromPath: '/dollar$', toPath: 'https://x.org/?q=$foo', statusCode: 302 },
+        { fromPath: '/inner', toPath: '/new$place', statusCode: 301 },
+        { fromPath: '/quote"', toPath: '/next"page', statusCode: 301 },
+        { fromPath: '/brace', toPath: 'https://x.org/{id};x', statusCode: 301 },
+        { fromPath: '/nl\n', toPath: '/x', statusCode: 301 },
+        { fromPath: '/badval', toPath: 'https://x.org/\n', statusCode: 301 },
+        { fromPath: '/badstatus', toPath: '/ok', statusCode: '301$oops' as unknown as number },
+      ])
+      assertNginxMapSafe(maps.uri)
+      assertNginxMapSafe(maps.status)
+      expect(maps.uri).toContain('"/dollar%24" "https://x.org/?q=%24foo";')
+      expect(maps.uri).toContain('"/inner" "/new%24place";')
+      expect(maps.uri).toContain('"https://x.org/{id};x"')
+      expect(maps.uri).not.toContain('/nl')
+      expect(maps.uri).not.toContain('/badval')
+      expect(maps.status).toContain('"/ok" "301";')
+      expect(maps.status).toContain('"/dollar%24" "302";')
+      expect(maps.status).not.toContain('/badstatus')
+      expect(maps.status).toContain('"/badval" "301";')
+
+      expect(spy.mock.calls.length).toBeGreaterThan(0)
+      for (const call of spy.mock.calls) {
+        const line = String(call[0])
+        expect(line).not.toContain('\n')
+        expect(JSON.parse(line)).toMatchObject({ level: 'error', msg: 'nginx_map_dropped' })
+      }
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it.skipIf(!existsSync('/usr/sbin/nginx'))('nginx -t accepts a redirects map built from hostile rows', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const maps = redirectsMap([
+      { fromPath: '/ok', toPath: '/next', statusCode: 301 },
+      { fromPath: '/dollar$', toPath: 'https://x.org/?q=$foo', statusCode: 302 },
+      { fromPath: '/quote"', toPath: '/next"page', statusCode: 301 },
+      { fromPath: '/brace', toPath: 'https://x.org/{id};x', statusCode: 301 },
+      { fromPath: '/nl\n', toPath: '/x', statusCode: 301 },
+      { fromPath: '/badval', toPath: 'https://x.org/\n', statusCode: 301 },
+    ])
+    assertNginxMapSafe(maps.uri)
+    const dir = mkdtempSync(join(tmpdir(), 'sb-nginx-h1-'))
+    const mapPath = join(dir, 'redirects.map')
+    const confPath = join(dir, 'nginx.conf')
+    const logPath = join(dir, 'error.log')
+    for (const name of ['body', 'proxy', 'fastcgi', 'uwsgi', 'scgi']) mkdirSync(join(dir, name))
+    writeFileSync(mapPath, maps.uri)
+    writeFileSync(
+      confPath,
+      `pid ${join(dir, 'nginx.pid')};
+error_log ${logPath};
+events {}
+http {
+  access_log off;
+  client_body_temp_path ${join(dir, 'body')};
+  proxy_temp_path ${join(dir, 'proxy')};
+  fastcgi_temp_path ${join(dir, 'fastcgi')};
+  uwsgi_temp_path ${join(dir, 'uwsgi')};
+  scgi_temp_path ${join(dir, 'scgi')};
+  map $uri $redirect_to {
+    include ${mapPath};
+  }
+  server {
+    listen 127.0.0.1:18080;
+    return 204;
+  }
+}
+`,
+    )
+    try {
+      execFileSync('/usr/sbin/nginx', ['-t', '-c', confPath, '-e', logPath], { stdio: 'pipe' })
+    } finally {
+      spy.mockRestore()
+    }
   })
 
   it('opens frame-src for a YouTube embed and keeps style-src hashed', async () => {
@@ -609,6 +723,47 @@ describe('filesystem releases and Cloudflare purge', () => {
       if (prevToken) process.env.SITEBUILDER_CLOUDFLARE_TOKEN = prevToken
       else delete process.env.SITEBUILDER_CLOUDFLARE_TOKEN
     }
+  })
+
+  it('re-renders live pages and analytics.js when a settings rebuild runs', async () => {
+    const s = setup()
+    s.ctx.db.update(sites).set({ primaryDomain: 'example.org' }).where(eq(sites.id, s.ctx.siteId)).run()
+    const root = mkdtempSync(join(tmpdir(), 'sitebuilder-settings-'))
+    const writer = createFileReleaseWriter(root, { keep: 10 })
+    const handlers = {
+      publish: createPublishHandler(writer),
+      send_email: { run: () => ({ skipped: true }) },
+      purge_cache: { run: () => ({ skipped: true }) },
+    }
+    await publishStandard(s, 'Winter appeal', 'Keep them warm')
+    while (await runJobsOnce(s.ctx, handlers)) {}
+    const release1 = currentRelease(s.ctx)!.id
+    const before = readFileSync(join(root, 'releases', release1, 'winter-appeal', 'index.html'), 'utf8')
+    expect(before).not.toContain('/analytics.js')
+
+    const tracking = { ga4: 'G-ABC123XYZ', gtm: null, plausible: null, cookiebot: null }
+    const saved = updateSettings(s.ctx, s.admin, { tracking: { ga4: tracking.ga4 } })
+    expect(saved.rebuilding).toBe(true)
+    while (await runJobsOnce(s.ctx, handlers)) {}
+
+    const release2 = currentRelease(s.ctx)!
+    expect(release2.id).not.toBe(release1)
+    expect(release2.kind).toBe('full_render')
+    const html = readFileSync(join(root, 'releases', release2.id, 'winter-appeal', 'index.html'), 'utf8')
+    expect(html).toContain('<script src="/analytics.js" defer></script>')
+    expect(html).toContain('https://www.googletagmanager.com')
+    expect(html).toContain('https://www.google-analytics.com')
+    expect(readFileSync(join(root, 'releases', release1, 'winter-appeal', 'index.html'), 'utf8')).toBe(before)
+    const csp = readFileSync(join(root, 'releases', release2.id, 'csp.map'), 'utf8')
+    expect(csp).toContain('https://www.googletagmanager.com')
+    expect(csp).toContain('https://www.google-analytics.com')
+    expect(readFileSync(join(root, 'releases', release2.id, 'analytics.js'), 'utf8')).toBe(renderAnalyticsJs(tracking))
+    expect(lastPurgeTags(s.ctx)).toEqual(['shell'])
+    const rebuilt = s.ctx.db.select().from(auditEvents).all().find((event) => event.action === 'site.rebuilt')
+    expect(rebuilt?.details).toEqual({ reason: 'settings' })
+    expect(rebuilt?.actorType).toBe('system')
+    expect(s.ctx.db.select().from(releases).where(eq(releases.id, release2.id)).get()?.createdBy).toBe('system')
+    s.sqlite.close()
   })
 })
 

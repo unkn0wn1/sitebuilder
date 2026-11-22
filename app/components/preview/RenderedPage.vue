@@ -111,10 +111,23 @@ function applyMarks(doc: Document | null) {
   }
 }
 
+/** header.js does not run in the sandboxed frame. Match it at scroll position 0, from the parent, with no eval. */
+function applySeeThroughHeader(doc: Document) {
+  const over = doc.querySelector<HTMLElement>('.site-header-over')
+  const first = doc.querySelector('main > :first-child')
+  if (!over || !first || !/ hero /.test(` ${first.getAttribute('class') ?? ''} `)) return
+  over.classList.add('js-over')
+  const strip = doc.querySelector<HTMLElement>('.banner')
+  const gap = strip ? Math.max(0, Math.round(strip.getBoundingClientRect().bottom)) : 0
+  over.style.setProperty('--strip', `${gap}px`)
+  doc.documentElement.style.setProperty('--sb-header-h', `${Math.round(over.getBoundingClientRect().height)}px`)
+}
+
 function onLoad(i: number) {
   const frame = frameEls[i]!.value
   const doc = docOf(i)
   if (!frame?.srcdoc || !doc?.body) return
+  applySeeThroughHeader(doc)
   const style = doc.createElement('style')
   style.textContent = STYLE
   doc.head.appendChild(style)
@@ -203,6 +216,7 @@ onMounted(() => {
         <div class="absolute left-0 top-0 origin-top-left" :style="{ width: `${width}px`, height: `${height}px`, transform: `scale(${scale})` }">
           <iframe
             ref="frameA"
+            sandbox="allow-same-origin"
             :title="front === 0 ? 'Page preview' : 'Next page preview'"
             :aria-hidden="front === 0 ? undefined : 'true'"
             :tabindex="front === 0 ? undefined : -1"
@@ -214,6 +228,7 @@ onMounted(() => {
           />
           <iframe
             ref="frameB"
+            sandbox="allow-same-origin"
             :title="front === 1 ? 'Page preview' : 'Next page preview'"
             :aria-hidden="front === 1 ? undefined : 'true'"
             :tabindex="front === 1 ? undefined : -1"

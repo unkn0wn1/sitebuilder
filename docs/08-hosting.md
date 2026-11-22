@@ -8,13 +8,17 @@ Draft. The public site should be boringly simple to host.
 Visitor -> Cloudflare (mandatory) -> nginx -> static files on disk
 ```
 
-- **nginx** serves the generated HTML, CSS, JS and media from disk, with Brotli or gzip, HTTP/2 or HTTP/3, and long cache headers on hashed assets.
+- **nginx** serves the generated HTML, CSS, JS and media from disk, with gzip. Media renditions use a long immutable cache. `/embed.js`, `/header.js`, and `/analytics.js` are not hashed; their cache times are in [Cache headers](#cache-headers-starting-point) below.
 - **Cloudflare** sits in front of every site. It caches at the edge close to visitors, handles TLS at the edge, and absorbs attacks. It is not optional.
 - **No Varnish.** See below.
 
 The builder (Nuxt app, Nitro API and job worker) runs on the same server as nginx, in its own container, behind its own hostname and login, with **Cloudflare Access required** in front ([ADR 0007](decisions/0007-single-site-install.md)). Install is by Docker Compose ([16-operations.md](16-operations.md#install)).
 
-**Only Cloudflare can reach the origin:** the web ports are firewalled to Cloudflare's IP ranges and nginx requires Authenticated Origin Pulls. See [15-security.md](15-security.md#the-origin-server).
+The public site and the builder both listen on port 80. The shipped nginx config has no client certificate check and no IP allow list. The builder server uses Cloudflare's `set_real_ip_from` ranges and `CF-Connecting-IP` (`deploy/cloudflare-real-ip.conf`), then the proxy overwrites `X-Forwarded-For` with `$remote_addr` and clears `CF-Connecting-IP` before the request reaches the app. Sign-in limits and agent IP allow-lists use the last `X-Forwarded-For` entry. Anyone who runs without that nginx must overwrite `X-Forwarded-For` the same way. Appending, or trusting `CF-Connecting-IP` in the app, is not what this build does.
+
+HTML is `public, max-age=0, s-maxage=86400`, except 404 and 410, which are `no-store`.
+
+**Operator checklist:** firewall the host's ports 80 and 443 so only Cloudflare's published ranges can connect. Authenticated Origin Pulls need TLS on the origin. This config does not terminate TLS and does not check a client certificate. See [15-security.md](15-security.md#the-origin-server).
 
 ## Why Cloudflare is mandatory
 
@@ -63,8 +67,9 @@ An admin can switch `current` back to any kept release. The database pointers ar
 ## Cache headers (starting point)
 
 - HTML: short browser cache, long edge cache, purge on publish (for example `Cache-Control: public, max-age=0, s-maxage=86400`), plus the `Cache-Tag` header. Cloudflare holds it and the purge keeps it fresh.
-- The builder writes `cache-tags.map` and `csp.map` into each release so nginx can send those headers (see `deploy/nginx.conf`). Theme CSS is inlined in the HTML, following the sample-page spike.
-- Hashed assets and media renditions: `public, max-age=31536000, immutable`.
+- HTML error responses (404 and 410) are `Cache-Control: no-store`. They are not cached at the edge, so a missing address that is published later is not stuck behind an old 404.
+- The builder writes `cache-tags.map` and `csp.map` into each release so nginx can send those headers (see `deploy/nginx.conf.template`, which Compose mounts). Theme CSS is inlined in the HTML, following the sample-page spike.
+- Media renditions are `public, max-age=31536000, immutable`. The builder's hashed `/_nuxt/` files use that same cache. `/embed.js`, `/header.js`, and `/analytics.js` are not hashed. `/embed.js` and `/header.js` are `public, max-age=300, s-maxage=3600` with `Cache-Tag: shell`. `/analytics.js` is `public, max-age=0, s-maxage=3600` with `Cache-Tag: shell`.
 
 ## Server
 

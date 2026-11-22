@@ -1,13 +1,15 @@
 // Site settings: read, change (admins), and which secrets are set (never their values).
-import { eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { mergeSettings, readSettings, type SettingsPatch, type SiteSettings } from '../../shared/settings'
 import { can } from '../../shared/roles'
-import { secrets, sites } from '../db/schema'
+import { jobs, secrets, sites } from '../db/schema'
 import { audit } from './audit'
 import { inTx, type ActingAs, type ServiceCtx } from './context'
 import { AppError, forbidden } from './errors'
 import { sanitizeRobotsTxt } from '../../shared/robots'
 import { USER_SECRET_NAMES } from './auth'
+import { enqueueJob } from './jobs'
+import { currentRelease } from './publish'
 import { xaiOauthStatus } from './xai-oauth'
 
 export function getSettings(ctx: ServiceCtx): {
@@ -54,13 +56,51 @@ export function updateSettings(ctx: ServiceCtx, actor: ActingAs, patch: Settings
       }
     }
     const settings = mergeSettings(before, rest)
+    const nextName = name !== undefined ? name : site.name
+    const nextDomain = primaryDomain !== undefined ? primaryDomain : site.primaryDomain
     ctx.db
       .update(sites)
       .set({ settings, ...(name !== undefined ? { name } : {}), ...(primaryDomain !== undefined ? { primaryDomain } : {}) })
       .where(eq(sites.id, ctx.siteId))
       .run()
+    const projectionChanged =
+      renderProjection({ name: site.name, primaryDomain: site.primaryDomain, settings: before }) !==
+      renderProjection({ name: nextName, primaryDomain: nextDomain, settings })
+    // A running rebuild does not count: one more queued job reads the latest settings when it runs.
+    const rebuilding = projectionChanged && currentRelease(ctx) ? queueSettingsRebuild(ctx, actor) : false
     // Tag Manager can load any script, so its changes are called out in the audit log (ADR 0011).
     audit(ctx, actor, 'settings.updated', { type: 'site', id: ctx.siteId }, { changed: Object.keys(patch), gtmChanged: patch.tracking?.gtm !== undefined && patch.tracking.gtm !== before.tracking.gtm })
-    return getSettings(ctx)
+    return { ...getSettings(ctx), rebuilding }
   })
+}
+
+/** What a public page, robots.txt, the sitemap, and analytics.js are built from. */
+function renderProjection(input: { name: string; primaryDomain: string | null; settings: SiteSettings }): string {
+  const { settings } = input
+  return JSON.stringify({
+    name: input.name,
+    primaryDomain: input.primaryDomain,
+    titlePattern: settings.titlePattern,
+    allowIndexing: settings.seo.allowIndexing,
+    robotsTxt: settings.seo.robotsTxt,
+    defaultSocialImage: settings.seo.defaultSocialImage,
+    tracking: {
+      ga4: settings.tracking.ga4,
+      gtm: settings.tracking.gtm,
+      plausible: settings.tracking.plausible,
+      cookiebot: settings.tracking.cookiebot,
+    },
+  })
+}
+
+/** Returns true only when this call inserted the job. An identical queued job is left as it is. */
+function queueSettingsRebuild(ctx: ServiceCtx, actor: ActingAs): boolean {
+  const queued = ctx.db
+    .select({ id: jobs.id })
+    .from(jobs)
+    .where(and(eq(jobs.siteId, ctx.siteId), eq(jobs.kind, 'publish'), eq(jobs.state, 'queued'), sql`json_extract(${jobs.payload}, '$.rebuild') = ${'settings'}`))
+    .get()
+  if (queued) return false
+  enqueueJob(ctx, 'publish', { rebuild: 'settings' }, { createdBy: actor.id })
+  return true
 }

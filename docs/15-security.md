@@ -18,9 +18,9 @@
 - **Own login as a second layer:** email and password, hashed with scrypt (Node's built-in crypto, no native add-on). Minimum 12 characters, checked against a short list of common passwords.
 - **Sessions:** random 32-byte token in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie. Only a SHA-256 hash is stored. 12-hour idle timeout, 14-day maximum. Password change or reset ends all other sessions.
 - **CSRF:** `SameSite=Strict` cookies plus an `Origin` check on every request that changes something.
-- **Rate limits:** sign-in and password reset by IP and by email; AI messages per user.
+- **Rate limits:** sign-in and password reset by IP and by email; AI messages per user. The IP is the last address in `X-Forwarded-For`. The shipped nginx sets that header to `$remote_addr` after Cloudflare real-ip, and does not append to a header the visitor sent.
 - **Permissions** are checked in the API for every route and every AI tool call. Hidden buttons are never the protection.
-- **Builder Content Security Policy:** `default-src 'self'`, no inline scripts, `frame-src` limited to the preview origin, `connect-src 'self'`.
+- **Builder Content Security Policy:** production admin HTML pages get a per-request nonce and `default-src 'self'; script-src 'self' 'nonce-...'`, `connect-src 'self'`, `frame-src 'self'`, `frame-ancestors 'none'`, `object-src 'none'` (server/utils/builder-csp.ts). Preview frames are `sandbox="allow-same-origin"` with no `allow-scripts`, so nothing inside a preview runs or can call the admin API.
 - **Audit log** of sign-ins, role changes, approvals, publishes, rollbacks, settings and secret changes, and every AI tool call.
 
 ## The public site
@@ -33,9 +33,10 @@
 
 ## The origin server
 
-- **Only Cloudflare may reach nginx.** Firewall the web ports to Cloudflare's published IP ranges, and turn on **Authenticated Origin Pulls** so nginx rejects requests without Cloudflare's client certificate. Visitors cannot go around the cache or the protection.
+- **Only Cloudflare should reach nginx.** Firewall the host's ports 80 and 443 to Cloudflare's published IP ranges. The shipped public and builder servers listen on port 80. They do not terminate TLS, do not check a client certificate, and have no IP allow list. Authenticated Origin Pulls need TLS on the origin, which this config does not provide.
+- **Client address:** the builder server includes `deploy/cloudflare-real-ip.conf` (ranges fetched from cloudflare.com/ips-v4 and ips-v6 on 22 Nov 2026) and `real_ip_header CF-Connecting-IP`, so `$remote_addr` is the visitor when the connection comes from Cloudflare. Both builder proxy locations then overwrite `X-Forwarded-For` with `$remote_addr` and clear `CF-Connecting-IP`. The app uses the last `X-Forwarded-For` entry and never reads `CF-Connecting-IP`. Anyone who runs without that nginx must overwrite `X-Forwarded-For` the same way. Appending, or trusting `CF-Connecting-IP` in the app, is not what this build does.
 - SSH by key only, automatic security updates, nothing else listening.
-- **Privilege separation:** the builder runs as its own user in its own container. It writes release folders, including a generated `redirects.map`, and switches the `current` symlink. It cannot change nginx's main config or run commands in the nginx container. nginx includes `current/redirects.map`, and a small fixed watcher in the nginx container runs `nginx -s reload` when `current` changes. The builder never has root.
+- **Privilege separation:** the builder runs as its own user in its own container. It writes release folders, including a generated `redirects.map`, and switches the `current` symlink. It cannot change nginx's main config or run commands in the nginx container. nginx includes the live release's maps, and a small fixed watcher in the nginx container runs `nginx -t` and then `nginx -s reload` when `current` changes or when `redirects.map`, `redirect-status.map`, `cache-tags.map`, or `csp.map` changes. A failed test or reload is logged, and the config is left as it was. The builder never has root.
 
 ## Secrets
 

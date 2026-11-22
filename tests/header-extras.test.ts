@@ -93,7 +93,7 @@ describe('see-through header', () => {
     expect(explicit.csp).toBe(missing.csp)
   })
 
-  it('appends a see-through override only for a paper or ink that is not the default', async () => {
+  it('appends a see-through scrim for a non-default ink, and a logo pill only when a colour is set', async () => {
     const defaults = defaultBrandDoc()
     const headerOn = { id: 'sp_header', doc: header({ overHero: true, appearance: 'dark' }) }
     const stock = await render({ header: headerOn, brand: defaults, themeCss: themeCssFromTokens(defaults.tokens, defaults.fonts) })
@@ -113,10 +113,18 @@ describe('see-through header', () => {
     const paper = { ...defaults, tokens: { ...defaults.tokens, paper: '#fff1e0' } }
     const paperCss = themeCssFromTokens(paper.tokens, paper.fonts)
     const paperPage = await render({ header: headerOn, brand: paper, themeCss: paperCss })
-    const pill = '\n.site-header-over.js-over:not(.is-solid) .site-title { background: var(--paper); }\n'
-    expect(styleOf(paperPage.html)).toBe(paperCss + OVER_HERO_CSS + pill)
+    expect(styleOf(paperPage.html)).toBe(paperCss + OVER_HERO_CSS)
+    expect(styleOf(paperPage.html)).not.toContain('.site-title { background: var(--paper); }')
     expect(styleOf(paperPage.html)).toContain('background: transparent;')
     expect(paperPage.csp).toContain(styleHash(styleOf(paperPage.html)))
+
+    const pillBrand = { ...defaults, tokens: { ...defaults.tokens, logoPill: '#112233' } }
+    const pillCss = themeCssFromTokens(pillBrand.tokens, pillBrand.fonts)
+    const pillPage = await render({ header: headerOn, brand: pillBrand, themeCss: pillCss })
+    const pill = '\n.site-header-over.js-over:not(.is-solid) .site-title { background: #112233; }\n'
+    expect(styleOf(pillPage.html)).toBe(pillCss + OVER_HERO_CSS + pill)
+    expect(styleOf(pillPage.html)).toContain('.site-header-dark.site-header-over.js-over:not(.is-solid) .site-title { background: transparent;')
+    expect(pillPage.csp).toContain(styleHash(styleOf(pillPage.html)))
 
     const accent = { ...defaults, tokens: { ...defaults.tokens, accent: '#113399' } }
     const accentCss = themeCssFromTokens(accent.tokens, accent.fonts)

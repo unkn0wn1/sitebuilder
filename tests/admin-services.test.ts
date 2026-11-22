@@ -3,12 +3,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { eq } from 'drizzle-orm'
-import { jobs, pages } from '../server/db/schema'
+import { auditEvents, jobs, notifications, pages, releases, reviews } from '../server/db/schema'
 import { cancelAiSession, runTool, startAiSession } from '../server/services/ai'
 import { checkLogin, createSession, getSessionUser, requestPasswordReset, resetPassword, createUser, acceptInvite } from '../server/services/auth'
 import { createEmailHandler, outboxMailer } from '../server/services/email'
 import { AppError } from '../server/services/errors'
-import { runJobsOnce } from '../server/services/jobs'
+import { enqueueJob, getJob, runJobsOnce } from '../server/services/jobs'
 import { acceptMemory, addMemory, deleteMemory, listMemory } from '../server/services/memory'
 import { applyPageOps, binPage, createPage, getPage, listBin, restoreFromBin } from '../server/services/pages'
 import { createPublishHandler } from '../server/services/publish'
@@ -60,7 +60,105 @@ describe('settings', () => {
     updateSettings(s.ctx, s.admin, { workflow: { selfApproval: true } })
     expect(approveReview(s.ctx, s.approver, reviewId, { versionId }).selfApproved).toBe(true)
   })
+
+  it('does not rebuild when nothing is live', () => {
+    const s = setup()
+    const saved = updateSettings(s.ctx, s.admin, { name: 'Animal rescue', primaryDomain: 'example.org', tracking: { ga4: 'G-ABC123XYZ' }, seo: { allowIndexing: false } })
+    expect(saved.rebuilding).toBe(false)
+    expect(settingsRebuildJobs(s)).toEqual([])
+    s.sqlite.close()
+  })
+
+  it('queues one settings rebuild for a live site, and ignores mail, AI, workflow and embed providers', async () => {
+    const s = setup()
+    await publishOnePage(s)
+    expect(updateSettings(s.ctx, s.admin, { name: 'Test charity', primaryDomain: null, titlePattern: '{page} | {site}' }).rebuilding).toBe(false)
+    expect(updateSettings(s.ctx, s.admin, { workflow: { selfApproval: true } }).rebuilding).toBe(false)
+    expect(updateSettings(s.ctx, s.admin, { allowedEmbedProviders: ['youtube'] }).rebuilding).toBe(false)
+    expect(updateSettings(s.ctx, s.admin, { ai: { enabled: true } }).rebuilding).toBe(false)
+    expect(updateSettings(s.ctx, s.admin, { mail: { from: 'noreply@example.org' } }).rebuilding).toBe(false)
+    expect(settingsRebuildJobs(s)).toEqual([])
+
+    const fields: Parameters<typeof updateSettings>[2][] = [
+      { name: 'Animal rescue' },
+      { primaryDomain: 'example.org' },
+      { titlePattern: '{page} - {site}' },
+      { seo: { allowIndexing: false } },
+      { seo: { robotsTxt: 'User-agent: *\nDisallow: /private\n' } },
+      { seo: { defaultSocialImage: 'med_00000000000000000000000001' } },
+      { tracking: { ga4: 'G-ABC123XYZ' } },
+    ]
+    for (const patch of fields) {
+      const saved = updateSettings(s.ctx, s.admin, patch)
+      expect(saved.rebuilding, JSON.stringify(patch)).toBe(true)
+      const queued = settingsRebuildJobs(s).filter((job) => job.state === 'queued')
+      expect(queued, JSON.stringify(patch)).toHaveLength(1)
+      expect(queued[0]!.payload).toEqual({ rebuild: 'settings' })
+      expect(queued[0]!.createdBy).toBe(s.admin.id)
+      s.ctx.db.update(jobs).set({ state: 'done' }).where(eq(jobs.id, queued[0]!.id)).run()
+    }
+
+    const again = updateSettings(s.ctx, s.admin, { tracking: { plausible: 'example.org' } })
+    expect(again.rebuilding).toBe(true)
+    const second = updateSettings(s.ctx, s.admin, { tracking: { gtm: 'GTM-ABC1234' } })
+    expect(second.rebuilding).toBe(false)
+    expect(second.settings.tracking.gtm).toBe('GTM-ABC1234')
+    const queued = settingsRebuildJobs(s).filter((job) => job.state === 'queued')
+    expect(queued).toHaveLength(1)
+
+    s.ctx.db.update(jobs).set({ state: 'running' }).where(eq(jobs.id, queued[0]!.id)).run()
+    const whileRunning = updateSettings(s.ctx, s.admin, { tracking: { cookiebot: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' } })
+    expect(whileRunning.rebuilding).toBe(true)
+    const all = settingsRebuildJobs(s)
+    expect(all.filter((job) => job.state === 'running')).toHaveLength(1)
+    expect(all.filter((job) => job.state === 'queued')).toHaveLength(1)
+    s.sqlite.close()
+  })
+
+  it('a settings rebuild with no live release finishes without publishing', async () => {
+    const s = setup()
+    const jobId = enqueueJob(s.ctx, 'publish', { rebuild: 'settings' }, { createdBy: s.admin.id })
+    await runJobsOnce(s.ctx, { publish: createPublishHandler() })
+    expect(getJob(s.ctx, jobId)?.state).toBe('done')
+    expect(s.ctx.db.select().from(releases).all()).toHaveLength(0)
+    expect(s.ctx.db.select().from(auditEvents).all().some((event) => event.action === 'site.rebuilt')).toBe(false)
+    s.sqlite.close()
+  })
+
+  it('a failed settings rebuild tells admins and does not rewind a review or a page', () => {
+    const s = setup()
+    const { page } = createPage(s.ctx, s.editor, { title: 'About', template: 'standard' })
+    applyPageOps(s.ctx, s.editor, page.id, 0, [{ op: 'set_seo', description: 'About the charity' }])
+    const { reviewId } = submitPage(s.ctx, s.editor, page.id)
+    const jobId = enqueueJob(s.ctx, 'publish', { rebuild: 'settings' }, { createdBy: s.admin.id })
+    const job = getJob(s.ctx, jobId)!
+    createPublishHandler().onFinalFailure!(s.ctx, job, new Error('disk full'))
+    expect(s.ctx.db.select().from(reviews).where(eq(reviews.id, reviewId)).get()?.state).toBe('pending')
+    expect(s.ctx.db.select().from(pages).where(eq(pages.id, page.id)).get()?.workflowState).toBe('in_review')
+    const notes = s.ctx.db.select().from(notifications).all().filter((note) => note.kind === 'publish_failed')
+    expect(notes.map((note) => note.userId)).toEqual([s.admin.id])
+    expect(notes[0]!.message).toBe('Publishing failed: disk full')
+    expect(s.ctx.db.select().from(auditEvents).all().some((event) => event.action === 'publish.failed')).toBe(true)
+    s.sqlite.close()
+  })
 })
+
+function settingsRebuildJobs(s: ReturnType<typeof setup>) {
+  return s.ctx.db
+    .select()
+    .from(jobs)
+    .all()
+    .filter((job) => job.kind === 'publish' && (job.payload as { rebuild?: string }).rebuild === 'settings')
+}
+
+async function publishOnePage(s: ReturnType<typeof setup>) {
+  const { page } = createPage(s.ctx, s.editor, { title: 'About', template: 'standard' })
+  applyPageOps(s.ctx, s.editor, page.id, 0, [{ op: 'set_seo', description: 'About the charity' }])
+  const submitted = submitPage(s.ctx, s.editor, page.id)
+  approveReview(s.ctx, s.approver, submitted.reviewId, { versionId: submitted.versionId })
+  await runJobsOnce(s.ctx, { publish: createPublishHandler(), purge_cache: { run: () => ({}) }, send_email: { run: () => ({}) } })
+  return page
+}
 
 describe('redirects', () => {
   it('normalises paths and refuses loops, duplicates and live addresses', async () => {
@@ -84,6 +182,48 @@ describe('redirects', () => {
     const id = listRedirects(s.ctx)[0]!.id
     deleteRedirect(s.ctx, s.approver, id)
     expect(listRedirects(s.ctx)).toHaveLength(0)
+  })
+
+  it('encodes a dollar in an external target and rejects characters that break nginx', () => {
+    const s = setup()
+    const message = 'Redirect targets cannot include spaces, line breaks, quotes, braces, semicolons or backslashes.'
+    expect(createRedirect(s.ctx, s.approver, { fromPath: '/give', toPath: 'https://x.org/?q=$foo' }).toPath).toBe('https://x.org/?q=%24foo')
+    expect(createRedirect(s.ctx, s.approver, { fromPath: '/give-encoded', toPath: 'https://x.org/?q=%24foo$bar' }).toPath).toBe('https://x.org/?q=%24foo%24bar')
+    expect(createRedirect(s.ctx, s.approver, { fromPath: '/old$', toPath: '/new$place' })).toMatchObject({ fromPath: '/old$', toPath: '/new$place' })
+
+    const bad = [
+      'https://x.org/a b',
+      'https://x.org/a\nb',
+      'https://x.org/\u0001',
+      'https://x.org/{id}',
+      'https://x.org/a;b',
+      'https://x.org/?q="x"',
+      "https://x.org/?q='x'",
+      'https://x.org/a\\b',
+      '/old page',
+      '/line\nbreak',
+      '/old{page}',
+      '/old;page',
+      '/say"hi',
+      "/say'hi",
+      '/a\\b',
+    ]
+    bad.forEach((toPath, i) => {
+      let err: unknown
+      try {
+        createRedirect(s.ctx, s.approver, { fromPath: `/bad-${i}`, toPath })
+      } catch (e) {
+        err = e
+      }
+      expect(err, toPath).toBeInstanceOf(AppError)
+      const app = err as AppError
+      expect(app.code).toBe('validation_failed')
+      expect(app.fields).toEqual([{ path: 'toPath', message }])
+    })
+    expect(listRedirects(s.ctx).map((r) => r.toPath).sort()).toEqual(
+      ['https://x.org/?q=%24foo', 'https://x.org/?q=%24foo%24bar', '/new$place'].sort(),
+    )
+    s.sqlite.close()
   })
 })
 
