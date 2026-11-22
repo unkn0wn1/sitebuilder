@@ -33,11 +33,11 @@ async function save() {
   error.value = ''
   saved.value = ''
   try {
-    await api('/settings', {
+    const data = await api<SettingsPayload>('/settings', {
       method: 'PATCH',
       body: { name: name.value.trim(), primaryDomain: emptyToNull(primaryDomain.value)?.toLowerCase() ?? null, titlePattern: titlePattern.value.trim() || '{page} | {site}' },
     })
-    saved.value = 'Saved.'
+    saved.value = data.rebuilding ? 'Saved. Updating the live site now.' : 'Saved.'
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : 'Could not save settings.'
   } finally {

@@ -36,11 +36,11 @@ async function save() {
   error.value = ''
   saved.value = ''
   try {
-    await api('/settings', {
+    const data = await api<SettingsPayload>('/settings', {
       method: 'PATCH',
       body: { tracking: { ga4: emptyToNull(ga4.value), gtm: emptyToNull(gtm.value), plausible: emptyToNull(plausible.value), cookiebot: emptyToNull(cookiebot.value) } },
     })
-    saved.value = 'Saved.'
+    saved.value = data.rebuilding ? 'Saved. Updating the live site now.' : 'Saved.'
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : 'Could not save settings.'
   } finally {

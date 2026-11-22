@@ -75,8 +75,8 @@ async function saveSeo() {
   try {
     const custom = robotsForSave()
     if (!custom.ok) return
-    await api('/settings', { method: 'PATCH', body: { seo: { allowIndexing: allowIndexing.value, defaultSocialImage: defaultSocialImage.value, robotsTxt: custom.text } } })
-    saved.value = 'Saved. Changes to robots.txt apply the next time the site is published.'
+    const data = await api<SettingsPayload>('/settings', { method: 'PATCH', body: { seo: { allowIndexing: allowIndexing.value, defaultSocialImage: defaultSocialImage.value, robotsTxt: custom.text } } })
+    saved.value = data.rebuilding ? 'Saved. Updating the live site now.' : 'Saved.'
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : 'Could not save settings.'
   } finally {

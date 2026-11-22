@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
-import { jobs, redirects, sites } from '../server/db/schema'
+import { auditEvents, jobs, redirects, releases, sites } from '../server/db/schema'
 import { createPurgeCacheHandler, setPurgeHttp } from '../server/services/cloudflare'
 import { editBrand, submitBrand } from '../server/services/brand'
 import { createMediaRenditionsHandler, updateMedia, uploadMedia } from '../server/services/media'
@@ -21,6 +21,7 @@ import {
   nginxMapLines,
   publicUrl,
   redirectsMap,
+  renderAnalyticsJs,
   renderPageHtml,
   robotsTxt,
   siteOrigin,
@@ -32,6 +33,7 @@ import { defaultBrandDoc } from '../shared/brand'
 import { defaultSitePartDoc, type HeaderDoc } from '../shared/site-parts'
 import { richTextFromParagraphs } from '../shared/richtext'
 import { runJobsOnce } from '../server/services/jobs'
+import { updateSettings } from '../server/services/settings'
 import { IMG, setup } from './helpers'
 
 /** Structural newlines between records are fine. A value must not contain `$`, a raw newline, or an unescaped quote. */
@@ -721,6 +723,47 @@ describe('filesystem releases and Cloudflare purge', () => {
       if (prevToken) process.env.SITEBUILDER_CLOUDFLARE_TOKEN = prevToken
       else delete process.env.SITEBUILDER_CLOUDFLARE_TOKEN
     }
+  })
+
+  it('re-renders live pages and analytics.js when a settings rebuild runs', async () => {
+    const s = setup()
+    s.ctx.db.update(sites).set({ primaryDomain: 'example.org' }).where(eq(sites.id, s.ctx.siteId)).run()
+    const root = mkdtempSync(join(tmpdir(), 'sitebuilder-settings-'))
+    const writer = createFileReleaseWriter(root, { keep: 10 })
+    const handlers = {
+      publish: createPublishHandler(writer),
+      send_email: { run: () => ({ skipped: true }) },
+      purge_cache: { run: () => ({ skipped: true }) },
+    }
+    await publishStandard(s, 'Winter appeal', 'Keep them warm')
+    while (await runJobsOnce(s.ctx, handlers)) {}
+    const release1 = currentRelease(s.ctx)!.id
+    const before = readFileSync(join(root, 'releases', release1, 'winter-appeal', 'index.html'), 'utf8')
+    expect(before).not.toContain('/analytics.js')
+
+    const tracking = { ga4: 'G-ABC123XYZ', gtm: null, plausible: null, cookiebot: null }
+    const saved = updateSettings(s.ctx, s.admin, { tracking: { ga4: tracking.ga4 } })
+    expect(saved.rebuilding).toBe(true)
+    while (await runJobsOnce(s.ctx, handlers)) {}
+
+    const release2 = currentRelease(s.ctx)!
+    expect(release2.id).not.toBe(release1)
+    expect(release2.kind).toBe('full_render')
+    const html = readFileSync(join(root, 'releases', release2.id, 'winter-appeal', 'index.html'), 'utf8')
+    expect(html).toContain('<script src="/analytics.js" defer></script>')
+    expect(html).toContain('https://www.googletagmanager.com')
+    expect(html).toContain('https://www.google-analytics.com')
+    expect(readFileSync(join(root, 'releases', release1, 'winter-appeal', 'index.html'), 'utf8')).toBe(before)
+    const csp = readFileSync(join(root, 'releases', release2.id, 'csp.map'), 'utf8')
+    expect(csp).toContain('https://www.googletagmanager.com')
+    expect(csp).toContain('https://www.google-analytics.com')
+    expect(readFileSync(join(root, 'releases', release2.id, 'analytics.js'), 'utf8')).toBe(renderAnalyticsJs(tracking))
+    expect(lastPurgeTags(s.ctx)).toEqual(['shell'])
+    const rebuilt = s.ctx.db.select().from(auditEvents).all().find((event) => event.action === 'site.rebuilt')
+    expect(rebuilt?.details).toEqual({ reason: 'settings' })
+    expect(rebuilt?.actorType).toBe('system')
+    expect(s.ctx.db.select().from(releases).where(eq(releases.id, release2.id)).get()?.createdBy).toBe('system')
+    s.sqlite.close()
   })
 })
 
