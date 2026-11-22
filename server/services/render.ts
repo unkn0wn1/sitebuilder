@@ -24,7 +24,7 @@ import {
 } from '../../shared/site-parts'
 import { BUNDLE_ID, EMBED_JS, HEADER_JS, THEME_CSS } from '../theme/default'
 import { migrateBrandDoc, validateBrandDoc, type BrandDoc } from '../../shared/brand'
-import { BANNER_ACCENT_CSS, FOOTER_COLUMNS_CSS, HEART_CSS, OVER_HERO_CSS, UTILITY_CSS, themeCssFromTokens } from '../../shared/theme-css'
+import { BANNER_ACCENT_CSS, FOOTER_COLUMNS_CSS, HEART_CSS, OVER_HERO_CSS, TILE_CSS, UTILITY_CSS, themeCssFromTokens } from '../../shared/theme-css'
 import { embeds, media, mediaCrops, pages, redirects, siteParts, sites, versions, type ReleaseManifest } from '../db/schema'
 import type { ServiceCtx } from './context'
 import { widthsFor } from './media'
@@ -688,6 +688,45 @@ function utilityLink(site: SiteRenderContext, bag: Collector): VNode | null {
   return h('a', { class: 'util', href: link.href }, utility.label)
 }
 
+const TILE_SIZES = '(max-width: 640px) 45vw, 13rem'
+
+/** One small WebP for a mega tile. Missing library photos are left out on a real publish, same as other pictures. */
+function tileImage(image: ImageRef, label: string, site: SiteRenderContext, bag: Collector): VNode | null {
+  const entry = site.media[image.media]
+  if (!entry && site.preview) {
+    return h('img', {
+      src: previewPlaceholder(image.media),
+      alt: image.alt ?? '',
+      width: 640,
+      height: 420,
+      loading: 'lazy',
+      decoding: 'async',
+      'data-sample-photo': '',
+    })
+  }
+  if (!entry && site.mediaComplete) return null
+  if (entry?.kind === 'video') return null
+  bag.media.add(image.media)
+  const alt = image.decorative || entry?.decorative ? '' : (image.alt?.trim() || entry?.alt?.trim() || label)
+  const width = entry?.width ?? 640
+  const height = entry?.height ?? 420
+  if (entry?.kind === 'svg' || entry?.mime === 'image/svg+xml') {
+    return h('img', { src: `/media/${image.media}.svg`, alt, width, height, loading: 'lazy', decoding: 'async' })
+  }
+  const widths = widthsForMedia(entry)
+  const srcW = widths.find((w) => w >= 640) ?? widths[widths.length - 1] ?? 640
+  return h('img', {
+    src: `/media/${image.media}-${srcW}.webp`,
+    srcset: widths.map((w) => `/media/${image.media}-${w}.webp ${w}w`).join(', '),
+    sizes: TILE_SIZES,
+    alt,
+    width,
+    height,
+    loading: 'lazy',
+    decoding: 'async',
+  })
+}
+
 function renderNav(site: SiteRenderContext, bag: Collector): VNode | null {
   const key = site.header?.doc.menuKey ?? 'main'
   const menu = site.menus[key]
@@ -697,16 +736,33 @@ function renderNav(site: SiteRenderContext, bag: Collector): VNode | null {
   const items = menu.doc.items.map((item) => {
     const link = resolveLink(item.target, item.label, site, bag)
     if (!item.children.length) return h('a', { href: link.href }, item.label)
+    const textLinks = item.children.map((child) => {
+      const c = resolveLink(child.target, child.label, site, bag)
+      return h('li', [h('a', { href: c.href }, child.label)])
+    })
+    const tiles = style === 'mega' ? item.children.filter((child) => child.featured).slice(0, 5) : []
+    if (!tiles.length) {
+      return h('details', [
+        h('summary', item.label),
+        h('ul', { class: style === 'mega' ? 'nav-mega-panel' : undefined }, textLinks),
+      ])
+    }
     return h('details', [
       h('summary', item.label),
-      h(
-        'ul',
-        { class: style === 'mega' ? 'nav-mega-panel' : undefined },
-        item.children.map((child) => {
-          const c = resolveLink(child.target, child.label, site, bag)
-          return h('li', [h('a', { href: c.href }, child.label)])
-        }),
-      ),
+      h('div', { class: 'nav-mega-panel nav-mega-panel-tiles' }, [
+        h('ul', { class: 'nav-mega-links' }, textLinks),
+        h(
+          'ul',
+          { class: 'nav-mega-tiles' },
+          tiles.map((child) => {
+            const c = resolveLink(child.target, child.label, site, bag)
+            const img = child.image ? tileImage(child.image, child.label, site, bag) : null
+            return h('li', [
+              h('a', { class: img ? 'tile' : 'tile tile-text', href: c.href }, img ? [img, h('span', child.label)] : [h('span', child.label)]),
+            ])
+          }),
+        ),
+      ]),
     ])
   })
   if (style === 'hamburger') {
@@ -1022,7 +1078,14 @@ export function shellOptionCss(site: SiteRenderContext): string {
   if (site.header?.doc.overHero) extra += OVER_HERO_CSS
   const banner = site.banner
   if (banner && banner.doc.enabled && banner.doc.message && banner.doc.tone === 'accent') extra += BANNER_ACCENT_CSS
+  if (menuHasTiles(site)) extra += TILE_CSS
   return extra
+}
+
+function menuHasTiles(site: SiteRenderContext): boolean {
+  if (menuStyleOf(site) !== 'mega') return false
+  const menu = site.menus[site.header?.doc.menuKey ?? 'main']
+  return !!menu?.doc.items.some((item) => item.children.some((child) => child.featured))
 }
 
 export async function renderPageHtml(input: {

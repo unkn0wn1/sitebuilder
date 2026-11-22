@@ -310,6 +310,22 @@ export const OVER_HERO_CSS = `
 @media (prefers-reduced-motion: reduce) { .site-header-over.js-over { transition: none; } }
 `
 
+/** Photo tiles beside the links in a mega panel. Appended only when a mega menu actually has tiles. */
+export const TILE_CSS = `
+.nav-mega details .nav-mega-panel-tiles { position: absolute; z-index: 5; margin: 0.25rem 0 0; padding: 1rem 1.25rem; background: var(--paper); border: 1px solid var(--line); box-shadow: 0 0.5rem 1.25rem color-mix(in srgb, var(--ink) 12%, transparent); display: grid; grid-template-columns: minmax(10rem, 16rem) minmax(0, 1fr); gap: 1.25rem 2rem; min-width: min(36rem, calc(100vw - 2 * var(--space))); }
+.nav-mega details .nav-mega-panel-tiles ul { position: static; margin: 0; padding: 0; border: 0; box-shadow: none; background: transparent; min-width: 0; display: grid; gap: 0.35rem; list-style: none; }
+.nav-mega-links { grid-template-columns: 1fr; }
+.nav-mega-tiles { grid-template-columns: repeat(auto-fit, minmax(9rem, 13rem)); gap: 1rem; }
+.nav-mega-tiles .tile { display: block; color: var(--ink); text-decoration: none; font-weight: 600; }
+.nav-mega-tiles .tile img { display: block; width: 100%; height: auto; aspect-ratio: 640 / 420; object-fit: cover; border-radius: 0.5rem; margin-bottom: 0.4rem; }
+.nav-mega-tiles .tile-text { padding: 1rem; background: var(--band); border-radius: 0.5rem; }
+.nav-mega-tiles .tile:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.site-header-dark .nav-mega-panel-tiles { background: var(--ink); color: var(--paper); border-color: color-mix(in srgb, var(--paper) 20%, transparent); }
+.site-header-dark .nav-mega-tiles .tile { color: var(--paper); }
+.site-header-dark .nav-mega-tiles .tile-text { background: color-mix(in srgb, var(--paper) 12%, transparent); }
+@media (max-width: 640px) { .nav-mega details .nav-mega-panel-tiles { grid-template-columns: 1fr; position: static; } }
+`
+
 
 /** Build public CSS from a brand pack, keeping the default rules and swapping tokens and fonts. */
 export function themeCssFromTokens(tokens: ThemeTokens, fonts?: { body: string; heading: string | null }): string {
