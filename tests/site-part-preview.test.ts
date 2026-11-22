@@ -6,7 +6,7 @@ import { createPublishHandler } from '../server/services/publish'
 import { approveReview, submitPage } from '../server/services/reviews'
 import { addSitePart, createSitePart, requireSitePart } from '../server/services/site-parts'
 import { renderPageHtml } from '../server/services/render'
-import { defaultSitePartDoc, type BannerDoc, type HeaderDoc, type MenuDoc } from '../shared/site-parts'
+import { defaultSitePartDoc, type BannerDoc, type FooterDoc, type HeaderDoc, type MenuDoc } from '../shared/site-parts'
 import { emptyPageDoc } from '../shared/page'
 import { AppError } from '../server/services/errors'
 import { setup } from './helpers'
@@ -97,6 +97,27 @@ describe('menus: one picker on the header, and a real preview', () => {
     const unused = await renderSitePartPreview(s.ctx, { parts: [{ partId: spare, doc: menu('Volunteer') }] })
     expect(unused.menuUse).toBe('unused')
     expect(unused.html).toContain('Volunteer')
+  })
+
+  it('shows a columns footer links menu in the footer and still reports the header menu as the header', async () => {
+    const { s, main, spare } = await liveSite()
+    const footer = createSitePart(s.ctx, 'footer', 'footer', 'Footer', s.admin, { live: true })
+    const footerDoc: FooterDoc = { ...(defaultSitePartDoc('footer') as FooterDoc), layout: 'columns', linksMenuKey: 'spare' }
+    const links = await renderSitePartPreview(s.ctx, {
+      parts: [
+        { partId: footer, doc: footerDoc },
+        { partId: spare, doc: menu('Our work') },
+      ],
+    })
+    expect(links.menuUse).toBe('footer')
+    const column = links.html.match(/<nav class="ft-links"[\s\S]*?<\/nav>/)?.[0] ?? ''
+    expect(column).toContain('Our work')
+    const headerNav = links.html.match(/<(?:nav|details) class="nav[^"]*"[^>]*>([\s\S]*?)<\/(?:nav|details)>/)?.[1] ?? ''
+    expect(headerNav).not.toContain('Our work')
+    const headerMenu = await renderSitePartPreview(s.ctx, { parts: [{ partId: main, doc: menu('Adopt a dog') }] })
+    expect(headerMenu.menuUse).toBe('header')
+    expect(headerMenu.html).toContain('Adopt a dog')
+    expect(headerMenu.html).not.toContain('ft-links')
   })
 
   it('draws the menu the header picks, in the look the header picks', async () => {

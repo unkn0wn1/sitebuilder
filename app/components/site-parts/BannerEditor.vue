@@ -25,6 +25,7 @@ function setLinkTarget(target: LinkTarget) {
 }
 
 const TONES: { value: BannerDoc['tone']; label: string; swatch: string }[] = [
+  { value: 'accent', label: 'Brand colour', swatch: 'bg-orange-700' },
   { value: 'info', label: 'Information', swatch: 'bg-sky-600' },
   { value: 'urgent', label: 'Urgent', swatch: 'bg-red-600' },
   { value: 'celebrate', label: 'Celebrate', swatch: 'bg-emerald-600' },
@@ -46,6 +47,7 @@ const TONES: { value: BannerDoc['tone']; label: string; swatch: string }[] = [
           <span class="text-gray-800 dark:text-gray-200">{{ t.label }}</span>
         </label>
       </div>
+      <p class="mt-1.5 mb-0 text-xs text-gray-500 dark:text-gray-400">Brand colour uses the accent from Brand and Design.</p>
     </fieldset>
     <div class="space-y-3">
       <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white">

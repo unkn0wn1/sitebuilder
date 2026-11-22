@@ -59,7 +59,13 @@ function removeSocial(index: number) {
 
 <template>
   <div class="space-y-4">
-    <UiSection title="Colour" icon="footer">
+    <UiSection title="Layout and colour" icon="footer">
+      <div class="grid grid-cols-1 gap-2">
+        <label v-for="o in [{ v: 'columns', t: 'Columns', d: 'Logo and tagline, a contact column, and links with social icons.' }, { v: 'simple', t: 'Simple', d: 'Everything stacked in one column.' }]" :key="o.v" class="flex cursor-pointer gap-3 rounded-lg border border-gray-200 p-3 text-sm has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50/60 dark:border-gray-700 dark:has-[:checked]:bg-blue-500/10">
+          <input type="radio" class="mt-0.5 text-blue-600" name="footer-layout" :checked="(modelValue.layout ?? 'simple') === o.v" @change="patch({ layout: o.v as FooterDoc['layout'] })" />
+          <span><span class="block font-medium text-gray-900 dark:text-white">{{ o.t }}</span><span class="text-gray-600 dark:text-gray-400">{{ o.d }}</span></span>
+        </label>
+      </div>
       <div class="flex items-center justify-between gap-3">
         <span class="text-sm font-medium text-gray-900 dark:text-white">Background</span>
         <UiSegmented
@@ -70,6 +76,17 @@ function removeSocial(index: number) {
         />
       </div>
       <p class="m-0 text-xs text-gray-500 dark:text-gray-400">A dark footer uses the dark-background logo from Brand and Design.</p>
+    </UiSection>
+
+    <UiSection v-if="modelValue.layout === 'columns'" title="Columns" description="The tagline, column headings and the links menu.">
+      <FwbInput :model-value="modelValue.tagline?.lead ?? ''" label="Tagline" @update:model-value="patch({ tagline: String($event).trim() ? { lead: String($event), accent: modelValue.tagline?.accent ?? '' } : null })" />
+      <FwbInput :model-value="modelValue.tagline?.accent ?? ''" label="Tagline, highlighted second line" :disabled="!modelValue.tagline" @update:model-value="patch({ tagline: modelValue.tagline ? { ...modelValue.tagline, accent: String($event) } : null })" />
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <FwbInput :model-value="modelValue.contactTitle ?? ''" label="Contact heading" @update:model-value="patch({ contactTitle: String($event).trim() || null })" />
+        <FwbInput :model-value="modelValue.linksTitle ?? ''" label="Links heading" @update:model-value="patch({ linksTitle: String($event).trim() || null })" />
+      </div>
+      <FwbSelect :model-value="modelValue.linksMenuKey ?? NONE" :options="menuOptions" label="Links menu" @update:model-value="patch({ linksMenuKey: !String($event) || String($event) === NONE ? null : String($event) })" />
+      <FwbInput :model-value="modelValue.legalText ?? ''" label="Small print (bottom right)" @update:model-value="patch({ legalText: String($event).trim() || null })" />
     </UiSection>
 
     <UiSection title="About and contact">
