@@ -30,7 +30,7 @@ function patchStrip(update: Partial<BannerDoc>) {
 function setCta(on: boolean) {
   if (on) {
     const first = props.pages[0]
-    patch({ cta: { label: 'Donate', target: first ? { type: 'page', pageId: first.id } : { type: 'url', url: 'https://' } } })
+    patch({ cta: { label: 'Donate', icon: 'heart', target: first ? { type: 'page', pageId: first.id } : { type: 'url', url: 'https://' } } })
   } else patch({ cta: null })
 }
 function setCtaLabel(label: string) {
@@ -38,6 +38,16 @@ function setCtaLabel(label: string) {
 }
 function setCtaTarget(target: LinkTarget) {
   if (props.modelValue.cta) patch({ cta: { ...props.modelValue.cta, target } })
+}
+function setUtility(on: boolean) {
+  if (on) patch({ utility: { label: 'Report an animal', target: { type: 'url', url: 'https://' } } })
+  else patch({ utility: null })
+}
+function setUtilityLabel(label: string) {
+  if (props.modelValue.utility) patch({ utility: { ...props.modelValue.utility, label } })
+}
+function setUtilityTarget(target: LinkTarget) {
+  if (props.modelValue.utility) patch({ utility: { ...props.modelValue.utility, target } })
 }
 </script>
 
@@ -103,6 +113,17 @@ function setCtaTarget(target: LinkTarget) {
       <template v-if="modelValue.cta">
         <FwbInput :model-value="modelValue.cta.label" label="Button text" @update:model-value="setCtaLabel(String($event))" />
         <LinkTargetField :model-value="modelValue.cta.target" :pages="pages" label="Button goes to" @update:model-value="setCtaTarget" />
+        <label class="inline-flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
+          <input type="checkbox" class="rounded text-blue-600" :checked="modelValue.cta.icon === 'heart'" @change="patch({ cta: { ...modelValue.cta!, icon: ($event.target as HTMLInputElement).checked ? 'heart' : undefined } })" />
+          Show a heart before the text
+        </label>
+      </template>
+    </UiSection>
+
+    <UiSection title="Small link next to the menu" description="Shown beside the menu and in the phone menu." icon="link" toggle toggle-label="Show a small link next to the menu" :model-value="!!modelValue.utility" @update:model-value="setUtility">
+      <template v-if="modelValue.utility">
+        <FwbInput :model-value="modelValue.utility.label" label="Link text" @update:model-value="setUtilityLabel(String($event))" />
+        <LinkTargetField :model-value="modelValue.utility.target" :pages="pages" label="Link goes to" @update:model-value="setUtilityTarget" />
       </template>
     </UiSection>
 

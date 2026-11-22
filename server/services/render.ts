@@ -24,7 +24,7 @@ import {
 } from '../../shared/site-parts'
 import { BUNDLE_ID, EMBED_JS, THEME_CSS } from '../theme/default'
 import { migrateBrandDoc, validateBrandDoc, type BrandDoc } from '../../shared/brand'
-import { themeCssFromTokens } from '../../shared/theme-css'
+import { BANNER_ACCENT_CSS, FOOTER_COLUMNS_CSS, HEART_CSS, UTILITY_CSS, themeCssFromTokens } from '../../shared/theme-css'
 import { embeds, media, mediaCrops, pages, redirects, siteParts, sites, versions, type ReleaseManifest } from '../db/schema'
 import type { ServiceCtx } from './context'
 import { widthsFor } from './media'
@@ -672,6 +672,20 @@ function headerClass(style: HeaderDoc['style'] | undefined, appearance?: HeaderD
   return appearance === 'dark' ? `${base} site-header-dark` : base
 }
 
+/** A small heart for Donate buttons. Decorative: the button text carries the meaning. */
+function heartIcon(): VNode {
+  return h('svg', { class: 'ico-heart', viewBox: '0 0 24 24', width: 16, height: 16, 'aria-hidden': 'true', focusable: 'false' }, [
+    h('path', { fill: 'currentColor', d: 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z' }),
+  ])
+}
+
+function utilityLink(site: SiteRenderContext, bag: Collector): VNode | null {
+  const utility = site.header?.doc.utility
+  if (!utility) return null
+  const link = resolveLink(utility.target, utility.label, site, bag)
+  return h('a', { class: 'util', href: link.href }, utility.label)
+}
+
 function renderNav(site: SiteRenderContext, bag: Collector): VNode | null {
   const key = site.header?.doc.menuKey ?? 'main'
   const menu = site.menus[key]
@@ -694,9 +708,14 @@ function renderNav(site: SiteRenderContext, bag: Collector): VNode | null {
     ])
   })
   if (style === 'hamburger') {
-    return h('details', { class: 'nav nav-hamburger', 'aria-label': 'Site' }, [h('summary', 'Menu'), h('div', { class: 'nav-panel' }, items)])
+    const inMenu = utilityLink(site, bag)
+    return h('details', { class: 'nav nav-hamburger', 'aria-label': 'Site' }, [
+      h('summary', 'Menu'),
+      h('div', { class: 'nav-panel' }, inMenu ? [...items, inMenu] : items),
+    ])
   }
-  return h('nav', { class: style === 'mega' ? 'nav nav-mega' : 'nav', 'aria-label': 'Site' }, items)
+  const utility = utilityLink(site, bag)
+  return h('nav', { class: style === 'mega' ? 'nav nav-mega' : 'nav', 'aria-label': 'Site' }, utility ? [...items, utility] : items)
 }
 
 function logoOrName(site: SiteRenderContext, bag: Collector, opts: { dark?: boolean } = {}): VNode | string {
@@ -759,6 +778,9 @@ function renderShell(doc: PageDoc, site: SiteRenderContext, bag: Collector): VNo
   const bannerLink = showBanner && banner.doc.link ? resolveLink(banner.doc.link.target, banner.doc.link.label, site, bag) : null
   const headerCta = header?.doc.cta ? resolveLink(header.doc.cta.target, header.doc.cta.label, site, bag) : null
   let firstHero = true
+  const menuKey = site.header?.doc.menuKey ?? 'main'
+  // Hamburger hides its links until the menu opens, so the utility link is also beside the Menu button.
+  const barUtility = menuStyleOf(site) === 'hamburger' && site.menus[menuKey] ? utilityLink(site, bag) : null
 
   return h('div', [
     h('a', { class: 'skip', href: '#main' }, 'Skip to content'),
@@ -772,7 +794,10 @@ function renderShell(doc: PageDoc, site: SiteRenderContext, bag: Collector): VNo
       h('div', { class: 'site-header-inner' }, [
         h('a', { class: 'site-title', href: '/' }, logoOrName(site, bag, { dark: site.header?.doc.appearance === 'dark' })),
         renderNav(site, bag),
-        headerCta ? h('a', { class: 'cta-btn', href: headerCta.href }, headerCta.label) : null,
+        ...(barUtility ? [barUtility] : []),
+        headerCta
+          ? h('a', { class: 'cta-btn', href: headerCta.href }, header?.doc.cta?.icon === 'heart' ? [heartIcon(), h('span', headerCta.label)] : headerCta.label)
+          : null,
       ]),
     ]),
     h(
@@ -789,8 +814,90 @@ function renderShell(doc: PageDoc, site: SiteRenderContext, bag: Collector): VNo
   ])
 }
 
+const SOCIAL_LABELS: Record<string, string> = { facebook: 'Facebook', instagram: 'Instagram', x: 'X', linkedin: 'LinkedIn', youtube: 'YouTube', tiktok: 'TikTok', bluesky: 'Bluesky', threads: 'Threads' }
+
+/** Simple line icons drawn for this theme. Decorative: the link carries an aria-label. */
+function socialIcon(network: string): VNode {
+  const stroke = { fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }
+  const children: VNode[] =
+    network === 'facebook'
+      ? [h('path', { ...stroke, d: 'M14 8h2V5h-2.2C11.6 5 10.5 6.3 10.5 8.2V10H8.5v3h2v7h3v-7H16l.5-3h-3V8.6c0-.4.2-.6.5-.6z' })]
+      : network === 'instagram'
+        ? [h('rect', { ...stroke, x: 4, y: 4, width: 16, height: 16, rx: 4.5 }), h('circle', { ...stroke, cx: 12, cy: 12, r: 3.5 }), h('circle', { cx: 16.8, cy: 7.2, r: 1, fill: 'currentColor' })]
+        : network === 'youtube'
+          ? [h('rect', { ...stroke, x: 3, y: 6, width: 18, height: 12, rx: 3.5 }), h('path', { d: 'M10.5 9.5v5l4-2.5z', fill: 'currentColor' })]
+          : network === 'x'
+            ? [h('path', { ...stroke, d: 'M5 5l14 14M19 5L5 19' })]
+            : network === 'linkedin'
+              ? [h('path', { ...stroke, d: 'M6.5 10v7M6.5 6.5v.01M10.5 17v-7M10.5 13c0-2 1.4-3 3-3s3 1 3 3v4' })]
+              : [h('circle', { ...stroke, cx: 12, cy: 12, r: 8 })]
+  return h('svg', { class: 'ico-social', viewBox: '0 0 24 24', width: 18, height: 18, 'aria-hidden': 'true', focusable: 'false' }, children)
+}
+
+function arrowIcon(): VNode {
+  return h('svg', { class: 'ico-arrow', viewBox: '0 0 24 24', width: 14, height: 14, 'aria-hidden': 'true', focusable: 'false' }, [
+    h('path', { d: 'M9 5l7 7-7 7', fill: 'none', stroke: 'currentColor', 'stroke-width': 2.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }),
+  ])
+}
+
+/** The richer footer: brand and tagline, a contact column, a links column with social icons, and a base line. */
+function renderFooterColumns(site: SiteRenderContext, bag: Collector, doc: FooterDoc): VNode {
+  const links = doc.linksMenuKey ? site.menus[doc.linksMenuKey] : null
+  if (links) bag.siteParts.add(links.id)
+  const legal = doc.legalMenuKey ? site.menus[doc.legalMenuKey] : null
+  if (legal) bag.siteParts.add(legal.id)
+  const contact = doc.contact
+  const hasContact = !!(contact.email || contact.phone)
+  return h('footer', { class: doc.appearance === 'dark' ? 'site-footer site-footer-cols site-footer-dark' : 'site-footer site-footer-cols' }, [
+    h('div', { class: 'ft-wrap' }, [
+      h('div', { class: 'ft-grid' }, [
+        h('div', { class: 'ft-brand' }, [
+          h('a', { class: 'ft-logo', href: '/' }, logoOrName(site, bag)),
+          doc.tagline ? h('p', { class: 'ft-tag' }, [doc.tagline.lead, doc.tagline.accent ? [' ', h('em', doc.tagline.accent)] : null]) : null,
+          doc.text ? h('div', { class: 'ft-about prose' }, renderRichText(doc.text, bag)) : null,
+        ]),
+        hasContact
+          ? h('div', { class: 'ft-col' }, [
+              h('h3', doc.contactTitle ?? 'Get in touch'),
+              h('address', [
+                contact.email ? h('div', [h('a', { href: `mailto:${contact.email}` }, contact.email)]) : null,
+                contact.phone ? h('div', [h('a', { href: `tel:${contact.phone.replace(/ /g, '')}` }, contact.phone)]) : null,
+              ]),
+            ])
+          : null,
+        h('div', { class: 'ft-col' }, [
+          links ? h('h3', doc.linksTitle ?? 'Find out more') : null,
+          links
+            ? h(
+                'nav',
+                { class: 'ft-links', 'aria-label': doc.linksTitle ?? 'Footer' },
+                links.doc.items.map((item) => h('a', { href: resolveLink(item.target, item.label, site, bag).href }, [item.label, arrowIcon()])),
+              )
+            : null,
+          doc.social.length
+            ? h(
+                'div',
+                { class: 'footer-social ft-social' },
+                doc.social.map((x) => h('a', { href: resolvedHref(x.url, bag), rel: 'me noopener', 'aria-label': SOCIAL_LABELS[x.network] ?? x.network }, [socialIcon(x.network)])),
+              )
+            : null,
+        ]),
+      ]),
+      h('div', { class: 'ft-base' }, [
+        contact.address ? h('p', contact.address) : h('p'),
+        h('p', [
+          doc.legalText ?? null,
+          doc.charityNumber ? `${doc.legalText ? ' ' : ''}Charity number ${doc.charityNumber}.` : null,
+          legal ? legal.doc.items.map((item) => [' ', h('a', { href: resolveLink(item.target, item.label, site, bag).href }, item.label)]) : null,
+        ]),
+      ]),
+    ]),
+  ])
+}
+
 function renderFooter(site: SiteRenderContext, bag: Collector, footer: SiteRenderContext['footer']): VNode {
   const doc = footer?.doc
+  if (doc && doc.layout === 'columns') return renderFooterColumns(site, bag, doc)
   const legal = doc?.legalMenuKey ? site.menus[doc.legalMenuKey] : null
   if (legal) bag.siteParts.add(legal.id)
   return h('footer', { class: site.footer?.doc.appearance === 'dark' ? 'site-footer site-footer-dark' : 'site-footer' }, [
@@ -902,6 +1009,17 @@ export function renderAnalyticsJs(tracking: SiteSettings['tracking']): string | 
   return lines.join('\n')
 }
 
+/** CSS for optional shell parts. Empty when every option is left at its default, so the style tag stays byte-identical. */
+export function shellOptionCss(site: SiteRenderContext): string {
+  let extra = ''
+  if (site.header?.doc.cta?.icon === 'heart') extra += HEART_CSS
+  if (site.header?.doc.utility) extra += UTILITY_CSS
+  if (site.footer?.doc.layout === 'columns') extra += FOOTER_COLUMNS_CSS
+  const banner = site.banner
+  if (banner && banner.doc.enabled && banner.doc.message && banner.doc.tone === 'accent') extra += BANNER_ACCENT_CSS
+  return extra
+}
+
 export async function renderPageHtml(input: {
   doc: PageDoc
   pageId: string
@@ -911,7 +1029,7 @@ export async function renderPageHtml(input: {
 }): Promise<RenderedPage> {
   const bag = newCollector(input.site)
   const { doc, site } = input
-  const css = site.themeCss ?? THEME_CSS
+  const css = (site.themeCss ?? THEME_CSS) + shellOptionCss(site)
   const app = createSSRApp(
     defineComponent({
       name: 'PublishedPage',

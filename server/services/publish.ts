@@ -476,6 +476,8 @@ function shellLinkedPageIds(ctx: ServiceCtx, manifest: ReleaseManifest): Set<str
     add(footer.doc)
     const key = (footer.doc as { legalMenuKey?: string | null } | null)?.legalMenuKey
     if (key && menus[key]) add(menus[key])
+    const columns = footer.doc as { layout?: string; linksMenuKey?: string | null } | null
+    if (columns?.layout === 'columns' && columns.linksMenuKey && menus[columns.linksMenuKey]) add(menus[columns.linksMenuKey])
   }
   if (banner && (banner.doc as { enabled?: boolean } | null)?.enabled) add(banner.doc)
   return ids

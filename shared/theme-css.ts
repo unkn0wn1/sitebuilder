@@ -251,6 +251,49 @@ a { color: var(--accent); }
 .trust-badge img, .trust-badge iframe { max-width: 100%; height: auto; }
 `
 
+// Extra rules for optional shell parts. Appended to a page only when that option is used,
+// so a page that leaves them at their defaults keeps the theme CSS byte-identical.
+export const HEART_CSS = `
+.cta-btn:has(.ico-heart) { display: inline-flex; align-items: center; white-space: nowrap; }
+.ico-heart { margin-right: 0.45rem; vertical-align: -2px; flex: none; }
+`
+
+export const UTILITY_CSS = `
+.util { font-size: 0.9rem; font-weight: 600; color: var(--muted); white-space: nowrap; text-decoration: none; }
+.site-header-dark .util { color: var(--paper); }
+`
+
+export const BANNER_ACCENT_CSS = `
+.banner-accent { background: var(--accent); color: var(--accent-ink); font-size: 0.85rem; font-weight: 700; padding: 0.45rem var(--space); letter-spacing: 0.01em; }
+.banner-accent a { text-decoration: underline; text-underline-offset: 2px; }
+`
+
+export const FOOTER_COLUMNS_CSS = `
+.site-footer-cols { --f-bg: var(--paper); --f-fg: var(--ink); --f-mut: var(--muted); --f-line: var(--line); margin-top: 0; padding: 0; border-top: 0; background: var(--f-bg); color: var(--f-fg); font-size: 0.92rem; }
+.site-footer-cols.site-footer-dark { --f-bg: linear-gradient(160deg, #261d17, #130f0b); --f-fg: #fff; --f-mut: rgba(255, 248, 238, 0.62); --f-line: rgba(255, 255, 255, 0.14); }
+.site-footer-cols::before { content: ""; display: block; height: 3px; background: linear-gradient(90deg, var(--accent), #f3b53f, var(--accent)); }
+.site-footer-cols a { color: inherit; }
+.ft-wrap { width: min(100% - 2 * var(--space), var(--max)); margin: 0 auto; padding: 3rem 0 1.5rem; }
+.ft-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 2.5rem; }
+.ft-logo { display: inline-block; background: #fff; border-radius: 0.6rem; padding: 0.4rem 0.8rem; text-decoration: none; color: #1f1a17; }
+.ft-logo img { display: block; height: 2.4rem; width: auto; }
+.ft-tag { font-size: 1.25rem; font-weight: 700; line-height: 1.3; margin: 1.1rem 0 0.6rem; }
+.ft-tag em { display: block; font-style: normal; color: #f3b53f; }
+.ft-about { max-width: 24rem; color: var(--f-mut); }
+.ft-about p { margin: 0; }
+.ft-col h3 { text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.7rem; color: var(--f-mut); margin: 0 0 1rem; }
+.ft-col address { font-style: normal; display: grid; gap: 0.45rem; }
+.ft-links { display: grid; gap: 0.65rem; }
+.ft-links a { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 600; text-decoration: none; }
+.ft-links a:hover, .ft-links a:focus-visible { text-decoration: underline; }
+.ft-social { display: flex; gap: 0.6rem; margin: 1.25rem 0 0; }
+.ft-social a { width: 2.4rem; height: 2.4rem; border-radius: 50%; border: 1px solid var(--f-line); display: grid; place-items: center; }
+.ft-social a:hover { background: color-mix(in srgb, var(--f-fg) 14%, transparent); }
+.ft-base { display: flex; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap; margin-top: 2.5rem; padding-top: 1.25rem; border-top: 1px solid var(--f-line); font-size: 0.78rem; color: var(--f-mut); }
+.ft-base p { margin: 0; }
+@media (max-width: 800px) { .ft-grid { grid-template-columns: 1fr; gap: 2rem; } .ft-wrap { padding-top: 2.25rem; } }
+`
+
 
 /** Build public CSS from a brand pack, keeping the default rules and swapping tokens and fonts. */
 export function themeCssFromTokens(tokens: ThemeTokens, fonts?: { body: string; heading: string | null }): string {

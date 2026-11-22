@@ -47,6 +47,7 @@ const headerMenu = computed(() => menus.value.find((m) => m.key === headerDoc.va
 function usedIn(key: string): string[] {
   const out: string[] = []
   if (headerDoc.value?.menuKey === key) out.push('Header')
+  if (footerDoc.value?.linksMenuKey === key) out.push('Footer links')
   if (footerDoc.value?.legalMenuKey === key) out.push('Footer legal links')
   return out
 }
@@ -97,7 +98,7 @@ async function createMenu() {
                 <span class="hidden min-w-0 flex-1 gap-4 truncate text-xs text-gray-600 sm:flex dark:text-gray-300" :class="headerDoc?.appearance === 'dark' ? 'text-gray-200' : ''">
                   <span v-for="label in (headerMenu ? menuLabels(headerMenu.id) : []).slice(0, 6)" :key="label">{{ label }}</span>
                 </span>
-                <span v-if="headerDoc?.cta" class="ml-auto rounded-full bg-orange-700 px-3 py-1 text-xs font-semibold text-white">{{ headerDoc.cta.label }}</span>
+                <span v-if="headerDoc?.cta" class="ml-auto rounded-full bg-orange-700 px-3 py-1 text-xs font-semibold text-white">{{ headerDoc.cta.icon === 'heart' ? '♥ ' : '' }}{{ headerDoc.cta.label }}</span>
               </div>
             </div>
           </div>
@@ -155,7 +156,7 @@ async function createMenu() {
             <div class="min-w-0 flex-1">
               <h3 class="m-0 text-base font-semibold text-gray-900 group-hover:text-blue-700 dark:text-white dark:group-hover:text-blue-300">Footer</h3>
               <p class="mt-0.5 mb-0 text-sm text-gray-600 dark:text-gray-400">
-                {{ footerDoc?.appearance === 'dark' ? 'Dark' : 'Light' }}
+                {{ footerDoc?.layout === 'columns' ? 'Columns' : 'Simple' }} · {{ footerDoc?.appearance === 'dark' ? 'Dark' : 'Light' }}
                 <template v-if="footerDoc?.contact.email"> · {{ footerDoc.contact.email }}</template>
                 <template v-if="footerDoc?.social.length"> · {{ footerDoc.social.length }} social links</template>
               </p>

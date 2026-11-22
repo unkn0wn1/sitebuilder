@@ -72,7 +72,7 @@ export async function renderSitePartPreview(ctx: ServiceCtx, input: { parts: { p
   const menu = overrides.find((o) => o.part.kind === 'menu')
   if (menu) {
     const key = menu.part.key
-    menuUse = site.header?.doc.menuKey === key ? 'header' : site.footer?.doc.legalMenuKey === key ? 'legal' : 'unused'
+    menuUse = site.header?.doc.menuKey === key ? 'header' : site.footer?.doc.linksMenuKey === key ? 'footer' : site.footer?.doc.legalMenuKey === key ? 'legal' : 'unused'
     // A menu nothing uses yet is shown in the header, so there is something to look at.
     if (menuUse === 'unused' && site.header) site.header = { ...site.header, doc: { ...site.header.doc, menuKey: key } }
   }
