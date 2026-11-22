@@ -4,12 +4,15 @@
 // The order of the decision is fixed and is the contract the docs promise:
 //   1. A matching deny rule stops the change.            (deny beats everything)
 //   2. The floor: some facts force a human review.       (never auto-publishes, even with always-allow)
-//   3. Always-allow, if switched on and not expired.     (publishes, no rule needed)
-//   4. Every action in every part needs a publish rule whose limits hold. Anything else goes to review.
+//      custom_css is set when CSS text was added, changed or cleared. Removing a
+//      whole section is not that flag: the CSS goes away because the section went away.
+//   3. The action edit_css always needs a person.        (before always-allow and publish rules, including "*")
+//   4. Always-allow, if switched on and not expired.     (publishes, no rule needed)
+//   5. Every action in every part needs a publish rule whose limits hold. Anything else goes to review.
 import { z } from 'zod'
 import { SITE_PART_KINDS, type SitePartKind } from '../site-parts'
 
-export const AGENT_ACTIONS = ['edit_text', 'remove_link', 'add_link', 'edit_sections', 'edit_page_details', 'create_page', 'edit_menu', 'edit_banner', 'edit_footer', 'edit_header', 'undo_change'] as const
+export const AGENT_ACTIONS = ['edit_text', 'remove_link', 'add_link', 'edit_sections', 'edit_css', 'edit_page_details', 'create_page', 'edit_menu', 'edit_banner', 'edit_footer', 'edit_header', 'undo_change'] as const
 export type AgentAction = (typeof AGENT_ACTIONS)[number]
 
 /** Plain words for each action, shown to the owner and to the AI (docs, rule errors, `get_site`). */
@@ -18,6 +21,7 @@ export const ACTION_LABELS: Record<AgentAction, string> = {
   remove_link: 'Take links out (the words stay, or the button or menu item goes)',
   add_link: 'Add a link, or point an existing link somewhere new',
   edit_sections: 'Add, remove, move or change sections (anything beyond plain text)',
+  edit_css: 'Change custom CSS on a section. Always needs a person.',
   edit_page_details: 'Change a page title, address or search settings',
   create_page: 'Create a new page',
   edit_menu: 'Add, remove or rename menu items',
@@ -96,12 +100,16 @@ export type PartTarget =
   | { type: 'page'; id: string; path: string; template: string; label: string; holdsMoney: boolean }
   | { type: 'site_part'; id: string; partKind: SitePartKind; label: string }
 
-export type FloorFlag = 'money_section_touched' | 'foreign_draft' | 'checks_failing'
+export type FloorFlag = 'money_section_touched' | 'foreign_draft' | 'checks_failing' | 'custom_css'
+
+/** Same sentence for the edit_css action and the custom_css floor flag. */
+const CSS_REVIEW_REASON = 'Custom CSS always needs a person to review it.'
 
 export const FLOOR_MESSAGES: Record<FloorFlag, string> = {
   money_section_touched: 'It touches a money section (gift amounts, progress, match or countdown). Those always need a person.',
   foreign_draft: 'The page or part has unpublished changes that are not from this change (a person is working on it, it has never been published, or it changed since the agent edited it). Publishing would publish that too.',
   checks_failing: 'The checks that every submission must pass are failing.',
+  custom_css: CSS_REVIEW_REASON,
 }
 
 export interface PartStats {
@@ -202,6 +210,12 @@ function decidePart(part: PartFacts, input: DecideInput & { pagesCreated: number
 
   if (part.floor.length) {
     return { target: part.target, outcome: 'review', reasons: part.floor.map((f) => `${FLOOR_MESSAGES[f]} (${name})`), ruleIds: [] }
+  }
+
+  // After deny and the floor, before always-allow and publish rules. A deny rule already returned.
+  // A publish rule and always-allow cannot auto-publish this, including actions "*".
+  if (part.actions.includes('edit_css')) {
+    return { target: part.target, outcome: 'review', reasons: [CSS_REVIEW_REASON], ruleIds: [] }
   }
 
   if (!part.actions.length) return { target: part.target, outcome: 'review', reasons: [`Nothing in ${name} has changed.`], ruleIds: [] }

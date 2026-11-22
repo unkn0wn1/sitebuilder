@@ -99,7 +99,9 @@ export function editBrand(ctx: ServiceCtx, actor: ActingAs, baseRevision: number
       .run()
     const state = pack.workflowState === 'in_review' ? withdrawPending(ctx, pack, actor) : pack.workflowState
     ctx.db.update(brandPacks).set({ draftVersionId: headId, draftRevision: revision, workflowState: state, updatedAt: iso(ctx) }).where(eq(brandPacks.id, pack.id)).run()
-    audit(ctx, actor, 'brand.edited', { type: 'brand', id: pack.id }, { revision })
+    const details: Record<string, unknown> = { revision }
+    if ((valid.doc.customCss ?? '') !== (current.customCss ?? '')) details.customCss = true
+    audit(ctx, actor, 'brand.edited', { type: 'brand', id: pack.id }, details)
     return { revision, doc: valid.doc, warnings: checks.warnings, reviewWithdrawn: state !== pack.workflowState }
   })
 }

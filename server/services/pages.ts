@@ -199,6 +199,23 @@ export interface OpsResult {
 }
 
 /**
+ * Editors may copy CSS only by duplicating the section it is already on.
+ * Writing or clearing it any other way needs design.css (admin).
+ */
+function assertMayWriteCss(actor: ActingAs, doc: PageDoc, ops: InternalOp[]) {
+  if (can(actor, 'design.css')) return
+  for (const op of ops) {
+    if (op.op === 'set_block_css') throw forbidden('Custom CSS changes need an admin.')
+    if (op.op !== 'add_block') continue
+    const css = op.block.css
+    if (typeof css !== 'string' || !css.trim()) continue
+    const source = op.afterBlockId ? doc.blocks.find((block) => block.id === op.afterBlockId) : undefined
+    if (source && source.css === css) continue
+    throw forbidden('Custom CSS changes need an admin.')
+  }
+}
+
+/**
  * Apply a batch of operations to a page's draft, all or nothing.
  * Conflict only if a different actor touched the same keys since baseRevision.
  */
@@ -212,6 +229,7 @@ export function applyPageOps(ctx: ServiceCtx, actor: ActingAs, pageId: string, b
     const current = readDoc(ctx, page.draftVersionId!)
     const meta: PageMeta = { slug: page.slug, parentId: page.parentId }
     const conflictBody = () => ({ current: { revision: page.draftRevision, doc: current, meta } })
+    assertMayWriteCss(actor, current, ops)
 
     let result
     try {
@@ -267,7 +285,10 @@ export function applyPageOps(ctx: ServiceCtx, actor: ActingAs, pageId: string, b
       .where(eq(pages.id, pageId))
       .run()
     if (path !== page.path) updateDescendantPaths(ctx, pageId, path)
-    audit(ctx, actor, opts.undoOf ? 'page.undo' : 'page.edited', { type: 'page', id: pageId }, { ops: result.applied.map((a) => a.op.op), revision })
+    const cssBlocks = result.applied.flatMap((a) => (a.op.op === 'set_block_css' ? [a.op.blockId] : []))
+    const detail: Record<string, unknown> = { ops: result.applied.map((a) => a.op.op), revision }
+    if (cssBlocks.length) detail.cssBlocks = cssBlocks
+    audit(ctx, actor, opts.undoOf ? 'page.undo' : 'page.edited', { type: 'page', id: pageId }, detail)
     return { revision, doc: valid.doc, meta: { ...result.state.meta, path }, opIds, reviewWithdrawn: state !== page.workflowState }
   })
 }

@@ -72,3 +72,12 @@ export const CHANGE_KIND_LABELS: Record<PageDiff['blocks'][number]['kind'], stri
   changed: 'Changed',
   moved: 'Moved',
 }
+
+/** CSS text for a changed section, so the review can show a line diff without the live document. */
+export function cssTextChange(change: PageDiff['blocks'][number]): { before: string; after: string } | null {
+  if (change.kind !== 'changed') return null
+  const before = change.cssBefore ?? ''
+  const after = change.cssAfter ?? ''
+  if (!before && !after) return null
+  return { before, after }
+}

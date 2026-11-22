@@ -1,6 +1,6 @@
 # Decision records
 
-Short records of decisions that are locked in. Each has a status, the context, the decision and the consequences. To change one, add a new record that supersedes it.
+Short records of decisions that are locked in. Each has a status, the context, the decision and the consequences. To change one, add a new record that supersedes it. Number 0017 was never used.
 
 | ADR | Decision | Status |
 | --- | --- | --- |
@@ -21,3 +21,4 @@ Short records of decisions that are locked in. Each has a status, the context, t
 | [0015](0015-gmail-workspace-mail.md) | Send mail through Google Workspace and the Gmail API | Accepted |
 | [0016](0016-xai-oauth.md) | Optional Sign in with xAI (device code, off by default) | Accepted |
 | [0018](0018-agent-gateway.md) | Agent gateway: one REST API and one MCP server, drafts first, rules decide what goes live | Accepted |
+| [0019](0019-custom-css.md) | Custom CSS: author text, a sanitiser, prefix at render, and a person must approve agent drafts | Accepted |

@@ -2,11 +2,27 @@
 import { api, ApiError } from '../../utils/api'
 import type { Device, PageEditor } from '../../utils/page-editor'
 import type { FieldIssue } from '#shared/issues'
+import type { LiveCss } from '#shared/css/buffer'
+import { can } from '#shared/roles'
 import { blockIndexFromPath, describeIssues, issuesUnder } from '#shared/field-issues'
 import { blockCatalog, blockLabel } from '../../utils/block-fields'
+import CssEditor from '../css/CssEditor.vue'
+import RenderedPage from '../preview/RenderedPage.vue'
 
 const props = defineProps<{ editor: PageEditor }>()
 const emit = defineEmits<{ submitted: [] }>()
+
+const { user } = useSession()
+const canCss = computed(() => !!user.value && can(user.value, 'design.css'))
+
+function onCssSave(css: string) {
+  const id = props.editor.selectedId
+  if (id) props.editor.setBlockCss(id, css)
+}
+
+function onCssPreview(live: LiveCss | null) {
+  props.editor.cssPreview = live
+}
 
 const assistant = useAssistant(() => props.editor)
 
@@ -188,6 +204,22 @@ async function submit() {
         :base-path="`${issuePathFor(editor.selected.id)}.props`"
         @update:model-value="onSectionProps"
       />
+      <details v-if="canCss" class="mt-6 border-t border-gray-200 pt-4 dark:border-gray-700" data-testid="custom-css">
+        <summary class="cursor-pointer text-sm font-medium text-gray-900 dark:text-gray-100">Custom CSS</summary>
+        <CssEditor class="mt-3" scope="section" :section-id="editor.selected.id" :saved="editor.selected.css ?? ''" @save="onCssSave" @preview="onCssPreview">
+          <template #preview>
+            <RenderedPage
+              :doc="editor.doc"
+              :device="editor.device"
+              :page-id="editor.pageId"
+              :path="editor.path"
+              :selected-id="editor.selectedId"
+              :live-css="editor.cssPreview"
+              @select="(id) => editor.select(id)"
+            />
+          </template>
+        </CssEditor>
+      </details>
     </div>
     <div v-if="editor.offline" class="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-950">
       You're offline. Your changes will save when you're back.

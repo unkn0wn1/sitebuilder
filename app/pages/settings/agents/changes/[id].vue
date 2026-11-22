@@ -7,6 +7,9 @@ import type { MenuDoc, SitePartDoc, SitePartKind } from '#shared/site-parts'
 import type { Device } from '../../../../utils/page-editor'
 import type { PageOption, SitePartDetail, SitePartListItem } from '../../../../utils/site-parts'
 import ReviewPreview from '../../../../components/approvals/ReviewPreview.vue'
+import CssDiff from '../../../../components/approvals/CssDiff.vue'
+import { blockRegistry } from '../../../../utils/block-fields'
+import { CHANGE_KIND_LABELS, cssTextChange } from '../../../../utils/reviews'
 import SettingsNav from '../../../../components/settings/SettingsNav.vue'
 import UndoDialog from '../../../../components/settings/agents/UndoDialog.vue'
 
@@ -167,6 +170,12 @@ onMounted(() => {
           <span v-if="item.created" class="rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-900 dark:bg-emerald-900 dark:text-emerald-100">New page</span>
           <a v-if="liveHref(item) && data.mode === 'after_publish'" :href="liveHref(item)!" class="text-sm" target="_blank" rel="noopener">Open on the site</a>
         </div>
+        <ul v-if="item.diff?.blocks.length" class="m-0 mb-2 list-none space-y-1 p-0 text-sm">
+          <li v-for="change in item.diff.blocks" :key="`${change.kind}-${change.blockId}`">
+            <span class="text-gray-800 dark:text-gray-200">{{ CHANGE_KIND_LABELS[change.kind] }}: {{ blockRegistry.get(change.type)?.label ?? change.type }}</span>
+            <CssDiff v-if="cssTextChange(change)" :before="cssTextChange(change)?.before ?? ''" :after="cssTextChange(change)?.after ?? ''" />
+          </li>
+        </ul>
         <div v-if="item.doc" class="flex" :class="frameClass(item)">
           <ReviewPreview
             :kind="item.type"

@@ -26,7 +26,7 @@ async function docsShot(page: Page, name: string, fullPage = true) {
 }
 
 test('settings, media library and inspector crop', async ({ page }) => {
-  test.setTimeout(90_000)
+  test.setTimeout(180_000)
   await signIn(page)
 
   await page.goto('/settings/ai')
@@ -126,6 +126,77 @@ test('settings, media library and inspector crop', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Choose a photo' })).toBeVisible()
   await expect(page.getByText('field.png').first()).toBeVisible()
   await page.screenshot({ path: shot('editor-photo-change.png'), fullPage: true })
+
+  // Same gateway guard as the personality proposal above. No extra sign-in.
+  // Publish a plain page first so the review diff is a change to an existing section, which is what shows the CSS lines.
+  if (process.env.SITEBUILDER_AGENT_GATEWAY === '1') {
+    const origin = new URL(page.url()).origin
+    const stamp = `${Date.now().toString(36)}${test.info().parallelIndex}`
+    const title = `CSS review ${stamp}`
+    const css = 'a { text-underline-offset: 0.15em; }'
+    const headers = { Origin: origin, Accept: 'application/json', 'Content-Type': 'application/json' }
+    const session = async (method: string, path: string, data?: unknown) => {
+      const res = await page.request.fetch(path, { method, headers, data })
+      const text = await res.text()
+      expect(res.ok(), `${method} ${path} ${res.status()}: ${text.slice(0, 500)}`).toBeTruthy()
+      return text ? (JSON.parse(text) as Record<string, unknown>) : {}
+    }
+
+    await session('PATCH', '/api/v1/settings', { workflow: { selfApproval: true } })
+    const created = await session('POST', '/api/v1/pages', { title, template: 'standard', slug: `css-review-${stamp}` })
+    const pageId = String((created.page as { id?: string } | undefined)?.id ?? '')
+    expect(pageId, 'created page id').toBeTruthy()
+    const added = await session('POST', `/api/v1/pages/${pageId}/ops`, {
+      baseRevision: created.revision,
+      ops: [{ op: 'add_block', block: { type: 'Quote', props: { text: 'They gave him a second chance.', attribution: 'A volunteer' } } }],
+    })
+    const blocks = ((added.doc as { blocks?: { id: string; type: string }[] } | undefined)?.blocks ?? [])
+    const quote = blocks.find((block) => block.type === 'Quote')
+    expect(quote?.id, 'quote section').toBeTruthy()
+    const submitted = await session('POST', `/api/v1/pages/${pageId}/submit`, { note: 'Publish a plain page so a CSS change can be reviewed against it.' })
+    await session('POST', `/api/v1/reviews/${String(submitted.reviewId)}/approve`, { versionId: submitted.versionId })
+    await expect.poll(async () => {
+      const res = await page.request.get(`/api/v1/pages/${pageId}`, { headers: { Origin: origin, Accept: 'application/json' } })
+      if (!res.ok()) return `http ${res.status()}`
+      const body = (await res.json()) as { page?: { workflowState?: string } }
+      return body.page?.workflowState ?? 'missing'
+    }, { timeout: 60_000 }).toBe('published')
+
+    const minted = await page.request.fetch('/api/v1/agent/tokens', {
+      method: 'POST',
+      headers,
+      data: { name: 'CSS draft', access: 'draft', rules: [] },
+    })
+    const mintedText = await minted.text()
+    expect(minted.ok(), `token mint failed: ${minted.status()}`).toBeTruthy()
+    const secret = String((JSON.parse(mintedText) as { secret?: string }).secret ?? '')
+    expect(secret.startsWith('sbt_'), 'draft token was not returned').toBeTruthy()
+    const drafted = await page.request.fetch('/agent/v1/edits/block-css', {
+      method: 'POST',
+      headers: { Origin: origin, Accept: 'application/json', Authorization: `Bearer ${secret}` },
+      data: { page_id: pageId, block_id: quote!.id, css, reason: 'The owner asked for a little more space under the links in this section.' },
+    })
+    if (drafted.status() !== 404) {
+      const draftedText = await drafted.text()
+      expect(drafted.ok(), `block-css ${drafted.status()}: ${draftedText.slice(0, 500)}`).toBeTruthy()
+      const changeId = String((JSON.parse(draftedText) as { change?: { id?: string } }).change?.id ?? '')
+      expect(changeId, 'change id').toBeTruthy()
+      const sent = await page.request.fetch(`/agent/v1/changes/${changeId}/request-publish`, {
+        method: 'POST',
+        headers: { Origin: origin, Accept: 'application/json', Authorization: `Bearer ${secret}` },
+        data: { note: 'Please look at the custom CSS on the quote.' },
+      })
+      const sentText = await sent.text()
+      expect(sent.ok(), `request-publish ${sent.status()}: ${sentText.slice(0, 500)}`).toBeTruthy()
+      expect((JSON.parse(sentText) as { result?: { sent_for_review?: boolean } }).result?.sent_for_review).toBe(true)
+
+      await page.goto('/approvals')
+      await expect(page.getByRole('heading', { name: 'Approvals' })).toBeVisible({ timeout: 20_000 })
+      await page.getByRole('link', { name: title }).click()
+      await expect(page.getByRole('heading', { name: `Review: ${title}` })).toBeVisible({ timeout: 20_000 })
+      await expect(page.getByText('text-underline-offset: 0.15em')).toBeVisible()
+    }
+  }
 })
 
 

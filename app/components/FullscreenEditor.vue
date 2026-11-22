@@ -12,6 +12,11 @@ const props = defineProps<{
   maxLength?: number
   /** Replaces the raw counter line, so a caller can show a stripped count. */
   counterText?: string
+  /**
+   * Called for Exit and Escape. Return false to stay open (for example while a discard prompt is showing).
+   * Callers that omit this close immediately, which is what the personality editor does.
+   */
+  beforeClose?: () => boolean
 }>()
 
 const titleId = useId()
@@ -28,6 +33,7 @@ const counterLine = computed(() => props.counterText ?? `${docLength.value} of $
 
 function requestClose() {
   if (closing || !open.value) return
+  if (props.beforeClose && props.beforeClose() === false) return
   closing = true
   open.value = false
 }
@@ -115,7 +121,12 @@ onBeforeUnmount(() => {
         <h2 :id="titleId" class="m-0 min-w-0 truncate text-lg font-semibold text-gray-900 dark:text-gray-100">{{ title }}</h2>
         <FwbButton type="button" color="light" @click="requestClose">Exit full screen</FwbButton>
       </header>
-      <div ref="host" class="min-h-0 flex-1"></div>
+      <div class="flex min-h-0 flex-1 flex-col md:flex-row">
+        <div ref="host" class="min-h-0 min-w-0 flex-1"></div>
+        <div v-if="$slots.aside" class="flex min-h-0 min-w-0 flex-1 flex-col border-t border-gray-200 dark:border-gray-700 md:border-l md:border-t-0">
+          <slot name="aside" />
+        </div>
+      </div>
       <p v-if="showCounter" class="m-0 shrink-0 border-t border-gray-200 px-4 py-2 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-400">
         {{ counterLine }}
       </p>

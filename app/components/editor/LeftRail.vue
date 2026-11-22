@@ -93,7 +93,11 @@ function onOutlineKey(event: KeyboardEvent, id: string, index: number) {
               @click="editor.select(block.id); if (overlay) emit('close')"
               @keydown="onOutlineKey($event, block.id, index)"
             >
-              <span>{{ index + 1 }}. {{ blockLabel(block.type) }}</span>
+              <span class="min-w-0 truncate">{{ index + 1 }}. {{ blockLabel(block.type) }}</span>
+              <span v-if="block.css?.trim()" class="shrink-0 font-mono text-xs text-gray-500 dark:text-gray-400">
+                <span aria-hidden="true">{ }</span>
+                <span class="sr-only">Has custom CSS</span>
+              </span>
             </button>
             <div v-if="editor.selectedId === block.id" class="mb-1 flex justify-end gap-1 px-2">
               <button type="button" class="text-xs text-gray-600 dark:text-gray-400 hover:underline" :disabled="index === 0" @click="editor.moveSection(block.id, index - 1)">Up</button>

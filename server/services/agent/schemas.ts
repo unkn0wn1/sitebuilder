@@ -3,6 +3,7 @@
 // JSON Schema in MCP tools/list and in the OpenAPI file, so they are the documentation the model reads.
 import { z } from 'zod'
 import { AGENT_ACTIONS } from '../../../shared/agent/rules'
+import { SECTION_CSS_MAX_BYTES } from '../../../shared/css/limits'
 import { SITE_PART_KINDS, SOCIAL_NETWORKS } from '../../../shared/site-parts'
 
 const id = (what: string, example: string) => z.string().trim().min(1).max(80).meta({ description: what, examples: [example] })
@@ -179,6 +180,20 @@ export const editComponentInput = z
     block_id: z.string().trim().min(1).max(40).meta({ description: 'The section to change: its `block_id` from get_page.', examples: ['b_k3j9x2ab'] }),
     props: z.record(z.string(), z.unknown()).default({}).meta({ description: 'Props to set, as a JSON object. Only the props you send are changed; others stay. A prop you send replaces the whole prop (for an array, send the whole new array). Shapes: see list_components, `props_schema`.', examples: [{ heading: 'Help us this winter' }] }),
     unset: z.array(z.string().max(60)).max(20).optional().meta({ description: 'Names of optional props to remove.', examples: [['subheading']] }),
+    change_id: changeId,
+    reason,
+  })
+  .strict()
+  .refine((v) => !!(v.page_id || v.path), { message: 'Give page_id or path.' })
+
+export const setBlockCssInput = z
+  .object({
+    ...pageRef,
+    block_id: z.string().trim().min(1).max(40).meta({ description: 'The section: its `block_id` from get_page.', examples: ['b_k3j9x2ab'] }),
+    css: z.string().max(SECTION_CSS_MAX_BYTES).meta({
+      description: 'The custom CSS for this section. Blank removes it. It is checked on save and, once a person publishes, scoped to this section. Site-wide CSS has no agent tool.',
+      examples: ['a { text-underline-offset: 0.15em; }'],
+    }),
     change_id: changeId,
     reason,
   })

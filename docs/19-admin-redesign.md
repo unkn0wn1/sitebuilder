@@ -21,7 +21,7 @@ hold: plain words, one main action per screen, status always visible, and hiding
    and settings are cards that wrap from one column on a phone to three or four on a wide screen. The page scrolls;
    boxes inside it don't.
 3. **One place for each choice.** The menu look lives on the Header with the choice of menu. Brand and Design is
-   only colours, type and logos.
+   colours, type and logos, with one exception: an advanced custom CSS card for the whole site. That card is admin only.
 4. **The header screen covers the whole top of the page.** That's the top strip, the bar, which menu, the menu
    look, the button and the small link. Spencer looks there for the strip, so that's where it is.
 5. **Calm surfaces, one accent.** Neutral greys, white cards with a hairline border and a soft shadow, rounded
@@ -103,4 +103,5 @@ All of these live in `app/components/ui/` and are auto-imported as `Ui…`:
 - **Shared pieces** in `app/components/ui`: PageHeader, Card, CardGrid, EmptyState, Section (with an on/off
   switch), Segmented, Icon.
 - **One menu picker.** The Header screen picks the menu and its look; Brand and Design only points there.
+- **Custom CSS.** Admins get a closed Custom CSS disclosure on the section inspector, an outline badge `{ }` when a section has some, and a Custom CSS (advanced) card on Brand and Design. That card is the exception to "colours, type and logos". Site CSS is published with the brand. See [ADR 0019](decisions/0019-custom-css.md).
 - **Settings** areas are listed once (`app/utils/settings-areas.ts`) for the grid and for the area navigation.

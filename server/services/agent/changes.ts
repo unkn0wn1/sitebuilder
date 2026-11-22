@@ -277,6 +277,28 @@ function siteOrigin(ctx: ServiceCtx): string | null {
   return domain ? `https://${domain}` : null
 }
 
+/**
+ * CSS text that differs between live and draft: a new section that carries CSS,
+ * a cleared sheet, or changed text. Removing a whole section does not count.
+ * The CSS goes away because the section went away, so that stays an ordinary
+ * edit_sections change and can still auto-publish. A later tool cannot sneak a
+ * CSS edit through edit_sections, because this looks at the documents, not the
+ * action name recorded on the change.
+ */
+function cssTextChanged(live: PageDoc | null, draft: PageDoc): boolean {
+  const prev = new Map((live?.blocks ?? []).map((block) => [block.id, block.css ?? '']))
+  for (const block of draft.blocks) {
+    const before = prev.get(block.id)
+    const after = block.css ?? ''
+    if (before === undefined) {
+      if (after.trim()) return true
+    } else if (before !== after) {
+      return true
+    }
+  }
+  return false
+}
+
 /** What would happen to each part, and what the rules say. Read-only. */
 export function evaluateTargets(ctx: ServiceCtx, token: AgentTokenRow, targets: ChangeTarget[], opts: { actions?: AgentAction[]; changeAgeHours?: number; forceReview?: FloorFlag[] } = {}): ChangeEvaluation {
   const origin = siteOrigin(ctx)
@@ -295,6 +317,7 @@ export function evaluateTargets(ctx: ServiceCtx, token: AgentTokenRow, targets: 
       if (diff.blocks.some((c) => isMoneyBlockType(c.type))) floor.push('money_section_touched')
       if (t.foreignDraft || page.draftRevision !== t.revision) floor.push('foreign_draft')
       if (checks.blocking.length) floor.push('checks_failing')
+      if (cssTextChanged(live, draft)) floor.push('custom_css')
       const links = restoring(linkDelta(live ?? { blocks: [] }, draft, 'block', origin))
       const metaChanged = diff.meta.length > 0 && live !== null
       const unchanged = live !== null && !diff.blocks.length && !metaChanged && page.path === (page.publishedPath ?? page.path)

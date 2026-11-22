@@ -6,7 +6,9 @@ import { REVIEW_STATE_LABELS } from '#shared/workflow'
 import type { PageDoc } from '#shared/page'
 import type { MenuDoc, SitePartDoc } from '#shared/site-parts'
 import { blockRegistry } from '../../utils/block-fields'
-import { CHANGE_KIND_LABELS, type ReviewDetail } from '../../utils/reviews'
+import { CHANGE_KIND_LABELS, cssTextChange, type ReviewDetail } from '../../utils/reviews'
+import { brandCustomCss } from '#shared/css/changed'
+import CssDiff from '../../components/approvals/CssDiff.vue'
 import type { PageOption, SitePartDetail, SitePartListItem } from '../../utils/site-parts'
 import type { Device } from '../../utils/page-editor'
 import ReviewPreview from '../../components/approvals/ReviewPreview.vue'
@@ -49,17 +51,27 @@ const approveDisabled = computed(() => {
 const changeLines = computed(() => {
   const d = detail.value
   if (!d) return []
-  const lines: { key: string; text: string; blockId?: string }[] = []
+  const lines: { key: string; text: string; blockId?: string; cssBefore?: string; cssAfter?: string }[] = []
   if (d.review.changeSummary) lines.push({ key: 'summary', text: d.review.changeSummary })
   for (const change of d.diff?.blocks ?? []) {
     const label = blockRegistry.get(change.type)?.label ?? change.type
-    lines.push({ key: `${change.kind}-${change.blockId}`, text: `${CHANGE_KIND_LABELS[change.kind]}: ${label}`, blockId: change.blockId })
+    const css = cssTextChange(change)
+    lines.push({ key: `${change.kind}-${change.blockId}`, text: `${CHANGE_KIND_LABELS[change.kind]}: ${label}`, blockId: change.blockId, ...(css ? { cssBefore: css.before, cssAfter: css.after } : {}) })
   }
   for (const key of d.diff?.meta ?? []) {
     if (key === 'title') lines.push({ key: 'meta-title', text: 'Changed the title' })
     else if (key.startsWith('seo.')) lines.push({ key: `meta-${key}`, text: 'Changed search settings' })
   }
   return lines
+})
+
+const brandCssDiff = computed(() => {
+  const d = detail.value
+  if (!d || d.target.type !== 'brand') return null
+  const before = brandCustomCss(d.liveDoc)
+  const after = brandCustomCss(d.doc)
+  if (before === after) return null
+  return { before, after }
 })
 
 const liveHref = computed(() => {
@@ -276,7 +288,10 @@ watch(id, load, { immediate: true })
               <FwbButton size="sm" :color="mode === 'changes' ? 'default' : 'light'" @click="mode = 'changes'">Show changes</FwbButton>
             </FwbButtonGroup>
           </div>
-          <p v-if="detail.target.type === 'brand'" class="p-8 text-sm text-gray-600 dark:text-gray-400">This is a brand and design change. Checks and the summary are in the right-hand column. After publish, every page is updated (about a minute).</p>
+          <div v-if="detail.target.type === 'brand'" class="p-8 text-sm text-gray-600 dark:text-gray-400">
+            <p class="m-0">This is a brand and design change. Checks and the summary are in the right-hand column. After publish, every page is updated (about a minute).</p>
+            <CssDiff v-if="brandCssDiff" class="mt-4" :before="brandCssDiff.before" :after="brandCssDiff.after" />
+          </div>
           <div v-else-if="detail.target.type === 'template'" class="p-8 text-sm text-gray-700 dark:text-gray-300">
             <p class="mt-0">This is a page type change. After it is published, the new rules apply when people edit or submit pages of this type. Existing live pages are not re-rendered.</p>
             <p v-if="'allowedBlocks' in detail.doc && Array.isArray(detail.doc.allowedBlocks)" class="mb-0">
@@ -312,6 +327,7 @@ watch(id, load, { immediate: true })
               <li v-for="line in changeLines" :key="line.key">
                 <button v-if="line.blockId" type="button" class="text-left text-blue-700 dark:text-blue-400 hover:underline" @click="scrollTo(line.blockId)">{{ line.text }}</button>
                 <span v-else class="text-gray-700 dark:text-gray-300">{{ line.text }}</span>
+                <CssDiff v-if="line.cssBefore !== undefined && line.cssAfter !== undefined" :before="line.cssBefore" :after="line.cssAfter" />
               </li>
             </ul>
             <p v-else class="m-0 text-sm text-gray-500 dark:text-gray-400">No section-level changes listed.</p>

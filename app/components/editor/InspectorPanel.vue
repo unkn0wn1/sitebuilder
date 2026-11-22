@@ -3,8 +3,24 @@ import { api, ApiError } from '../../utils/api'
 import { timeAgo } from '../../utils/format'
 import type { InspectorTab, PageEditor } from '../../utils/page-editor'
 import type { FieldIssue } from '#shared/issues'
+import type { LiveCss } from '#shared/css/buffer'
+import { can } from '#shared/roles'
+import CssEditor from '../css/CssEditor.vue'
+import RenderedPage from '../preview/RenderedPage.vue'
 
 const props = withDefaults(defineProps<{ editor: PageEditor; issues?: FieldIssue[] }>(), { issues: () => [] })
+
+const { user } = useSession()
+const canCss = computed(() => !!user.value && can(user.value, 'design.css'))
+
+function onCssSave(css: string) {
+  const id = props.editor.selected?.id
+  if (id) props.editor.setBlockCss(id, css)
+}
+
+function onCssPreview(live: LiveCss | null) {
+  props.editor.cssPreview = live
+}
 
 const tabs: { id: InspectorTab; label: string }[] = [
   { id: 'section', label: 'Section' },
@@ -126,6 +142,22 @@ async function restore(id: string) {
           :base-path="`blocks.${editor.doc.blocks.findIndex((b) => b.id === editor.selected!.id)}.props`"
           @update:model-value="onProps"
         />
+        <details v-if="canCss" class="mt-6 border-t border-gray-200 pt-4 dark:border-gray-700" data-testid="custom-css">
+          <summary class="cursor-pointer text-sm font-medium text-gray-900 dark:text-gray-100">Custom CSS</summary>
+          <CssEditor class="mt-3" scope="section" :section-id="editor.selected.id" :saved="editor.selected.css ?? ''" @save="onCssSave" @preview="onCssPreview">
+            <template #preview>
+              <RenderedPage
+                :doc="editor.doc"
+                :device="editor.device"
+                :page-id="editor.pageId"
+                :path="editor.path"
+                :selected-id="editor.selectedId"
+                :live-css="editor.cssPreview"
+                @select="(id) => editor.select(id)"
+              />
+            </template>
+          </CssEditor>
+        </details>
         <div class="mt-6 flex flex-col gap-2 border-t border-gray-200 dark:border-gray-700 pt-4">
           <FwbButton color="light" size="sm" @click="editor.duplicateSection(editor.selected.id)">Duplicate</FwbButton>
           <FwbButton color="red" size="sm" @click="editor.removeSection(editor.selected.id)">Remove section</FwbButton>

@@ -13,6 +13,7 @@ import { AppError, forbidden, notFound } from './errors'
 import { enqueueJob, type Job, type JobHandler } from './jobs'
 import { notify, usersWithRoles } from './notify'
 import { requirePage } from './pages'
+import { assertJobMayPublishCss } from './css-gate'
 import { requireReview, setTargetState } from './reviews'
 import { getOrCreateBrand, readBrandDoc } from './brand'
 import { readTemplateDoc, requireTemplate } from './templates'
@@ -89,6 +90,7 @@ export function createPublishHandler(writer: ReleaseWriter = noopReleaseWriter):
       if (payload.reviewId) {
         review = requireReview(ctx, payload.reviewId)
         if (review.state !== 'approved') throw new Error(`Review ${review.id} is ${review.state}, not approved.`)
+        assertJobMayPublishCss(ctx, job.createdBy, review)
         if (review.targetType === 'page') {
           const page = requirePage(ctx, review.targetId)
           const oldPath = manifest.pages[page.id]?.path

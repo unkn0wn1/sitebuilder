@@ -53,6 +53,10 @@ A theme is a Nuxt layer that provides tokens and can override block renderers. C
 - One theme per site in v1.
 - Header and footer can be light or dark. A dark one uses the optional dark-background logo from the brand pack, or a CSS filter fallback (`theme-default-4`).
 
+## Custom CSS
+
+Site-wide CSS is not a theme. It is stored on the brand as `customCss` and is published and rolled back with the brand. On each page the style sheet is, in order: the theme CSS, the shell CSS (header, footer and menu options), the site CSS, then each section's CSS. Section CSS is stored beside `props` as `css` and is prefixed to that section when the page is rendered. See [ADR 0019](decisions/0019-custom-css.md).
+
 ## Open questions
 
 - How are third-party themes reviewed if the project becomes open source?

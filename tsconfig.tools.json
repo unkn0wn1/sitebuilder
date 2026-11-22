@@ -15,7 +15,7 @@
       "#shared/*": ["./shared/*"]
     }
   },
-  "include": ["scripts/**/*.ts", "tests/**/*.ts", "vitest.*.ts", "shared/**/*.ts", "server/db/**/*.ts", "server/services/**/*.ts", "app/utils/**/*.ts", "playwright.config.ts"],
+  "include": ["scripts/**/*.ts", "tests/**/*.ts", "vitest.*.ts", "shared/**/*.ts", "shared/**/*.d.ts", "server/db/**/*.ts", "server/services/**/*.ts", "app/utils/**/*.ts", "playwright.config.ts"],
   // Imports a type from a .vue file; only Vue pages use it, and `nuxt typecheck` checks it there.
   "exclude": ["app/utils/settings-areas.ts"]
 }

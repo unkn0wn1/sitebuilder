@@ -1,9 +1,24 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, test, type Page } from 'playwright/test'
 
 const email = process.env.SEED_ADMIN_EMAIL ?? 'admin@example.org'
 const password = process.env.SEED_ADMIN_PASSWORD ?? 'sb-demo-pass-17'
+const SITE_CSS = 'a { text-underline-offset: 0.15em; }'
+
+function brandOpsSaved(page: Page, fragment: string) {
+  return page.waitForResponse((res) => {
+    if (!res.ok() || res.request().method() !== 'POST') return false
+    if (!new URL(res.url()).pathname.endsWith('/api/v1/brand/ops')) return false
+    return (res.request().postData() ?? '').includes(fragment)
+  })
+}
+
+async function docsShot(page: Page, name: string, fullPage = true) {
+  if (process.env.SB_SCREENSHOTS !== '1') return
+  mkdirSync('docs/screenshots', { recursive: true })
+  await page.screenshot({ path: `docs/screenshots/${name}`, fullPage })
+}
 
 async function signIn(page: Page) {
   await page.goto('/login')
@@ -82,8 +97,23 @@ test('a brand change still publishes after leaving the page for approvals', asyn
   await page.goto('/brand')
   await expect(page.getByRole('heading', { name: 'Brand and Design' })).toBeVisible({ timeout: 20_000 })
   await expectSaved(page)
+  const cssCard = page.getByTestId('custom-css')
+  await expect(cssCard.getByRole('heading', { name: 'Custom CSS (advanced)' })).toBeVisible()
+  const cssSaved = brandOpsSaved(page, 'text-underline-offset')
+  await cssCard.getByRole('textbox', { name: 'CSS' }).fill(SITE_CSS)
+  await expect(page.getByTestId('save-status')).toHaveText('Saving…', { timeout: 15_000 })
+  await cssSaved
+  await expectSaved(page)
+  await docsShot(page, 'custom-css-brand.png')
+  // A status that was already Saved is not proof. The rule has to survive a reload.
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Brand and Design' })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByTestId('custom-css').getByRole('textbox', { name: 'CSS' })).toHaveValue(SITE_CSS, { timeout: 15_000 })
   // The menu look now lives on the Header; the body font is a brand change that reaches every page.
+  // The short rule above is part of this same brand draft. There is no second publish.
+  const fontSaved = brandOpsSaved(page, 'Georgia, serif')
   await page.getByLabel('Body font').fill('Georgia, serif')
+  await fontSaved
   await expectSaved(page)
 
   await page.getByRole('button', { name: 'Submit for approval' }).click()
@@ -101,6 +131,11 @@ test('a brand change still publishes after leaving the page for approvals', asyn
 
   await expect.poll(() => {
     const html = publishedHomeHtml()
-    return html && html.includes('Georgia, serif') ? 'georgia' : html ? 'other' : 'missing'
-  }, { timeout: 60_000 }).toBe('georgia')
+    if (!html) return 'missing'
+    const georgia = html.includes('Georgia, serif')
+    const underline = html.includes('text-underline-offset')
+    if (georgia && underline) return 'ready'
+    if (!georgia && !underline) return 'other'
+    return georgia ? 'no-css' : 'no-font'
+  }, { timeout: 60_000 }).toBe('ready')
 })

@@ -5,6 +5,7 @@ import type { FieldIssue } from './issues'
 import type { PageDoc } from './page'
 import type { BlockRegistry } from './blocks/registry'
 import { checkTemplateRules, type TemplateRules } from './templates'
+import { cssCautionWarnings } from './css/cautions'
 
 export interface CheckResult {
   blocking: FieldIssue[]
@@ -89,6 +90,8 @@ export function runChecks(doc: PageDoc, registry: BlockRegistry, rules: Template
         if (VAGUE_LINK_TEXT.test(label.trim())) warnings.push({ path, message: `Button text "${label}" doesn't say what it does.` })
       }
     })
+
+    warnings.push(...cssCautionWarnings(block.css ?? '', `blocks.${i}.css`))
   })
 
   if (looksLikePlaceholder(doc.title)) blocking.push({ path: 'title', message: 'The page title looks like placeholder text.' })

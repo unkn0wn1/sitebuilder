@@ -30,6 +30,7 @@
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.15",
     "better-sqlite3": "^13.2.0",
+    "css-tree": "3.2.1",
     "drizzle-orm": "^0.45.4",
     "flowbite-vue": "^0.4.0",
     "focus-trap": "^8.2.5",

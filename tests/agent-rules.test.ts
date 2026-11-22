@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { RULE_PRESETS } from '../shared/agent/presets'
 import {
   decideChange,
   globMatches,
@@ -66,6 +67,46 @@ describe('rule decisions', () => {
     for (const flag of ['money_section_touched', 'foreign_draft', 'checks_failing'] as const) {
       const d = decideChange([facts({ floor: [flag] })], input(rules({ label: 'All', actions: '*', result: 'publish' }), { alwaysAllow: true }))
       expect(d.outcome, flag).toBe('review')
+    }
+  })
+
+  it('always sends custom CSS to a person, before always-allow and before a publish rule', () => {
+    const css = facts({ actions: ['edit_css'] })
+    const reason = 'Custom CSS always needs a person to review it.'
+    const always = decideChange([css], input([], { alwaysAllow: true }))
+    expect(always.outcome).toBe('review')
+    expect(always.reasons).toEqual([reason])
+    expect(always.viaAlwaysAllow).toBe(false)
+
+    const named = decideChange([css], input(rules({ label: 'CSS', actions: ['edit_css'], result: 'publish' })))
+    expect(named.outcome).toBe('review')
+    expect(named.reasons).toEqual([reason])
+
+    const star = decideChange([css], input(rules({ label: 'All', actions: '*', result: 'publish' }), { alwaysAllow: true }))
+    expect(star.outcome).toBe('review')
+    expect(star.reasons).toEqual([reason])
+    expect(star.viaAlwaysAllow).toBe(false)
+
+    const floored = decideChange([facts({ actions: ['edit_css'], floor: ['custom_css'] })], input(rules({ label: 'All', actions: '*', result: 'publish' }), { alwaysAllow: true }))
+    expect(floored.outcome).toBe('review')
+    expect(floored.reasons[0]).toBe(`${reason} (the page "Privacy" (/privacy))`)
+  })
+
+  it('lets a deny rule refuse custom CSS before a draft is written', () => {
+    const r = rules({ label: 'No CSS', actions: ['edit_css'], result: 'deny' }, { label: 'Allow all', actions: '*', result: 'publish' })
+    expect(decideChange([facts({ actions: ['edit_css'] })], input(r, { alwaysAllow: true })).outcome).toBe('deny')
+    expect(stagingDenial(r, 'edit_css', page)?.label).toBe('No CSS')
+    const star = rules({ label: 'Nothing', actions: '*', result: 'deny' })
+    expect(stagingDenial(star, 'edit_css', page)?.label).toBe('Nothing')
+    expect(decideChange([facts({ actions: ['edit_css'] })], input(star)).outcome).toBe('deny')
+  })
+
+  it('gives no preset a publish rule for custom CSS', () => {
+    for (const preset of RULE_PRESETS) {
+      for (const rule of preset.rules) {
+        if (rule.result !== 'publish' || rule.actions === '*') continue
+        expect(rule.actions, preset.key).not.toContain('edit_css')
+      }
     }
   })
 

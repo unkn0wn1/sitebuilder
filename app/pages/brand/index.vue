@@ -8,6 +8,7 @@ import { mediaFileUrl, type MediaItem } from '../../utils/media'
 import { statusLabel, type WorkflowState } from '#shared/workflow'
 import type { FieldIssue } from '#shared/issues'
 import MediaPickerModal from '../../components/media/MediaPickerModal.vue'
+import CssEditor from '../../components/css/CssEditor.vue'
 import { cloneDraft } from '#shared/clone'
 
 definePageMeta({ layout: 'builder' })
@@ -49,6 +50,9 @@ const TOKEN_FIELDS: { key: ColourToken; label: string }[] = [
   { key: 'celebrate', label: 'Celebrate' },
   { key: 'highlight', label: 'Highlight colour' },
 ]
+
+const cssWarnings = computed(() => warnings.value.filter((issue) => issue.path === 'customCss'))
+const contrastWarnings = computed(() => warnings.value.filter((issue) => issue.path !== 'customCss'))
 
 const hasUnpublishedChanges = computed(() => {
   const p = pack.value
@@ -178,6 +182,15 @@ function patch(update: Partial<BrandDoc>) {
   scheduleSave()
 }
 
+function onCssSave(css: string) {
+  const next: BrandDoc = { ...doc.value }
+  if (css.trim()) next.customCss = css
+  else delete next.customCss
+  if (snapshot(next) === snapshot(doc.value)) return
+  doc.value = next
+  scheduleSave()
+}
+
 function setToken(key: ColourToken, value: string) {
   doc.value = { ...doc.value, tokens: { ...doc.value.tokens, [key]: value } }
   scheduleSave()
@@ -281,6 +294,14 @@ onBeforeUnmount(() => {
             <FwbInput :model-value="doc.fonts.heading ?? ''" label="Heading font (optional)" :disabled="!canEdit" @update:model-value="patch({ fonts: { ...doc.fonts, heading: String($event).trim() || null } })" />
           </div>
         </section>
+        <section v-if="canEdit" class="rounded-xl border border-gray-200/90 bg-white p-5 dark:border-gray-800 dark:bg-gray-900" data-testid="custom-css">
+          <h2 class="mt-0 mb-3 text-base font-semibold text-gray-900 dark:text-white">Custom CSS (advanced)</h2>
+          <p class="mt-0 mb-3 text-sm text-gray-600 dark:text-gray-400">This is applied when the site is published.</p>
+          <CssEditor scope="site" :saved="doc.customCss ?? ''" @save="onCssSave" />
+          <ul v-if="cssWarnings.length" class="mt-3 mb-0 list-disc space-y-1 pl-5 text-sm text-amber-800">
+            <li v-for="(issue, i) in cssWarnings" :key="i">{{ issue.message }}</li>
+          </ul>
+        </section>
         <section class="rounded-xl border border-gray-200/90 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
           <h2 class="mt-0 mb-3 text-base font-semibold text-gray-900 dark:text-white">Logo</h2>
           <div class="flex flex-wrap items-center gap-3">
@@ -306,10 +327,10 @@ onBeforeUnmount(() => {
           <h2 class="mt-0 mb-3 text-base font-semibold text-gray-900 dark:text-white">Theme</h2>
           <p class="text-sm text-gray-600 dark:text-gray-400">This site uses the default theme. One theme per site in v1. A later full theme can change section layouts as well as colours.</p>
         </section>
-        <section v-if="warnings.length" class="rounded-xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-500/30 dark:bg-amber-500/10">
+        <section v-if="contrastWarnings.length" class="rounded-xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-500/30 dark:bg-amber-500/10">
           <h2 class="mt-0 mb-3 text-base font-semibold text-gray-900 dark:text-white">Contrast</h2>
           <ul class="m-0 list-disc space-y-1 pl-5 text-sm text-amber-800">
-            <li v-for="(issue, i) in warnings" :key="i">{{ issue.message }}</li>
+            <li v-for="(issue, i) in contrastWarnings" :key="i">{{ issue.message }}</li>
           </ul>
         </section>
         <p v-if="!canEdit" class="text-sm text-gray-500 dark:text-gray-400">Only admins can change the brand and design.</p>

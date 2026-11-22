@@ -65,18 +65,19 @@ export interface HeldEdit {
 }
 
 function isFieldEdit(op: Op): boolean {
-  return op.op === 'update_props' || op.op === 'set_meta' || op.op === 'set_seo'
+  return op.op === 'update_props' || op.op === 'set_block_css' || op.op === 'set_meta' || op.op === 'set_seo'
 }
 
 function opKeys(op: Op): string[] {
   if (op.op === 'update_props') return [...Object.keys(op.props ?? {}), ...(op.unset ?? [])].map((k) => `${op.blockId}.${k}`)
+  if (op.op === 'set_block_css') return [`${op.blockId}.css`]
   if (op.op === 'set_meta' || op.op === 'set_seo') return Object.keys(op).filter((k) => k !== 'op').map((k) => `${op.op}.${k}`)
   return []
 }
 
 /** Does a new op replace a held one: the same fields again, or the section removed? */
 function supersedes(next: Op, held: Op): boolean {
-  if (next.op === 'remove_block' && held.op === 'update_props') return next.blockId === held.blockId
+  if (next.op === 'remove_block' && (held.op === 'update_props' || held.op === 'set_block_css')) return next.blockId === held.blockId
   const keys = new Set(opKeys(next))
   const heldKeys = opKeys(held)
   return heldKeys.length > 0 && heldKeys.every((k) => keys.has(k))
@@ -89,6 +90,7 @@ function fieldTouched(op: Op, issue: { blockId?: string; path: string }): boolea
     const prop = /^props\.([^.]+)/.exec(issue.path)?.[1]
     return !prop || opKeys(op).includes(`${op.blockId}.${prop}`)
   }
+  if (op.op === 'set_block_css') return issue.blockId === op.blockId && (issue.path === 'css' || issue.path.endsWith('.css') || issue.path === '')
   return !issue.blockId && /^(title|seo|slug|meta)/.test(issue.path)
 }
 
@@ -120,6 +122,11 @@ export class PageEditor {
   leftTab: LeftTab = 'add'
   inspectorTab: InspectorTab = 'page'
   device: Device = 'desktop'
+  /**
+   * Valid section CSS the person is typing. The preview injects it until the rendered HTML includes the same text.
+   * Invalid CSS stays in the field and is not stored here.
+   */
+  cssPreview: { blockId: string; css: string } | null = null
   railCollapsed = false
   pending: Op[] = []
   undoStack: UndoEntry[] = []
@@ -270,10 +277,16 @@ export class PageEditor {
   duplicateSection(id: string) {
     const block = this.doc.blocks.find((b) => b.id === id)
     if (!block) return
-    this.queue([{ op: 'add_block', afterBlockId: id, block: { id: newId('block'), type: block.type, props: cloneDraft(block.props) } }])
+    const copy: { id: string; type: string; props: Record<string, unknown>; css?: string } = { id: newId('block'), type: block.type, props: cloneDraft(block.props) }
+    if (block.css) copy.css = block.css
+    this.queue([{ op: 'add_block', afterBlockId: id, block: copy }])
     const idx = this.doc.blocks.findIndex((b) => b.id === id)
     const added = this.doc.blocks[idx + 1]
     if (added) this.select(added.id)
+  }
+
+  setBlockCss(blockId: string, css: string) {
+    this.queue([{ op: 'set_block_css', blockId, css }])
   }
 
   updateProps(blockId: string, props: Record<string, unknown>, unset?: string[]) {
@@ -413,11 +426,15 @@ export class PageEditor {
       const m = /^blocks\.(\d+)\.props\.([^.]+)/.exec(f.path ?? '')
       const id = m && after ? after.blocks[Number(m[1])]?.id : undefined
       if (id) bad.add(`${id}.${m![2]}`)
+      const css = /^blocks\.(\d+)\.css$/.exec(f.path ?? '')
+      const cssId = css && after ? after.blocks[Number(css[1])]?.id : undefined
+      if (cssId) bad.add(`${cssId}.css`)
       if (/^(title|seo\.|slug)/.test(f.path ?? '')) meta = true
     }
     const drop = new Set<number>()
     ops.forEach((op, i) => {
       if (op.op === 'update_props' && [...Object.keys(op.props ?? {}), ...(op.unset ?? [])].some((k) => bad.has(`${op.blockId}.${k}`))) drop.add(i)
+      if (op.op === 'set_block_css' && bad.has(`${op.blockId}.css`)) drop.add(i)
       if (op.op === 'add_block' && op.block.id && [...bad].some((b) => b.startsWith(`${op.block.id}.`))) drop.add(i)
       if (meta && (op.op === 'set_meta' || op.op === 'set_seo')) drop.add(i)
     })
@@ -556,7 +573,7 @@ export class PageEditor {
       // A bad value is held; an edit to a section that is gone is taken back.
       if (error.code === 'validation_failed' && error.details.reason !== 'missing_block' && isFieldEdit(op)) {
         const issues = located.filter((l) => fieldTouched(op, l))
-        newlyHeld.push({ op, issues: issues.length ? issues : located.length === 1 ? located : [{ blockId: op.op === 'update_props' ? op.blockId : undefined, path: '', message: error.message }] })
+        newlyHeld.push({ op, issues: issues.length ? issues : located.length === 1 ? located : [{ blockId: op.op === 'update_props' || op.op === 'set_block_css' ? op.blockId : undefined, path: op.op === 'set_block_css' ? 'css' : '', message: error.message }] })
       } else takenBack.push(op)
     })
     const held = [...this.held, ...newlyHeld]

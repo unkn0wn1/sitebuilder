@@ -4,6 +4,7 @@ import { canvasScale, timeAgo } from '../app/utils/format'
 import { PageEditor, type EditorApi, type EditorSnapshot, type OpsResult } from '../app/utils/page-editor'
 import { newId } from '../shared/ids'
 import { applyOps, OpError, opsRequestSchema, type Op, type PageMeta } from '../shared/ops'
+import { assessCssBuffer, shouldInjectLiveCss } from '../shared/css/buffer'
 import { emptyPageDoc, type PageDoc } from '../shared/page'
 import { blockRegistry } from '../app/utils/block-fields'
 import { richTextFromParagraphs } from '../shared/richtext'
@@ -390,6 +391,64 @@ describe('saving never gets stuck', () => {
     ed.dispose()
   })
 
+  it('copies custom CSS onto the duplicate and keeps the same text', async () => {
+    const api = new MemoryApi()
+    const ed = editor(api, {}, { debounceMs: 0 })
+    ed.addSection('Quote')
+    await ed.flush()
+    const id = ed.doc.blocks[0]!.id
+    const css = '.wrap { color: #0a1b2c }'
+    ed.setBlockCss(id, css)
+    await ed.flush()
+    ed.duplicateSection(id)
+    const copy = ed.doc.blocks[1]!
+    expect(copy.id).not.toBe(id)
+    expect(copy.css).toBe(css)
+    await ed.flush()
+    expect(api.calls.at(-1)).toEqual([{ op: 'add_block', afterBlockId: id, block: { id: copy.id, type: 'Quote', props: copy.props, css } }])
+    expect(api.state.doc.blocks.map((block) => ({ id: block.id, css: block.css }))).toEqual([
+      { id, css },
+      { id: copy.id, css },
+    ])
+    ed.dispose()
+  })
+
+  it('keeps turned-down custom CSS in the field until a later edit replaces it', async () => {
+    const api = new MemoryApi()
+    const real = api.applyOps.bind(api)
+    api.applyOps = async (pageId, base, ops) => {
+      const bad = ops.find((op) => op.op === 'set_block_css' && op.css.includes('MARKER9f3c'))
+      if (bad && bad.op === 'set_block_css') {
+        api.calls.push(ops)
+        const index = api.state.doc.blocks.findIndex((block) => block.id === bad.blockId)
+        throw new ApiError(400, 'validation_failed', 'Line 1, column 16: javascript: URLs are not allowed.', {
+          fields: [{ path: `blocks.${index}.css`, message: 'Line 1, column 16: javascript: URLs are not allowed.' }],
+        })
+      }
+      return real(pageId, base, ops)
+    }
+    const ed = editor(api, {}, { debounceMs: 0 })
+    ed.addSection('Quote')
+    await ed.flush()
+    const id = ed.doc.blocks[0]!.id
+    const rejected = 'a { background: url(javascript:MARKER9f3c) }'
+    ed.setBlockCss(id, rejected)
+    await ed.flush()
+    expect(ed.saveIssues).toEqual([{ path: 'blocks.0.css', message: 'Line 1, column 16: javascript: URLs are not allowed.' }])
+    expect(ed.error).toMatch(/kept, but it isn't saved/)
+    expect(ed.doc.blocks[0]!.css).toBe(rejected)
+    expect(api.state.doc.blocks[0]!.css).toBeUndefined()
+    expect(ed.held).toHaveLength(1)
+    ed.setBlockCss(id, '.wrap { color: #0a1b2c }')
+    expect(ed.held).toHaveLength(0)
+    expect(ed.doc.blocks[0]!.css).toBe('.wrap { color: #0a1b2c }')
+    await ed.flush()
+    expect(api.state.doc.blocks[0]!.css).toBe('.wrap { color: #0a1b2c }')
+    expect(ed.saveIssues).toEqual([])
+    expect(JSON.stringify(api.calls.at(-1))).not.toContain('MARKER9f3c')
+    ed.dispose()
+  })
+
   it('sends more than 50 changes in several saves', async () => {
     const api = new MemoryApi()
     const ed = editor(api, {}, { debounceMs: 0 })
@@ -432,6 +491,45 @@ describe('saving never gets stuck', () => {
     await ed.flush()
     expect(api.state.doc.blocks[0]!.props).toMatchObject({ text: 'First', attribution: 'Typed while saving' })
     ed.dispose()
+  })
+})
+
+describe('custom CSS buffer', () => {
+  it('sends a new valid rule and injects it only while the preview is behind', () => {
+    const css = '& { background: #f6f1ea; }'
+    const next = assessCssBuffer({ buffer: css, saved: '', scope: 'section', sectionId: 'b_css01' })
+    expect(next.error).toBeNull()
+    expect(next.save).toBe(css)
+    expect(next.live).toEqual({ blockId: 'b_css01', css })
+    expect(shouldInjectLiveCss('', next.live)).toBe(true)
+    expect(shouldInjectLiveCss(css, next.live)).toBe(false)
+  })
+
+  it('does not send or inject when the text already matches the section', () => {
+    const css = '.wrap { padding-block: 4rem; }'
+    const next = assessCssBuffer({ buffer: css, saved: css, scope: 'section', sectionId: 'b_css01' })
+    expect(next.save).toBeNull()
+    expect(next.live).toEqual({ blockId: 'b_css01', css })
+    expect(shouldInjectLiveCss(css, next.live)).toBe(false)
+  })
+
+  it('keeps invalid CSS out of the save and the preview', () => {
+    const next = assessCssBuffer({
+      buffer: 'a { background: url(javascript:MARKER9f3c) }',
+      saved: '.a { color: red }',
+      scope: 'section',
+      sectionId: 'b_css01',
+    })
+    expect(next.error).toMatch(/^Line \d+, column \d+:/)
+    expect(next.error).not.toContain('MARKER9f3c')
+    expect(next.save).toBeNull()
+    expect(next.live).toBeNull()
+    expect(shouldInjectLiveCss('.a { color: red }', next.live)).toBe(false)
+  })
+
+  it('clears a saved sheet with a blank buffer and leaves an empty one alone', () => {
+    expect(assessCssBuffer({ buffer: '  \n', saved: '.a { color: red }', scope: 'section', sectionId: 'b_css01' })).toMatchObject({ error: null, save: '', live: null })
+    expect(assessCssBuffer({ buffer: '', saved: '', scope: 'section', sectionId: 'b_css01' }).save).toBeNull()
   })
 })
 
