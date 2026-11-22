@@ -2,6 +2,14 @@
 import { can } from '#shared/roles'
 import { SETTINGS_AREAS } from '../../utils/settings-areas'
 
+const props = withDefaults(
+  defineProps<{
+    /** Nested settings pages pass their list. Everyone else goes back to Settings. */
+    back?: { to: string; label: string }
+  }>(),
+  { back: () => ({ to: '/settings', label: 'Settings' }) },
+)
+
 const route = useRoute()
 const { user } = useSession()
 const sections = computed(() => SETTINGS_AREAS.filter((s) => user.value && can(user.value, s.need)))
@@ -10,8 +18,8 @@ const active = (to: string) => route.path === to || route.path.startsWith(`${to}
 
 <template>
   <div class="mb-8">
-    <NuxtLink to="/settings" class="mb-1 inline-flex items-center gap-1 text-sm text-gray-500 no-underline hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
-      <UiIcon name="back" :size="14" /> Settings
+    <NuxtLink :to="props.back.to" class="mb-1 inline-flex items-center gap-1 text-sm text-gray-500 no-underline hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
+      <UiIcon name="back" :size="14" /> {{ props.back.label }}
     </NuxtLink>
     <div class="[&_h1]:tracking-tight"><slot name="title" /></div>
     <nav aria-label="Settings" class="mt-4 flex flex-wrap gap-1.5 border-b border-gray-200 pb-4 dark:border-gray-800">
