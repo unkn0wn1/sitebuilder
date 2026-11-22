@@ -69,10 +69,70 @@ function checkBlockType(type: string) {
   if (isNeverBlockType(type)) throw neverList(`"${type}" sections hold donation forms and embeds.`)
 }
 
-function checkProps(props: Record<string, unknown>, unset: string[] = []) {
-  for (const key of [...Object.keys(props), ...unset]) {
-    if (NEVER_PROP_SET.has(key)) throw neverList(`The prop "${key}" binds a section to a form, an embed or a data source.`)
+/** embed, source and campaignId are refused on sight. badgeHtml is compared before and after an edit. */
+const STRICT_PROP_KEYS = new Set<string>(NEVER_PROP_KEYS.filter((key) => key !== 'badgeHtml'))
+
+function refuseProp(key: string): never {
+  if (key === 'badgeHtml') throw neverList('The prop "badgeHtml" is badge HTML.')
+  throw neverList(`The prop "${key}" binds a section to a form, an embed or a data source.`)
+}
+
+/** First never-prop key in this value, walking objects and arrays. */
+function findPropKey(value: unknown, keys: Set<string>): string | null {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const hit = findPropKey(item, keys)
+      if (hit) return hit
+    }
+    return null
   }
+  if (!value || typeof value !== 'object') return null
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (keys.has(key)) return key
+    const hit = findPropKey(child, keys)
+    if (hit) return hit
+  }
+  return null
+}
+
+/** badgeHtml strings and other values, in walk order. A reorder is a different list. */
+function badgeHtmlValues(value: unknown, out: unknown[] = []): unknown[] {
+  if (Array.isArray(value)) {
+    for (const item of value) badgeHtmlValues(item, out)
+    return out
+  }
+  if (!value || typeof value !== 'object') return out
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (key === 'badgeHtml') out.push(child)
+    badgeHtmlValues(child, out)
+  }
+  return out
+}
+
+/** New sections have nothing to preserve: any never-prop key, at any depth, is refused. */
+function checkProps(props: Record<string, unknown>, unset: string[] = []) {
+  const hit = findPropKey(props, NEVER_PROP_SET) ?? unset.find((key) => NEVER_PROP_SET.has(key))
+  if (hit) refuseProp(hit)
+}
+
+/**
+ * An edit merges like applyOps: each sent prop replaces that whole top-level prop, and unset deletes top-level keys.
+ * embed, source and campaignId are refused wherever the patch sets or unsets them, even when the value is unchanged.
+ * badgeHtml may be sent again only when every badge value is still there, in the same order.
+ */
+function checkEditProps(current: Record<string, unknown>, patch: Record<string, unknown>, unset: string[] = []) {
+  const inPatch = findPropKey(patch, STRICT_PROP_KEYS)
+  if (inPatch) refuseProp(inPatch)
+  const inUnset = unset.find((key) => STRICT_PROP_KEYS.has(key))
+  if (inUnset) refuseProp(inUnset)
+  for (const key of unset) {
+    if (!(key in current)) continue
+    const nested = findPropKey(current[key], STRICT_PROP_KEYS)
+    if (nested) refuseProp(nested)
+  }
+  const next: Record<string, unknown> = { ...current, ...patch }
+  for (const key of unset) delete next[key]
+  if (JSON.stringify(badgeHtmlValues(current)) !== JSON.stringify(badgeHtmlValues(next))) refuseProp('badgeHtml')
 }
 
 const accessOf = (type: string) => (isNeverBlockType(type) ? 'never' : isMoneyBlockType(type) ? 'draft_only' : 'ok')
@@ -744,7 +804,7 @@ export function editComponent(ctx: ServiceCtx, agent: SignedInAgent, input: In<t
   const page = pageOf(ctx, input)
   const { block } = requireBlock(ctx, page.id, input.block_id)
   checkBlockType(block.type)
-  checkProps(input.props, input.unset)
+  checkEditProps(block.props, input.props, input.unset)
   if (!Object.keys(input.props).length && !input.unset?.length) throw new AppError('validation_failed', 'Give props to set or unset.', [{ path: 'props', message: 'Nothing to change.' }])
   const done = runInChange(ctx, agent, { changeId: input.change_id, title: `Edit ${block.type} on ${page.title}`, reason: input.reason }, (h) => {
     h.editPage(page.id, 'edit_sections', [{ op: 'update_props', blockId: block.id, props: input.props, ...(input.unset?.length ? { unset: input.unset } : {}) }])

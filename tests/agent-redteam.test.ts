@@ -2,7 +2,7 @@
 // that reads the site, and what the gateway does about it. The list with reasons is docs/agent-gateway-red-team.md.
 import { describe, expect, it } from 'vitest'
 import { OPERATIONS, callOperation } from '../server/services/agent/operations'
-import { readDoc, requirePage } from '../server/services/pages'
+import { applyPageOps, readDoc, requirePage } from '../server/services/pages'
 import { code, world, type World } from './agent-helpers'
 
 const call = (w: World, name: string, input: Record<string, unknown>) => callOperation(w.ctx, w.agent, name, input) as any
@@ -54,6 +54,53 @@ describe('red-team: planted content cannot smuggle in dangerous output', () => {
     expect(await code(() => call(w, 'add_component', { path: '/events', type: 'Embed', props: {}, reason: 'Red-team test case' }))).toBe('never_list')
     expect(await code(() => call(w, 'create_page', { title: 'Give', page_type: 'standard', sections: [{ type: 'DonationEmbed', props: {} }], reason: 'Red-team test case' }))).toBe('never_list')
     expect(await code(() => call(w, 'create_pages', { pages: [{ title: 'Give', page_type: 'standard', sections: [{ type: 'Embed', props: {} }] }], reason: 'Red-team test case' }))).toBe('never_list')
+  })
+
+  it('RT6b nested badge HTML and nested embed props are refused, and an unchanged badge may stay', async () => {
+    const w = await world([{ label: 'All', actions: '*', result: 'publish' }])
+    const reason = 'Red-team test case'
+    const badge = '<div id="TA_rated696" class="TA_rated"></div>'
+    const other = '<div id="TA_other" class="TA_rated"></div>'
+    const nested = { items: [{ name: 'Tripadvisor', badgeHtml: badge }] }
+    expect(await code(() => call(w, 'add_component', { path: '/events', type: 'TrustStrip', props: { heading: 'Marks', ...nested }, reason }))).toBe('never_list')
+    expect(await code(() => call(w, 'create_page', { title: 'Trust', page_type: 'standard', sections: [{ type: 'TrustStrip', props: { heading: 'Marks', ...nested } }], reason }))).toBe('never_list')
+    expect(await code(() => call(w, 'create_pages', { pages: [{ title: 'Trust', page_type: 'standard', sections: [{ type: 'TrustStrip', props: { heading: 'Marks', ...nested } }] }], reason }))).toBe('never_list')
+    expect(await code(() => call(w, 'add_component', { path: '/events', type: 'Hero', props: { heading: 'Hi', cta: { label: 'Go', href: 'https://example.org/', embed: 'emb_x' } }, reason }))).toBe('never_list')
+
+    applyPageOps(w.ctx, w.editor, w.pageId, requirePage(w.ctx, w.pageId).draftRevision, [
+      {
+        op: 'add_block',
+        block: {
+          type: 'TrustStrip',
+          props: {
+            heading: 'Give with confidence',
+            items: [
+              { name: 'Tripadvisor', badgeHtml: badge, group: 'Recommended on' },
+              { name: 'Candid', badgeHtml: other, group: 'Rated by' },
+            ],
+          },
+        },
+      },
+    ])
+    const strip = () => readDoc(w.ctx, requirePage(w.ctx, w.pageId).draftVersionId!).blocks.find((b) => b.type === 'TrustStrip')!
+    const id = strip().id
+    const sameItems = [
+      { name: 'Tripadvisor', badgeHtml: badge, group: 'Recommended on' },
+      { name: 'Candid', badgeHtml: other, group: 'Rated by' },
+    ]
+    expect(await code(() => call(w, 'edit_component', { path: '/events', block_id: id, props: { items: [{ name: 'Tripadvisor', badgeHtml: '<div id="TA_changed" class="TA_rated"></div>', group: 'Recommended on' }, sameItems[1]] }, reason }))).toBe('never_list')
+    expect(await code(() => call(w, 'edit_component', { path: '/events', block_id: id, props: { items: [{ name: 'Tripadvisor', logo: { media: 'med_00000000000000000000000001', alt: 'A dog' }, group: 'Recommended on' }] }, reason }))).toBe('never_list')
+    expect(await code(() => call(w, 'edit_component', { path: '/events', block_id: id, props: {}, unset: ['items'], reason }))).toBe('never_list')
+    expect(await code(() => call(w, 'edit_component', { path: '/events', block_id: id, props: { items: [sameItems[1], sameItems[0]] }, reason }))).toBe('never_list')
+    expect(await code(() => call(w, 'edit_component', { path: '/events', block_id: id, props: { items: [{ ...sameItems[0], embed: 'emb_x' }, sameItems[1]] }, reason }))).toBe('never_list')
+    expect(await code(() => call(w, 'insert_rich_text', { path: '/events', block_id: id, prop: 'badgeHtml', markdown: 'Badge', reason }))).toBe('never_list')
+    expect(strip().props).toMatchObject({ heading: 'Give with confidence', items: sameItems })
+
+    call(w, 'edit_component', { path: '/events', block_id: id, props: { items: [{ ...sameItems[0], name: 'TripAdvisor', note: 'Recommended' }, sameItems[1]] }, reason })
+    expect(strip().props.items).toMatchObject([{ name: 'TripAdvisor', badgeHtml: badge, note: 'Recommended' }, sameItems[1]])
+    call(w, 'edit_component', { path: '/events', block_id: id, props: { heading: 'Trusted marks' }, reason })
+    expect(strip().props.heading).toBe('Trusted marks')
+    expect(strip().props.items).toMatchObject([{ name: 'TripAdvisor', badgeHtml: badge }, { badgeHtml: other }])
   })
 
   it('RT7 an address ending cannot climb out of its place', async () => {
