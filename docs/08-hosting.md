@@ -63,6 +63,7 @@ An admin can switch `current` back to any kept release. The database pointers ar
 ## Cache headers (starting point)
 
 - HTML: short browser cache, long edge cache, purge on publish (for example `Cache-Control: public, max-age=0, s-maxage=86400`), plus the `Cache-Tag` header. Cloudflare holds it and the purge keeps it fresh.
+- HTML error responses (404 and 410) are `Cache-Control: no-store`. They are not cached at the edge, so a missing address that is published later is not stuck behind an old 404.
 - The builder writes `cache-tags.map` and `csp.map` into each release so nginx can send those headers (see `deploy/nginx.conf`). Theme CSS is inlined in the HTML, following the sample-page spike.
 - Hashed assets and media renditions: `public, max-age=31536000, immutable`.
 
