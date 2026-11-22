@@ -588,6 +588,26 @@ export const OPERATIONS: Operation[] = [
   }),
 
   op({
+    name: 'set_header',
+    level: 'draft',
+    action: 'edit_header',
+    method: 'POST',
+    path: '/edits/header',
+    input: S.setHeaderInput,
+    run: (ctx, agent, input) => G.setHeader(ctx, agent, input),
+    doc: {
+      summary: 'Change the header small link, see-through setting, or the heart on the existing Donate button.',
+      what: 'Changes the site-wide header. Only the fields you give change. utility is the small link above the bar: a label plus url or page_id (not both), and null removes it. That link has no heart. over_hero true makes the header see-through over a hero; false makes it solid. icon "heart" or null draws or removes the heart on the Donate button that is already there. It never creates or removes that button, and it never changes the button\'s words or where it goes. If you send icon and there is no Donate button, the call fails and nothing is written. Style, menu, colours and the logo stay with people.',
+      useWhen: ['The person asked for a small link above the header, or to remove it.', 'The header should sit see-through over the hero, or go back to solid.', 'The existing Donate button should show a heart, or lose it.'],
+      dontUseWhen: ['Creating, removing or rewriting the Donate button: a person does that in the builder.', 'Menu items: use the menu tools.', 'Colours, the logo or the header style: a person does that in the builder.', 'A heart on the small utility link: that link has no icon.'],
+      before: ['get_site_part with kind "header", so you see the Donate button and the small link as they are now.', 'The site must already have a header. Agents cannot create one.', 'Words and addresses must come from the person. Do not invent them.'],
+      effect: DRAFT_EFFECT('Changes the header.') + ' A new utility link normally needs a person to approve, because a rule has to allow new links.',
+      returns: `${CHANGE_RETURNS} \`result.changed\` (the fields changed) and \`result.header_now\`.`,
+      example: { input: { utility: { label: 'Report an animal', url: '/report' }, reason: 'The owner asked for a small report link in the header.' }, note: 'Set the small link.' },
+    },
+  }),
+
+  op({
     name: 'set_footer',
     level: 'draft',
     action: 'edit_footer',

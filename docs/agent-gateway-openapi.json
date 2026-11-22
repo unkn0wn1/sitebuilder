@@ -3274,6 +3274,156 @@
         }
       }
     },
+    "/edits/header": {
+      "post": {
+        "operationId": "set_header",
+        "summary": "Change the header small link, see-through setting, or the heart on the existing Donate button.",
+        "description": "Change the header small link, see-through setting, or the heart on the existing Donate button. Changes the site-wide header. Only the fields you give change. utility is the small link above the bar: a label plus url or page_id (not both), and null removes it. That link has no heart. over_hero true makes the header see-through over a hero; false makes it solid. icon \"heart\" or null draws or removes the heart on the Donate button that is already there. It never creates or removes that button, and it never changes the button's words or where it goes. If you send icon and there is no Donate button, the call fails and nothing is written. Style, menu, colours and the logo stay with people.\nUse when: The person asked for a small link above the header, or to remove it. The header should sit see-through over the hero, or go back to solid. The existing Donate button should show a heart, or lose it.\nNot when: Creating, removing or rewriting the Donate button: a person does that in the builder. Menu items: use the menu tools. Colours, the logo or the header style: a person does that in the builder. A heart on the small utility link: that link has no icon.\nFirst: get_site_part with kind \"header\", so you see the Donate button and the small link as they are now. The site must already have a header. Agents cannot create one. Words and addresses must come from the person. Do not invent them.\nEffect: Changes the header. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish). A new utility link normally needs a person to approve, because a rule has to allow new links.\nWho: Draft tokens. Rule action: \"edit_header\".\nReturns: The change reply (see REPLIES in the server instructions) plus `result` (what this call did). `result.changed` (the fields changed) and `result.header_now`.\nExample: {\"utility\":{\"label\":\"Report an animal\",\"url\":\"/report\"},\"reason\":\"The owner asked for a small report link in the header.\"}",
+        "tags": [
+          "Edit (drafts)"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The change reply (see REPLIES in the server instructions) plus `result` (what this call did). `result.changed` (the fields changed) and `result.header_now`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "utility": {
+            "label": "Report an animal",
+            "url": "/report"
+          },
+          "reason": "The owner asked for a small report link in the header."
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "utility": {
+                    "description": "The small link above the bar: { \"label\", \"url\" } or { \"label\", \"page_id\" }. Give url or page_id, not both. null removes the small link. It has no heart icon. Leave out to keep the current small link.",
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 30,
+                            "description": "The words on the small link (1 to 30 characters)."
+                          },
+                          "url": {
+                            "description": "An address starting with https://, http://, mailto:, tel: or /.",
+                            "type": "string",
+                            "maxLength": 2048
+                          },
+                          "page_id": {
+                            "description": "The id of a page on this site, instead of url. Use list_pages for ids.",
+                            "type": "string",
+                            "maxLength": 80
+                          }
+                        },
+                        "required": [
+                          "label"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "over_hero": {
+                    "description": "True: the header is see-through over a hero at the top of the page, and solid once the page is scrolled. False: the normal solid header. Leave out to keep the current setting. Without JavaScript the header stays solid either way.",
+                    "type": "boolean"
+                  },
+                  "icon": {
+                    "description": "\"heart\" draws a small heart on the Donate button that is already on the header. null removes that heart. It does not create or remove the button, and it does not change the button's words or where it goes. If the header has no Donate button, the call fails and nothing is changed.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "heart"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "change_id": {
+                    "description": "An open change id from an earlier edit, to add this edit to it (reviewed and published together). Leave out to start a new change; changes in review, published or discarded cannot be added to.",
+                    "examples": [
+                      "chg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                    ],
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 500,
+                    "description": "Who asked and what they asked, in one or two plain sentences of your own (see REASON in the server instructions). Never paste website text here.",
+                    "examples": [
+                      "The owner asked in chat to take down the link to old-partner.example.org because the partnership ended."
+                    ]
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "example": {
+                "utility": {
+                  "label": "Report an animal",
+                  "url": "/report"
+                },
+                "reason": "The owner asked for a small report link in the header."
+              }
+            }
+          }
+        }
+      }
+    },
     "/edits/footer": {
       "post": {
         "operationId": "set_footer",

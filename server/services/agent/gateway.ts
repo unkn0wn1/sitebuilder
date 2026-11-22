@@ -27,7 +27,7 @@ import type { InternalOp } from '../../../shared/ops'
 import type { PageDoc } from '../../../shared/page'
 import { isSafeHref } from '../../../shared/richtext'
 import type { FieldIssue } from '../../../shared/issues'
-import { validateSitePartDoc, type MenuDoc, type SitePartDoc, type SitePartKind, type BannerDoc, type FooterDoc } from '../../../shared/site-parts'
+import { validateSitePartDoc, type MenuDoc, type SitePartDoc, type SitePartKind, type BannerDoc, type FooterDoc, type HeaderDoc } from '../../../shared/site-parts'
 import { agentChanges, pages, sites, siteParts } from '../../db/schema'
 import type { ServiceCtx } from '../context'
 import { AppError, notFound } from '../errors'
@@ -967,6 +967,37 @@ export function setBanner(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeo
   if (!valid.ok) throw new AppError('validation_failed', valid.issues[0]!.message, valid.issues)
   const done = runInChange(ctx, agent, { changeId: input.change_id, title: 'Change the banner', reason: input.reason }, (h) => h.editPart(part.id, 'edit_banner', valid.doc))
   return { ...editView(ctx, agent, done.change), result: { banner_now: valid.doc } }
+}
+
+/** Change the small utility link, the see-through header, or the heart on the existing Donate button. Does not create or remove that button, or change its words or target. */
+export function setHeader(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.setHeaderInput>) {
+  const part = findPart(ctx, 'header')
+  const header = structuredClone(readSitePartDoc(ctx, part)) as HeaderDoc
+  if (input.icon !== undefined && !header.cta) {
+    throw new AppError('validation_failed', 'There is no Donate button on this header, so the heart cannot be set or cleared. This does not create or remove that button.', [{ path: 'icon', message: 'No Donate button to put a heart on.' }])
+  }
+  const changed: string[] = []
+  if (input.utility !== undefined) {
+    if (input.utility === null) header.utility = null
+    else {
+      if (!!input.utility.url === !!input.utility.page_id) throw new AppError('validation_failed', 'The utility link needs url or page_id, not both and not neither.', [{ path: 'utility', message: 'Give url or page_id.' }])
+      header.utility = { label: input.utility.label, target: menuTarget(input.utility, ctx) }
+    }
+    changed.push('utility')
+  }
+  if (input.over_hero !== undefined) {
+    header.overHero = input.over_hero
+    changed.push('overHero')
+  }
+  if (input.icon !== undefined && header.cta) {
+    if (input.icon === null) delete header.cta.icon
+    else header.cta.icon = input.icon
+    changed.push('icon')
+  }
+  const valid = validateSitePartDoc('header', header)
+  if (!valid.ok) throw new AppError('validation_failed', valid.issues[0]!.message, valid.issues)
+  const done = runInChange(ctx, agent, { changeId: input.change_id, title: `Change the header (${changed.join(', ')})`, reason: input.reason }, (h) => h.editPart(part.id, 'edit_header', valid.doc))
+  return { ...editView(ctx, agent, done.change), result: { changed, header_now: valid.doc } }
 }
 
 /** Change the footer's words and details. Colours and the logo stay with people. */

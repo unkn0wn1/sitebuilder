@@ -106,6 +106,7 @@ A rule is a plain object:
 | `edit_menu` | `remove_menu_item`, `add_menu_item`, `rename_menu_item` | Menu items. |
 | `edit_banner` | `set_banner` | The site-wide banner. |
 | `edit_footer` | `set_footer` | Footer words, contact details, social links, tagline, layout, links menu, charity number. Not its colours or logo. |
+| `edit_header` | `set_header` | The small header link, whether the header is see-through over the hero, and the heart on the existing Donate button. Not that button's words or target, and not colours or the logo. |
 | `undo_change` | `undo_change` | Undo a change the token made. |
 
 `list_media`, `import_media`, `get_media_import` and `set_alt_text` need no rule: the media library is open to any token with draft access (decided 21 Nov 2026). A photo is only live once a published page uses it. Imports run in the background: `import_media` returns an `import_id`, and `get_media_import` says when it is done.

@@ -391,6 +391,32 @@ export const setFooterInput = z
   })
   .strict()
 
+const utilityLink = z
+  .object({
+    label: z.string().trim().min(1).max(30).meta({ description: 'The words on the small link (1 to 30 characters).' }),
+    url: z.string().trim().max(2048).optional().meta({ description: 'An address starting with https://, http://, mailto:, tel: or /.' }),
+    page_id: z.string().trim().max(80).optional().meta({ description: 'The id of a page on this site, instead of url. Use list_pages for ids.' }),
+  })
+  .strict()
+
+export const setHeaderInput = z
+  .object({
+    utility: z
+      .union([utilityLink, z.null()])
+      .optional()
+      .meta({ description: 'The small link above the bar: { "label", "url" } or { "label", "page_id" }. Give url or page_id, not both. null removes the small link. It has no heart icon. Leave out to keep the current small link.' }),
+    over_hero: z.boolean().optional().meta({ description: 'True: the header is see-through over a hero at the top of the page, and solid once the page is scrolled. False: the normal solid header. Leave out to keep the current setting. Without JavaScript the header stays solid either way.' }),
+    icon: z
+      .enum(['heart'])
+      .nullable()
+      .optional()
+      .meta({ description: '"heart" draws a small heart on the Donate button that is already on the header. null removes that heart. It does not create or remove the button, and it does not change the button\'s words or where it goes. If the header has no Donate button, the call fails and nothing is changed.' }),
+    change_id: changeId,
+    reason,
+  })
+  .strict()
+  .refine((v) => [v.utility, v.over_hero, v.icon].some((x) => x !== undefined), { message: 'Give at least one thing to change.' })
+
 export const listMediaInput = z
   .object({
     search: z.string().trim().max(200).optional().meta({ description: 'Only photos whose file name or alt text contains this.', examples: ['dog'] }),

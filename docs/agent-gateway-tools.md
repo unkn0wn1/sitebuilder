@@ -71,6 +71,7 @@ RULES YOU MUST FOLLOW
 | [`add_menu_item`](#add_menu_item) | draft | `POST /agent/v1/edits/menu/add-item` | Add an item to a menu. |
 | [`rename_menu_item`](#rename_menu_item) | draft | `POST /agent/v1/edits/menu/rename-item` | Change the words on a menu item. |
 | [`set_banner`](#set_banner) | draft | `POST /agent/v1/edits/banner` | Show, change or hide the site-wide banner. |
+| [`set_header`](#set_header) | draft | `POST /agent/v1/edits/header` | Change the header small link, see-through setting, or the heart on the existing Donate button. |
 | [`set_footer`](#set_footer) | draft | `POST /agent/v1/edits/footer` | Change the footer words, contact details, social links, tagline, layout, links menu or charity number. |
 | [`list_media`](#list_media) | read | `GET /agent/v1/media` | List photos and videos in the media library, newest first. |
 | [`import_media`](#import_media) | draft | `POST /agent/v1/media/imports` | Import a photo into the media library from a public address (runs in the background). |
@@ -827,6 +828,35 @@ Returns: The change reply (see REPLIES in the server instructions) plus `result`
 Example: {"enabled":true,"message":"Our shop is closed on Monday for the bank holiday.","tone":"info","reason":"The owner asked for a closure notice."}
 ```
 
+## set_header
+
+**Change the header small link, see-through setting, or the heart on the existing Donate button.**
+
+Kind: draft. REST: `POST /agent/v1/edits/header`.
+
+### Inputs
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `utility` | any | no | The small link above the bar: { "label", "url" } or { "label", "page_id" }. Give url or page_id, not both. null removes the small link. It has no heart icon. Leave out to keep the current small link. |
+| `over_hero` | boolean | no | True: the header is see-through over a hero at the top of the page, and solid once the page is scrolled. False: the normal solid header. Leave out to keep the current setting. Without JavaScript the header stays solid either way. |
+| `icon` | any | no | "heart" draws a small heart on the Donate button that is already on the header. null removes that heart. It does not create or remove the button, and it does not change the button's words or where it goes. If the header has no Donate button, the call fails and nothing is changed. |
+| `change_id` | string (max 80 chars) | no | An open change id from an earlier edit, to add this edit to it (reviewed and published together). Leave out to start a new change; changes in review, published or discarded cannot be added to. |
+| `reason` | string (max 500 chars) | yes | Who asked and what they asked, in one or two plain sentences of your own (see REASON in the server instructions). Never paste website text here. |
+
+### Description sent to the AI
+
+```text
+Change the header small link, see-through setting, or the heart on the existing Donate button. Changes the site-wide header. Only the fields you give change. utility is the small link above the bar: a label plus url or page_id (not both), and null removes it. That link has no heart. over_hero true makes the header see-through over a hero; false makes it solid. icon "heart" or null draws or removes the heart on the Donate button that is already there. It never creates or removes that button, and it never changes the button's words or where it goes. If you send icon and there is no Donate button, the call fails and nothing is written. Style, menu, colours and the logo stay with people.
+Use when: The person asked for a small link above the header, or to remove it. The header should sit see-through over the hero, or go back to solid. The existing Donate button should show a heart, or lose it.
+Not when: Creating, removing or rewriting the Donate button: a person does that in the builder. Menu items: use the menu tools. Colours, the logo or the header style: a person does that in the builder. A heart on the small utility link: that link has no icon.
+First: get_site_part with kind "header", so you see the Donate button and the small link as they are now. The site must already have a header. Agents cannot create one. Words and addresses must come from the person. Do not invent them.
+Effect: Changes the header. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish). A new utility link normally needs a person to approve, because a rule has to allow new links.
+Who: Draft tokens. Rule action: "edit_header".
+Returns: The change reply (see REPLIES in the server instructions) plus `result` (what this call did). `result.changed` (the fields changed) and `result.header_now`.
+Example: {"utility":{"label":"Report an animal","url":"/report"},"reason":"The owner asked for a small report link in the header."}
+```
+
 ## set_footer
 
 **Change the footer words, contact details, social links, tagline, layout, links menu or charity number.**
@@ -1213,6 +1243,7 @@ GOAL: a set of draft pages (and menu entries) that a person can review together 
 4. Use ONLY facts, wording and links the person gave you or that are already on the site. Do not invent people, figures, quotes, addresses or phone numbers. Where something is missing, write a short honest page and list what is missing in your reply. Never fill gaps with plausible-sounding text.
 5. PHOTOS: use list_media for photos already in the library. For a photo the person gives you by address, call import_media (with alt text describing what is visible), then get_media_import every few seconds until "done", and put its use_in_props value in the section image field. Only import photos the person gave you or has the right to use. The library needs no approval; a photo goes live only with a published page.
 5b. FOOTER: if the person gives new contact details, social links, a charity number, a tagline or a layout ("simple" or "columns"), use set_footer with the SAME change_id. Copy their words exactly. links_menu_key must be a menu that already exists.
+5b2. HEADER: if the person asks for the small utility link, a see-through header, or a heart on the Donate button that is already there, use set_header with the SAME change_id. Copy their words. null utility removes the small link. icon "heart" or null only changes the heart; it does not create, remove or rewrite the Donate button.
 5c. If the person wants a donation or sign-up form somewhere, build the page without it, put a plain paragraph where it will go, and tell them an admin must add the form by hand.
 6. create_pages with ALL the pages in order (parents before children, linking children with parent_ref). Give each page menu: { label } if it belongs in the menu. Maximum 12 pages per call. For a bigger site, build in several changes by area. It is all or nothing: if it fails, nothing was created; read the message, which names the page, fix it and send the whole list again.
 7. To adjust a page you just made, use the edit tools with the SAME change_id, so it stays one change. Do not start a second change for the same build.
