@@ -61,7 +61,7 @@ describe('hero modes', () => {
     })
     expect(item5Markup(rendered.html)).toBe(expected)
     expect(rendered.html).toContain('<style>' + THEME_CSS + '</style>')
-    expect(rendered.html).not.toContain('hero-carousel')
+    expect(bodyOf(rendered.html)).not.toContain('hero-carousel')
     expect(rendered.html).not.toContain('/hero.js')
   })
 
@@ -71,7 +71,7 @@ describe('hero modes', () => {
     const videoHero = readFileSync(join(fixtureDir, 'videohero-one.html'), 'utf8')
     expect(item5Markup(rendered.html)).toBe(videoHero)
     expect(rendered.html).toContain('<source src="/media/' + SAMPLE_VIDEO_ID + '.mp4"')
-    expect(rendered.html).not.toContain('hero-carousel')
+    expect(bodyOf(rendered.html)).not.toContain('hero-carousel')
     expect(rendered.html).not.toContain(HERO_CAROUSEL_CSS)
 
     const shortImage = await renderPageHtml({
@@ -141,6 +141,10 @@ describe('hero modes', () => {
     expect(videoBody).not.toContain('<source src=')
     expect(bodyOf(image.html)).not.toContain('<video')
     expect(HERO_CAROUSEL_CSS.toLowerCase()).not.toContain('overflow')
+    expect(THEME_CSS).toContain('.hero-carousel { min-height: clamp(22rem, 100vh, 52rem); overflow: hidden; }')
+    expect(THEME_CSS).toContain('.hero-carousel { min-height: clamp(22rem, 100svh, 52rem); overflow: hidden; }')
+    expect(THEME_CSS).toMatch(/\.hero \{\s*position: relative;\s*min-height: min\(70vh, 36rem\);/)
+    expect(THEME_CSS).not.toMatch(/\.hero \{[^}]*overflow/)
     expect(HERO_CAROUSEL_CSS).not.toContain('@keyframes')
     expect(HERO_CAROUSEL_CSS).not.toMatch(/#[0-9a-fA-F]{3,8}/)
     expect(HERO_JS.toLowerCase()).not.toContain('overflow')

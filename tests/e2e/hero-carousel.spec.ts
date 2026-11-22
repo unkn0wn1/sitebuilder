@@ -1,4 +1,6 @@
 import { expect, test, type Page } from 'playwright/test'
+import { Hero } from '../../shared/blocks/library'
+import { emptyPageDoc } from '../../shared/page'
 import { HERO_JS, renderPageHtml } from '../../server/services/render'
 import { HERO_MODE_CASES, SECTION_RENDER } from '../fixtures/sections-default/cases'
 
@@ -127,6 +129,80 @@ test('reduced motion does not advance or attach a video source', async ({ page }
   await page.clock.fastForward(8000)
   expect(await activeIndex(page)).toBe(0)
   await expect(page.locator('video source')).toHaveCount(0)
+})
+
+test('eight slides fit a 390px viewport without sideways scroll', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 })
+  const entry = HERO_MODE_CASES.find((item) => item.name === 'hero-image-carousel')
+  if (!entry) throw new Error('hero-image-carousel')
+  const sample = Hero.sample as Record<string, unknown>
+  const doc = emptyPageDoc('Sections')
+  doc.blocks = [{
+    id: 'b_heroimgc',
+    type: 'Hero',
+    v: 1,
+    props: {
+      ...sample,
+      mode: 'image-carousel',
+      slides: Array.from({ length: 8 }, (_, index) => ({
+        image: sample.image,
+        heading: index === 0 ? 'A warm bed tonight' : `Slide ${index + 1}`,
+        ...(index === 0 ? { subheading: 'Blankets for every kennel.' } : {}),
+      })),
+    },
+  }]
+  const rendered = await renderPageHtml({ ...SECTION_RENDER, doc, site: entry.site })
+  await page.setContent(browserHtml(rendered.html, 'run'), { waitUntil: 'domcontentloaded' })
+
+  await expect(page.locator('.hero-carousel')).toHaveClass(/js-hero/)
+  await expect(page.locator('.hero-dot')).toHaveCount(8)
+
+  const fit = await page.evaluate(() => {
+    const root = document.documentElement
+    const body = document.body
+    const hero = document.querySelector('.hero-carousel')
+    const controls = document.querySelector('.hero-controls')
+    if (!hero || !controls) return null
+    const width = root.clientWidth
+    const box = (el: Element) => {
+      const rect = el.getBoundingClientRect()
+      return { left: rect.left, right: rect.right, w: rect.width, h: rect.height, dot: el.classList.contains('hero-dot') }
+    }
+    const cs = getComputedStyle(hero)
+    const rootPx = parseFloat(getComputedStyle(root).fontSize) || 16
+    const floor = 22 * rootPx
+    const cap = 52 * rootPx
+    const full = window.innerHeight
+    const expected = Math.min(cap, Math.max(floor, full))
+    const oldHero = Math.min(full * 0.7, 36 * rootPx)
+    return {
+      docScroll: root.scrollWidth,
+      docClient: root.clientWidth,
+      bodyScroll: body.scrollWidth,
+      bodyClient: body.clientWidth,
+      width,
+      minH: parseFloat(cs.minHeight),
+      expected,
+      oldHero,
+      bar: box(controls),
+      buttons: [...document.querySelectorAll('.hero-controls button')].map(box),
+    }
+  })
+  if (!fit) throw new Error('carousel controls missing')
+  expect(fit.docScroll).toBe(fit.docClient)
+  expect(fit.bodyScroll).toBe(fit.bodyClient)
+  expect(fit.bar.left).toBeGreaterThanOrEqual(0)
+  expect(fit.bar.right).toBeLessThanOrEqual(fit.width)
+  expect(fit.buttons).toHaveLength(11)
+  for (const button of fit.buttons) {
+    expect(button.left).toBeGreaterThanOrEqual(0)
+    expect(button.right).toBeLessThanOrEqual(fit.width)
+    const min = button.dot ? 24 : 44
+    expect(button.w).toBeGreaterThanOrEqual(min)
+    expect(button.h).toBeGreaterThanOrEqual(min)
+  }
+  expect(fit.minH).toBeGreaterThan(fit.oldHero + 1)
+  expect(Math.abs(fit.minH - fit.expected)).toBeLessThan(1.5)
 })
 
 test('a wide page with motion attaches one video source on the active slide', async ({ page }) => {

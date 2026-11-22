@@ -43,8 +43,10 @@ describe('menu look presets', () => {
     expect(classic.html).toContain('class="site-header"')
     expect(classic.html).toContain('>Home</a>')
     expect(classic.html).toContain('>About</summary>')
-    expect(classic.html).not.toContain('class="nav nav-hamburger"')
-    expect(classic.html).toContain('class="nav"')
+    expect(classic.html).toContain('<nav class="nav" aria-label="Site">')
+    expect(classic.html.match(/<details class="nav nav-hamburger"/g)).toHaveLength(1)
+    expect(classic.html).toContain('>Menu</summary>')
+    expect(classic.html).toMatch(/<\/nav>(?:<!---->)?<details class="nav nav-hamburger" aria-label="Site"><summary>Menu<\/summary>/)
 
     const mega = await renderPageHtml({
       doc,
@@ -65,7 +67,8 @@ describe('menu look presets', () => {
       site: site({ header: { id: 'sp_header', doc: { ...(defaultSitePartDoc('header') as HeaderDoc), style: 'hamburger', menuKey: 'main' } } }),
     })
     expect(burger.html).toContain('site-header-hamburger')
-    expect(burger.html).toContain('nav-hamburger')
+    expect(burger.html.match(/<details class="nav nav-hamburger"/g)).toHaveLength(1)
+    expect(burger.html).not.toContain('<nav class="nav"')
     expect(burger.html).toContain('>Menu</summary>')
     expect(burger.html).toContain('>Home</a>')
   })
@@ -83,7 +86,9 @@ describe('menu look presets', () => {
       }),
     })
     expect(rendered.html).toContain('site-header-mega')
-    expect(rendered.html).not.toContain('class="nav nav-hamburger"')
+    expect(rendered.html).toContain('<nav class="nav nav-mega" aria-label="Site">')
+    expect(rendered.html).toContain('<details class="nav nav-hamburger nav-mega" aria-label="Site">')
+    expect(rendered.html).toMatch(/<header class="site-header site-header-mega"/)
     expect(rendered.html).toContain('Our team')
   })
 

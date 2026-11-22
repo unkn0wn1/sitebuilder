@@ -33,4 +33,25 @@ describe('starter sections match the golden HTML', () => {
     expect(customHtml.html).not.toContain('--accent: #b5471d;')
     expect(bodyOf(customHtml.html)).toBe(bodyOf(stockHtml.html))
   })
+
+  it('uses the Together sizes for the closing band, quote and tier amount', () => {
+    expect(THEME_CSS).toContain('.cta-band h2 { font-size: clamp(30px, 7.5vw, 52px); line-height: 1.08; letter-spacing: -0.015em; }')
+    expect(THEME_CSS).toContain('.cta-band p { font-size: clamp(17px, 2.4vw, 20px); }')
+    expect(THEME_CSS).toContain('.cta-band .btn { min-height: 60px; font-size: 20px; }')
+    expect(THEME_CSS).toContain('.cta-band .btn { width: 100%; }')
+    expect(THEME_CSS).toMatch(/@media \(max-width: 480px\) \{\s*\.cta-band \.btn \{ width: 100%; \}/)
+    expect(THEME_CSS).toContain('font-size:clamp(22px, 3.2vw, 32px)')
+    expect(THEME_CSS).toContain('.quote + .btn, .before-after + .btn { margin-top: 1.5rem; }')
+    expect(THEME_CSS).toContain('.tier-amount { font-size: clamp(22px, 5.5vw, 28px); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.01em;')
+    expect(THEME_CSS).toContain('font-size:var(--fs-stat)')
+  })
+
+  it('paints the donation progress bar with theme tokens', () => {
+    expect(THEME_CSS).toContain('.goal-progress { appearance: none; -webkit-appearance: none; width: 100%; height: 12px; border: 0; border-radius: var(--radius-pill); background: var(--band); color: var(--accent); overflow: hidden; }')
+    expect(THEME_CSS).toContain('.goal-progress::-webkit-progress-bar { background: var(--band); border-radius: var(--radius-pill); }')
+    expect(THEME_CSS).toContain('.goal-progress::-webkit-progress-value { background: linear-gradient(90deg, var(--accent), var(--highlight)); border-radius: var(--radius-pill); }')
+    expect(THEME_CSS).toContain('.goal-progress::-moz-progress-bar { background: linear-gradient(90deg, var(--accent), var(--highlight)); border-radius: var(--radius-pill); }')
+    expect(THEME_CSS).not.toContain('accent-color')
+    expect(THEME_CSS).not.toMatch(/\.goal-progress[^{]*\{[^}]*#[0-9a-fA-F]{3,8}/)
+  })
 })
