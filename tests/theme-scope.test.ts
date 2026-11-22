@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { scopeThemeCss } from '../app/utils/theme-css'
+import { scopeThemeCss, scopedHeroCarouselCss } from '../app/utils/theme-css'
 import { DEFAULT_THEME_TOKENS, HERO_CAROUSEL_CSS, THEME_CSS, themeCssFromTokens } from '../shared/theme-css'
 
 /** Every rule line is scoped. Blank lines and at-rules are left alone. */
@@ -25,6 +25,10 @@ describe('theme canvas scope', () => {
 
   it('scopes the carousel sheet, with no keyframes', () => {
     expect(HERO_CAROUSEL_CSS).not.toContain('@keyframes')
-    expect(unscopedRuleLines(scopeThemeCss(HERO_CAROUSEL_CSS))).toEqual([])
+    const scoped = scopedHeroCarouselCss()
+    expect(scoped).toBe(scopeThemeCss(HERO_CAROUSEL_CSS))
+    expect(scoped).not.toContain('@keyframes')
+    expect(unscopedRuleLines(scoped)).toEqual([])
+    expect(scoped).toContain('.sb-canvas')
   })
 })

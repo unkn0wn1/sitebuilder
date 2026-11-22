@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fieldsForBlock, blockLabel, headingProp, blockCatalog, imageSlotFor } from '../app/utils/block-fields'
+import { fieldsForBlock, blockLabel, headingProp, blockCatalog, imageSlotFor, visibleFieldsForBlock, visibleListItemFields } from '../app/utils/block-fields'
 import { scopeThemeCss } from '../app/utils/theme-css'
 
 describe('block fields', () => {
@@ -11,6 +11,41 @@ describe('block fields', () => {
     expect(byName.image).toMatchObject({ kind: 'image', label: 'Photo' })
     expect(byName.cta).toMatchObject({ kind: 'link', label: 'Button', optional: true })
     expect(byName.tone).toMatchObject({ kind: 'enum', options: ['primary', 'neutral', 'accent'] })
+    expect(byName.mode).toMatchObject({
+      kind: 'enum',
+      label: 'Layout',
+      options: ['image', 'video', 'image-carousel', 'video-carousel'],
+    })
+    expect(byName.slides).toMatchObject({ kind: 'list', label: 'Slides' })
+    expect(byName.poster).toMatchObject({ kind: 'image', label: 'Poster' })
+    expect(byName.video).toMatchObject({ kind: 'media', label: 'Video' })
+  })
+
+  it('shows Hero fields for the current layout and keeps hidden values in the props', () => {
+    const oldHero = { heading: 'Keep them warm', image: { media: 'med_x', alt: 'A dog' } }
+    const single = visibleFieldsForBlock('Hero', oldHero).map((field) => field.name)
+    expect(single).toEqual(expect.arrayContaining(['heading', 'subheading', 'image', 'cta', 'tone', 'mode']))
+    for (const hidden of ['poster', 'video', 'slides']) expect(single).not.toContain(hidden)
+
+    const video = visibleFieldsForBlock('Hero', { mode: 'video', slides: [{ heading: 'Kept' }] }).map((field) => field.name)
+    expect(video).toEqual(expect.arrayContaining(['poster', 'video', 'image']))
+    expect(video).not.toContain('slides')
+
+    for (const mode of ['image-carousel', 'video-carousel']) {
+      const carousel = visibleFieldsForBlock('Hero', { mode, slides: [{ heading: 'Kept' }] }).map((field) => field.name)
+      expect(carousel).toContain('slides')
+      for (const hidden of ['image', 'poster', 'video']) expect(carousel).not.toContain(hidden)
+    }
+
+    const slides = fieldsForBlock('Hero').find((field) => field.name === 'slides')!
+    expect(visibleListItemFields('Hero', slides, { mode: 'image-carousel' }).map((field) => field.name)).not.toContain('video')
+    expect(visibleListItemFields('Hero', slides, { mode: 'video-carousel' }).map((field) => field.name)).toContain('video')
+    expect(visibleListItemFields('Hero', slides, {}).map((field) => field.name)).not.toContain('video')
+
+    const faq = fieldsForBlock('FAQ').find((field) => field.name === 'items')!
+    expect(visibleListItemFields('FAQ', faq, { mode: 'image-carousel' }).map((field) => field.name)).toEqual(faq.item?.map((field) => field.name))
+    expect(visibleFieldsForBlock('FAQ', {}).map((field) => field.name)).toEqual(fieldsForBlock('FAQ').map((field) => field.name))
+    expect(oldHero).toEqual({ heading: 'Keep them warm', image: { media: 'med_x', alt: 'A dog' } })
   })
 
   it('describes rich text and lists', () => {

@@ -7,6 +7,7 @@ import { api, ApiError } from '../../utils/api'
 import { canvasScale } from '../../utils/format'
 import { mediaVersion } from '../../utils/media'
 import { shouldInjectLiveCss } from '#shared/css/live'
+import { scopedHeroCarouselCss } from '../../utils/theme-css'
 import { DEVICE_WIDTHS, type Device } from '../../utils/page-editor'
 
 export type BlockMark = 'added' | 'changed' | 'issue'
@@ -170,11 +171,27 @@ function applySeeThroughHeader(doc: Document) {
   doc.documentElement.style.setProperty('--sb-header-h', `${Math.round(over.getBoundingClientRect().height)}px`)
 }
 
+/** Slides sit in the stage only when the carousel sheet is present. Scope it to this frame. */
+function applyCanvasCarouselCss(doc: Document) {
+  const hasCarousel = !!doc.querySelector('.hero-carousel')
+  doc.documentElement.classList.toggle('sb-canvas', hasCarousel)
+  const existing = doc.querySelector('style[data-sb-hero-carousel]')
+  if (!hasCarousel) {
+    existing?.remove()
+    return
+  }
+  const style = (existing as HTMLStyleElement | null) ?? doc.createElement('style')
+  style.setAttribute('data-sb-hero-carousel', '')
+  style.textContent = scopedHeroCarouselCss()
+  if (!style.parentNode) doc.head.appendChild(style)
+}
+
 function onLoad(i: number) {
   const frame = frameEls[i]!.value
   const doc = docOf(i)
   if (!frame?.srcdoc || !doc?.body) return
   applySeeThroughHeader(doc)
+  applyCanvasCarouselCss(doc)
   const style = doc.createElement('style')
   style.textContent = STYLE
   doc.head.appendChild(style)

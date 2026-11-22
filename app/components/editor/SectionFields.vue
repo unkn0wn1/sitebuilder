@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { fieldsForBlock, imageSlotFor, type FieldSpec } from '../../utils/block-fields'
+import { imageSlotFor, visibleFieldsForBlock, visibleListItemFields, type FieldSpec } from '../../utils/block-fields'
 import { richTextFromParagraphs, richTextToPlain, type RichTextDoc } from '#shared/richtext'
 import { parseRatio } from '#shared/crop'
 import { api } from '../../utils/api'
@@ -23,7 +23,46 @@ const props = withDefaults(
 
 const emit = defineEmits<{ 'update:modelValue': [Record<string, unknown>] }>()
 
-const fields = computed(() => fieldsForBlock(props.type))
+const fields = computed(() => visibleFieldsForBlock(props.type, props.modelValue))
+
+const HERO_LAYOUT_NAMES: Record<string, string> = {
+  image: 'Single photo',
+  video: 'Single video',
+  'image-carousel': 'Photo carousel',
+  'video-carousel': 'Video carousel',
+}
+
+function enumOptions(field: FieldSpec) {
+  return (field.options ?? []).map((option) => ({
+    value: option,
+    name: props.type === 'Hero' && field.name === 'mode' ? (HERO_LAYOUT_NAMES[option] ?? option) : option.replace(/-/g, ' '),
+  }))
+}
+
+/** An empty Hero layout displays as Single photo and is stored only when the person changes it. */
+function enumValue(field: FieldSpec): string {
+  const value = textValue(field.path)
+  if (props.type === 'Hero' && field.name === 'mode' && !value) return 'image'
+  return value
+}
+
+function isHeroSlides(field: FieldSpec): boolean {
+  return props.type === 'Hero' && field.name === 'slides'
+}
+
+function slideFields(field: FieldSpec): FieldSpec[] {
+  return visibleListItemFields(props.type, field, props.modelValue)
+}
+
+function moveItem(field: FieldSpec, index: number, direction: -1 | 1) {
+  const items = listItems(field)
+  const next = index + direction
+  if (next < 0 || next >= items.length) return
+  const copy = items.slice()
+  const [row] = copy.splice(index, 1)
+  copy.splice(next, 0, row!)
+  set(field.path, copy)
+}
 
 function get(path: string): unknown {
   return path.split('.').reduce<unknown>((acc, key) => (acc && typeof acc === 'object' ? (acc as Record<string, unknown>)[key] : undefined), props.modelValue)
@@ -238,9 +277,9 @@ function openCrop(field: FieldSpec) {
 
       <FwbSelect
         v-else-if="field.kind === 'enum'"
-        :model-value="textValue(field.path)"
+        :model-value="enumValue(field)"
         :label="field.label"
-        :options="(field.options ?? []).map((o) => ({ value: o, name: o.replace(/-/g, ' ') }))"
+        :options="enumOptions(field)"
         @update:model-value="set(field.path, $event)"
       />
       <FieldErrors v-if="field.kind === 'enum'" :issues="issues" :path="issuePath(field.path)" />
@@ -289,14 +328,15 @@ function openCrop(field: FieldSpec) {
       <FieldErrors v-if="field.kind === 'media' || field.kind === 'embed'" :issues="issues" :path="issuePath(field.path)" />
 
       <div v-else-if="field.kind === 'list'" class="rounded-md border border-gray-200 dark:border-gray-700 p-3">
-        <div class="mb-2 flex items-center justify-between">
+        <div class="mb-2 flex items-center justify-between gap-2">
           <p class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ field.label }}</p>
-          <button type="button" class="text-sm text-blue-700 dark:text-blue-400 hover:underline" @click="addItem(field)">Add</button>
+          <FwbButton v-if="isHeroSlides(field)" size="sm" color="light" type="button" @click="addItem(field)">Add</FwbButton>
+          <button v-else type="button" class="text-sm text-blue-700 dark:text-blue-400 hover:underline" @click="addItem(field)">Add</button>
         </div>
         <FieldErrors :issues="issues" :path="issuePath(field.path)" />
         <div v-for="(item, index) in listItems(field)" :key="index" class="mb-3 border-b border-gray-100 dark:border-gray-800 pb-3 last:mb-0 last:border-0 last:pb-0">
           <FieldErrors :issues="issues" :path="issuePath(`${field.path}.${index}`)" />
-          <div v-for="sub in field.item ?? []" :key="sub.name" class="mb-2">
+          <div v-for="sub in slideFields(field)" :key="sub.name" class="mb-2">
             <FwbTextarea
               v-if="sub.kind === 'richtext' || sub.kind === 'textarea'"
               :model-value="sub.kind === 'richtext' ? richTextToPlain((item[sub.name] as RichTextDoc) ?? { type: 'doc', content: [] }) : String(item[sub.name] ?? '')"
@@ -341,7 +381,12 @@ function openCrop(field: FieldSpec) {
             />
             <FieldErrors :issues="issues" :path="issuePath(`${field.path}.${index}.${sub.name}`)" include-children />
           </div>
-          <button type="button" class="text-xs text-red-700 dark:text-red-400 hover:underline" @click="removeItem(field, index)">Remove</button>
+          <div v-if="isHeroSlides(field)" class="flex flex-wrap gap-2">
+            <FwbButton size="sm" color="light" type="button" :disabled="index === 0" @click="moveItem(field, index, -1)">Move up</FwbButton>
+            <FwbButton size="sm" color="light" type="button" :disabled="index === listItems(field).length - 1" @click="moveItem(field, index, 1)">Move down</FwbButton>
+            <FwbButton size="sm" color="red" type="button" @click="removeItem(field, index)">Remove</FwbButton>
+          </div>
+          <button v-else type="button" class="text-xs text-red-700 dark:text-red-400 hover:underline" @click="removeItem(field, index)">Remove</button>
         </div>
       </div>
     </div>

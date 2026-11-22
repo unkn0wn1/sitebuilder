@@ -83,6 +83,16 @@ describe('block registry', () => {
     expect(checkTemplateRules(['RichText'], rules, { enforceRequired: true })[0]?.message).toMatch(/needs a "Hero"/)
     expect(VideoHero.sample.video).toBeTruthy()
   })
+
+  it('guides the four Hero layouts and keeps several clips on Hero', () => {
+    expect(Hero.ai?.fields).toMatch(/single photo, single video, photo carousel, or video carousel/)
+    expect(Hero.ai?.fields).toMatch(/real photo/)
+    expect(Hero.ai?.fields).toMatch(/video from the library/)
+    expect(Hero.ai?.fields).toContain('Do not stack a Hero and a VideoHero')
+    expect(VideoHero.ai?.fields).toContain('This is the single clip')
+    expect(VideoHero.ai?.fields).toContain('Several clips belong on Hero')
+    expect(Hero.ai?.good.props).not.toHaveProperty('mode')
+  })
 })
 
 describe('template library updates', () => {
