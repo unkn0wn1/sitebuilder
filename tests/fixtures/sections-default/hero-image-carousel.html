@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'sha256-XIHg01daEY/XSPAPvwYv7luVQVnk3Nhj859oy9c4kC0='; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'sha256-FrVMAoBSIIjna2dhakUR+tgADnN3R5KPajAQsR1eEn8='; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none';">
   <title>Sections | Example charity</title>
   
   
@@ -265,9 +265,9 @@ a { color: var(--accent); }
 @media (min-width: 760px) {
   .card-body { padding: 22px; }
 }
-.cta-band { background: var(--band); padding: 3.5rem 0; text-align: center; }
-.cta-band.tone-accent { background: var(--accent); color: var(--accent-ink); }
-.cta-band.tone-accent a.btn { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-raised); }
+.cta-band { background: linear-gradient(180deg, var(--paper), var(--band) 46%, color-mix(in srgb, var(--highlight) 32%, var(--band))); padding: var(--section-y) 0; text-align: center; }
+.cta-band.tone-accent, .match-banner.tone-primary, .match-banner.tone-accent { background: linear-gradient(165deg, var(--accent), var(--accent-strong)); color: var(--accent-ink); }
+.cta-band.tone-accent a.btn, .match-banner.tone-primary a.btn, .match-banner.tone-accent a.btn { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-raised); }
 .faq details { border-bottom: 1px solid var(--line); padding: 0.75rem 0; }
 .faq summary { cursor: pointer; font-weight: 600; }
 .donate, .embed { background: var(--band); padding: 3.5rem 0; }
@@ -302,8 +302,6 @@ a { color: var(--accent); }
 .progress-meta { margin: 0.75rem 0 0; font-weight: 800; }
 .progress-match, .progress-date { color: var(--muted); margin: 0.35rem 0 0; }
 .match-banner { background: var(--band); padding: 1.25rem 0; }
-.match-banner.tone-primary, .match-banner.tone-accent { background: var(--accent); color: var(--accent-ink); }
-.match-banner.tone-primary a.btn, .match-banner.tone-accent a.btn { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-raised); }
 .match-message { font-size: 1.15rem; font-weight: 600; margin: 0 0 0.35rem; }
 .match-line, .match-countdown { margin: 0 0 0.35rem; }
 .before-after { display: grid; gap: 1rem; margin: 1.5rem 0; }
