@@ -482,6 +482,38 @@ export const agentChanges = sqliteTable(
   (t) => [index('agent_changes_site_created').on(t.siteId, t.createdAt), index('agent_changes_token_status').on(t.tokenId, t.status)],
 )
 
+export const SOUL_PROPOSAL_STATUSES = ['pending', 'approved', 'rejected', 'superseded', 'withdrawn'] as const
+export type SoulProposalStatus = (typeof SOUL_PROPOSAL_STATUSES)[number]
+
+/**
+ * A proposed AI personality waiting for a person. Not a publishable change: rules and always-allow
+ * cannot apply it. At most one pending row per token.
+ */
+export const agentSoulProposals = sqliteTable(
+  'agent_soul_proposals',
+  {
+    id: id(),
+    siteId: siteId(),
+    tokenId: text('token_id').notNull().references(() => agentTokens.id),
+    /** Token name at proposal time, so the admin still sees who asked if the token is renamed. */
+    agentLabel: text('agent_label').notNull(),
+    /** Raw personality text, comments included. */
+    text: text('text').notNull(),
+    /** SHA-256 of the stored soul when the proposal was made. Null when the site was on the shipped default. */
+    baseHash: text('base_hash'),
+    reason: text('reason').notNull(),
+    status: text('status', { enum: SOUL_PROPOSAL_STATUSES }).notNull(),
+    createdAt: createdAt(),
+    decidedBy: text('decided_by').references(() => users.id),
+    decidedAt: text('decided_at'),
+    decisionNote: text('decision_note'),
+  },
+  (t) => [
+    index('agent_soul_proposals_site_created').on(t.siteId, t.createdAt),
+    uniqueIndex('agent_soul_proposals_one_pending').on(t.siteId, t.tokenId).where(sql`${t.status} = 'pending'`),
+  ],
+)
+
 /** Calls and rule violations per token, for limits that survive a restart. Old rows are pruned. */
 export const agentCalls = sqliteTable(
   'agent_calls',

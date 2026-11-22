@@ -6,7 +6,7 @@ import { notifications, users } from '../db/schema'
 import { iso, type ServiceCtx } from './context'
 import { enqueueJob } from './jobs'
 
-export type NotificationKind = 'review_requested' | 'sent_back' | 'published' | 'publish_failed' | 'emergency_rollback' | 'backup_failed' | 'agent_change' | 'agent_paused'
+export type NotificationKind = 'review_requested' | 'sent_back' | 'published' | 'publish_failed' | 'emergency_rollback' | 'backup_failed' | 'agent_change' | 'agent_paused' | 'soul_proposal'
 
 export function usersWithRoles(ctx: ServiceCtx, roles: Role[]): string[] {
   return ctx.db

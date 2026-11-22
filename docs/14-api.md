@@ -138,6 +138,9 @@ Tools run inside the server. They call the same services as the routes above, so
 | `POST /settings/ai/test` | Admin | One-shot connection test. Does not start a session or count against caps. Never returns the key |
 | `GET /settings/ai/models` | Admin | xAI chat models for the picker. Uses the site's xAI key or sign-in when one is set, otherwise a short curated list. Never returns the key |
 | `GET /settings/soul`, `PUT /settings/soul` | Admin | The assistant's personality. A stored null means the shipped default. PUT checks the 48,000 character limit after comments are removed. The raw text can be up to 200,000 characters |
+| `GET /settings/soul/proposals` | Admin | Pending personality proposals (with the raw text) and the 20 newest decided ones (without the text) |
+| `POST /settings/soul/proposals/:id/approve` | Admin | Apply a pending proposal. Body `{ overwrite?: boolean }`. Stale without overwrite is 409 with `stale: true` |
+| `POST /settings/soul/proposals/:id/reject` | Admin | Reject a pending proposal. Body `{ note? }`, trimmed, at most 500 characters. An empty note is stored as null |
 | `PUT /settings/secrets/:name` | Admin or Operator | Write-only: AI key, Cloudflare token, Google OAuth client secret. Never readable afterwards. Gmail tokens cannot be set this way |
 | `POST /settings/mail/google/start` | Admin | Returns the Google OAuth URL to connect a Workspace account |
 | `GET /settings/mail/google/callback` | OAuth redirect | Stores the encrypted tokens and redirects to Settings |

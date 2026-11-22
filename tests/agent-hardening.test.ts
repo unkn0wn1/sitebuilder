@@ -92,7 +92,8 @@ describe('untrusted site content notice', () => {
     expect(call(w, 'get_page', { page_id: w.pageId }).site_content_notice).toMatch(/UNTRUSTED SITE CONTENT/)
     expect(Object.keys(call(w, 'search_content', { query: 'Join' }))[0]).toBe('site_content_notice')
     expect(call(w, 'list_page_types', {}).site_content_notice).toBeUndefined()
-    for (const o of OPERATIONS) if (!['list_components', 'list_page_types'].includes(o.name)) expect(carriesSiteContent(o.name), o.name).toBe(true)
+    expect(call(w, 'update_soul', { text: 'Be warm and brief.', reason: 'The owner asked for a warmer voice.' }).site_content_notice).toBeUndefined()
+    for (const o of OPERATIONS) if (!['list_components', 'list_page_types', 'update_soul'].includes(o.name)) expect(carriesSiteContent(o.name), o.name).toBe(true)
   })
 
   it('does not act on instructions planted in page text (red-team: text is returned as data, nothing else happens)', async () => {
