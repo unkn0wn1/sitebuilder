@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { Hero, SAMPLE_VIDEO_ID, VideoHero } from '../shared/blocks/library'
 import { emptyPageDoc } from '../shared/page'
 import { HERO_CAROUSEL_CSS, THEME_CSS } from '../shared/theme-css'
-import { renderPageHtml } from '../server/services/render'
+import { HERO_JS, renderPageHtml, styleHash } from '../server/services/render'
 import { HERO_MODE_CASES, SECTION_CASES, SECTION_RENDER } from './fixtures/sections-default/cases'
 
 const fixtureDir = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/item5')
@@ -45,6 +45,8 @@ describe('hero modes', () => {
     expect(item5Markup(old.html)).toBe(expected)
     expect(item5Markup(image.html)).toBe(expected)
     expect(old.html).toContain('<style>' + THEME_CSS + '</style>')
+    expect(old.html).not.toContain('/hero.js')
+    expect(image.html).not.toContain('/hero.js')
     const allBlocks = SECTION_CASES.find((entry) => entry.name === 'all-blocks-default')!
     const all = await renderPageHtml({ ...SECTION_RENDER, doc: allBlocks.doc, site: allBlocks.site })
     expect(heroSection(old.html)).toBe(heroSection(all.html))
@@ -78,6 +80,7 @@ describe('hero modes', () => {
       site,
     })
     expect(item5Markup(shortImage.html)).toBe(readFileSync(join(fixtureDir, 'hero-one.html'), 'utf8'))
+    expect(shortImage.html).not.toContain('/hero.js')
 
     const shortVideo = await renderPageHtml({
       ...SECTION_RENDER,
@@ -85,9 +88,10 @@ describe('hero modes', () => {
       site,
     })
     expect(item5Markup(shortVideo.html)).toBe(videoHero)
+    expect(shortVideo.html).not.toContain('/hero.js')
   })
 
-  it('renders a real carousel with hidden controls, no script, and carousel CSS', async () => {
+  it('renders a real carousel with hidden icon controls, the hero script, and carousel CSS', async () => {
     const imageCase = HERO_MODE_CASES.find((entry) => entry.name === 'hero-image-carousel')!
     const videoCase = HERO_MODE_CASES.find((entry) => entry.name === 'hero-video-carousel')!
     const image = await renderPageHtml({ ...SECTION_RENDER, doc: imageCase.doc, site: imageCase.site })
@@ -105,15 +109,26 @@ describe('hero modes', () => {
       expect(body).toContain('aria-live="off"')
       expect(body).toContain('Slide 1 of 2')
       expect(body).toContain('data-heading="A warm bed tonight"')
+      expect(body).toContain('data-subheading="Blankets for every kennel."')
       expect(body).toContain('>A warm bed tonight</h1>')
       expect(body).toContain('>Blankets for every kennel.</p>')
-      expect(body).not.toContain('<script')
-      expect(body).not.toContain('/hero.js')
+      expect(body).toContain('tabindex="0"')
+      expect(body).toContain('<span class="hero-sr">Previous slide</span>')
+      expect(body).toContain('<span class="hero-sr">Pause</span>')
+      expect(body).toContain('class="ico-pause"')
+      expect(body).toContain('class="ico-play"')
+      expect(body).toContain('<script src="/hero.js" defer></script>')
       expect(body.toLowerCase()).not.toContain('overflow')
+      const csp = rendered.html.match(/http-equiv="Content-Security-Policy" content="([^"]*)"/)?.[1] ?? ''
+      const scriptSrc = csp.split(';').map((part) => part.trim()).find((part) => part.startsWith('script-src'))
+      expect(scriptSrc).toBe("script-src 'self'")
+      expect(csp).toContain(`style-src 'self' ${styleHash(THEME_CSS + HERO_CAROUSEL_CSS)}`)
       const slides = body.split('<div class="hero-slide"').slice(1)
       expect(slides).toHaveLength(2)
       expect(slides[0]!.slice(0, slides[0]!.indexOf('>'))).not.toContain('hidden')
+      expect(slides[0]).toContain('data-subheading="Blankets for every kennel."')
       expect(slides[1]!.slice(0, slides[1]!.indexOf('>'))).toContain('hidden')
+      expect(slides[1]).not.toContain('data-subheading')
       expect(slides[0]).toContain('loading="eager"')
       expect(slides[1]).toContain('loading="lazy"')
       expect(slides[0]).not.toContain('loading="lazy"')
@@ -128,5 +143,9 @@ describe('hero modes', () => {
     expect(HERO_CAROUSEL_CSS.toLowerCase()).not.toContain('overflow')
     expect(HERO_CAROUSEL_CSS).not.toContain('@keyframes')
     expect(HERO_CAROUSEL_CSS).not.toMatch(/#[0-9a-fA-F]{3,8}/)
+    expect(HERO_JS.toLowerCase()).not.toContain('overflow')
+    expect(HERO_JS).not.toContain('</script')
+    expect(HERO_JS).not.toContain('document.addEventListener')
+    expect(HERO_JS.toLowerCase()).not.toContain('scroll')
   })
 })

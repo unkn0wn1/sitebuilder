@@ -407,15 +407,22 @@ export const TILE_CSS = `
 
 /** Carousel stage and controls. Appended only when a hero has two or more slides in a carousel mode. */
 export const HERO_CAROUSEL_CSS = `
-.hero-carousel .hero-stage { position: absolute; inset: 0; }
+.hero-carousel .hero-stage { position: absolute; inset: 0; touch-action: pan-y; }
 .hero-carousel .hero-slide { position: absolute; inset: 0; }
-.hero-carousel .hero-controls { position: absolute; z-index: 2; left: 0; right: 0; bottom: 1.25rem; display: flex; justify-content: center; align-items: center; gap: 0.35rem; }
-.hero-carousel .hero-controls button { min-width: 44px; min-height: 44px; padding: 0 0.75rem; border: 0; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--ink) 55%, transparent); color: var(--paper); font: inherit; font-weight: 700; cursor: pointer; transition: background-color 0.15s; }
-.hero-carousel .hero-controls button:hover { background: color-mix(in srgb, var(--ink) 72%, transparent); }
+.hero-carousel .hero-controls { position: absolute; z-index: 2; left: 50%; bottom: max(1.1rem, calc(env(safe-area-inset-bottom) + 0.75rem)); transform: translateX(-50%); display: flex; align-items: center; gap: 0.15rem; padding: 0.25rem 0.35rem; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--ink) 38%, transparent); border: 1px solid color-mix(in srgb, var(--paper) 22%, transparent); backdrop-filter: blur(10px); }
+.hero-carousel .hero-prev, .hero-carousel .hero-next, .hero-carousel .hero-pause { width: 48px; height: 48px; min-width: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--paper); display: grid; place-items: center; cursor: pointer; transition: background-color 0.15s; }
+.hero-carousel .hero-prev:hover, .hero-carousel .hero-next:hover, .hero-carousel .hero-pause:hover, .hero-carousel .hero-prev:focus-visible, .hero-carousel .hero-next:focus-visible, .hero-carousel .hero-pause:focus-visible { background: color-mix(in srgb, var(--paper) 20%, transparent); }
 .hero-carousel .hero-controls button:focus-visible { outline: 3px solid var(--highlight); outline-offset: 2px; }
-.hero-carousel .hero-live { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.hero-carousel .hero-controls svg { width: 24px; height: 24px; display: block; }
+.hero-carousel .hero-pause .ico-play { display: none; }
+.hero-carousel .hero-pause[aria-pressed="true"] .ico-pause { display: none; }
+.hero-carousel .hero-pause[aria-pressed="true"] .ico-play { display: block; }
+.hero-carousel .hero-dot { position: relative; width: 44px; min-width: 44px; min-height: 44px; padding: 0; border: 0; background: transparent; color: var(--paper); cursor: pointer; }
+.hero-carousel .hero-dot::after { content: ""; position: absolute; left: 50%; top: 50%; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: color-mix(in srgb, var(--paper) 55%, transparent); transition: transform 0.2s, background-color 0.2s; }
+.hero-carousel .hero-dot[aria-current="true"]::after { background: var(--paper); transform: scale(1.45); }
+.hero-carousel .hero-sr, .hero-carousel .hero-live { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 .hero-carousel [hidden] { display: none; }
-@media (prefers-reduced-motion: reduce) { .hero-carousel .hero-controls button { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .hero-carousel .hero-prev, .hero-carousel .hero-next, .hero-carousel .hero-pause, .hero-carousel .hero-dot::after { transition: none; } }
 `
 
 

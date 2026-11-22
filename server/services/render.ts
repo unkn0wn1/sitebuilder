@@ -23,7 +23,7 @@ import {
   type MenuDoc,
   type SitePartKind,
 } from '../../shared/site-parts'
-import { BUNDLE_ID, EMBED_JS, HEADER_JS, THEME_CSS } from '../theme/default'
+import { BUNDLE_ID, EMBED_JS, HEADER_JS, HERO_JS, THEME_CSS } from '../theme/default'
 import { migrateBrandDoc, validateBrandDoc, type BrandDoc } from '../../shared/brand'
 import { BANNER_ACCENT_CSS, FOOTER_COLUMNS_CSS, HEART_CSS, HERO_CAROUSEL_CSS, OVER_HERO_CSS, TILE_CSS, UTILITY_CSS, brandChromeCss, themeCssFromTokens } from '../../shared/theme-css'
 import { embeds, media, mediaCrops, pages, redirects, siteParts, sites, versions, type ReleaseManifest } from '../db/schema'
@@ -33,7 +33,7 @@ import { readSettings, type SiteSettings } from '../../shared/settings'
 import { renderRobotsTxt } from '../../shared/robots'
 import { aliasesFromRedirects, pageIdByPath, pageIdForHref, pathForPageId } from '../../shared/internal-links'
 
-export { BUNDLE_ID, EMBED_JS, HEADER_JS, THEME_CSS }
+export { BUNDLE_ID, EMBED_JS, HEADER_JS, HERO_JS, THEME_CSS }
 
 export function styleHash(css: string = THEME_CSS): string {
   return `'sha256-${createHash('sha256').update(css).digest('base64')}'`
@@ -373,6 +373,25 @@ function slideText(value: unknown): string {
   return typeof value === 'string' && value ? value : ''
 }
 
+function heroSr(label: string): VNode {
+  return h('span', { class: 'hero-sr' }, label)
+}
+
+function heroSvg(pathAttrs: Record<string, string>, className?: string): VNode {
+  return h(
+    'svg',
+    {
+      ...(className ? { class: className } : {}),
+      viewBox: '0 0 24 24',
+      width: 24,
+      height: 24,
+      'aria-hidden': 'true',
+      focusable: 'false',
+    },
+    [h('path', pathAttrs)],
+  )
+}
+
 function renderHeroCarousel(block: StoredBlock, site: SiteRenderContext, bag: Collector, firstHero: boolean): VNode {
   const p = block.props
   const slides = heroSlides(p)
@@ -381,12 +400,13 @@ function renderHeroCarousel(block: StoredBlock, site: SiteRenderContext, bag: Co
   const first = slides[0] ?? {}
   const heading = slideText(first.heading) || String(p.heading ?? '')
   const subheading = slideText(first.subheading) || (p.subheading ? String(p.subheading) : '')
-  return h('section', { class: 'hero hero-carousel', 'aria-roledescription': 'carousel', 'aria-label': String(p.heading ?? '') }, [
+  return h('section', { class: 'hero hero-carousel', tabindex: '0', 'aria-roledescription': 'carousel', 'aria-label': String(p.heading ?? '') }, [
     h(
       'div',
       { class: 'hero-stage' },
       slides.map((slide, index) => {
         const slideHeading = slideText(slide.heading)
+        const slideSubheading = slideText(slide.subheading)
         const image = (slide.image as ImageRef | undefined) ?? (p.poster as ImageRef | undefined) ?? (p.image as ImageRef | undefined)
         const children: VNode[] = []
         const picture = pictureVNode(image, site, bag, { slot: { width: 1280, height: 720 }, eager: firstHero && index === 0, class: 'hero-media' })
@@ -403,6 +423,7 @@ function renderHeroCarousel(block: StoredBlock, site: SiteRenderContext, bag: Co
             'aria-label': `Slide ${index + 1} of ${count}`,
             hidden: index === 0 ? undefined : true,
             'data-heading': slideHeading || undefined,
+            'data-subheading': slideSubheading || undefined,
           },
           children,
         )
@@ -414,10 +435,22 @@ function renderHeroCarousel(block: StoredBlock, site: SiteRenderContext, bag: Co
       linkButton(p.cta as { label: string; href: string } | undefined, bag),
     ]),
     h('div', { class: 'hero-controls', hidden: true }, [
-      h('button', { type: 'button', class: 'hero-prev', 'aria-label': 'Previous slide' }, 'Previous slide'),
-      h('button', { type: 'button', class: 'hero-pause', 'aria-label': 'Pause' }, 'Pause'),
-      ...slides.map((_, index) => h('button', { type: 'button', class: 'hero-dot', 'aria-label': `Slide ${index + 1} of ${count}` }, `Slide ${index + 1} of ${count}`)),
-      h('button', { type: 'button', class: 'hero-next', 'aria-label': 'Next slide' }, 'Next slide'),
+      h('button', { type: 'button', class: 'hero-prev', 'aria-label': 'Previous slide' }, [
+        heroSvg({ d: 'M15 4 7 12l8 8', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }),
+        heroSr('Previous slide'),
+      ]),
+      h('button', { type: 'button', class: 'hero-pause', 'aria-label': 'Pause' }, [
+        heroSvg({ d: 'M8 5v14M16 5v14', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round' }, 'ico-pause'),
+        heroSvg({ d: 'M8 5l12 7-12 7z', fill: 'currentColor' }, 'ico-play'),
+        heroSr('Pause'),
+      ]),
+      ...slides.map((_, index) =>
+        h('button', { type: 'button', class: 'hero-dot', 'aria-label': `Slide ${index + 1} of ${count}` }, [heroSr(`Slide ${index + 1} of ${count}`)]),
+      ),
+      h('button', { type: 'button', class: 'hero-next', 'aria-label': 'Next slide' }, [
+        heroSvg({ d: 'M9 4l8 8-8 8', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }),
+        heroSr('Next slide'),
+      ]),
       h('span', { class: 'hero-live', 'aria-live': 'off' }, `Slide 1 of ${count}`),
     ]),
   ])
@@ -1287,7 +1320,7 @@ export async function renderPageHtml(input: {
 <body>
   ${body}
   ${bag.needsEmbedJs ? '<script type="module" src="/embed.js"></script>' : ''}
-  ${analytics ? '<script src="/analytics.js" defer></script>' : ''}${bag.needsHeaderJs ? '\n  <script src="/header.js" defer></script>' : ''}
+  ${analytics ? '<script src="/analytics.js" defer></script>' : ''}${bag.needsHeaderJs ? '\n  <script src="/header.js" defer></script>' : ''}${bag.needsHeroJs ? '\n  <script src="/hero.js" defer></script>' : ''}
 </body>
 </html>
 `

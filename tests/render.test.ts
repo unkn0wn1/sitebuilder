@@ -15,6 +15,7 @@ import { createFileReleaseWriter, readCurrentReleaseId } from '../server/service
 import { approveReview, submitPage } from '../server/services/reviews'
 import {
   EMBED_JS,
+  HERO_JS,
   STYLE_HASH,
   THEME_CSS,
   escapeHtml,
@@ -791,6 +792,66 @@ describe('filesystem releases and Cloudflare purge', () => {
     expect(readFileSync(join(root, 'releases', release3, 'sitemap.xml'), 'utf8')).not.toContain('/about-us')
     expect(s.ctx.db.select().from(redirects).all().some((r) => r.fromPath === '/about-us' && r.toPath === '/')).toBe(true)
     expect(readFileSync(join(root, 'releases', release3, 'redirects.map'), 'utf8')).toContain('"/about-us"')
+  })
+
+  it('writes hero.js for a carousel and keeps the hard-linked file when a later release drops it', async () => {
+    const s = setup()
+    s.ctx.db.update(sites).set({ primaryDomain: 'example.org' }).where(eq(sites.id, s.ctx.siteId)).run()
+    const root = mkdtempSync(join(tmpdir(), 'sb-hero-js-'))
+    const writer = createFileReleaseWriter(root, { keep: 10 })
+    const handlers = {
+      publish: createPublishHandler(writer),
+      send_email: { run: () => ({ skipped: true }) },
+      purge_cache: { run: () => ({ skipped: true }) },
+    }
+
+    await publishStandard(s, 'Home', 'Keep them warm')
+    while (await runJobsOnce(s.ctx, handlers)) {}
+    const release1 = currentRelease(s.ctx)!.id
+    expect(existsSync(join(root, 'releases', release1, 'hero.js'))).toBe(false)
+
+    const { page } = createPage(s.ctx, s.editor, { title: 'Stories', template: 'standard' })
+    applyPageOps(s.ctx, s.editor, page.id, 0, [
+      {
+        op: 'add_block',
+        block: {
+          id: 'b_herocar1',
+          type: 'Hero',
+          props: {
+            heading: 'A warm bed tonight',
+            mode: 'image-carousel',
+            image: IMG,
+            slides: [
+              { image: IMG, heading: 'A warm bed tonight', subheading: 'Blankets for every kennel.' },
+              { image: IMG, heading: 'Food and treatment' },
+            ],
+          },
+        },
+      },
+    ])
+    const sub = submitPage(s.ctx, s.editor, page.id)
+    approveReview(s.ctx, s.approver, sub.reviewId, { versionId: sub.versionId })
+    while (await runJobsOnce(s.ctx, handlers)) {}
+    const release2 = currentRelease(s.ctx)!.id
+    const storyPath = getPage(s.ctx, page.id).page.path
+    const storyHtml = readFileSync(join(root, 'releases', release2, htmlPathFor(storyPath)), 'utf8')
+    expect(storyHtml).toContain('src="/hero.js"')
+    const heroFile = join(root, 'releases', release2, 'hero.js')
+    expect(readFileSync(heroFile, 'utf8')).toBe(HERO_JS)
+
+    applyPageOps(s.ctx, s.editor, page.id, getPage(s.ctx, page.id).revision, [
+      { op: 'update_props', blockId: 'b_herocar1', props: { mode: 'image' } },
+    ])
+    const dropped = submitPage(s.ctx, s.editor, page.id)
+    approveReview(s.ctx, s.approver, dropped.reviewId, { versionId: dropped.versionId })
+    while (await runJobsOnce(s.ctx, handlers)) {}
+    const release3 = currentRelease(s.ctx)!.id
+    const droppedHtml = readFileSync(join(root, 'releases', release3, htmlPathFor(storyPath)), 'utf8')
+    expect(droppedHtml).not.toContain('src="/hero.js"')
+    // hardLinkCopy keeps the previous release's hero.js. This writer does not unlink it when the new HTML has no carousel.
+    const kept = join(root, 'releases', release3, 'hero.js')
+    expect(existsSync(kept)).toBe(true)
+    expect(statSync(kept).ino).toBe(statSync(heroFile).ino)
   })
 
   it('re-renders live pages that link to a page when its address, title or live state changes', async () => {

@@ -176,3 +176,174 @@ export const HEADER_JS = `// Transparent over a hero at the top of the page, sol
 })();
 `
 
+/** Hero carousel, served as /hero.js only when a page has two or more slides. Progressive: without it the first slide stays and the controls stay hidden. */
+export const HERO_JS = `// Advances each hero carousel. Without this file the first slide stays visible and the controls stay hidden.
+(function () {
+  var roots = document.querySelectorAll('.hero-carousel');
+  for (var r = 0; r < roots.length; r++) init(roots[r]);
+
+  function init(section) {
+    var slides = section.querySelectorAll('.hero-slide');
+    var n = slides.length;
+    if (n < 2) return;
+    var controls = section.querySelector('.hero-controls');
+    if (controls) controls.hidden = false;
+    section.classList.add('js-hero');
+    var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var wide = window.matchMedia('(min-width: 641px)').matches;
+    var prev = section.querySelector('.hero-prev');
+    var nextBtn = section.querySelector('.hero-next');
+    var pauseBtn = section.querySelector('.hero-pause');
+    var dots = section.querySelectorAll('.hero-dot');
+    var live = section.querySelector('.hero-live');
+    var active = 0;
+    var paused = false;
+    var timer = 0;
+    var x0 = null;
+    var done = false;
+
+    function setPaused(nextPaused) {
+      paused = nextPaused;
+      if (pauseBtn) {
+        var label = paused ? 'Play' : 'Pause';
+        pauseBtn.setAttribute('aria-pressed', paused ? 'true' : 'false');
+        pauseBtn.setAttribute('aria-label', label);
+        var sr = pauseBtn.querySelector('.hero-sr');
+        if (sr) sr.textContent = label;
+      }
+      if (live) live.setAttribute('aria-live', paused || reduced ? 'polite' : 'off');
+      if (timer) {
+        clearInterval(timer);
+        timer = 0;
+      }
+      if (!paused && !reduced) {
+        timer = setInterval(function () {
+          go(active + 1);
+        }, 6000);
+      }
+    }
+
+    function applyCopy(slide) {
+      var heading = slide.getAttribute('data-heading');
+      var h1 = section.querySelector('.hero-inner h1');
+      if (heading && h1) h1.textContent = heading;
+      var sub = slide.getAttribute('data-subheading');
+      var inner = section.querySelector('.hero-inner');
+      if (!inner) return;
+      var copy = inner.querySelector('p');
+      if (sub) {
+        if (!copy) {
+          copy = document.createElement('p');
+          var cta = inner.querySelector('a');
+          if (cta) inner.insertBefore(copy, cta);
+          else inner.appendChild(copy);
+        }
+        copy.hidden = false;
+        copy.textContent = sub;
+      } else if (copy) {
+        copy.hidden = true;
+      }
+    }
+
+    function ensureSrc(video) {
+      if (video.querySelector('source')) return;
+      var src = video.getAttribute('data-src');
+      if (!src) return;
+      var source = document.createElement('source');
+      source.src = src;
+      var type = video.getAttribute('data-type');
+      if (type) source.type = type;
+      video.appendChild(source);
+      video.load();
+    }
+
+    function go(i) {
+      active = ((i % n) + n) % n;
+      for (var s = 0; s < n; s++) {
+        var slide = slides[s];
+        var on = s === active;
+        slide.hidden = !on;
+        if (on) slide.removeAttribute('aria-hidden');
+        else slide.setAttribute('aria-hidden', 'true');
+        var video = slide.querySelector('video');
+        if (video) {
+          if (on && wide && !reduced) {
+            ensureSrc(video);
+            var pending = video.play();
+            if (pending && pending.catch) pending.catch(function () {});
+          } else {
+            video.pause();
+          }
+        }
+        var dot = dots[s];
+        if (dot) {
+          if (on) dot.setAttribute('aria-current', 'true');
+          else dot.removeAttribute('aria-current');
+        }
+      }
+      if (live) live.textContent = 'Slide ' + (active + 1) + ' of ' + n;
+      applyCopy(slides[active]);
+    }
+
+    function bindDot(dot, index) {
+      dot.addEventListener('click', function () {
+        setPaused(true);
+        go(index);
+      });
+    }
+
+    if (prev) prev.addEventListener('click', function () { setPaused(true); go(active - 1); });
+    if (nextBtn) nextBtn.addEventListener('click', function () { setPaused(true); go(active + 1); });
+    if (pauseBtn) pauseBtn.addEventListener('click', function () { setPaused(!paused); });
+    for (var d = 0; d < dots.length; d++) bindDot(dots[d], d);
+
+    section.addEventListener('keydown', function (event) {
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      var key = event.key;
+      if (key !== 'ArrowLeft' && key !== 'ArrowRight' && key !== 'Home' && key !== 'End') return;
+      if (!section.contains(document.activeElement)) return;
+      event.preventDefault();
+      setPaused(true);
+      if (key === 'ArrowLeft') go(active - 1);
+      else if (key === 'ArrowRight') go(active + 1);
+      else if (key === 'Home') go(0);
+      else go(n - 1);
+    });
+
+    var stage = section.querySelector('.hero-stage');
+    if (stage) {
+      stage.addEventListener('pointerdown', function (event) {
+        done = false;
+        if (event.pointerType === 'mouse') {
+          x0 = null;
+          return;
+        }
+        x0 = event.clientX;
+      });
+      stage.addEventListener('pointerup', function (event) {
+        if (x0 === null) return;
+        var dx = event.clientX - x0;
+        x0 = null;
+        if (Math.abs(dx) > 36) {
+          done = true;
+          setPaused(true);
+          go(active + (dx < 0 ? 1 : -1));
+        }
+      });
+      stage.addEventListener('pointercancel', function () {
+        x0 = null;
+      });
+      stage.addEventListener('click', function (event) {
+        if (!done) return;
+        event.stopImmediatePropagation();
+        event.preventDefault();
+        done = false;
+      }, true);
+    }
+
+    go(0);
+    setPaused(reduced);
+  }
+})();
+`
+
