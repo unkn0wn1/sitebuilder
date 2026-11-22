@@ -10,35 +10,63 @@ export const DEFAULT_THEME_TOKENS = {
   band: '#f3ebe1',
   urgent: '#8b1e1e',
   celebrate: '#2e5a3c',
-  // Footer gold only. Not written into :root, so the default theme CSS stays byte-identical.
+  // Footer gold, written into :root as --highlight. Footer rules still hard-code #f3b53f until the shell token pass.
   highlight: '#f3b53f',
 } as const
 export type ThemeTokens = { [K in keyof typeof DEFAULT_THEME_TOKENS]: string }
 
-export const BUNDLE_ID = "theme-default-4"
+export const BUNDLE_ID = "theme-default-5"
 
-export const THEME_CSS = `:root {
-  --ink: #1f1b16;
-  --paper: #fffaf3;
-  --muted: #5c564e;
-  --accent: #b5471d;
-  --accent-ink: #fffaf3;
-  --line: #e6dccf;
-  --band: #f3ebe1;
-  --urgent: #8b1e1e;
-  --celebrate: #2e5a3c;
+/** The single :root block. themeCssFromTokens replaces this whole block, so derived values stay with the brand tokens.
+ *  --fs-h3 is clamp(20px, 4.5vw, 28px): a step between the 17px body and the section h2 scale. */
+function rootBlock(tokens: ThemeTokens): string {
+  return `:root {
+  --ink: ${tokens.ink};
+  --paper: ${tokens.paper};
+  --muted: ${tokens.muted};
+  --accent: ${tokens.accent};
+  --accent-ink: ${tokens.accentInk};
+  --line: ${tokens.line};
+  --band: ${tokens.band};
+  --urgent: ${tokens.urgent};
+  --celebrate: ${tokens.celebrate};
+  --highlight: ${tokens.highlight};
+  --surface: color-mix(in srgb, var(--paper) 25%, white);
+  --accent-strong: color-mix(in srgb, var(--accent) 82%, black);
+  --decor: color-mix(in srgb, var(--accent) 45%, var(--highlight));
+  --radius-pill: 999px;
+  --radius-card: 20px;
+  --radius-tile: 14px;
+  --radius-media: 12px;
+  --shadow-card: 0 8px 28px color-mix(in srgb, var(--ink) 10%, transparent);
+  --shadow-raised: 0 12px 36px color-mix(in srgb, var(--ink) 12%, transparent);
+  --shadow-selected: 0 4px 14px color-mix(in srgb, var(--decor) 18%, transparent);
+  --fs-body: 17px;
+  --lh-body: 1.6;
+  --fs-display: clamp(28px, 6.2vw, 52px);
+  --fs-h2: clamp(26px, 7vw, 42px);
+  --fs-h3: clamp(20px, 4.5vw, 28px);
+  --fs-big: clamp(44px, 13vw, 72px);
+  --fs-stat: clamp(19px, 5.6vw, 26px);
+  --fs-eyebrow: 13px;
+  --section-y: clamp(48px, 6vw, 72px);
   --max: 70rem;
   --space: 1.25rem;
+}`
 }
+
+export const THEME_CSS = `${rootBlock(DEFAULT_THEME_TOKENS)}
 *, *::before, *::after { box-sizing: border-box; }
 html { color-scheme: light; }
 body {
   margin: 0;
   font-family: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
   color: var(--ink);
   background: var(--paper);
 }
+h1, h2, h3, h4 { font-weight: 800; letter-spacing: -0.02em; }
 img, video { max-width: 100%; height: auto; }
 a { color: var(--accent); }
 .skip { position: absolute; left: -999px; top: 0; }
@@ -176,7 +204,7 @@ a { color: var(--accent); }
 .hero h1 { font-size: clamp(2rem, 5vw, 4rem); line-height: 1.1; margin: 0 0 0.5rem; max-width: 16ch; }
 .hero p { font-size: 1.15rem; max-width: 36ch; margin: 0 0 1.25rem; }
 .section { padding: 3.5rem 0; }
-.section h2 { font-size: clamp(1.5rem, 3vw, 2rem); margin: 0 0 1rem; }
+.section h2 { font-size: var(--fs-h2); line-height: 1.1; margin: 0 0 1rem; }
 .prose :where(p, ul, ol) { max-width: 40rem; margin: 0 0 1rem; }
 .prose h2, .prose h3, .prose h4 { margin: 1.5rem 0 0.5rem; }
 .split { display: grid; gap: 2rem; align-items: center; }
@@ -217,8 +245,8 @@ a { color: var(--accent); }
   .hero-video { display: none; }
 }
 
-.lede { color: var(--muted); max-width: 40rem; margin: 0 0 1.25rem; }
-.eyebrow { text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.8rem; font-weight: 600; color: var(--muted); margin: 0 0 0.5rem; }
+.lede { color: var(--muted); max-width: 38em; margin: 0 0 1.25rem; }
+.eyebrow { text-transform: uppercase; letter-spacing: 0.08em; font-size: var(--fs-eyebrow); font-weight: 700; color: var(--accent-strong); margin: 0 0 0.5rem; }
 .tiers { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
 .tier { border: 1px solid var(--line); border-radius: 0.5rem; overflow: hidden; background: var(--paper); }
 .tier-give { display: flex; flex-direction: column; height: 100%; color: inherit; text-decoration: none; }
@@ -339,22 +367,9 @@ export const TILE_CSS = `
 
 
 /** Build public CSS from a brand pack, keeping the default rules and swapping tokens and fonts.
- *  The :root list is written out by hand. `highlight` is omitted on purpose: it is not a theme variable. */
+ *  Replaces the whole :root block, including --highlight and the derived variables. */
 export function themeCssFromTokens(tokens: ThemeTokens, fonts?: { body: string; heading: string | null }): string {
-  const root = `:root {
-  --ink: ${tokens.ink};
-  --paper: ${tokens.paper};
-  --muted: ${tokens.muted};
-  --accent: ${tokens.accent};
-  --accent-ink: ${tokens.accentInk};
-  --line: ${tokens.line};
-  --band: ${tokens.band};
-  --urgent: ${tokens.urgent};
-  --celebrate: ${tokens.celebrate};
-  --max: 70rem;
-  --space: 1.25rem;
-}`
-  let css = THEME_CSS.replace(/:root \{[^}]+\}/, root)
+  let css = THEME_CSS.replace(/:root \{[^}]+\}/, rootBlock(tokens))
   if (fonts?.body) css = css.replace(/font-family: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;/, `font-family: ${fonts.body};`)
   if (fonts?.heading) css += `\nh1, h2, h3, h4, .site-title, .hero h1 { font-family: ${fonts.heading}; }\n`
   return css
