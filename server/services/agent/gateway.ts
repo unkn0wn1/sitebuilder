@@ -30,6 +30,7 @@ import type { FieldIssue } from '../../../shared/issues'
 import { validateSitePartDoc, type MenuDoc, type SitePartDoc, type SitePartKind, type BannerDoc, type FooterDoc, type HeaderDoc } from '../../../shared/site-parts'
 import { agentChanges, pages, sites, siteParts } from '../../db/schema'
 import { strippedSoul } from '../soul'
+import { soulProposalSummaryForToken, proposeSoul } from '../soul-proposals'
 import type { ServiceCtx } from '../context'
 import { AppError, notFound } from '../errors'
 import { createPage, getPage, listPages, readDoc, requirePage } from '../pages'
@@ -315,18 +316,28 @@ export function getSite(ctx: ServiceCtx, agent: SignedInAgent) {
       rate_limits: effectiveLimits(token),
     },
     never_list: {
-      meaning: 'Things no agent can do, whatever the token says. If asked, tell the person it has to be done by hand in the builder.',
+      meaning: 'Things no agent can do, whatever the token says. The AI personality is the exception: a draft token may propose a new one with update_soul, and a person must approve it. If asked to change anything else, tell the person it has to be done by hand in the builder.',
       sections_that_cannot_be_touched: [...NEVER_BLOCK_TYPES],
       props_that_cannot_be_set: [...NEVER_PROP_KEYS],
       sections_that_never_publish_without_a_person: [...MONEY_BLOCK_TYPES],
-      also: ['Theme, colours, fonts, logo', 'Site settings, users, tokens, secrets', 'Raw HTML, CSS, scripts, tracking'],
+      also: [
+        'Theme, colours, fonts, logo',
+        'Site settings other than the AI personality. A draft token may propose one. A person approves it. Users, tokens, secrets, and every other setting stay closed.',
+        'Raw HTML, CSS, scripts, tracking',
+      ],
     },
     actions: Object.fromEntries((Object.keys(ACTION_LABELS) as AgentAction[]).map((a) => [a, ACTION_LABELS[a]])),
     default_rate_limits: DEFAULT_LIMITS,
     gateway_version: GATEWAY_VERSION,
     start_here: 'Read the sitebuilder://guide/overview resource, or use a prompt such as take_link_down. The usual order is: search_content or find_links, an edit tool, preview_change, then publish_change or request_publish.',
+    soul_proposal: soulProposalSummaryForToken(ctx, token.id),
     ...(personality ? { personality } : {}),
   }
+}
+
+/** Propose a new personality. A person approves it. This does not change the stored soul. */
+export function updateSoul(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.updateSoulInput>) {
+  return proposeSoul(ctx, agent, input)
 }
 
 export function listPagesFor(ctx: ServiceCtx, input: In<typeof S.listPagesInput>) {

@@ -467,6 +467,17 @@ export const importMediaInput = z
 
 export const getMediaImportInput = z.object({ import_id: id('The import_id that import_media returned.', 'job_01KABCDEFGHJKMNPQRSTVWXYZ0') }).strict()
 
+export const updateSoulInput = z
+  .object({
+    text: z.string().meta({
+      description:
+        'The full personality text, comments included. Comments are notes for people and are not counted. The assistant sees at most 48,000 characters. The raw text can be at most 200,000. Nothing changes until a person approves it.',
+      examples: ['Be warm and brief. Use British spelling.'],
+    }),
+    reason,
+  })
+  .strict()
+
 export const setAltTextInput = z
   .object({
     media_id: id('The media_id from list_media or get_media_import.', 'med_01KABCDEFGHJKMNPQRSTVWXYZ0'),

@@ -14,7 +14,7 @@ Let an AI assistant read this site and change it, safely. It can fix a phone num
 3. It asks for a **preview**: exactly what differs, and whether a rule would let it go live.
 4. It then **publishes** (only if a rule on its token allows exactly this kind of change) or **asks a person** to approve.
 5. Everything is in the **audit log**, and any change can be **undone in one call**.
-6. Some things are **never** open to an agent: donation forms and embeds, form bindings, the theme, settings, code. No setting changes that.
+6. Some things are **never** open to an agent: donation forms and embeds, form bindings, the theme, code, and settings other than the AI personality. A draft token may propose a new personality, and a person approves it.
 
 ## Turn it on
 
@@ -134,7 +134,7 @@ Either kind needs the **site name typed exactly** and **your password**, every t
 **What permanent does not change.** It is exactly the same switch, with no end date. These still win, always:
 
 - A matching **deny** rule.
-- The **never-list**: donation forms and embeds, the embed, source and campaign props, theme, settings, users, tokens, code. These are refused even as drafts.
+- The **never-list**: donation forms and embeds, the embed, source and campaign props, theme, users, tokens, code, and settings other than the AI personality. These are refused even as drafts. A draft token may propose the AI personality. A person approves it. Rules and always-allow never apply that proposal.
 - The **floor**: a money section (`ImpactTiers`, `DonationProgress`, `MatchBanner`), someone else's unpublished work on the same page or part, and failing checks. A person approves these.
 - Rate limits, the IP list, the token's own expiry, pausing and the kill switch.
 
@@ -194,12 +194,24 @@ curl -s -X POST https://builder.example.org/agent/v1/edits/remove-link -H "Autho
 
 On connect the MCP server sends instructions, and offers:
 
-- **Tools**: 37 of them, each with a long description (what, when, when not, before, effect, permission, returns, errors, example) and a full input schema with a description and example on every field.
+- **Tools**: 38 of them, each with a long description (what, when, when not, before, effect, permission, returns, errors, example) and a full input schema with a description and example on every field.
 - **Resources**: guides at `sitebuilder://guide/overview`, `tools`, `rules`, `content-model`, `markdown`, `errors`, and `sitebuilder://you` (its own live permissions).
-- `get_site.personality` and `sitebuilder://soul` are read-only tone, agents cannot change settings, and an approved `update_soul` is the follow-up that would let a person accept a new personality.
+- `get_site.personality` and `sitebuilder://soul` are the tone of voice. `update_soul` proposes a new one. A person approves it on Settings, AI personality. It does not change what the token may do. Other settings stay closed.
 - **Prompts and recipes**, with the same text as resources at `sitebuilder://recipe/<name>`: `take_a_link_down`, `update_policy_text`, `change_words`, `edit_a_section`, `create_a_page`, `publish_or_ask`, `undo_a_change`, `menu_and_banner`, `when_you_are_refused`.
 
 All of it is reproduced in [agent-gateway-tools.md](agent-gateway-tools.md) so a person can read what the AI reads.
+
+## AI personality
+
+A draft token proposes a new personality with `update_soul` (`POST /agent/v1/soul`). Send the full text and a reason. The gateway stores a pending proposal and tells admins. The personality the assistant sees does not change.
+
+Rules and always-allow never apply it. A deny rule with actions `*` and no page or site-part targets refuses the proposal and saves nothing; a deny scoped to some pages or parts does not. Read tokens cannot propose. There is no tool that approves.
+
+An admin approves or rejects on Settings, AI personality, or with `POST /api/v1/settings/soul/proposals/:id/approve` and `POST /api/v1/settings/soul/proposals/:id/reject`. Approval writes the personality the same way a direct save does. If the stored personality changed after the proposal, approval without `{ "overwrite": true }` is refused as stale.
+
+`get_site.soul_proposal` (and `sitebuilder://you`) shows this token's pending proposal, or its newest one if none is pending. The fields are the id, status, stripped length, limit, whether it is stale, and when it was created. The proposed text is not included. One pending proposal per token: a new one from that token marks the earlier pending one superseded. Other tokens keep their own.
+
+A proposal is audited as `agent.soul.proposed`. The decision is `agent.soul.approved` or `agent.soul.rejected`, with the admin as the actor. Applying it also writes `settings.soul.updated` with `source` `agent_proposal` and the proposal id.
 
 ## The 3am takedown, as it looks
 
@@ -230,7 +242,7 @@ An agent will not edit a page that is **waiting for approval** (it would withdra
 
 ## Audit, notifications and undo
 
-- Everything an agent does is an audit event with actor type `agent` and the token's name: edits (`agent.change.edited`), approvals by rule (`review.approved_by_rule`), discards, undo, blocked attempts (`agent.call.blocked`), token changes (`agent.token.*`), and automatic pauses.
+- Everything an agent does is an audit event with actor type `agent` and the token's name: edits (`agent.change.edited`), approvals by rule (`review.approved_by_rule`), discards, undo, blocked attempts (`agent.call.blocked`), token changes (`agent.token.*`), personality proposals (`agent.soul.proposed`, then `agent.soul.approved` or `agent.soul.rejected` by an admin), and automatic pauses. Applying a proposal also writes `settings.soul.updated`.
 - The agent's `reason` is saved on the change and the audit entry. It is **the agent's words, not proof of what a person said**: the builder cannot see the chat.
 - When a change is **published by rule**, the token's owner and all admins are notified (in the app, and by email with the diff and how to undo it). When a change is **sent for review**, approvers and admins get the usual "waiting for approval" notice and the token's owner gets an email with the diff.
 - Admin API: `GET /api/v1/agent/changes` (all agent changes), `GET /api/v1/agent/changes/:id`, and **`POST /api/v1/agent/changes/:id/undo` with `{ "reason" }`**: restores the earlier content and publishes it now. Pages the change created are taken offline (the reply lists them in `pagesTakenOffline`). A menu or footer that had never been published is put back to its draft from before the change. It is refused if the page was published again since; use the whole-site rollback ([ADR 0005](decisions/0005-rollback-and-approval.md)) then.
@@ -274,7 +286,7 @@ Some clients cut text shorter than this. Claude Code keeps 2,048 characters of e
 ## Safety model
 
 - **The server is the control, not the model.** Content the AI reads (a page, a message) can try to instruct it. It can still only do what its token's rules and the never-list allow, and anything uncertain goes to a person.
-- Tokens are hashed at rest, scoped, expiring if you set it, revocable, and tied to an address list if you set one. A token cannot manage tokens, users or settings.
+- Tokens are hashed at rest, scoped, expiring if you set it, revocable, and tied to an address list if you set one. A token cannot manage tokens, users or settings. It may propose the AI personality, and a person approves that.
 - The gateway ignores cookies, so a signed-in browser cannot be used to reach it, and a token cannot be used to reach the builder.
 - Keep rules narrow. Put legal pages on the `drafts` preset unless you have decided otherwise. Prefer short expiry.
 - The floor and the never-list cannot be switched off by any setting.

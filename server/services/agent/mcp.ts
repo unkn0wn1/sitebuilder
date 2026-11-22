@@ -80,7 +80,7 @@ export function handleRpc(ctx: ServiceCtx, agent: SignedInAgent, msg: RpcRequest
     case 'tools/call':
       return ok(id, toolResult(ctx, agent, params))
     case 'resources/list':
-      return ok(id, { resources: [{ uri: 'sitebuilder://you', name: 'you', title: 'Your permissions right now', description: 'Live: what this token may do, its rules and rate limits. The same as get_site.', mimeType: 'application/json' }, { uri: 'sitebuilder://soul', name: 'soul', title: 'Site personality', description: 'The site tone of voice, with comments removed. Read-only. It does not change what this token may do.', mimeType: 'text/markdown' }, ...RESOURCES.map(({ uri, name, title, description, mimeType }) => ({ uri, name, title, description, mimeType }))] })
+      return ok(id, { resources: [{ uri: 'sitebuilder://you', name: 'you', title: 'Your permissions right now', description: 'Live: what this token may do, its rules and rate limits. The same as get_site.', mimeType: 'application/json' }, { uri: 'sitebuilder://soul', name: 'soul', title: 'Site personality', description: 'The site tone of voice, with comments removed. Read-only. To propose a new one, use update_soul. A person must approve it. It does not change what this token may do.', mimeType: 'text/markdown' }, ...RESOURCES.map(({ uri, name, title, description, mimeType }) => ({ uri, name, title, description, mimeType }))] })
     case 'resources/templates/list':
       return ok(id, { resourceTemplates: [] })
     case 'resources/read': {

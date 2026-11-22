@@ -24,14 +24,14 @@ Three things made this a decision rather than a feature:
 **Decision order, fixed and documented:** a matching deny rule refuses; then the *floor* (below) forces a person; then always-allow; then per-action publish rules; anything else goes to review.
 
 **The floor and the never-list are not configurable.**
-- Never-list, refused even as a draft: `DonationEmbed` and `Embed` sections, the props `embed`, `source` and `campaignId`; and everything outside page content (theme, settings, users, tokens, secrets, code and scripts), which has no tool at all.
+- Never-list, refused even as a draft: `DonationEmbed` and `Embed` sections, the props `embed`, `source` and `campaignId`; and everything outside page content (theme, users, tokens, secrets, code and scripts, and settings other than the AI personality). `update_soul` proposes a new personality and a person applies it. Other settings still have no tool.
 - Floor, always a person even with always-allow: the change touches a money section (`ImpactTiers`, `DonationProgress`, `MatchBanner`); the page or part has someone else's unpublished work; the standard submission checks fail.
 
 **Always-allow** is a per-token switch for an emergency window. It needs the site name typed and the admin's password, lasts one to seven days or is **permanent** (no end date, added in the 20 Nov 2026 update), and never covers the never-list or the floor. Deny rules still win.
 
 **Approval by rule is a first-class, visible event.** When a rule publishes, the review is approved by `agent:<token id>` with the rule named in the decision comment, the release is not marked self-approved by a person, the audit action is `review.approved_by_rule`, and the owner and admins are notified with the diff.
 
-**Tokens** are random 256-bit secrets starting `sbt_`, stored only as a SHA-256 hash, shown once. A token has an owner (an admin), an access level (`read` or `draft`), rules, rate limits, an optional expiry and IP allow-list, and can be paused, revoked or put in always-allow. A token acts as its owner but cannot manage tokens, users or settings, and cannot do anything a rule or the never-list forbids. There is one kill switch for all agents.
+**Tokens** are random 256-bit secrets starting `sbt_`, stored only as a SHA-256 hash, shown once. A token has an owner (an admin), an access level (`read` or `draft`), rules, rate limits, an optional expiry and IP allow-list, and can be paused, revoked or put in always-allow. A token acts as its owner but cannot manage tokens, users or settings, and cannot do anything a rule or the never-list forbids. It may propose the AI personality; a person must approve that, and a deny rule with actions * refuses the proposal. There is one kill switch for all agents.
 
 **Safety nets.** Per-token rate limits (defaults 120 reads and 30 edits a minute, 10 publishes an hour and 30 a day) kept in SQLite. Three blocked attempts (deny rule, never-list, forbidden) in ten minutes pause the token and notify the owner. Every blocked attempt is audited. An agent cannot edit a page that is waiting for a person's approval (that would withdraw their review).
 

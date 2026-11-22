@@ -2,6 +2,7 @@
 import { api, ApiError } from '../../utils/api'
 import { SOUL_RAW_MAX, stripSoulComments } from '#shared/soul'
 import SettingsNav from '../../components/settings/SettingsNav.vue'
+import SoulProposals from '../../components/settings/SoulProposals.vue'
 
 definePageMeta({ layout: 'builder' })
 
@@ -19,9 +20,11 @@ const saving = ref(false)
 const error = ref('')
 const saved = ref('')
 const text = ref('')
+const savedText = ref('')
 const defaultText = ref('')
 const fullscreen = ref(false)
 const box = ref<HTMLTextAreaElement | null>(null)
+const proposals = ref<{ load: () => Promise<void> } | null>(null)
 
 const counterText = computed(() => {
   const seen = stripSoulComments(text.value).length.toLocaleString('en-GB')
@@ -37,6 +40,7 @@ function grow() {
 
 function apply(view: SoulView) {
   text.value = view.text
+  savedText.value = view.text
   defaultText.value = view.defaultText
   void nextTick(grow)
 }
@@ -61,6 +65,7 @@ async function save() {
   try {
     apply(await api<SoulView>('/settings/soul', { method: 'PUT', body: { text: text.value } }))
     saved.value = 'Saved.'
+    await proposals.value?.load()
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : 'Could not save the personality.'
   } finally {
@@ -90,24 +95,27 @@ watch(text, () => void nextTick(grow))
       This is the voice the assistant uses. Comments in the text are notes for people. The assistant does not see them. It does not change who can publish.
     </p>
     <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading personality…</p>
-    <form v-else class="max-w-3xl" @submit.prevent="save">
-      <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
-      <FwbAlert v-else-if="saved" type="success" class="mb-4">{{ saved }}</FwbAlert>
-      <label for="ai-personality" class="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">Personality</label>
-      <textarea
-        id="ai-personality"
-        ref="box"
-        v-model="text"
-        class="block w-full min-h-[70vh] resize-none overflow-hidden rounded-lg border border-gray-300 bg-white p-3 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-        @input="grow"
-      />
-      <p class="mt-2 mb-4 text-sm text-gray-600 dark:text-gray-400">{{ counterText }}</p>
-      <div class="flex flex-wrap gap-2">
-        <FwbButton type="submit" :disabled="saving">{{ saving ? 'Saving…' : 'Save' }}</FwbButton>
-        <FwbButton type="button" color="light" :disabled="saving" @click="reset">Reset to default</FwbButton>
-        <FwbButton type="button" color="light" :disabled="saving" @click="fullscreen = true">Full screen</FwbButton>
-      </div>
-    </form>
+    <template v-else>
+      <SoulProposals ref="proposals" :draft="text" :saved="savedText" @applied="apply" />
+      <form class="max-w-3xl" @submit.prevent="save">
+        <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
+        <FwbAlert v-else-if="saved" type="success" class="mb-4">{{ saved }}</FwbAlert>
+        <label for="ai-personality" class="mb-1 block text-sm font-medium text-gray-900 dark:text-gray-100">Personality</label>
+        <textarea
+          id="ai-personality"
+          ref="box"
+          v-model="text"
+          class="block w-full min-h-[70vh] resize-none overflow-hidden rounded-lg border border-gray-300 bg-white p-3 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+          @input="grow"
+        />
+        <p class="mt-2 mb-4 text-sm text-gray-600 dark:text-gray-400">{{ counterText }}</p>
+        <div class="flex flex-wrap gap-2">
+          <FwbButton type="submit" :disabled="saving">{{ saving ? 'Saving…' : 'Save' }}</FwbButton>
+          <FwbButton type="button" color="light" :disabled="saving" @click="reset">Reset to default</FwbButton>
+          <FwbButton type="button" color="light" :disabled="saving" @click="fullscreen = true">Full screen</FwbButton>
+        </div>
+      </form>
+    </template>
     <FullscreenEditor
       v-model="text"
       v-model:open="fullscreen"

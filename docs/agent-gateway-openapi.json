@@ -4594,6 +4594,99 @@
           }
         }
       }
+    },
+    "/soul": {
+      "post": {
+        "operationId": "update_soul",
+        "summary": "Propose a new AI personality. A person must approve it.",
+        "description": "Propose a new AI personality. A person must approve it. Stores a pending proposal for the site personality (tone of voice). Nothing changes until an admin approves it on Settings, AI personality. Rules and always-allow never apply it. A deny rule with actions \"*\" saves nothing. A new proposal from this token replaces its earlier pending one.\nUse when: The person asked you to change how the assistant sounds. You have the new personality text and a plain reason.\nNot when: You want to change permissions, tokens, the theme, or any other setting. You only want to read the current personality: use get_site or sitebuilder://soul.\nFirst: The text the person asked for. Comments in the text are notes for people. The assistant does not see them.\nEffect: Saves a DRAFT proposal only. The personality does not change until a person approves it on Settings, AI personality. Rules and always-allow never apply it.\nWho: Draft tokens. A person must approve. Rules and always-allow never apply this.\nReturns: `proposal_id`, `status` (\"pending\"), `stripped_length`, `limit`, `superseded_proposal_id` (or null), `next_steps`. Check `get_site.soul_proposal` later for approved or rejected.\nErrors: rule_denied: A deny rule with actions \"*\" on this token refuses this. Do not retry. Tell the person. validation_failed: The text is over the limit. The message names the count and the limit. Comments are not counted in the 48,000. forbidden: This token is read-only.\nExample: {\"text\":\"Be warm and brief. Use British spelling.\",\"reason\":\"The owner asked for a warmer, shorter voice.\"}",
+        "tags": [
+          "Edit (drafts)"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`proposal_id`, `status` (\"pending\"), `stripped_length`, `limit`, `superseded_proposal_id` (or null), `next_steps`. Check `get_site.soul_proposal` later for approved or rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "text": "Be warm and brief. Use British spelling.",
+          "reason": "The owner asked for a warmer, shorter voice."
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "description": "The full personality text, comments included. Comments are notes for people and are not counted. The assistant sees at most 48,000 characters. The raw text can be at most 200,000. Nothing changes until a person approves it.",
+                    "examples": [
+                      "Be warm and brief. Use British spelling."
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 500,
+                    "description": "Who asked and what they asked, in one or two plain sentences of your own (see REASON in the server instructions). Never paste website text here.",
+                    "examples": [
+                      "The owner asked in chat to take down the link to old-partner.example.org because the partnership ended."
+                    ]
+                  }
+                },
+                "required": [
+                  "text",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "example": {
+                "text": "Be warm and brief. Use British spelling.",
+                "reason": "The owner asked for a warmer, shorter voice."
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4619,7 +4712,7 @@
         }
       },
       "Error403": {
-        "description": "forbidden: This token may not do that: it is read-only, or the call came from an address the token does not allow. Do not retry. Tell the person what you were trying to do and that the site owner needs to give the token draft access.\n\nrule_denied: A rule on this token forbids this kind of change (or, for publish_change, forbids publishing it). Do not try to get around it by splitting the change or using another tool. Discard the change if you made one, and tell the person plainly what was refused and why. Repeated attempts pause the token.\n\nnever_list: You tried to touch something no agent may ever change: donation forms and embeds, form/data bindings, theme, settings, code. Stop. Tell the person this needs doing by hand in the builder. Repeated attempts pause the token.\n\nagent_paused: This token, or all agent access to the site, is paused. A token is paused by an admin or automatically after repeated blocked attempts. Do not retry. Tell the person the agent is paused and an admin can resume it.",
+        "description": "forbidden: This token may not do that: it is read-only, or the call came from an address the token does not allow. Do not retry. Tell the person what you were trying to do and that the site owner needs to give the token draft access.\n\nrule_denied: A rule on this token forbids this kind of change (or, for publish_change, forbids publishing it). A deny rule with actions \"*\" also refuses a personality proposal. Do not try to get around it by splitting the change or using another tool. Discard the change if you made one, and tell the person plainly what was refused and why. Repeated attempts pause the token.\n\nnever_list: You tried to touch something no agent may ever change: donation forms and embeds, form/data bindings, theme, settings other than a personality proposal, code. Stop. Tell the person this needs doing by hand in the builder. A personality change is update_soul, and a person approves it. Repeated attempts pause the token.\n\nagent_paused: This token, or all agent access to the site, is paused. A token is paused by an admin or automatically after repeated blocked attempts. Do not retry. Tell the person the agent is paused and an admin can resume it.",
         "content": {
           "application/json": {
             "schema": {

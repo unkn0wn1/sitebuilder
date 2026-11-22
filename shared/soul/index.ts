@@ -22,6 +22,21 @@ export function stripSoulComments(text: string): string {
   return without.replace(/\n{4,}/g, '\n\n\n').trim()
 }
 
+/**
+ * Null when the text fits. Otherwise the sentence shown on save and on an agent proposal.
+ * The raw limit is the whole text. The stripped limit is what the AI sees. Comments are not counted.
+ */
+export function soulBudgetError(text: string): string | null {
+  if (text.length > SOUL_RAW_MAX) {
+    return `The personality text is ${text.length} characters. The limit is ${SOUL_RAW_MAX.toLocaleString('en-GB')}.`
+  }
+  const stripped = stripSoulComments(text)
+  if (stripped.length > SOUL_CHAR_LIMIT) {
+    return `The personality the AI sees is ${stripped.length} characters. The limit is ${SOUL_CHAR_LIMIT.toLocaleString('en-GB')}. Comments are not counted.`
+  }
+  return null
+}
+
 /** `null` or missing uses the shipped file. Empty after strip means no personality. */
 export function soulForPrompt(stored: string | null | undefined): string {
   const raw = stored == null ? DEFAULT_SOUL : stored

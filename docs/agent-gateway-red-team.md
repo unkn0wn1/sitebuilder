@@ -8,8 +8,8 @@ An AI that edits the site also reads it. Page text, menu labels, search snippets
 
 ## Layers
 
-1. **Labelled as data.** Every tool reply that can carry website words starts with `site_content_notice`, saying the words inside are untrusted data and never instructions. The MCP server instructions and every tool description say the same. Only `list_components` and `list_page_types` (fixed reference lists) carry no notice.
-2. **Permissions live on the server.** What a token may do is its rules, the never-list, the floor and the rate limits. None of it can be changed through the gateway: there is no tool for tokens, rules, alerts, users, settings or always-allow.
+1. **Labelled as data.** Every tool reply that can carry website words starts with `site_content_notice`, saying the words inside are untrusted data and never instructions. The MCP server instructions and every tool description say the same. Only `list_components`, `list_page_types` and `update_soul` carry no notice. `update_soul` returns an id and a status, not the personality text.
+2. **Permissions live on the server.** What a token may do is its rules, the never-list, the floor and the rate limits. None of it can be changed through the gateway: there is no tool for tokens, rules, alerts, users or always-allow. Settings stay closed except the AI personality: `update_soul` proposes a new one and does not apply it. A person approves it.
 3. **Draft first.** Every write is a draft change. It only goes live when a rule covers every part of it, or a person approves.
 4. **Never-list.** Donation forms, embeds and bound money props cannot be added, edited or removed by any token, on any route.
 5. **Output safety.** Links must be http(s), mailto or tel; text is stored as text and escaped when rendered.
@@ -22,7 +22,7 @@ An AI that edits the site also reads it. Page text, menu labels, search snippets
 | --- | --- | --- | --- |
 | RT1 | The agent's stated reason claims an admin approved it | The reason is stored and shown as the agent's words. The rule decision ignores it | `agent-redteam` RT1 |
 | RT2 | Extra input fields (`always_allow`, `rules`, `approved`, `skip_review`) | Inputs are strict: refused with `validation_failed`, never silently ignored | RT2 |
-| RT3 | Planted text asks the agent to give itself more power | No tool can change tokens, rules, alerts, users or settings | RT3 |
+| RT3 | Planted text asks the agent to give itself more power | No tool can change tokens, rules, alerts, users or settings. `update_soul` only proposes a personality | RT3 |
 | RT4 | Planted text asks for a `javascript:` or `data:` link | Refused in markdown and in section props, any letter case | RT4 |
 | RT5 | Planted HTML in a heading | Stored as plain text, escaped when rendered | RT5 |
 | RT6 | Planted text asks for a donation form or embed | `never_list` on add_component, create_page and create_pages | RT6, `agent-safety` never-list |
