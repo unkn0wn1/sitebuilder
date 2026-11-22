@@ -47,7 +47,8 @@ export const menuDocSchema = z
   .strict()
   .refine((d) => uniqueIds(d.items), { message: 'Menu item ids must be unique.' })
 
-const callToAction = z.object({ label: label(30), target: linkTargetSchema }).strict()
+/** `icon: 'heart'` draws a small heart before the label (used on Donate buttons). */
+const callToAction = z.object({ label: label(30), target: linkTargetSchema, icon: z.enum(['heart']).optional() }).strict()
 
 export const headerDocSchema = z
   .object({
@@ -55,6 +56,8 @@ export const headerDocSchema = z
     style: z.enum(['simple', 'centred', 'mega', 'hamburger']).default('simple'),
     menuKey: z.string().min(1).max(40).default('main'),
     cta: callToAction.nullable().default(null),
+    /** A small link above the bar, for example "Report an ill or injured animal". Also shown in the mobile menu. */
+    utility: callToAction.nullable().default(null),
     appearance: z.enum(['light', 'dark']).default('light'),
   })
   .strict()
@@ -77,6 +80,14 @@ export const footerDocSchema = z
     legalMenuKey: z.string().min(1).max(40).nullable().default(null),
     charityNumber: z.string().trim().max(40).nullable().default(null),
     appearance: z.enum(['light', 'dark']).default('light'),
+    /** 'columns' shows the logo, a tagline and about text, a contact column and a links column with social icons. Additive; 'simple' keeps the old stacked footer. */
+    layout: z.enum(['simple', 'columns']).default('simple'),
+    tagline: z.object({ lead: z.string().trim().min(1).max(60), accent: z.string().trim().max(60).default('') }).strict().nullable().default(null),
+    contactTitle: z.string().trim().max(40).nullable().default(null),
+    /** A menu (by key) shown as arrow links in the third column. */
+    linksTitle: z.string().trim().max(40).nullable().default(null),
+    linksMenuKey: z.string().min(1).max(40).nullable().default(null),
+    legalText: z.string().trim().max(200).nullable().default(null),
   })
   .strict()
 
@@ -86,7 +97,7 @@ export const bannerDocSchema = z
     enabled: z.boolean().default(false),
     message: z.string().trim().max(160, { message: 'Keep the banner under 160 characters.' }).default(''),
     link: callToAction.nullable().default(null),
-    tone: z.enum(['info', 'urgent', 'celebrate']).default('info'),
+    tone: z.enum(['info', 'urgent', 'celebrate', 'accent']).default('info'),
   })
   .strict()
   .refine((d) => !d.enabled || d.message.length > 0, { message: 'Add a message, or switch the banner off.', path: ['message'] })
@@ -130,6 +141,8 @@ export function sitePartLinks(kind: SitePartKind, doc: SitePartDoc): { path: str
   } else if (kind === 'header' || kind === 'banner') {
     const cta = kind === 'header' ? (doc as z.infer<typeof headerDocSchema>).cta : (doc as z.infer<typeof bannerDocSchema>).link
     if (cta) out.push({ path: kind === 'header' ? 'cta.target' : 'link.target', label: cta.label, target: cta.target })
+    const utility = kind === 'header' ? (doc as z.infer<typeof headerDocSchema>).utility : null
+    if (utility) out.push({ path: 'utility.target', label: utility.label, target: utility.target })
   }
   return out
 }

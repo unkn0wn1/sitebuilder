@@ -5,7 +5,8 @@ import { applyPageOps, binPage, createPage } from '../server/services/pages'
 import { createPublishHandler, currentRelease, rollbackSite } from '../server/services/publish'
 import { approveReview, getReview, sendBackReview, submitPage } from '../server/services/reviews'
 import { createSitePart, editSitePart, getSitePart, listSiteParts, listSitePartVersions, submitSitePart } from '../server/services/site-parts'
-import { defaultSitePartDoc, validateSitePartDoc } from '../shared/site-parts'
+import { defaultSitePartDoc, sitePartLinks, validateSitePartDoc, type BannerDoc, type FooterDoc, type HeaderDoc } from '../shared/site-parts'
+import { richTextFromParagraphs } from '../shared/richtext'
 import { setup } from './helpers'
 
 function code(fn: () => unknown): string {
@@ -110,5 +111,105 @@ describe('site parts', () => {
     expect(again.reviewWithdrawn).toBe(false)
     expect(again.revision).toBe(saved.revision)
     expect(getSitePart(s.ctx, id).part.workflowState).toBe('in_review')
+  })
+})
+
+const oldHeader = {
+  schemaVersion: 1,
+  style: 'mega',
+  menuKey: 'main',
+  cta: { label: 'Donate', target: { type: 'url', url: 'https://example.org/donate' } },
+  appearance: 'dark',
+}
+const oldFooter = {
+  schemaVersion: 1,
+  text: richTextFromParagraphs(['We help street animals.']),
+  contact: { email: 'hello@example.org', phone: '+44 20 7946 0000', address: '1 High Street' },
+  social: [{ network: 'facebook', url: 'https://facebook.com/example' }],
+  legalMenuKey: 'legal',
+  charityNumber: '1234567',
+  appearance: 'light',
+}
+const oldBanner = { schemaVersion: 1, enabled: true, message: 'Winter appeal is open', tone: 'info' }
+
+describe('site parts saved before the optional shell fields', () => {
+  it('parses old header, footer and banner documents and fills the new defaults', () => {
+    const header = validateSitePartDoc('header', oldHeader)
+    const headerBare = validateSitePartDoc('header', { schemaVersion: 1 })
+    const footer = validateSitePartDoc('footer', oldFooter)
+    const banner = validateSitePartDoc('banner', oldBanner)
+    const bannerBare = validateSitePartDoc('banner', { schemaVersion: 1, enabled: false })
+    expect(header.ok && headerBare.ok && footer.ok && banner.ok && bannerBare.ok).toBe(true)
+    if (!header.ok || !headerBare.ok || !footer.ok || !banner.ok || !bannerBare.ok) return
+    expect(header.doc.utility).toBeNull()
+    expect(header.doc.cta?.icon).toBeUndefined()
+    expect(headerBare.doc.cta).toBeNull()
+    expect(headerBare.doc.utility).toBeNull()
+    expect(footer.doc.layout).toBe('simple')
+    expect(footer.doc.tagline).toBeNull()
+    expect(footer.doc.contactTitle).toBeNull()
+    expect(footer.doc.linksTitle).toBeNull()
+    expect(footer.doc.linksMenuKey).toBeNull()
+    expect(footer.doc.legalText).toBeNull()
+    expect(banner.doc.tone).toBe('info')
+    expect(bannerBare.doc.tone).toBe('info')
+    expect(validateSitePartDoc('header', header.doc).ok).toBe(true)
+    expect(validateSitePartDoc('footer', footer.doc).ok).toBe(true)
+    expect(validateSitePartDoc('banner', banner.doc).ok).toBe(true)
+  })
+
+  it('accepts the new options and rejects values outside the enums', () => {
+    expect(validateSitePartDoc('banner', { schemaVersion: 1, enabled: true, message: 'Give today', tone: 'accent' }).ok).toBe(true)
+    expect(validateSitePartDoc('banner', { schemaVersion: 1, enabled: true, message: 'Give today', tone: 'brand' }).ok).toBe(false)
+    expect(validateSitePartDoc('header', { schemaVersion: 1, cta: { label: 'Donate', icon: 'heart', target: { type: 'url', url: 'https://example.org/donate' } } }).ok).toBe(true)
+    expect(validateSitePartDoc('header', { schemaVersion: 1, cta: { label: 'Donate', icon: 'star', target: { type: 'url', url: 'https://example.org/donate' } } }).ok).toBe(false)
+    const columns = validateSitePartDoc('footer', {
+      schemaVersion: 1,
+      layout: 'columns',
+      tagline: { lead: 'For the animals', accent: 'every day' },
+      contactTitle: 'Talk to us',
+      linksTitle: 'More',
+      linksMenuKey: 'footer-links',
+      legalText: 'Registered charity.',
+    })
+    expect(columns.ok).toBe(true)
+    expect(validateSitePartDoc('footer', { schemaVersion: 1, layout: 'grid' }).ok).toBe(false)
+    expect(validateSitePartDoc('footer', { schemaVersion: 1, legalText: 'x'.repeat(201) }).ok).toBe(false)
+    expect(validateSitePartDoc('footer', { schemaVersion: 1, tagline: { lead: '' } }).ok).toBe(false)
+    const withUtility = validateSitePartDoc('header', {
+      ...oldHeader,
+      utility: { label: 'Report an animal', target: { type: 'url', url: 'https://example.org/report' } },
+    })
+    expect(withUtility.ok).toBe(true)
+    if (!withUtility.ok) return
+    expect(sitePartLinks('header', withUtility.doc).map((l) => l.path)).toEqual(['cta.target', 'utility.target'])
+    const parsedOld = validateSitePartDoc('header', oldHeader)
+    if (!parsedOld.ok) return
+    expect(sitePartLinks('header', parsedOld.doc).map((l) => l.path)).toEqual(['cta.target'])
+  })
+
+  it('saves an old-shape header, footer and banner through the editor save path', () => {
+    const s = setup()
+    const headerId = createSitePart(s.ctx, 'header', 'header', 'Header')
+    const footerId = createSitePart(s.ctx, 'footer', 'footer', 'Footer')
+    const bannerId = createSitePart(s.ctx, 'banner', 'banner', 'Banner')
+    const headerSaved = editSitePart(s.ctx, s.approver, headerId, 0, oldHeader)
+    const footerSaved = editSitePart(s.ctx, s.approver, footerId, 0, oldFooter)
+    const bannerSaved = editSitePart(s.ctx, s.approver, bannerId, 0, oldBanner)
+    const headerDoc = headerSaved.doc as HeaderDoc
+    const footerDoc = footerSaved.doc as FooterDoc
+    const bannerDoc = bannerSaved.doc as BannerDoc
+    expect(headerDoc.utility).toBeNull()
+    expect(headerDoc.cta?.icon).toBeUndefined()
+    expect(headerDoc.style).toBe('mega')
+    expect(footerDoc.layout).toBe('simple')
+    expect(footerDoc.tagline).toBeNull()
+    expect(footerDoc.linksMenuKey).toBeNull()
+    expect(footerDoc.legalText).toBeNull()
+    expect(footerDoc.contact.email).toBe('hello@example.org')
+    expect(bannerDoc.tone).toBe('info')
+    expect(getSitePart(s.ctx, headerId).doc).toEqual(headerSaved.doc)
+    expect(getSitePart(s.ctx, footerId).doc).toEqual(footerSaved.doc)
+    expect(getSitePart(s.ctx, bannerId).doc).toEqual(bannerSaved.doc)
   })
 })
