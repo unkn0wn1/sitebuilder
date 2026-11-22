@@ -46,6 +46,43 @@ test('settings, media library and inspector crop', async ({ page }) => {
   await expect(page.getByText('of 48,000 characters the AI sees')).toBeVisible()
   await docsShot(page, 'ai-personality.png')
 
+  // A proposal keeps the British spelling sentence and adds one line. Skip when the gateway is off.
+  if (process.env.SITEBUILDER_AGENT_GATEWAY === '1') {
+    const origin = new URL(page.url()).origin
+    const current = await personality.inputValue()
+    const unique = 'The shop volunteers answer the phone in a calm voice.'
+    const tokenName = 'Soul proposal'
+    const reason = 'The owner asked for one calm line about the phone.'
+    const minted = await page.request.fetch('/api/v1/agent/tokens', {
+      method: 'POST',
+      headers: { Origin: origin, Accept: 'application/json' },
+      data: { name: tokenName, access: 'draft', rules: [] },
+    })
+    const mintedText = await minted.text()
+    expect(minted.ok(), mintedText).toBeTruthy()
+    const secret = String((JSON.parse(mintedText) as { secret?: string }).secret ?? '')
+    const proposed = await page.request.fetch('/agent/v1/soul', {
+      method: 'POST',
+      headers: { Origin: origin, Accept: 'application/json', Authorization: `Bearer ${secret}` },
+      data: { text: `${current.replace(/\s*$/, '')}\n${unique}`, reason },
+    })
+    if (proposed.status() !== 404) {
+      const proposedText = await proposed.text()
+      expect(proposed.ok(), proposedText).toBeTruthy()
+      await page.reload()
+      await expect(page.getByRole('heading', { name: 'AI personality' })).toBeVisible({ timeout: 20_000 })
+      const proposals = page.getByRole('region', { name: 'Personality proposals' })
+      await expect(proposals.getByText(tokenName)).toBeVisible({ timeout: 20_000 })
+      await expect(proposals.getByText(reason)).toBeVisible()
+      await expect(proposals.getByText(unique)).toBeVisible()
+      await expect(proposals.getByText('The personality changed after this was proposed. The diff below is against the current text.')).toHaveCount(0)
+      await docsShot(page, 'soul-proposal.png')
+      await proposals.getByRole('button', { name: 'Approve', exact: true }).click()
+      await expect(personality).toHaveValue(new RegExp(unique.replace(/[.]/g, '\\.')))
+      await expect(personality).toHaveValue(/Write in plain English, with British spelling\./)
+    }
+  }
+
   await page.getByRole('button', { name: 'Full screen' }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
