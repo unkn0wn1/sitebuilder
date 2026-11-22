@@ -1316,13 +1316,47 @@ export function robotsTxt(site: SiteRenderContext): string {
   return renderRobotsTxt({ allowIndexing: site.allowIndexing, origin: site.origin, custom: site.robotsTxt })
 }
 
-export function nginxMapLines(entries: { uri: string; value: string }[]): string {
-  return entries
-    .map((e) => {
-      const uris = uniqueUris(e.uri)
-      return uris.map((u) => `${nginxQuote(u)} ${nginxQuote(e.value)};`).join('\n')
-    })
-    .join('\n') + (entries.length ? '\n' : '')
+/**
+ * One nginx map include. `urlValues` (redirect targets) percent-encodes `$` to `%24`.
+ * Other values (CSP, cache tags, status codes) are dropped when they contain `$`.
+ * A newline or control character in a key or value drops that entry. Never throws:
+ * an old bad row must not stop a publish.
+ */
+export function nginxMapLines(entries: { uri: string; value: string }[], options?: { urlValues?: boolean }): string {
+  const urlValues = options?.urlValues === true
+  const lines: string[] = []
+  for (const entry of entries) {
+    if (hasLineBreakOrControl(entry.uri)) {
+      logDroppedMapEntry(entry.uri, 'unsafe_key')
+      continue
+    }
+    const uri = entry.uri.replaceAll('$', '%24')
+    let value = entry.value
+    if (urlValues) {
+      if (hasLineBreakOrControl(value)) {
+        logDroppedMapEntry(entry.uri, 'unsafe_value')
+        continue
+      }
+      value = value.replaceAll('$', '%24')
+    } else if (value.includes('$') || hasLineBreakOrControl(value)) {
+      logDroppedMapEntry(entry.uri, 'unsafe_value')
+      continue
+    }
+    for (const u of uniqueUris(uri)) lines.push(`${nginxQuote(u)} ${nginxQuote(value)};`)
+  }
+  return lines.length ? `${lines.join('\n')}\n` : ''
+}
+
+function hasLineBreakOrControl(value: string): boolean {
+  for (const ch of value) {
+    const c = ch.codePointAt(0)!
+    if (c < 0x20 || c === 0x7f || (c >= 0x80 && c <= 0x9f) || c === 0x2028 || c === 0x2029) return true
+  }
+  return false
+}
+
+function logDroppedMapEntry(uri: string, reason: 'unsafe_key' | 'unsafe_value'): void {
+  console.error(JSON.stringify({ level: 'error', msg: 'nginx_map_dropped', reason, uri }))
 }
 
 function uniqueUris(path: string): string[] {
@@ -1338,7 +1372,7 @@ function nginxQuote(value: string): string {
 export function redirectsMap(rows: { fromPath: string; toPath: string; statusCode: number }[]): { uri: string; status: string } {
   const dest = rows.map((r) => ({ uri: r.fromPath, value: r.toPath }))
   const status = rows.map((r) => ({ uri: r.fromPath, value: String(r.statusCode) }))
-  return { uri: nginxMapLines(dest), status: nginxMapLines(status) }
+  return { uri: nginxMapLines(dest, { urlValues: true }), status: nginxMapLines(status) }
 }
 
 

@@ -85,6 +85,48 @@ describe('redirects', () => {
     deleteRedirect(s.ctx, s.approver, id)
     expect(listRedirects(s.ctx)).toHaveLength(0)
   })
+
+  it('encodes a dollar in an external target and rejects characters that break nginx', () => {
+    const s = setup()
+    const message = 'Redirect targets cannot include spaces, line breaks, quotes, braces, semicolons or backslashes.'
+    expect(createRedirect(s.ctx, s.approver, { fromPath: '/give', toPath: 'https://x.org/?q=$foo' }).toPath).toBe('https://x.org/?q=%24foo')
+    expect(createRedirect(s.ctx, s.approver, { fromPath: '/give-encoded', toPath: 'https://x.org/?q=%24foo$bar' }).toPath).toBe('https://x.org/?q=%24foo%24bar')
+    expect(createRedirect(s.ctx, s.approver, { fromPath: '/old$', toPath: '/new$place' })).toMatchObject({ fromPath: '/old$', toPath: '/new$place' })
+
+    const bad = [
+      'https://x.org/a b',
+      'https://x.org/a\nb',
+      'https://x.org/\u0001',
+      'https://x.org/{id}',
+      'https://x.org/a;b',
+      'https://x.org/?q="x"',
+      "https://x.org/?q='x'",
+      'https://x.org/a\\b',
+      '/old page',
+      '/line\nbreak',
+      '/old{page}',
+      '/old;page',
+      '/say"hi',
+      "/say'hi",
+      '/a\\b',
+    ]
+    bad.forEach((toPath, i) => {
+      let err: unknown
+      try {
+        createRedirect(s.ctx, s.approver, { fromPath: `/bad-${i}`, toPath })
+      } catch (e) {
+        err = e
+      }
+      expect(err, toPath).toBeInstanceOf(AppError)
+      const app = err as AppError
+      expect(app.code).toBe('validation_failed')
+      expect(app.fields).toEqual([{ path: 'toPath', message }])
+    })
+    expect(listRedirects(s.ctx).map((r) => r.toPath).sort()).toEqual(
+      ['https://x.org/?q=%24foo', 'https://x.org/?q=%24foo%24bar', '/new$place'].sort(),
+    )
+    s.sqlite.close()
+  })
 })
 
 describe('memory', () => {

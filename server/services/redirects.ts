@@ -27,7 +27,26 @@ export const redirectInputSchema = z.object({
   statusCode: z.union([z.literal(301), z.literal(302)]).default(301),
 })
 
+const UNSAFE_TARGET_MESSAGE = 'Redirect targets cannot include spaces, line breaks, quotes, braces, semicolons or backslashes.'
+
+/** Characters that must never be stored. `$` is allowed: external targets encode it, and the map writer encodes it in internal paths. */
+function hasUnsafeTargetChar(value: string): boolean {
+  for (const ch of value) {
+    const c = ch.codePointAt(0)!
+    if (c <= 0x20 || c === 0x7f || (c >= 0x80 && c <= 0x9f) || c === 0x2028 || c === 0x2029) return true
+    if (ch === '{' || ch === '}' || ch === ';' || ch === '"' || ch === "'" || ch === '\\') return true
+  }
+  return false
+}
+
+function rejectUnsafeTarget(value: string): void {
+  if (!hasUnsafeTargetChar(value)) return
+  throw new AppError('validation_failed', UNSAFE_TARGET_MESSAGE, [{ path: 'toPath', message: UNSAFE_TARGET_MESSAGE }])
+}
+
 function normaliseTarget(to: string): string {
+  // Checked before the path and URL parsers so a space or semicolon gets this message, not a generic one.
+  rejectUnsafeTarget(to)
   if (to.startsWith('/')) {
     const p = sitePathSchema.safeParse(to)
     if (!p.success) throw new AppError('validation_failed', p.error.issues[0]!.message, [{ path: 'toPath', message: p.error.issues[0]!.message }])
@@ -38,7 +57,8 @@ function normaliseTarget(to: string): string {
     ok = isSafeHref(to) && new URL(to).protocol === 'https:'
   } catch {}
   if (!ok) throw new AppError('validation_failed', 'Redirect to a path on this site, or a full https:// address.', [{ path: 'toPath', message: 'Not a valid target.' }])
-  return to
+  // Percent-encode a raw `$` only. `%24` has no `$`, so an already-encoded target is left as it is.
+  return to.replaceAll('$', '%24')
 }
 
 export function listRedirects(ctx: ServiceCtx) {
