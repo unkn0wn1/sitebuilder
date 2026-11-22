@@ -10,7 +10,7 @@ export const DEFAULT_THEME_TOKENS = {
   band: '#f3ebe1',
   urgent: '#8b1e1e',
   celebrate: '#2e5a3c',
-  // Footer gold, written into :root as --highlight. Footer rules still hard-code #f3b53f until the shell token pass.
+  // Footer gold, written into :root as --highlight. Footer rules read var(--highlight).
   highlight: '#f3b53f',
 } as const
 export type ThemeTokens = { [K in keyof typeof DEFAULT_THEME_TOKENS]: string }
@@ -83,8 +83,8 @@ a { color: var(--accent); }
 }
 .banner { padding: 0.6rem var(--space); text-align: center; font-size: 0.95rem; }
 .banner-info { background: var(--band); }
-.banner-urgent { background: var(--urgent); color: #fff; }
-.banner-celebrate { background: var(--celebrate); color: #fff; }
+.banner-urgent { background: var(--urgent); color: var(--accent-ink); }
+.banner-celebrate { background: var(--celebrate); color: var(--accent-ink); }
 .banner a { color: inherit; }
 .site-header { border-bottom: 1px solid var(--line); }
 .site-header-inner {
@@ -129,7 +129,7 @@ a { color: var(--accent); }
   gap: 0.5rem;
 }
 .nav-hamburger .nav-panel details ul { position: static; border: 0; padding: 0.25rem 0 0.25rem 0.75rem; }
-.site-title { color: inherit; text-decoration: none; font-weight: 700; font-size: 1.1rem; display: inline-flex; align-items: center; }
+.site-title { color: inherit; text-decoration: none; font-weight: 700; font-size: 1.1rem; display: inline-flex; align-items: center; background: var(--surface); padding: 0.3rem 0.9rem; border-radius: var(--radius-pill); box-shadow: var(--shadow-card); }
 .site-logo { display: block; height: 2.75rem; width: auto; max-width: min(18rem, 100%); }
 .site-header-centred .site-logo { height: 3.25rem; max-width: min(22rem, 100%); }
 .site-header-dark {
@@ -138,6 +138,7 @@ a { color: var(--accent); }
   border-bottom-color: color-mix(in srgb, var(--paper) 20%, transparent);
 }
 .site-header-dark .nav a, .site-header-dark .nav summary, .site-header-dark .site-title { color: var(--paper); }
+.site-header-dark .site-title { background: transparent; padding: 0; border-radius: 0; box-shadow: none; }
 .site-header-dark .nav a { color: color-mix(in srgb, var(--paper) 82%, transparent); }
 .site-header-dark .nav-hamburger > summary, .site-header-dark .nav details ul, .site-header-dark .nav-hamburger .nav-panel {
   background: var(--ink);
@@ -284,7 +285,7 @@ a { color: var(--accent); }
 .faq { display: grid; gap: 0.75rem; }
 .faq details { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-tile); padding: 0.85rem 1rem; }
 .faq summary { cursor: pointer; font-weight: 600; }
-.donate { background: linear-gradient(180deg, var(--paper), color-mix(in srgb, var(--highlight) 34%, var(--paper))); padding: 3.5rem 0; }
+.donate { background: linear-gradient(180deg, var(--paper), color-mix(in srgb, var(--highlight) 34%, var(--paper))); padding: var(--section-y) 0; }
 .embed { background: var(--band); padding: 3.5rem 0; }
 .donate-box { padding: 1.5rem; min-height: 12rem; border: 2px solid var(--highlight); }
 .embed-box {
@@ -362,15 +363,15 @@ export const BANNER_ACCENT_CSS = `
 
 export const FOOTER_COLUMNS_CSS = `
 .site-footer-cols { --f-bg: var(--paper); --f-fg: var(--ink); --f-mut: var(--muted); --f-line: var(--line); margin-top: 0; padding: 0; border-top: 0; background: var(--f-bg); color: var(--f-fg); font-size: 0.92rem; }
-.site-footer-cols.site-footer-dark { --f-bg: linear-gradient(160deg, #261d17, #130f0b); --f-fg: #fff; --f-mut: rgba(255, 248, 238, 0.62); --f-line: rgba(255, 255, 255, 0.14); }
-.site-footer-cols::before { content: ""; display: block; height: 3px; background: linear-gradient(90deg, var(--accent), #f3b53f, var(--accent)); }
+.site-footer-cols.site-footer-dark { --f-bg: linear-gradient(160deg, var(--ink), color-mix(in srgb, var(--ink) 72%, black)); --f-fg: var(--paper); --f-mut: color-mix(in srgb, var(--paper) 62%, transparent); --f-line: color-mix(in srgb, var(--paper) 14%, transparent); }
+.site-footer-cols::before { content: ""; display: block; height: 3px; background: linear-gradient(90deg, var(--accent), var(--highlight), var(--accent)); }
 .site-footer-cols a { color: inherit; }
 .ft-wrap { width: min(100% - 2 * var(--space), var(--max)); margin: 0 auto; padding: 3rem 0 1.5rem; }
 .ft-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 2.5rem; }
-.ft-logo { display: inline-block; background: #fff; border-radius: 0.6rem; padding: 0.4rem 0.8rem; text-decoration: none; color: #1f1a17; }
+.ft-logo { display: inline-block; background: var(--surface); border-radius: 0.6rem; padding: 0.4rem 0.8rem; text-decoration: none; color: var(--ink); }
 .ft-logo img { display: block; height: 2.4rem; width: auto; }
 .ft-tag { font-size: 1.25rem; font-weight: 700; line-height: 1.3; margin: 1.1rem 0 0.6rem; }
-.ft-tag em { display: block; font-style: normal; color: #f3b53f; }
+.ft-tag em { display: block; font-style: normal; color: var(--highlight); }
 .ft-about { max-width: 24rem; color: var(--f-mut); }
 .ft-about p { margin: 0; }
 .ft-col h3 { text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.7rem; color: var(--f-mut); margin: 0 0 1rem; }
@@ -390,16 +391,16 @@ export const FOOTER_COLUMNS_CSS = `
  *  content-box keeps .hero's min-height as the photo area and adds the bar above it. .hero has no side padding,
  *  so a phone width stays full-bleed, and the absolute photo (inset 0) still paints through the padded area. */
 export const OVER_HERO_CSS = `
-.site-header-over.js-over { position: fixed; top: var(--strip, 0px); left: 0; right: 0; z-index: 50; background: linear-gradient(to bottom, rgba(20, 12, 8, 0.6), rgba(20, 12, 8, 0)); border-bottom: 0; transition: background-color 0.25s, box-shadow 0.25s; }
-.site-header-over.js-over.is-solid { background: var(--paper); box-shadow: 0 0.25rem 1rem rgba(0, 0, 0, 0.18); }
+.site-header-over.js-over { position: fixed; top: var(--strip, 0px); left: 0; right: 0; z-index: 50; background: linear-gradient(to bottom, color-mix(in srgb, var(--ink) 60%, transparent), color-mix(in srgb, var(--ink) 0%, transparent)); border-bottom: 0; transition: background-color 0.25s, box-shadow 0.25s; }
+.site-header-over.js-over.is-solid { background: var(--paper); box-shadow: 0 0.25rem 1rem color-mix(in srgb, var(--ink) 18%, transparent); }
 .site-header-dark.site-header-over.js-over.is-solid { background: var(--ink); }
 .site-header-over.js-over:not(.is-solid) .nav a,
 .site-header-over.js-over:not(.is-solid) .nav summary,
 .site-header-over.js-over:not(.is-solid) .util,
-.site-header-over.js-over:not(.is-solid) .nav-hamburger > summary { color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
-.site-header-over.js-over:not(.is-solid) .nav-hamburger > summary { border-color: rgba(255, 255, 255, 0.7); }
-.site-header-over.js-over:not(.is-solid) .site-title { background: #fff; padding: 0.3rem 0.9rem; border-radius: 999px; box-shadow: 0 0.15rem 0.6rem rgba(0, 0, 0, 0.25); }
-.site-header-dark.site-header-over.js-over:not(.is-solid) .site-title { background: transparent; padding: 0; border-radius: 0; box-shadow: none; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
+.site-header-over.js-over:not(.is-solid) .nav-hamburger > summary { color: var(--paper); text-shadow: 0 1px 3px color-mix(in srgb, var(--ink) 50%, transparent); }
+.site-header-over.js-over:not(.is-solid) .nav-hamburger > summary { border-color: color-mix(in srgb, var(--paper) 70%, transparent); }
+.site-header-over.js-over:not(.is-solid) .site-title { background: var(--surface); padding: 0.3rem 0.9rem; border-radius: var(--radius-pill); box-shadow: var(--shadow-card); }
+.site-header-dark.site-header-over.js-over:not(.is-solid) .site-title { background: transparent; padding: 0; border-radius: 0; box-shadow: none; color: var(--paper); text-shadow: 0 1px 3px color-mix(in srgb, var(--ink) 50%, transparent); }
 .site-header-over.js-over:not(.is-solid) .cta-btn { border: 2px solid color-mix(in srgb, var(--paper) 90%, transparent); box-shadow: 0 0 0 0.3rem color-mix(in srgb, var(--accent) 40%, transparent); }
 @media (prefers-reduced-motion: reduce) { .site-header-over.js-over { transition: none; } }
 .site-header-over.js-over ~ main > .hero:first-child { box-sizing: content-box; padding-top: var(--sb-header-h, 0px); }
@@ -453,12 +454,7 @@ export function themeCssFromTokens(tokens: ThemeTokens, fonts?: { body: string; 
 
 const HEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
 
-function tokenDiffers(value: string | undefined, fallback: string): boolean {
-  if (!value || !HEX.test(value)) return false
-  return value.toLowerCase() !== fallback.toLowerCase()
-}
-
-/** A chosen logo-pill colour, or null when the base white rules should stay. `#fff` and `#ffffff` count as white. */
+/** A chosen logo-pill colour, or null when the token chip should stay. `#fff` and `#ffffff` count as white. */
 export function logoPillColour(value: string | null | undefined): string | null {
   if (!value) return null
   const trimmed = value.trim()
@@ -468,22 +464,15 @@ export function logoPillColour(value: string | null | undefined): string | null 
   return trimmed
 }
 
-/** Rules appended after option CSS. The logo pills stay white unless `logoPill` is a non-white colour, and then only for options that are on. */
+/** Rules appended after option CSS. Highlight and ink already flow through var() in the option sheets. A logo pill is appended only when `logoPill` is a non-white colour and that option is on. */
 export function brandChromeCss(
-  tokens: (Pick<ThemeTokens, 'ink' | 'highlight'> & { logoPill?: string | null }) | null | undefined,
+  tokens: { logoPill?: string | null } | null | undefined,
   opts: { columns: boolean; overHero: boolean },
 ): string {
   if (!tokens) return ''
   const parts: string[] = []
   const pill = logoPillColour(tokens.logoPill)
   if (opts.columns && pill) parts.push(`.ft-logo { background: ${pill}; }`)
-  if (opts.columns && tokenDiffers(tokens.highlight, DEFAULT_THEME_TOKENS.highlight)) {
-    parts.push(`.site-footer-cols::before { background: linear-gradient(90deg, var(--accent), ${tokens.highlight}, var(--accent)); }`)
-    parts.push(`.ft-tag em { color: ${tokens.highlight}; }`)
-  }
   if (opts.overHero && pill) parts.push(`.site-header-over.js-over:not(.is-solid) .site-title { background: ${pill}; }`)
-  if (opts.overHero && tokenDiffers(tokens.ink, DEFAULT_THEME_TOKENS.ink)) {
-    parts.push('.site-header-over.js-over { background: linear-gradient(to bottom, color-mix(in srgb, var(--ink) 60%, transparent), color-mix(in srgb, var(--ink) 0%, transparent)); }')
-  }
   return parts.length ? `\n${parts.join('\n')}\n` : ''
 }

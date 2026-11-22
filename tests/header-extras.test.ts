@@ -63,8 +63,8 @@ describe('see-through header', () => {
     expect(on.csp).toContain(`style-src 'self' ${styleHash(styleOf(on.html))}`)
     expect(on.csp).toContain("script-src 'self'")
     expect(on.csp).not.toMatch(/script-src 'self' https?:/)
-    expect(OVER_HERO_CSS).toContain('linear-gradient(to bottom, rgba(20, 12, 8, 0.6), rgba(20, 12, 8, 0))')
-    expect(OVER_HERO_CSS).toContain('text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5)')
+    expect(OVER_HERO_CSS).toContain('linear-gradient(to bottom, color-mix(in srgb, var(--ink) 60%, transparent), color-mix(in srgb, var(--ink) 0%, transparent))')
+    expect(OVER_HERO_CSS).toContain('text-shadow: 0 1px 3px color-mix(in srgb, var(--ink) 50%, transparent)')
     expect(OVER_HERO_CSS).toContain('prefers-reduced-motion: reduce')
     expect(OVER_HERO_CSS).toContain('.site-header-over.js-over ~ main > .hero:first-child { box-sizing: content-box; padding-top: var(--sb-header-h, 0px); }')
     expect(THEME_CSS).not.toContain('site-header-over')
@@ -96,7 +96,7 @@ describe('see-through header', () => {
     expect(explicit.csp).toBe(missing.csp)
   })
 
-  it('appends a see-through scrim for a non-default ink, and a logo pill only when a colour is set', async () => {
+  it('reads a custom ink from the see-through sheet, and appends a logo pill only when a colour is set', async () => {
     const defaults = defaultBrandDoc()
     const headerOn = { id: 'sp_header', doc: header({ overHero: true, appearance: 'dark' }) }
     const stock = await render({ header: headerOn, brand: defaults, themeCss: themeCssFromTokens(defaults.tokens, defaults.fonts) })
@@ -106,8 +106,9 @@ describe('see-through header', () => {
     const ink = { ...defaults, tokens: { ...defaults.tokens, ink: '#102030' } }
     const inkCss = themeCssFromTokens(ink.tokens, ink.fonts)
     const inkPage = await render({ header: headerOn, brand: ink, themeCss: inkCss })
-    const scrim = '\n.site-header-over.js-over { background: linear-gradient(to bottom, color-mix(in srgb, var(--ink) 60%, transparent), color-mix(in srgb, var(--ink) 0%, transparent)); }\n'
-    expect(styleOf(inkPage.html)).toBe(inkCss + OVER_HERO_CSS + scrim)
+    expect(styleOf(inkPage.html)).toBe(inkCss + OVER_HERO_CSS)
+    expect(inkCss).toContain('--ink: #102030')
+    expect(OVER_HERO_CSS).toContain('color-mix(in srgb, var(--ink) 60%, transparent)')
     expect(styleOf(inkPage.html)).toContain('.site-header-dark.site-header-over.js-over:not(.is-solid) .site-title { background: transparent;')
     expect(styleOf(inkPage.html)).not.toContain('.ft-logo { background: var(--paper); }')
     expect(styleOf(inkPage.html)).not.toContain('#112233')

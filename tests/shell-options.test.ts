@@ -115,7 +115,7 @@ describe('optional shell parts', () => {
     expect(bare.html).not.toContain('util-bar')
     expect(styleOf(bare.html)).toBe(THEME_CSS)
 
-    // .util is on both copies, including the bar link outside .nav, so the see-through white rule covers both.
+    // .util is on both copies, including the bar link outside .nav, so the see-through light-text rule covers both.
     const seeThrough = await render({
       header: {
         id: 'sp_header',
@@ -281,8 +281,10 @@ describe('optional shell parts', () => {
     const gold = { ...defaults, tokens: { ...defaults.tokens, highlight: '#112233' } }
     const goldCss = themeCssFromTokens(gold.tokens, gold.fonts)
     const goldPage = await render({ header: null, footer, brand: gold, themeCss: goldCss })
-    const goldOverride = '\n.site-footer-cols::before { background: linear-gradient(90deg, var(--accent), #112233, var(--accent)); }\n.ft-tag em { color: #112233; }\n'
-    expect(styleOf(goldPage.html)).toBe(goldCss + FOOTER_COLUMNS_CSS + goldOverride)
+    expect(styleOf(goldPage.html)).toBe(goldCss + FOOTER_COLUMNS_CSS)
+    expect(goldCss).toContain('--highlight: #112233')
+    expect(FOOTER_COLUMNS_CSS).toContain('var(--highlight)')
+    expect(FOOTER_COLUMNS_CSS).not.toContain('#f3b53f')
     expect(styleOf(goldPage.html)).not.toContain('.ft-logo { background: var(--paper); }')
     expect(goldPage.csp).toContain(styleHash(styleOf(goldPage.html)))
 
