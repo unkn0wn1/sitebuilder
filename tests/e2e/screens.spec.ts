@@ -142,6 +142,8 @@ test('brand and design', async ({ page }) => {
 
 
 test('page types and the rest of settings', async ({ page }) => {
+  // The agent steps at the end poll until two new pages are live. That sits on top of the screenshots above.
+  test.setTimeout(180_000)
   await signIn(page)
 
   await page.goto('/templates')
@@ -181,4 +183,76 @@ test('page types and the rest of settings', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Users', exact: true })).toBeVisible({ timeout: 20_000 })
   await expect(page.getByRole('button', { name: 'Send invite' })).toBeVisible()
   await page.screenshot({ path: shot('settings-users.png'), fullPage: true })
+
+  // Same sign-in as the screenshots above. This is the last test in the file, so nothing later in it
+  // reads the workflow switch. The workflow screenshot already happened. Leave self-approval on:
+  // brand-publish sets it too, and no spec asserts that the switch is off.
+  await page.goto('/settings')
+  await expect(page.getByRole('heading', { name: 'Agents', level: 2 })).toBeVisible()
+  await page.goto('/settings/agents')
+  await expect(page.getByRole('heading', { name: 'Agents', exact: true })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('navigation', { name: 'Settings' }).getByRole('link', { name: 'Agents' })).toHaveAttribute('aria-current', 'page')
+
+  const origin = new URL(page.url()).origin
+  const stamp = `${Date.now().toString(36)}${test.info().parallelIndex}`
+  const titleA = `Agent page ${stamp} a`
+  const titleB = `Agent page ${stamp} b`
+  const call = async (method: string, path: string, data?: unknown, authorization?: string) => {
+    const res = await page.request.fetch(path, {
+      method,
+      headers: { Origin: origin, Accept: 'application/json', ...(authorization ? { Authorization: authorization } : {}) },
+      data,
+    })
+    const text = await res.text()
+    expect(res.ok(), `${method} ${path} ${res.status()}: ${text}`).toBeTruthy()
+    return text ? (JSON.parse(text) as Record<string, unknown>) : {}
+  }
+
+  const minted = await call('POST', '/api/v1/agent/tokens', { name: `e2e ${stamp}`, access: 'draft', rules: [] })
+  const secret = String(minted.secret ?? '')
+  expect(secret.startsWith('sbt_'), JSON.stringify(minted)).toBeTruthy()
+  // The token acts as this admin, so approving its change needs self-approval. Do not turn it back off.
+  await call('PATCH', '/api/v1/settings', { workflow: { selfApproval: true } })
+
+  const created = await call(
+    'POST',
+    '/agent/v1/edits/create-pages',
+    {
+      pages: [
+        { title: titleA, page_type: 'standard', slug: `e2e-agent-${stamp}-a` },
+        { title: titleB, page_type: 'standard', slug: `e2e-agent-${stamp}-b` },
+      ],
+      reason: 'The owner asked for two empty standard pages so the Agents screen can be checked.',
+    },
+    `Bearer ${secret}`,
+  )
+  const change = created.change as { id?: string; title?: string } | undefined
+  const pagesCreated = (created.result as { pages_created?: unknown[] } | undefined)?.pages_created
+  expect(change?.id, JSON.stringify(created)).toBeTruthy()
+  expect(pagesCreated, JSON.stringify(created)).toHaveLength(2)
+  const changeId = change!.id!
+  const changeTitle = change!.title!
+
+  const sent = await call('POST', `/agent/v1/changes/${changeId}/request-publish`, {}, `Bearer ${secret}`)
+  expect((sent.result as { sent_for_review?: boolean } | undefined)?.sent_for_review, JSON.stringify(sent)).toBe(true)
+
+  await page.goto(`/settings/agents/changes/${changeId}`)
+  await expect(page.getByRole('heading', { name: changeTitle, exact: true })).toBeVisible({ timeout: 20_000 })
+  page.once('dialog', (dialog) => dialog.accept())
+  await page.getByRole('button', { name: 'Approve whole change (2)' }).click()
+
+  // The button stays while the change is still "review". It goes live only after the worker publishes both reviews.
+  await expect.poll(async () => {
+    const res = await page.request.get(`/api/v1/agent/changes/${changeId}/preview`, { headers: { Origin: origin } })
+    const text = await res.text()
+    if (!res.ok()) return `http ${res.status()} ${text.slice(0, 300)}`
+    return ((JSON.parse(text) as { change?: { status?: string } }).change?.status) ?? 'missing'
+  }, { timeout: 45_000, intervals: [500, 1000, 2000] }).toBe('published')
+
+  await page.reload()
+  await expect(page.getByRole('heading', { name: changeTitle, exact: true })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('button', { name: /Approve whole change/ })).toHaveCount(0)
+  await expect(page.locator('p').filter({ hasText: /^Live\./ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: titleA, level: 2 })).toBeVisible()
+  await expect(page.getByRole('heading', { name: titleB, level: 2 })).toBeVisible()
 })
