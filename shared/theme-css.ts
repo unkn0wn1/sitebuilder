@@ -203,7 +203,10 @@ a { color:var(--accent);}
 .tier-other { color:var(--muted);margin:1rem 0 0;}
 .donate-prefill-hint { margin:0 0 .85rem;padding:.7rem .9rem;border-radius:.4rem;background:var(--band);border:2px solid var(--accent);font-weight:600;}
 .donate-prefill-hint[hidden] { display:none;}
-.goal-progress { width:100%;height:12px;border:0;border-radius:var(--radius-pill);accent-color:var(--accent);overflow:hidden;}
+.goal-progress { appearance: none; -webkit-appearance: none; width: 100%; height: 12px; border: 0; border-radius: var(--radius-pill); background: var(--band); color: var(--accent); overflow: hidden; }
+.goal-progress::-webkit-progress-bar { background: var(--band); border-radius: var(--radius-pill); }
+.goal-progress::-webkit-progress-value { background: linear-gradient(90deg, var(--accent), var(--highlight)); border-radius: var(--radius-pill); }
+.goal-progress::-moz-progress-bar { background: linear-gradient(90deg, var(--accent), var(--highlight)); border-radius: var(--radius-pill); }
 .progress-meta { margin:.75rem 0 0;font-weight:800;}
 .progress-match, .progress-date { color:var(--muted);margin:.35rem 0 0;}
 .match-banner { background:var(--band);padding:1.25rem 0;}

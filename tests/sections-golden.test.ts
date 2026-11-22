@@ -45,4 +45,13 @@ describe('starter sections match the golden HTML', () => {
     expect(THEME_CSS).toContain('.tier-amount { font-size: clamp(22px, 5.5vw, 28px); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.01em;')
     expect(THEME_CSS).toContain('font-size:var(--fs-stat)')
   })
+
+  it('paints the donation progress bar with theme tokens', () => {
+    expect(THEME_CSS).toContain('.goal-progress { appearance: none; -webkit-appearance: none; width: 100%; height: 12px; border: 0; border-radius: var(--radius-pill); background: var(--band); color: var(--accent); overflow: hidden; }')
+    expect(THEME_CSS).toContain('.goal-progress::-webkit-progress-bar { background: var(--band); border-radius: var(--radius-pill); }')
+    expect(THEME_CSS).toContain('.goal-progress::-webkit-progress-value { background: linear-gradient(90deg, var(--accent), var(--highlight)); border-radius: var(--radius-pill); }')
+    expect(THEME_CSS).toContain('.goal-progress::-moz-progress-bar { background: linear-gradient(90deg, var(--accent), var(--highlight)); border-radius: var(--radius-pill); }')
+    expect(THEME_CSS).not.toContain('accent-color')
+    expect(THEME_CSS).not.toMatch(/\.goal-progress[^{]*\{[^}]*#[0-9a-fA-F]{3,8}/)
+  })
 })
