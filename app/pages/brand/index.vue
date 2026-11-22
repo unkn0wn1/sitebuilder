@@ -45,6 +45,7 @@ const TOKEN_FIELDS: { key: keyof BrandTokens; label: string }[] = [
   { key: 'band', label: 'Bands' },
   { key: 'urgent', label: 'Urgent' },
   { key: 'celebrate', label: 'Celebrate' },
+  { key: 'highlight', label: 'Highlight colour' },
 ]
 
 const hasUnpublishedChanges = computed(() => {

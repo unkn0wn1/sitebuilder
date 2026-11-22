@@ -2,7 +2,7 @@
 // functions (through operations.ts), so the two doors cannot behave differently. See ADR 0018.
 import { and, eq, isNull } from 'drizzle-orm'
 import { z } from 'zod'
-import { NEVER_BLOCK_TYPES, NEVER_PROP_KEYS, ACTION_LABELS, isMoneyBlockType, isNeverBlockType, type AgentAction } from '../../../shared/agent/rules'
+import { NEVER_BLOCK_TYPES, NEVER_PROP_KEYS, ACTION_LABELS, MONEY_BLOCK_TYPES, isMoneyBlockType, isNeverBlockType, type AgentAction } from '../../../shared/agent/rules'
 import {
   domainOfHref,
   findLinks,
@@ -27,12 +27,13 @@ import type { InternalOp } from '../../../shared/ops'
 import type { PageDoc } from '../../../shared/page'
 import { isSafeHref } from '../../../shared/richtext'
 import type { FieldIssue } from '../../../shared/issues'
-import { validateSitePartDoc, type MenuDoc, type SitePartDoc, type SitePartKind, type BannerDoc, type FooterDoc } from '../../../shared/site-parts'
+import { validateSitePartDoc, type MenuDoc, type SitePartDoc, type SitePartKind, type BannerDoc, type FooterDoc, type HeaderDoc } from '../../../shared/site-parts'
 import { agentChanges, pages, sites, siteParts } from '../../db/schema'
 import type { ServiceCtx } from '../context'
 import { AppError, notFound } from '../errors'
 import { createPage, getPage, listPages, readDoc, requirePage } from '../pages'
 import { getTemplateRules, listTemplates } from '../templates'
+import { getMedia } from '../media'
 import { getSitePart, readSitePartDoc } from '../site-parts'
 import {
   changeTargets,
@@ -255,7 +256,7 @@ export function getSite(ctx: ServiceCtx, agent: SignedInAgent) {
       meaning: 'Things no agent can do, whatever the token says. If asked, tell the person it has to be done by hand in the builder.',
       sections_that_cannot_be_touched: [...NEVER_BLOCK_TYPES],
       props_that_cannot_be_set: [...NEVER_PROP_KEYS],
-      sections_that_never_publish_without_a_person: ['ImpactTiers', 'DonationProgress', 'MatchBanner', 'MatchThermometer'],
+      sections_that_never_publish_without_a_person: [...MONEY_BLOCK_TYPES],
       also: ['Theme, colours, fonts, logo', 'Site settings, users, tokens, secrets', 'Raw HTML, CSS, scripts, tracking'],
     },
     actions: Object.fromEntries((Object.keys(ACTION_LABELS) as AgentAction[]).map((a) => [a, ACTION_LABELS[a]])),
@@ -950,6 +951,35 @@ export function renameMenuItem(ctx: ServiceCtx, agent: SignedInAgent, input: In<
   })
 }
 
+/** Photo tile on a sub-item. Only the draft header's menu, and only while that header is mega. */
+export function setMenuItemTile(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.setMenuItemTileInput>) {
+  const header = readSitePartDoc(ctx, findPart(ctx, 'header')) as HeaderDoc
+  if (header.style !== 'mega') {
+    throw new AppError('validation_failed', `Photo tiles only work when the header style is mega (this header is "${header.style}") and this menu is the header menu ("${header.menuKey}"). Nothing was changed.`, [{ path: 'menu_key', message: 'Header style is not mega.' }])
+  }
+  if (input.menu_key !== header.menuKey) {
+    throw new AppError('validation_failed', `Photo tiles only work on the header's menu ("${header.menuKey}") when the header style is mega. Nothing was changed.`, [{ path: 'menu_key', message: `The header uses the menu "${header.menuKey}".` }])
+  }
+  return editMenu(ctx, agent, input, 'Set a menu photo tile', (menu) => {
+    const found = locateItem(menu, input)
+    if (!found.parent) throw new AppError('validation_failed', `"${found.item.label}" is a top-level menu item. Photo tiles only go on a sub-item. Nothing was changed.`, [{ path: 'item_id', message: 'Not a sub-item.' }])
+    const child = found.item as MenuChild
+    if (input.image !== undefined) {
+      if (input.image === null) delete child.image
+      else {
+        if (!input.image.decorative && !input.image.alt) throw new AppError('validation_failed', 'Give alt text (what the photo shows, for people who cannot see it), or set decorative: true if it adds nothing.', [{ path: 'image.alt', message: 'Required unless decorative.' }])
+        const row = getMedia(ctx, input.image.media_id).media
+        if (row.kind === 'video') throw new AppError('validation_failed', 'A menu tile needs a photo, not a video. Use list_media with kind "image" to find one. Nothing was changed.', [{ path: 'image.media_id', message: 'Not a photo.' }])
+        child.image = { media: row.id, ...(input.image.alt ? { alt: input.image.alt } : {}), ...(input.image.decorative ? { decorative: true } : {}) }
+      }
+    }
+    if (input.featured !== undefined) {
+      if (input.featured) child.featured = true
+      else delete child.featured
+    }
+  })
+}
+
 export function setBanner(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.setBannerInput>) {
   const part = findPart(ctx, 'banner')
   const banner = structuredClone(readSitePartDoc(ctx, part)) as BannerDoc
@@ -967,6 +997,37 @@ export function setBanner(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeo
   if (!valid.ok) throw new AppError('validation_failed', valid.issues[0]!.message, valid.issues)
   const done = runInChange(ctx, agent, { changeId: input.change_id, title: 'Change the banner', reason: input.reason }, (h) => h.editPart(part.id, 'edit_banner', valid.doc))
   return { ...editView(ctx, agent, done.change), result: { banner_now: valid.doc } }
+}
+
+/** Change the small utility link, the see-through header, or the heart on the existing Donate button. Does not create or remove that button, or change its words or target. */
+export function setHeader(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.setHeaderInput>) {
+  const part = findPart(ctx, 'header')
+  const header = structuredClone(readSitePartDoc(ctx, part)) as HeaderDoc
+  if (input.icon !== undefined && !header.cta) {
+    throw new AppError('validation_failed', 'There is no Donate button on this header, so the heart cannot be set or cleared. This does not create or remove that button.', [{ path: 'icon', message: 'No Donate button to put a heart on.' }])
+  }
+  const changed: string[] = []
+  if (input.utility !== undefined) {
+    if (input.utility === null) header.utility = null
+    else {
+      if (!!input.utility.url === !!input.utility.page_id) throw new AppError('validation_failed', 'The utility link needs url or page_id, not both and not neither.', [{ path: 'utility', message: 'Give url or page_id.' }])
+      header.utility = { label: input.utility.label, target: menuTarget(input.utility, ctx) }
+    }
+    changed.push('utility')
+  }
+  if (input.over_hero !== undefined) {
+    header.overHero = input.over_hero
+    changed.push('overHero')
+  }
+  if (input.icon !== undefined && header.cta) {
+    if (input.icon === null) delete header.cta.icon
+    else header.cta.icon = input.icon
+    changed.push('icon')
+  }
+  const valid = validateSitePartDoc('header', header)
+  if (!valid.ok) throw new AppError('validation_failed', valid.issues[0]!.message, valid.issues)
+  const done = runInChange(ctx, agent, { changeId: input.change_id, title: `Change the header (${changed.join(', ')})`, reason: input.reason }, (h) => h.editPart(part.id, 'edit_header', valid.doc))
+  return { ...editView(ctx, agent, done.change), result: { changed, header_now: valid.doc } }
 }
 
 /** Change the footer's words and details. Colours and the logo stay with people. */
@@ -999,13 +1060,15 @@ export function setFooter(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeo
     footer.tagline = input.tagline ? { lead: input.tagline.lead, accent: input.tagline.accent ?? '' } : null
     changed.push('tagline')
   }
-  if (input.links_menu_key !== undefined) {
-    const key = input.links_menu_key || null
-    if (key && !allParts(ctx).some((p) => p.kind === 'menu' && p.key === key)) {
-      throw new AppError('validation_failed', `There is no menu called "${key}". Use get_site_part with kind "menu" to see the menus.`, [{ path: 'links_menu_key', message: 'No menu with that key.' }])
+  for (const [k, field] of [['links_menu_key', 'linksMenuKey'], ['legal_menu_key', 'legalMenuKey']] as const) {
+    if (input[k] !== undefined) {
+      const key = input[k] || null
+      if (key && !allParts(ctx).some((p) => p.kind === 'menu' && p.key === key)) {
+        throw new AppError('validation_failed', `There is no menu called "${key}". Use get_site_part with kind "menu" to see the menus.`, [{ path: k, message: 'No menu with that key.' }])
+      }
+      footer[field] = key
+      changed.push(field)
     }
-    footer.linksMenuKey = key
-    changed.push('linksMenuKey')
   }
   const simple = { contact_title: 'contactTitle', links_title: 'linksTitle', legal_text: 'legalText', charity_number: 'charityNumber' } as const
   for (const [k, field] of Object.entries(simple) as [keyof typeof simple, (typeof simple)[keyof typeof simple]][]) {
@@ -1014,7 +1077,7 @@ export function setFooter(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeo
       changed.push(field)
     }
   }
-  if (!changed.length) throw new AppError('validation_failed', 'Say what to change: text_markdown, contact, social, layout, tagline, contact_title, links_title, links_menu_key, legal_text or charity_number.', [{ path: '(input)', message: 'Nothing to change.' }])
+  if (!changed.length) throw new AppError('validation_failed', 'Say what to change: text_markdown, contact, social, layout, tagline, contact_title, links_title, links_menu_key, legal_menu_key, legal_text or charity_number.', [{ path: '(input)', message: 'Nothing to change.' }])
   const valid = validateSitePartDoc('footer', footer)
   if (!valid.ok) throw new AppError('validation_failed', valid.issues[0]!.message, valid.issues)
   const done = runInChange(ctx, agent, { changeId: input.change_id, title: `Change the footer (${changed.join(', ')})`, reason: input.reason }, (h) => h.editPart(part.id, 'edit_footer', valid.doc))

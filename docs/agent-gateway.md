@@ -103,9 +103,10 @@ A rule is a plain object:
 | `edit_sections` | `edit_component`, `add_component`, `remove_component`, `move_component` | Anything beyond plain text. |
 | `edit_page_details` | `set_page_details` | Title, address, search settings. |
 | `create_page` | `create_page`, `create_pages` | New pages. More than one in a change needs a rule with `maxNewPages`, or a person. |
-| `edit_menu` | `remove_menu_item`, `add_menu_item`, `rename_menu_item` | Menu items. |
+| `edit_menu` | `remove_menu_item`, `add_menu_item`, `rename_menu_item`, `set_menu_item_tile` | Menu items. Photo tiles only on a sub-item of the draft header's menu, and only while that header is mega. |
 | `edit_banner` | `set_banner` | The site-wide banner. |
-| `edit_footer` | `set_footer` | Footer words, contact details, social links, tagline, layout, links menu, charity number. Not its colours or logo. |
+| `edit_footer` | `set_footer` | Footer words, contact details, social links, tagline, layout, links menu, legal menu, charity number. Not its colours or logo. |
+| `edit_header` | `set_header` | The small header link, whether the header is see-through over the hero, and the heart on the existing Donate button. Not that button's words or target, and not colours or the logo. |
 | `undo_change` | `undo_change` | Undo a change the token made. |
 
 `list_media`, `import_media`, `get_media_import` and `set_alt_text` need no rule: the media library is open to any token with draft access (decided 21 Nov 2026). A photo is only live once a published page uses it. Imports run in the background: `import_media` returns an `import_id`, and `get_media_import` says when it is done.
@@ -113,7 +114,7 @@ A rule is a plain object:
 **How a change is decided**, always in this order:
 
 1. A matching `deny` rule refuses it. This happens when the draft is made, not at publish time, and counts as a blocked attempt.
-2. **The floor.** A person is needed, whatever the rules or always-allow say, if: the change touches a money section (`ImpactTiers`, `DonationProgress`, `MatchBanner`, `MatchThermometer`); the page or part has someone else's unpublished work (publishing would publish it too); the standard submission checks fail.
+2. **The floor.** A person is needed, whatever the rules or always-allow say, if: the change touches a money section (`ImpactTiers`, `DonationProgress`, `MatchBanner`); the page or part has someone else's unpublished work (publishing would publish it too); the standard submission checks fail.
 3. **Always-allow**, if switched on (and, for a timed one, not ended): it publishes without a matching rule.
 4. Otherwise every action in every part of the change must be covered by a `publish` rule whose limits hold. If one part is not, the **whole change** goes to review. It never publishes half.
 
@@ -134,7 +135,7 @@ Either kind needs the **site name typed exactly** and **your password**, every t
 
 - A matching **deny** rule.
 - The **never-list**: donation forms and embeds, the embed, source and campaign props, theme, settings, users, tokens, code. These are refused even as drafts.
-- The **floor**: a money section (`ImpactTiers`, `DonationProgress`, `MatchBanner`, `MatchThermometer`), someone else's unpublished work on the same page or part, and failing checks. A person approves these.
+- The **floor**: a money section (`ImpactTiers`, `DonationProgress`, `MatchBanner`), someone else's unpublished work on the same page or part, and failing checks. A person approves these.
 - Rate limits, the IP list, the token's own expiry, pausing and the kill switch.
 
 **Seeing it.** A permanent setting is labelled **permanent** (no end date) wherever it is shown: the token list (`alwaysAllow: { permanent: true, until: null }`), the command line (`ALWAYS-ALLOW: PERMANENT (no end date)`), and to the assistant itself (`you.always_allow` and `you.always_allow_meaning` from `get_site`). A timed one shows its end time.

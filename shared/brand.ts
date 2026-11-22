@@ -19,6 +19,7 @@ export const brandTokensSchema = z
     band: hex.default(DEFAULT_THEME_TOKENS.band),
     urgent: hex.default(DEFAULT_THEME_TOKENS.urgent),
     celebrate: hex.default(DEFAULT_THEME_TOKENS.celebrate),
+    highlight: hex.default(DEFAULT_THEME_TOKENS.highlight),
   })
   .strict()
 export type BrandTokens = z.infer<typeof brandTokensSchema>

@@ -94,7 +94,14 @@ const summary = computed(() => {
   if (c.status === 'publishing') return 'Going live now.'
   if (c.status === 'published') return c.decision?.viaAlwaysAllow ? 'Live. It went live by always-allow.' : 'Live.'
   if (c.status === 'undone') return 'This change was undone. The pages show what is live now.'
-  return CHANGE_STATUS_LABELS[c.status]
+  return `${CHANGE_STATUS_LABELS[c.status]}.`
+})
+/** Published (and the bare fallback) already open with the status word. Printing it again made "Live. Live." */
+const statusLead = computed(() => {
+  const c = data.value?.change
+  if (!c) return ''
+  const label = CHANGE_STATUS_LABELS[c.status]
+  return summary.value.startsWith(label) ? '' : `${label}.`
 })
 const hasDiffs = computed(() => !!data.value?.items.some((i) => i.type === 'page' && i.hasBefore))
 /** Fit the frame to what is in it: a full-height frame for pages with sections, a short one for menus, footers and empty pages. */
@@ -120,9 +127,8 @@ onMounted(() => {
 
 <template>
   <div class="sb-page">
-    <SettingsNav>
+    <SettingsNav :back="{ to: '/settings/agents?tab=changes', label: 'Agents, changes' }">
       <template #title>
-        <p class="mb-1 text-sm text-gray-500 dark:text-gray-400"><NuxtLink to="/settings/agents?tab=changes" class="text-gray-500 no-underline hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">← Agents, changes</NuxtLink></p>
         <h1 class="m-0 break-words text-2xl font-semibold text-gray-900 dark:text-gray-100">{{ data?.change.title ?? 'Change' }}</h1>
       </template>
     </SettingsNav>
@@ -130,7 +136,7 @@ onMounted(() => {
     <FwbAlert v-else-if="error" type="danger">{{ error }}</FwbAlert>
     <template v-else-if="data">
       <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <p class="m-0 min-w-0 text-sm text-gray-600 dark:text-gray-400"><strong>{{ CHANGE_STATUS_LABELS[data.change.status] }}.</strong> {{ summary }} By <strong>{{ data.change.tokenName }}</strong>, {{ when(data.change.createdAt) }}. <code>{{ data.change.id }}</code></p>
+        <p class="m-0 min-w-0 text-sm text-gray-600 dark:text-gray-400"><strong v-if="statusLead">{{ statusLead }}</strong>{{ statusLead ? ' ' : '' }}{{ summary }} By <strong>{{ data.change.tokenName }}</strong>, {{ when(data.change.createdAt) }}. <code>{{ data.change.id }}</code></p>
         <div class="flex flex-wrap gap-2">
           <FwbButton v-if="pendingCount" :disabled="approving" @click="approveAll">{{ approving ? 'Approving…' : `Approve whole change (${pendingCount})` }}</FwbButton>
           <FwbButton v-if="data.undoable" color="red" @click="undoing = true">Undo this change</FwbButton>

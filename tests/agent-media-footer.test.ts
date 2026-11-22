@@ -1,4 +1,4 @@
-// Phase 5: media tools (list, import by address in the background, alt text) and the footer tool.
+// Phase 5: media tools (list, import by address in the background, alt text), the footer tool and the header tool.
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -191,31 +191,166 @@ describe('set_footer', () => {
       contact_title: 'Talk to us',
       links_title: 'More',
       links_menu_key: 'main',
+      legal_menu_key: 'main',
       legal_text: '© 2026 Animal Aid',
       reason: REASON,
     })
-    expect(r.result.changed).toEqual(['layout', 'tagline', 'linksMenuKey', 'contactTitle', 'linksTitle', 'legalText'])
+    expect(r.result.changed).toEqual(['layout', 'tagline', 'linksMenuKey', 'legalMenuKey', 'contactTitle', 'linksTitle', 'legalText'])
     expect(r.result.footer_now).toMatchObject({
       layout: 'columns',
       tagline: { lead: 'For the animals', accent: 'every day' },
       contactTitle: 'Talk to us',
       linksTitle: 'More',
       linksMenuKey: 'main',
+      legalMenuKey: 'main',
       legalText: '© 2026 Animal Aid',
       contact: { email: 'old@example.org' },
     })
     const later = call(w, 'set_footer', { charity_number: '12345', change_id: r.change.id, reason: REASON })
     expect(later.result.changed).toEqual(['charityNumber'])
-    expect(later.result.footer_now).toMatchObject({ layout: 'columns', linksMenuKey: 'main', legalText: '© 2026 Animal Aid', charityNumber: '12345', contact: { email: 'old@example.org' } })
+    expect(later.result.footer_now).toMatchObject({ layout: 'columns', linksMenuKey: 'main', legalMenuKey: 'main', legalText: '© 2026 Animal Aid', charityNumber: '12345', contact: { email: 'old@example.org' } })
     expect(await code(() => call(w, 'set_footer', { links_menu_key: 'no-such-menu', reason: REASON }))).toBe('validation_failed')
-    expect(call(w, 'get_site_part', { kind: 'footer' }).document.linksMenuKey).toBe('main')
+    expect(await code(() => call(w, 'set_footer', { legal_menu_key: 'no-such-menu', reason: REASON }))).toBe('validation_failed')
+    expect(call(w, 'get_site_part', { kind: 'footer' }).document).toMatchObject({ linksMenuKey: 'main', legalMenuKey: 'main' })
     const cleared = call(w, 'set_footer', { links_menu_key: '', change_id: r.change.id, reason: REASON })
     expect(cleared.result.footer_now.linksMenuKey).toBeNull()
+    expect(cleared.result.footer_now.legalMenuKey).toBe('main')
     expect(cleared.result.footer_now.layout).toBe('columns')
+    const clearedLegal = call(w, 'set_footer', { legal_menu_key: null, change_id: r.change.id, reason: REASON })
+    expect(clearedLegal.result.footer_now.legalMenuKey).toBeNull()
+    expect(clearedLegal.result.footer_now.linksMenuKey).toBeNull()
   })
 
   it('obeys a deny rule for edit_footer', async () => {
     const w = await withFooter([{ label: 'Leave the footer', actions: ['edit_footer'], result: 'deny' }])
     expect(await code(() => call(w, 'set_footer', { charity_number: '12345', reason: REASON }))).toBe('rule_denied')
+  })
+})
+
+const HEADER = {
+  style: 'hamburger',
+  appearance: 'dark',
+  menuKey: 'main',
+  overHero: false,
+  utility: { label: 'Report', target: { type: 'url', url: '/report' }, icon: 'heart' },
+  cta: { label: 'Donate', target: { type: 'url', url: 'https://example.org/donate' } },
+}
+
+describe('set_header', () => {
+  async function withHeader(rules: unknown[] = PUBLISH_ALL, extra: object = HEADER) {
+    const w = await world(rules)
+    const id = createSitePart(w.ctx, 'header', 'main', 'Header')
+    editSitePart(w.ctx, w.admin, id, 0, { ...(defaultSitePartDoc('header') as object), ...extra } as never)
+    const sub = submitSitePart(w.ctx, w.admin, id)
+    approveReview(w.ctx, w.approver, sub.reviewId, { versionId: sub.versionId })
+    await drain(w)
+    return w
+  }
+
+  it('sets see-through on its own and keeps the utility link, its heart, the Donate button and the style', async () => {
+    const w = await withHeader()
+    expect(call(w, 'get_site', {}).actions.edit_header).toMatch(/Donate/)
+    const r = call(w, 'set_header', { over_hero: true, reason: REASON })
+    expect(r.result.changed).toEqual(['overHero'])
+    expect(r.result.header_now).toMatchObject({
+      style: 'hamburger',
+      appearance: 'dark',
+      menuKey: 'main',
+      overHero: true,
+      utility: HEADER.utility,
+      cta: HEADER.cta,
+    })
+    expect(r.change.targets[0].actions).toEqual(['edit_header'])
+  })
+
+  it('sets and clears the small link, by address or page, and a later call keeps fields it does not mention', async () => {
+    const w = await withHeader()
+    const byUrl = call(w, 'set_header', { utility: { label: 'Helpline', url: 'https://example.org/help' }, reason: REASON })
+    expect(byUrl.result.changed).toEqual(['utility'])
+    expect(byUrl.result.header_now.utility).toEqual({ label: 'Helpline', target: { type: 'url', url: 'https://example.org/help' } })
+    expect(byUrl.result.header_now).toMatchObject({ overHero: false, style: 'hamburger', cta: HEADER.cta })
+    const byPage = call(w, 'set_header', { utility: { label: 'Events', page_id: w.pageId }, change_id: byUrl.change.id, reason: REASON })
+    expect(byPage.result.changed).toEqual(['utility'])
+    expect(byPage.result.header_now.utility).toEqual({ label: 'Events', target: { type: 'page', pageId: w.pageId } })
+    expect(byPage.result.header_now.overHero).toBe(false)
+    expect(byPage.result.header_now.cta).toEqual(HEADER.cta)
+    const cleared = call(w, 'set_header', { utility: null, change_id: byUrl.change.id, reason: REASON })
+    expect(cleared.result.header_now.utility).toBeNull()
+    expect(cleared.result.header_now).toMatchObject({ overHero: false, style: 'hamburger', appearance: 'dark', cta: HEADER.cta })
+  })
+
+  it('puts a heart on the existing Donate button and can take only the heart off', async () => {
+    const w = await withHeader()
+    const r = call(w, 'set_header', { icon: 'heart', reason: REASON })
+    expect(r.result.changed).toEqual(['icon'])
+    expect(r.result.header_now.cta).toEqual({ ...HEADER.cta, icon: 'heart' })
+    expect(r.result.header_now.utility).toEqual(HEADER.utility)
+    const cleared = call(w, 'set_header', { icon: null, change_id: r.change.id, reason: REASON })
+    expect(cleared.result.changed).toEqual(['icon'])
+    expect(cleared.result.header_now.cta).toEqual(HEADER.cta)
+    expect(cleared.result.header_now.utility).toEqual(HEADER.utility)
+    expect(cleared.result.header_now.overHero).toBe(false)
+  })
+
+  it('refuses a heart when there is no Donate button, and a bad link, and writes nothing', async () => {
+    const w = await withHeader(PUBLISH_ALL, { style: 'centred', overHero: false, cta: null, utility: { label: 'Report', target: { type: 'url', url: '/report' } } })
+    const before = call(w, 'get_site_part', { kind: 'header' })
+    expect(await code(() => call(w, 'set_header', { icon: 'heart', over_hero: true, reason: REASON }))).toBe('validation_failed')
+    expect(await code(() => call(w, 'set_header', { icon: null, reason: REASON }))).toBe('validation_failed')
+    const w2 = await withHeader()
+    const live = call(w2, 'get_site_part', { kind: 'header' })
+    for (const utility of [
+      { label: 'Bad', url: 'javascript:alert(1)' },
+      { label: 'Both', url: 'https://example.org/a', page_id: w2.pageId },
+      { label: 'Neither' },
+      { label: 'Heart', url: '/report', icon: 'heart' },
+    ]) {
+      expect(await code(() => call(w2, 'set_header', { utility, over_hero: true, reason: REASON })), JSON.stringify(utility)).toBe('validation_failed')
+    }
+    expect(await code(() => call(w2, 'set_header', { reason: REASON }))).toBe('validation_failed')
+    expect(await code(() => call(w2, 'set_header', { utility: { label: 'Gone', page_id: 'pg_missing' }, reason: REASON }))).toBe('not_found')
+    const afterBare = call(w, 'get_site_part', { kind: 'header' })
+    const afterLive = call(w2, 'get_site_part', { kind: 'header' })
+    expect(afterBare.part.draft_revision).toBe(before.part.draft_revision)
+    expect(afterBare.document).toEqual(before.document)
+    expect(afterLive.part.draft_revision).toBe(live.part.draft_revision)
+    expect(afterLive.document).toEqual(live.document)
+    expect(call(w, 'list_changes', {}).changes).toHaveLength(0)
+    expect(call(w2, 'list_changes', {}).changes).toHaveLength(0)
+    const bare = await world(PUBLISH_ALL)
+    expect(await code(() => call(bare, 'set_header', { over_hero: true, reason: REASON }))).toBe('not_found')
+    expect(await code(() => call(bare, 'get_site_part', { kind: 'header' }))).toBe('not_found')
+  })
+
+  it('publishes a new small link only when the rule allows new links, and see-through or the heart do not count as a new link', async () => {
+    const allow = await withHeader([{ label: 'Header', actions: ['edit_header'], result: 'publish', limits: { allowNewLinks: true } }])
+    const published = call(allow, 'set_header', { utility: { label: 'Helpline', url: 'https://example.org/help' }, reason: REASON })
+    expect(published.if_you_publish.outcome).toBe('goes_live')
+    call(allow, 'publish_change', { change_id: published.change.id })
+    await drain(allow)
+    expect(call(allow, 'get_site_part', { kind: 'header' }).document.utility).toEqual({ label: 'Helpline', target: { type: 'url', url: 'https://example.org/help' } })
+
+    const review = await withHeader([{ label: 'Header', actions: ['edit_header'], result: 'publish' }])
+    const held = call(review, 'set_header', { utility: { label: 'Helpline', url: 'https://example.org/help' }, reason: REASON })
+    expect(held.if_you_publish.outcome).toBe('goes_to_review')
+    expect(held.if_you_publish.reasons.join(' ')).toMatch(/adds a link/)
+    expect(held.result.header_now.utility.label).toBe('Helpline')
+
+    const seeThrough = await withHeader([{ label: 'Header', actions: ['edit_header'], result: 'publish' }])
+    expect(call(seeThrough, 'set_header', { over_hero: true, reason: REASON }).if_you_publish.outcome).toBe('goes_live')
+    const heart = await withHeader([{ label: 'Header', actions: ['edit_header'], result: 'publish' }])
+    const hearted = call(heart, 'set_header', { icon: 'heart', reason: REASON })
+    expect(hearted.if_you_publish.outcome).toBe('goes_live')
+    expect(hearted.result.header_now.cta).toEqual({ ...HEADER.cta, icon: 'heart' })
+
+    const footerOnly = await withHeader([{ label: 'Footer only', actions: ['edit_header'], result: 'publish', targets: { siteParts: ['footer'] } }])
+    expect(call(footerOnly, 'set_header', { over_hero: true, reason: REASON }).if_you_publish.outcome).toBe('goes_to_review')
+  })
+
+  it('obeys a deny rule for edit_header and does not make a change', async () => {
+    const w = await withHeader([{ label: 'Leave the header', actions: ['edit_header'], result: 'deny' }])
+    expect(await code(() => call(w, 'set_header', { over_hero: true, reason: REASON }))).toBe('rule_denied')
+    expect(call(w, 'get_site_part', { kind: 'header' }).document.overHero).toBe(false)
+    expect(call(w, 'list_changes', {}).changes).toHaveLength(0)
   })
 })

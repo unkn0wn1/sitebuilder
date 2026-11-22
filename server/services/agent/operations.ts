@@ -12,7 +12,7 @@ import * as S from './schemas'
 import { takeCall } from './limits'
 import { violationGuard } from './changes'
 import type { SignedInAgent } from './tokens'
-import type { AgentAction } from '../../../shared/agent/rules'
+import { MONEY_BLOCK_TYPES, type AgentAction } from '../../../shared/agent/rules'
 
 export type OperationLevel = 'read' | 'draft' | 'decide'
 
@@ -380,7 +380,7 @@ export const OPERATIONS: Operation[] = [
       useWhen: ['edit_text cannot do it (not a plain replacement): changing a card list, a button, an image alt text, a layout.'],
       dontUseWhen: ['A simple wording change: edit_text.', 'A link: remove_link or replace_link.', 'Anything about donation forms: never allowed.'],
       before: ['get_page for the block_id and current props.', 'list_components for the props_schema if the shape is unclear.'],
-      effect: DRAFT_EFFECT('Changes the section.') + ' Sections that show money (ImpactTiers, DonationProgress, MatchBanner, MatchThermometer) can be drafted but always need a person to approve.',
+      effect: DRAFT_EFFECT('Changes the section.') + ` Sections that show money (${MONEY_BLOCK_TYPES.join(', ')}) can be drafted but always need a person to approve.`,
       returns: CHANGE_RETURNS,
       errors: { never_list: 'This section or prop is protected. Tell the person it must be done by hand.', validation_failed: 'The new props are not valid for this section. `error.fields` says which. Fix and call again.' },
       example: { input: { page_id: 'pg_01KABCDEFGHJKMNPQRSTVWXYZ0', block_id: 'b_k3j9x2ab', props: { heading: 'Help us this winter' }, reason: 'The owner asked to reword the heading.' }, note: 'Change one prop.' },
@@ -568,6 +568,25 @@ export const OPERATIONS: Operation[] = [
     },
   }),
   op({
+    name: 'set_menu_item_tile',
+    level: 'draft',
+    action: 'edit_menu',
+    method: 'POST',
+    path: '/edits/menu/set-tile',
+    input: S.setMenuItemTileInput,
+    run: (ctx, agent, input) => G.setMenuItemTile(ctx, agent, input),
+    doc: {
+      summary: 'Set or clear a photo tile on a mega-menu sub-item.',
+      what: 'Sets the featured flag and the photo on one sub-item. Only the fields you give change. It works only when the draft header style is mega and menu_key is that header\'s menu; otherwise nothing is written. At most 5 featured tiles on one item. The photo is a library media id plus alt text, unless decorative is true. null image removes the photo. False featured removes the flag.',
+      useWhen: ['The person wants a photo tile in the mega menu, or wants one taken down.'],
+      dontUseWhen: ['The header is not mega, or this is not the header\'s menu.', 'Adding, removing or renaming the item itself.'],
+      before: ['get_site_part for the header (style and menu) and for the sub-item id.', 'list_media for a real media id. Alt text must describe the photo, unless it is decorative.'],
+      effect: DRAFT_EFFECT('Sets the tile.'),
+      returns: `${CHANGE_RETURNS} \`result.menu_now\`.`,
+      example: { input: { item_id: 'b_tile0001', featured: true, image: { media_id: 'med_01KABCDEFGHJKMNPQRSTVWXYZ0', alt: 'A row of kennels in the rescue yard.' }, reason: 'The owner asked for a photo tile on Kennel in the mega menu.' }, note: 'Feature one sub-item with a photo.' },
+    },
+  }),
+  op({
     name: 'set_banner',
     level: 'draft',
     action: 'edit_banner',
@@ -588,6 +607,26 @@ export const OPERATIONS: Operation[] = [
   }),
 
   op({
+    name: 'set_header',
+    level: 'draft',
+    action: 'edit_header',
+    method: 'POST',
+    path: '/edits/header',
+    input: S.setHeaderInput,
+    run: (ctx, agent, input) => G.setHeader(ctx, agent, input),
+    doc: {
+      summary: 'Change the header small link, see-through setting, or the heart on the existing Donate button.',
+      what: 'Changes the site-wide header. Only the fields you give change. utility is the small link above the bar: a label plus url or page_id (not both), and null removes it. That link has no heart. over_hero true makes the header see-through over a hero; false makes it solid. icon "heart" or null draws or removes the heart on the Donate button that is already there. It never creates or removes that button, and it never changes the button\'s words or where it goes. If you send icon and there is no Donate button, the call fails and nothing is written. Style, menu, colours and the logo stay with people.',
+      useWhen: ['The person asked for a small link above the header, or to remove it.', 'The header should sit see-through over the hero, or go back to solid.', 'The existing Donate button should show a heart, or lose it.'],
+      dontUseWhen: ['Creating, removing or rewriting the Donate button: a person does that in the builder.', 'Menu items: use the menu tools.', 'Colours, the logo or the header style: a person does that in the builder.', 'A heart on the small utility link: that link has no icon.'],
+      before: ['get_site_part with kind "header", so you see the Donate button and the small link as they are now.', 'The site must already have a header. Agents cannot create one.', 'Words and addresses must come from the person. Do not invent them.'],
+      effect: DRAFT_EFFECT('Changes the header.') + ' A new utility link normally needs a person to approve, because a rule has to allow new links.',
+      returns: `${CHANGE_RETURNS} \`result.changed\` (the fields changed) and \`result.header_now\`.`,
+      example: { input: { utility: { label: 'Report an animal', url: '/report' }, reason: 'The owner asked for a small report link in the header.' }, note: 'Set the small link.' },
+    },
+  }),
+
+  op({
     name: 'set_footer',
     level: 'draft',
     action: 'edit_footer',
@@ -596,9 +635,9 @@ export const OPERATIONS: Operation[] = [
     input: S.setFooterInput,
     run: (ctx, agent, input) => G.setFooter(ctx, agent, input),
     doc: {
-      summary: 'Change the footer words, contact details, social links, tagline, layout, links menu or charity number.',
-      what: 'Changes the site-wide footer. Only the fields you give change. You can set the layout ("simple" or "columns"), the tagline, the column headings, which existing menu fills the links column (links_menu_key), the small print and the charity number. You cannot change colours or the logo: those stay with people in the builder. Links inside the links menu are menu items: use the menu tools.',
-      useWhen: ['The contact email, phone or address changed.', 'A social profile was added, moved or closed.', 'The about text, tagline, small print or charity number needs new words.', 'The footer should use the columns layout, or its links column should show a menu that already exists.'],
+      summary: 'Change the footer words, contact, social links, tagline, layout, menus or charity number.',
+      what: 'Changes the site-wide footer. Only the fields you give change. You can set the layout ("simple" or "columns"), the tagline, the column headings, which existing menu fills the links column (links_menu_key) or the legal links (legal_menu_key), the small print and the charity number. null or "" clears a menu key. You cannot change colours or the logo: those stay with people in the builder. Links inside those menus are menu items: use the menu tools.',
+      useWhen: ['The contact email, phone or address changed.', 'A social profile was added, moved or closed.', 'The about text, tagline, small print or charity number needs new words.', 'The footer links or legal links should show a menu that already exists.'],
       dontUseWhen: ['A link in the footer links column: those are a menu (get_site_part kind "footer" shows linksMenuKey; use the menu tools).', 'Colours or the logo: a person does that in the builder.'],
       before: ['get_site_part with kind "footer", so you see what is there now (especially the social list, which you send back whole).', 'Contact details and charity numbers must come from the person, word for word. Never guess them.'],
       effect: DRAFT_EFFECT('Changes the footer.'),

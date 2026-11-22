@@ -9,7 +9,7 @@
 import { z } from 'zod'
 import { SITE_PART_KINDS, type SitePartKind } from '../site-parts'
 
-export const AGENT_ACTIONS = ['edit_text', 'remove_link', 'add_link', 'edit_sections', 'edit_page_details', 'create_page', 'edit_menu', 'edit_banner', 'edit_footer', 'undo_change'] as const
+export const AGENT_ACTIONS = ['edit_text', 'remove_link', 'add_link', 'edit_sections', 'edit_page_details', 'create_page', 'edit_menu', 'edit_banner', 'edit_footer', 'edit_header', 'undo_change'] as const
 export type AgentAction = (typeof AGENT_ACTIONS)[number]
 
 /** Plain words for each action, shown to the owner and to the AI (docs, rule errors, `get_site`). */
@@ -22,7 +22,8 @@ export const ACTION_LABELS: Record<AgentAction, string> = {
   create_page: 'Create a new page',
   edit_menu: 'Add, remove or rename menu items',
   edit_banner: 'Change the site-wide banner',
-  edit_footer: 'Change the footer: its words, contact details, social links, tagline, layout, links menu and charity number (not its colours or logo)',
+  edit_footer: 'Change the footer: its words, contact details, social links, tagline, layout, links menu, legal menu and charity number (not its colours or logo)',
+  edit_header: 'Change the header: the small utility link, whether it sits see-through over the hero, and the heart on the existing Donate button (not that button\'s words or target, and not colours or the logo)',
   undo_change: 'Undo a change this token made earlier',
 }
 
@@ -31,7 +32,7 @@ export const NEVER_BLOCK_TYPES = ['DonationEmbed', 'Embed'] as const
 /** Props that bind a section to a form, an embed or a data source. Agents may not set or change them. */
 export const NEVER_PROP_KEYS = ['embed', 'source', 'campaignId'] as const
 /** Sections that show or ask for money. Agents may draft changes to them, but they never publish without a person. */
-export const MONEY_BLOCK_TYPES = ['ImpactTiers', 'DonationProgress', 'MatchBanner', 'MatchThermometer'] as const
+export const MONEY_BLOCK_TYPES = ['ImpactTiers', 'DonationProgress', 'MatchBanner'] as const
 
 export const isNeverBlockType = (type: string) => (NEVER_BLOCK_TYPES as readonly string[]).includes(type)
 export const isMoneyBlockType = (type: string) => (MONEY_BLOCK_TYPES as readonly string[]).includes(type)

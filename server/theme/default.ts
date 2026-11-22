@@ -156,11 +156,18 @@ export const HEADER_JS = `// Transparent over a hero at the top of the page, sol
   var strip = document.querySelector('.banner');
   if (!over || !first || !/ hero /.test(' ' + first.className + ' ')) return;
   over.classList.add('js-over');
+  var measured = false;
   var syncOver = function () {
     var solid = window.scrollY > 40 || !!over.querySelector('details[open]');
     over.classList.toggle('is-solid', solid);
     var gap = strip ? Math.max(0, Math.round(strip.getBoundingClientRect().bottom)) : 0;
     over.style.setProperty('--strip', gap + 'px');
+    // Measure the transparent bar only (plus once at start), so the hero padding does not jump when the
+    // bar turns solid on scroll. On the document element: the hero is not inside the header, so it would not inherit.
+    if (!solid || !measured) {
+      document.documentElement.style.setProperty('--sb-header-h', Math.round(over.getBoundingClientRect().height) + 'px');
+      measured = true;
+    }
   };
   window.addEventListener('resize', syncOver);
   window.addEventListener('scroll', syncOver, { passive: true });

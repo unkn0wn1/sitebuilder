@@ -10,6 +10,8 @@ export const DEFAULT_THEME_TOKENS = {
   band: '#f3ebe1',
   urgent: '#8b1e1e',
   celebrate: '#2e5a3c',
+  // Footer gold only. Not written into :root, so the default theme CSS stays byte-identical.
+  highlight: '#f3b53f',
 } as const
 export type ThemeTokens = { [K in keyof typeof DEFAULT_THEME_TOKENS]: string }
 
@@ -261,6 +263,12 @@ export const HEART_CSS = `
 export const UTILITY_CSS = `
 .util { font-size: 0.9rem; font-weight: 600; color: var(--muted); white-space: nowrap; text-decoration: none; }
 .site-header-dark .util { color: var(--paper); }
+@media (max-width: 640px) {
+  .site-header-hamburger .util-bar { display: none; }
+}
+@media (min-width: 641px) {
+  .site-header-hamburger .nav-panel .util-drawer { display: none; }
+}
 `
 
 export const BANNER_ACCENT_CSS = `
@@ -294,7 +302,9 @@ export const FOOTER_COLUMNS_CSS = `
 @media (max-width: 800px) { .ft-grid { grid-template-columns: 1fr; gap: 2rem; } .ft-wrap { padding-top: 2.25rem; } }
 `
 
-/** Transparent over a top hero once /header.js adds .js-over. Without that class the header stays the normal solid bar. */
+/** Transparent over a top hero once /header.js adds .js-over. Without that class the header stays the normal solid bar.
+ *  content-box keeps .hero's min-height as the photo area and adds the bar above it. .hero has no side padding,
+ *  so a phone width stays full-bleed, and the absolute photo (inset 0) still paints through the padded area. */
 export const OVER_HERO_CSS = `
 .site-header-over.js-over { position: fixed; top: var(--strip, 0px); left: 0; right: 0; z-index: 50; background: linear-gradient(to bottom, rgba(20, 12, 8, 0.6), rgba(20, 12, 8, 0)); border-bottom: 0; transition: background-color 0.25s, box-shadow 0.25s; }
 .site-header-over.js-over.is-solid { background: var(--paper); box-shadow: 0 0.25rem 1rem rgba(0, 0, 0, 0.18); }
@@ -308,6 +318,7 @@ export const OVER_HERO_CSS = `
 .site-header-dark.site-header-over.js-over:not(.is-solid) .site-title { background: transparent; padding: 0; border-radius: 0; box-shadow: none; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
 .site-header-over.js-over:not(.is-solid) .cta-btn { border: 2px solid rgba(255, 255, 255, 0.9); box-shadow: 0 0 0 0.3rem color-mix(in srgb, var(--accent) 40%, transparent); }
 @media (prefers-reduced-motion: reduce) { .site-header-over.js-over { transition: none; } }
+.site-header-over.js-over ~ main > .hero:first-child { box-sizing: content-box; padding-top: var(--sb-header-h, 0px); }
 `
 
 /** Photo tiles beside the links in a mega panel. Appended only when a mega menu actually has tiles. */
@@ -327,7 +338,8 @@ export const TILE_CSS = `
 `
 
 
-/** Build public CSS from a brand pack, keeping the default rules and swapping tokens and fonts. */
+/** Build public CSS from a brand pack, keeping the default rules and swapping tokens and fonts.
+ *  The :root list is written out by hand. `highlight` is omitted on purpose: it is not a theme variable. */
 export function themeCssFromTokens(tokens: ThemeTokens, fonts?: { body: string; heading: string | null }): string {
   const root = `:root {
   --ink: ${tokens.ink};
@@ -346,4 +358,27 @@ export function themeCssFromTokens(tokens: ThemeTokens, fonts?: { body: string; 
   if (fonts?.body) css = css.replace(/font-family: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;/, `font-family: ${fonts.body};`)
   if (fonts?.heading) css += `\nh1, h2, h3, h4, .site-title, .hero h1 { font-family: ${fonts.heading}; }\n`
   return css
+}
+
+const HEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
+
+function tokenDiffers(value: string | undefined, fallback: string): boolean {
+  if (!value || !HEX.test(value)) return false
+  return value.toLowerCase() !== fallback.toLowerCase()
+}
+
+/** Rules appended after option CSS so a changed brand colour wins. Empty when the token matches the default, or that option is off. */
+export function brandChromeCss(tokens: Pick<ThemeTokens, 'ink' | 'paper' | 'highlight'> | null | undefined, opts: { columns: boolean; overHero: boolean }): string {
+  if (!tokens) return ''
+  const parts: string[] = []
+  if (opts.columns && tokenDiffers(tokens.paper, DEFAULT_THEME_TOKENS.paper)) parts.push('.ft-logo { background: var(--paper); }')
+  if (opts.columns && tokenDiffers(tokens.highlight, DEFAULT_THEME_TOKENS.highlight)) {
+    parts.push(`.site-footer-cols::before { background: linear-gradient(90deg, var(--accent), ${tokens.highlight}, var(--accent)); }`)
+    parts.push(`.ft-tag em { color: ${tokens.highlight}; }`)
+  }
+  if (opts.overHero && tokenDiffers(tokens.paper, DEFAULT_THEME_TOKENS.paper)) parts.push('.site-header-over.js-over:not(.is-solid) .site-title { background: var(--paper); }')
+  if (opts.overHero && tokenDiffers(tokens.ink, DEFAULT_THEME_TOKENS.ink)) {
+    parts.push('.site-header-over.js-over { background: linear-gradient(to bottom, color-mix(in srgb, var(--ink) 60%, transparent), color-mix(in srgb, var(--ink) 0%, transparent)); }')
+  }
+  return parts.length ? `\n${parts.join('\n')}\n` : ''
 }

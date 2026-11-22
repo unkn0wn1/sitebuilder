@@ -70,8 +70,10 @@ RULES YOU MUST FOLLOW
 | [`remove_menu_item`](#remove_menu_item) | draft | `POST /agent/v1/edits/menu/remove-item` | Remove an item from a menu. |
 | [`add_menu_item`](#add_menu_item) | draft | `POST /agent/v1/edits/menu/add-item` | Add an item to a menu. |
 | [`rename_menu_item`](#rename_menu_item) | draft | `POST /agent/v1/edits/menu/rename-item` | Change the words on a menu item. |
+| [`set_menu_item_tile`](#set_menu_item_tile) | draft | `POST /agent/v1/edits/menu/set-tile` | Set or clear a photo tile on a mega-menu sub-item. |
 | [`set_banner`](#set_banner) | draft | `POST /agent/v1/edits/banner` | Show, change or hide the site-wide banner. |
-| [`set_footer`](#set_footer) | draft | `POST /agent/v1/edits/footer` | Change the footer words, contact details, social links, tagline, layout, links menu or charity number. |
+| [`set_header`](#set_header) | draft | `POST /agent/v1/edits/header` | Change the header small link, see-through setting, or the heart on the existing Donate button. |
+| [`set_footer`](#set_footer) | draft | `POST /agent/v1/edits/footer` | Change the footer words, contact, social links, tagline, layout, menus or charity number. |
 | [`list_media`](#list_media) | read | `GET /agent/v1/media` | List photos and videos in the media library, newest first. |
 | [`import_media`](#import_media) | draft | `POST /agent/v1/media/imports` | Import a photo into the media library from a public address (runs in the background). |
 | [`get_media_import`](#get_media_import) | read | `GET /agent/v1/media/imports/{import_id}` | See whether a photo import has finished, and get its media_id. |
@@ -515,7 +517,7 @@ Change props of one section, for example a heading, button or list of cards. Set
 Use when: edit_text cannot do it (not a plain replacement): changing a card list, a button, an image alt text, a layout.
 Not when: A simple wording change: edit_text. A link: remove_link or replace_link. Anything about donation forms: never allowed.
 First: get_page for the block_id and current props. list_components for the props_schema if the shape is unclear.
-Effect: Changes the section. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish). Sections that show money (ImpactTiers, DonationProgress, MatchBanner, MatchThermometer) can be drafted but always need a person to approve.
+Effect: Changes the section. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish). Sections that show money (ImpactTiers, DonationProgress, MatchBanner) can be drafted but always need a person to approve.
 Who: Draft tokens. Rule action: "edit_sections".
 Returns: The change reply (see REPLIES in the server instructions) plus `result` (what this call did).
 Errors: never_list: This section or prop is protected. Tell the person it must be done by hand. validation_failed: The new props are not valid for this section. `error.fields` says which. Fix and call again.
@@ -797,6 +799,37 @@ Returns: The change reply (see REPLIES in the server instructions) plus `result`
 Example: {"label":"Donate","new_label":"Give","reason":"The owner prefers \"Give\"."}
 ```
 
+## set_menu_item_tile
+
+**Set or clear a photo tile on a mega-menu sub-item.**
+
+Kind: draft. REST: `POST /agent/v1/edits/menu/set-tile`.
+
+### Inputs
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `menu_key` | string (default "main", max 40 chars) | no | Which menu. Default "main". Other menus (for example "legal") are listed by get_site_part with kind "menu". |
+| `item_id` | string (max 40 chars) | no | The menu item id from get_site_part (kind "menu"). Give this or `label`. |
+| `label` | string (max 40 chars) | no | The words on the menu item (case-insensitive, exact). If two items share the words you get an error listing their ids. |
+| `featured` | boolean | no | True shows this sub-item as a photo tile in the mega menu. False removes that flag. Leave out to keep it. At most 5 tiles per menu item. |
+| `image` | any | no | The tile photo: { "media_id", "alt" }, or { "media_id", "decorative": true }. null removes the photo. Leave out to keep it. Alt text is required unless decorative is true. |
+| `change_id` | string (max 80 chars) | no | An open change id from an earlier edit, to add this edit to it (reviewed and published together). Leave out to start a new change; changes in review, published or discarded cannot be added to. |
+| `reason` | string (max 500 chars) | yes | Who asked and what they asked, in one or two plain sentences of your own (see REASON in the server instructions). Never paste website text here. |
+
+### Description sent to the AI
+
+```text
+Set or clear a photo tile on a mega-menu sub-item. Sets the featured flag and the photo on one sub-item. Only the fields you give change. It works only when the draft header style is mega and menu_key is that header's menu; otherwise nothing is written. At most 5 featured tiles on one item. The photo is a library media id plus alt text, unless decorative is true. null image removes the photo. False featured removes the flag.
+Use when: The person wants a photo tile in the mega menu, or wants one taken down.
+Not when: The header is not mega, or this is not the header's menu. Adding, removing or renaming the item itself.
+First: get_site_part for the header (style and menu) and for the sub-item id. list_media for a real media id. Alt text must describe the photo, unless it is decorative.
+Effect: Sets the tile. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish).
+Who: Draft tokens. Rule action: "edit_menu".
+Returns: The change reply (see REPLIES in the server instructions) plus `result` (what this call did). `result.menu_now`.
+Example: {"item_id":"b_tile0001","featured":true,"image":{"media_id":"med_01KABCDEFGHJKMNPQRSTVWXYZ0","alt":"A row of kennels in the rescue yard."},"reason":"The owner asked for a photo tile on Kennel in the mega menu."}
+```
+
 ## set_banner
 
 **Show, change or hide the site-wide banner.**
@@ -827,9 +860,38 @@ Returns: The change reply (see REPLIES in the server instructions) plus `result`
 Example: {"enabled":true,"message":"Our shop is closed on Monday for the bank holiday.","tone":"info","reason":"The owner asked for a closure notice."}
 ```
 
+## set_header
+
+**Change the header small link, see-through setting, or the heart on the existing Donate button.**
+
+Kind: draft. REST: `POST /agent/v1/edits/header`.
+
+### Inputs
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `utility` | any | no | The small link above the bar: { "label", "url" } or { "label", "page_id" }. Give url or page_id, not both. null removes the small link. It has no heart icon. Leave out to keep the current small link. |
+| `over_hero` | boolean | no | True: the header is see-through over a hero at the top of the page, and solid once the page is scrolled. False: the normal solid header. Leave out to keep the current setting. Without JavaScript the header stays solid either way. |
+| `icon` | any | no | "heart" draws a small heart on the Donate button that is already on the header. null removes that heart. It does not create or remove the button, and it does not change the button's words or where it goes. If the header has no Donate button, the call fails and nothing is changed. |
+| `change_id` | string (max 80 chars) | no | An open change id from an earlier edit, to add this edit to it (reviewed and published together). Leave out to start a new change; changes in review, published or discarded cannot be added to. |
+| `reason` | string (max 500 chars) | yes | Who asked and what they asked, in one or two plain sentences of your own (see REASON in the server instructions). Never paste website text here. |
+
+### Description sent to the AI
+
+```text
+Change the header small link, see-through setting, or the heart on the existing Donate button. Changes the site-wide header. Only the fields you give change. utility is the small link above the bar: a label plus url or page_id (not both), and null removes it. That link has no heart. over_hero true makes the header see-through over a hero; false makes it solid. icon "heart" or null draws or removes the heart on the Donate button that is already there. It never creates or removes that button, and it never changes the button's words or where it goes. If you send icon and there is no Donate button, the call fails and nothing is written. Style, menu, colours and the logo stay with people.
+Use when: The person asked for a small link above the header, or to remove it. The header should sit see-through over the hero, or go back to solid. The existing Donate button should show a heart, or lose it.
+Not when: Creating, removing or rewriting the Donate button: a person does that in the builder. Menu items: use the menu tools. Colours, the logo or the header style: a person does that in the builder. A heart on the small utility link: that link has no icon.
+First: get_site_part with kind "header", so you see the Donate button and the small link as they are now. The site must already have a header. Agents cannot create one. Words and addresses must come from the person. Do not invent them.
+Effect: Changes the header. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish). A new utility link normally needs a person to approve, because a rule has to allow new links.
+Who: Draft tokens. Rule action: "edit_header".
+Returns: The change reply (see REPLIES in the server instructions) plus `result` (what this call did). `result.changed` (the fields changed) and `result.header_now`.
+Example: {"utility":{"label":"Report an animal","url":"/report"},"reason":"The owner asked for a small report link in the header."}
+```
+
 ## set_footer
 
-**Change the footer words, contact details, social links, tagline, layout, links menu or charity number.**
+**Change the footer words, contact, social links, tagline, layout, menus or charity number.**
 
 Kind: draft. REST: `POST /agent/v1/edits/footer`.
 
@@ -844,6 +906,7 @@ Kind: draft. REST: `POST /agent/v1/edits/footer`.
 | `tagline` | any | no | The tagline in the columns footer. null removes it. |
 | `contact_title` | any | no | Heading over the contact column. null or "" removes it. |
 | `links_menu_key` | any | no | The key of an existing menu shown as the links column. null or "" removes it. Use get_site_part with kind "menu" for the keys. |
+| `legal_menu_key` | any | no | The key of an existing menu shown as the legal links (privacy, terms). null or "" removes it. Same rules as links_menu_key. |
 | `links_title` | any | no | Heading over the links column. null or "" removes it. |
 | `legal_text` | any | no | The small print line, for example "© 2026 Animal Aid". null or "" removes it. |
 | `charity_number` | any | no | The registered charity number, exactly as the person gave it. null or "" removes it. |
@@ -853,8 +916,8 @@ Kind: draft. REST: `POST /agent/v1/edits/footer`.
 ### Description sent to the AI
 
 ```text
-Change the footer words, contact details, social links, tagline, layout, links menu or charity number. Changes the site-wide footer. Only the fields you give change. You can set the layout ("simple" or "columns"), the tagline, the column headings, which existing menu fills the links column (links_menu_key), the small print and the charity number. You cannot change colours or the logo: those stay with people in the builder. Links inside the links menu are menu items: use the menu tools.
-Use when: The contact email, phone or address changed. A social profile was added, moved or closed. The about text, tagline, small print or charity number needs new words. The footer should use the columns layout, or its links column should show a menu that already exists.
+Change the footer words, contact, social links, tagline, layout, menus or charity number. Changes the site-wide footer. Only the fields you give change. You can set the layout ("simple" or "columns"), the tagline, the column headings, which existing menu fills the links column (links_menu_key) or the legal links (legal_menu_key), the small print and the charity number. null or "" clears a menu key. You cannot change colours or the logo: those stay with people in the builder. Links inside those menus are menu items: use the menu tools.
+Use when: The contact email, phone or address changed. A social profile was added, moved or closed. The about text, tagline, small print or charity number needs new words. The footer links or legal links should show a menu that already exists.
 Not when: A link in the footer links column: those are a menu (get_site_part kind "footer" shows linksMenuKey; use the menu tools). Colours or the logo: a person does that in the builder.
 First: get_site_part with kind "footer", so you see what is there now (especially the social list, which you send back whole). Contact details and charity numbers must come from the person, word for word. Never guess them.
 Effect: Changes the footer. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish).
@@ -1212,7 +1275,8 @@ GOAL: a set of draft pages (and menu entries) that a person can review together 
 3. PLAN FIRST. Write a short plan for the person: each page with its title, page type, address, the sections it will have, and whether it goes in the menu (and under what). Ask the person to confirm or change it. Do not build until they say yes. If you do not know a value, ask the person. Do not guess.
 4. Use ONLY facts, wording and links the person gave you or that are already on the site. Do not invent people, figures, quotes, addresses or phone numbers. Where something is missing, write a short honest page and list what is missing in your reply. Never fill gaps with plausible-sounding text.
 5. PHOTOS: use list_media for photos already in the library. For a photo the person gives you by address, call import_media (with alt text describing what is visible), then get_media_import every few seconds until "done", and put its use_in_props value in the section image field. Only import photos the person gave you or has the right to use. The library needs no approval; a photo goes live only with a published page.
-5b. FOOTER: if the person gives new contact details, social links, a charity number, a tagline or a layout ("simple" or "columns"), use set_footer with the SAME change_id. Copy their words exactly. links_menu_key must be a menu that already exists.
+5b. FOOTER: if the person gives new contact details, social links, a charity number, a tagline or a layout ("simple" or "columns"), use set_footer with the SAME change_id. Copy their words exactly. links_menu_key and legal_menu_key must be menus that already exist. null or "" clears one.
+5b2. HEADER: if the person asks for the small utility link, a see-through header, or a heart on the Donate button that is already there, use set_header with the SAME change_id. Copy their words. null utility removes the small link. icon "heart" or null only changes the heart; it does not create, remove or rewrite the Donate button.
 5c. If the person wants a donation or sign-up form somewhere, build the page without it, put a plain paragraph where it will go, and tell them an admin must add the form by hand.
 6. create_pages with ALL the pages in order (parents before children, linking children with parent_ref). Give each page menu: { label } if it belongs in the menu. Maximum 12 pages per call. For a bigger site, build in several changes by area. It is all or nothing: if it fails, nothing was created; read the message, which names the page, fix it and send the whole list again.
 7. To adjust a page you just made, use the edit tools with the SAME change_id, so it stays one change. Do not start a second change for the same build.
@@ -1273,7 +1337,7 @@ GOAL: {what}
 
 MENU
 1. get_site_part with kind "menu" (and "key" if the site has several menus). Note item_ids and labels.
-2. remove_menu_item (item_id or label; remove_children: true if it has sub-items), add_menu_item (label plus url or page_id; parent_item_id to nest), rename_menu_item (new_label). Pass the first call's change_id to the others to batch them. These keep any photo (image) and featured flag already on a sub-item. There is no tool to add or change those tiles.
+2. remove_menu_item (item_id or label; remove_children: true if it has sub-items), add_menu_item (label plus url or page_id; parent_item_id to nest), rename_menu_item (new_label). Pass the first call's change_id to the others to batch them. These keep any photo (image) and featured flag already on a sub-item. set_menu_item_tile sets or clears that photo and featured flag. It only works on a sub-item, and only when the draft header style is mega and the menu is the header's menu. At most 5 featured tiles per item. image is a library media id plus alt, unless decorative is true.
 3. If a label matches two items you get a list of ids: use item_id.
 4. Menus show on every page. To remove every link to an address (menus included) prefer sitebuilder://recipe/take-a-link-down.
 

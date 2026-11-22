@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { callOperation } from '../server/services/agent/operations'
+import { AppError } from '../server/services/errors'
 import { applyPageOps, createPage, getPage, readDoc, requirePage } from '../server/services/pages'
-import { createSitePart, editSitePart, requireSitePart } from '../server/services/site-parts'
+import { approveReview } from '../server/services/reviews'
+import { createSitePart, editSitePart, requireSitePart, submitSitePart } from '../server/services/site-parts'
 import { richTextToMarkdown } from '../shared/agent/content'
 import { richTextFromParagraphs } from '../shared/richtext'
 import { IMG } from './helpers'
@@ -255,6 +257,98 @@ describe('sections, details, pages, menus and banner', () => {
       utility: { label: 'Report', target: { type: 'url', url: '/report' } },
       cta: { label: 'Donate', icon: 'heart' },
     })
+  })
+
+  it('sets and clears a mega-menu photo tile, and refuses a sixth, a bad photo, the wrong menu and a top-level item', async () => {
+    const child = (n: number, extra: Record<string, unknown> = {}) => ({ id: `b_tile${String(n).padStart(4, '0')}`, label: `Tile ${n}`, target: { type: 'url', url: `/tile-${n}` }, ...extra })
+    const menuOf = (w: World) => {
+      const part = requireSitePart(w.ctx, w.menuId)
+      editSitePart(w.ctx, w.admin, w.menuId, part.draftRevision, {
+        schemaVersion: 1,
+        items: [
+          { id: 'b_menu0001', label: 'Home', target: { type: 'url', url: '/' }, children: [child(1), child(2)] },
+          { id: 'b_menu0002', label: 'Sign up', target: { type: 'url', url: SIGNUP }, children: [] },
+        ],
+      })
+    }
+    const header = async (w: World, style: string, menuKey = 'main') => {
+      const id = createSitePart(w.ctx, 'header', 'main', 'Header')
+      editSitePart(w.ctx, w.admin, id, 0, { schemaVersion: 1, style, menuKey })
+      const sub = submitSitePart(w.ctx, w.admin, id)
+      approveReview(w.ctx, w.approver, sub.reviewId, { versionId: sub.versionId })
+      await drain(w)
+      return id
+    }
+    const restyle = (w: World, id: string, style: string, menuKey = 'main') => {
+      const part = requireSitePart(w.ctx, id)
+      editSitePart(w.ctx, w.admin, id, part.draftRevision, { schemaVersion: 1, style, menuKey })
+    }
+    const message = async (fn: () => unknown) => {
+      try {
+        await fn()
+      } catch (e) {
+        if (e instanceof AppError) return `${e.code}: ${e.message}`
+        throw e
+      }
+      return 'ok'
+    }
+
+    const w = await world()
+    menuOf(w)
+    // Live header stays simple. Tiles follow the draft, which is mega.
+    const headerId = await header(w, 'simple')
+    restyle(w, headerId, 'mega')
+    const set = call(w, 'set_menu_item_tile', { item_id: 'b_tile0001', featured: true, image: { media_id: IMG.media, alt: 'A kennel in the yard.' }, reason: REASON })
+    expect(set.result.menu_now[0].children[0]).toEqual({ item_id: 'b_tile0001', label: 'Tile 1', featured: true, image: { media: IMG.media, alt: 'A kennel in the yard.' } })
+    expect(set.result.menu_now[0].children[1]).toEqual({ item_id: 'b_tile0002', label: 'Tile 2' })
+    const kept = call(w, 'set_menu_item_tile', { item_id: 'b_tile0001', featured: false, change_id: set.change.id, reason: REASON })
+    expect(kept.result.menu_now[0].children[0]).toEqual({ item_id: 'b_tile0001', label: 'Tile 1', image: { media: IMG.media, alt: 'A kennel in the yard.' } })
+    const cleared = call(w, 'set_menu_item_tile', { item_id: 'b_tile0001', image: null, change_id: set.change.id, reason: REASON })
+    expect(cleared.result.menu_now[0].children[0]).toEqual({ item_id: 'b_tile0001', label: 'Tile 1' })
+    // A video is not a photo: refused, and the tile is left as it was.
+    expect(await message(() => call(w, 'set_menu_item_tile', { item_id: 'b_tile0002', featured: true, image: { media_id: 'med_00000000000000000000000002', decorative: true }, change_id: set.change.id, reason: REASON }))).toMatch(/photo, not a video/)
+    expect(call(w, 'get_site_part', { kind: 'menu' }).document.items[0].children[1]).toEqual(expect.not.objectContaining({ image: expect.anything() }))
+
+    const full = await world()
+    const part = requireSitePart(full.ctx, full.menuId)
+    editSitePart(full.ctx, full.admin, full.menuId, part.draftRevision, {
+      schemaVersion: 1,
+      items: [{ id: 'b_menu0001', label: 'Home', target: { type: 'url', url: '/' }, children: [1, 2, 3, 4, 5, 6].map((n) => child(n, n < 6 ? { featured: true, image: { media: IMG.media, alt: 'Kennel' } } : {})) }],
+    })
+    await header(full, 'mega')
+    const before = call(full, 'get_site_part', { kind: 'menu' }).document
+    expect(await message(() => call(full, 'set_menu_item_tile', { item_id: 'b_tile0006', featured: true, reason: REASON }))).toMatch(/Feature at most 5/)
+    expect(call(full, 'get_site_part', { kind: 'menu' }).document).toEqual(before)
+    expect(call(full, 'list_changes', {}).changes).toHaveLength(0)
+
+    const plain = await world()
+    menuOf(plain)
+    const plainId = await header(plain, 'simple')
+    const plainBefore = call(plain, 'get_site_part', { kind: 'menu' }).document
+    expect(await message(() => call(plain, 'set_menu_item_tile', { item_id: 'b_tile0001', featured: true, reason: REASON }))).toMatch(/mega/)
+    expect(await message(() => call(plain, 'set_menu_item_tile', { item_id: 'b_tile0001', featured: true, reason: REASON }))).toMatch(/simple/)
+    expect(await message(() => call(plain, 'set_menu_item_tile', { item_id: 'b_tile0001', featured: true, reason: REASON }))).toMatch(/"main"/)
+    restyle(plain, plainId, 'hamburger')
+    expect(await message(() => call(plain, 'set_menu_item_tile', { item_id: 'b_tile0001', featured: true, reason: REASON }))).toMatch(/hamburger/)
+    restyle(plain, plainId, 'mega', 'primary')
+    expect(await message(() => call(plain, 'set_menu_item_tile', { item_id: 'b_tile0001', featured: true, reason: REASON }))).toMatch(/mega/)
+    expect(await message(() => call(plain, 'set_menu_item_tile', { menu_key: 'main', item_id: 'b_tile0001', featured: true, reason: REASON }))).toMatch(/"primary"/)
+    restyle(plain, plainId, 'mega', 'main')
+    expect(await message(() => call(plain, 'set_menu_item_tile', { label: 'Home', featured: true, reason: REASON }))).toMatch(/top-level/)
+    expect(await message(() => call(plain, 'set_menu_item_tile', { item_id: 'b_tile0001', image: { media_id: IMG.media }, reason: REASON }))).toMatch(/validation_failed/)
+    expect(await message(() => call(plain, 'set_menu_item_tile', { item_id: 'b_tile0001', image: { media_id: 'med_0000000000000000000000000Z', alt: 'Missing' }, reason: REASON }))).toMatch(/not_found/)
+    expect(call(plain, 'get_site_part', { kind: 'menu' }).document).toEqual(plainBefore)
+    expect(call(plain, 'list_changes', {}).changes).toHaveLength(0)
+
+    const bare = await world()
+    expect(await message(() => call(bare, 'set_menu_item_tile', { item_id: 'b_tile0001', featured: true, reason: REASON }))).toMatch(/no header/i)
+
+    const denied = await world([{ label: 'No menu', actions: ['edit_menu'], result: 'deny' }])
+    menuOf(denied)
+    await header(denied, 'mega')
+    expect(await code(() => call(denied, 'set_menu_item_tile', { item_id: 'b_tile0001', featured: true, reason: REASON }))).toBe('rule_denied')
+    expect(call(denied, 'get_site_part', { kind: 'menu' }).document.items[0].children[0].featured).toBeUndefined()
+    expect(call(denied, 'list_changes', {}).changes).toHaveLength(0)
   })
 })
 

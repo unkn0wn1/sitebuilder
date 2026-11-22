@@ -24,7 +24,7 @@ import {
 } from '../../shared/site-parts'
 import { BUNDLE_ID, EMBED_JS, HEADER_JS, THEME_CSS } from '../theme/default'
 import { migrateBrandDoc, validateBrandDoc, type BrandDoc } from '../../shared/brand'
-import { BANNER_ACCENT_CSS, FOOTER_COLUMNS_CSS, HEART_CSS, OVER_HERO_CSS, TILE_CSS, UTILITY_CSS, themeCssFromTokens } from '../../shared/theme-css'
+import { BANNER_ACCENT_CSS, FOOTER_COLUMNS_CSS, HEART_CSS, OVER_HERO_CSS, TILE_CSS, UTILITY_CSS, brandChromeCss, themeCssFromTokens } from '../../shared/theme-css'
 import { embeds, media, mediaCrops, pages, redirects, siteParts, sites, versions, type ReleaseManifest } from '../db/schema'
 import type { ServiceCtx } from './context'
 import { widthsFor } from './media'
@@ -681,11 +681,12 @@ function heartIcon(): VNode {
   ])
 }
 
-function utilityLink(site: SiteRenderContext, bag: Collector): VNode | null {
+function utilityLink(site: SiteRenderContext, bag: Collector, place?: 'bar' | 'drawer'): VNode | null {
   const utility = site.header?.doc.utility
   if (!utility) return null
   const link = resolveLink(utility.target, utility.label, site, bag)
-  return h('a', { class: 'util', href: link.href }, utility.label)
+  const className = place === 'bar' ? 'util util-bar' : place === 'drawer' ? 'util util-drawer' : 'util'
+  return h('a', { class: className, href: link.href }, utility.label)
 }
 
 const TILE_SIZES = '(max-width: 640px) 45vw, 13rem'
@@ -766,7 +767,7 @@ function renderNav(site: SiteRenderContext, bag: Collector): VNode | null {
     ])
   })
   if (style === 'hamburger') {
-    const inMenu = utilityLink(site, bag)
+    const inMenu = utilityLink(site, bag, 'drawer')
     return h('details', { class: 'nav nav-hamburger', 'aria-label': 'Site' }, [
       h('summary', 'Menu'),
       h('div', { class: 'nav-panel' }, inMenu ? [...items, inMenu] : items),
@@ -839,8 +840,8 @@ function renderShell(doc: PageDoc, site: SiteRenderContext, bag: Collector): VNo
   if (overHero) bag.needsHeaderJs = true
   let firstHero = true
   const menuKey = site.header?.doc.menuKey ?? 'main'
-  // Hamburger hides its links until the menu opens, so the utility link is also beside the Menu button.
-  const barUtility = menuStyleOf(site) === 'hamburger' && site.menus[menuKey] ? utilityLink(site, bag) : null
+  // Two copies, one hidden by UTILITY_CSS: the drawer on a phone, the bar from 641px up.
+  const barUtility = menuStyleOf(site) === 'hamburger' && site.menus[menuKey] ? utilityLink(site, bag, 'bar') : null
 
   return h('div', [
     h('a', { class: 'skip', href: '#main' }, 'Skip to content'),
@@ -1072,13 +1073,16 @@ export function renderAnalyticsJs(tracking: SiteSettings['tracking']): string | 
 /** CSS for optional shell parts. Empty when every option is left at its default, so the style tag stays byte-identical. */
 export function shellOptionCss(site: SiteRenderContext): string {
   let extra = ''
+  const columns = site.footer?.doc.layout === 'columns'
+  const overHero = !!site.header?.doc.overHero
   if (site.header?.doc.cta?.icon === 'heart') extra += HEART_CSS
   if (site.header?.doc.utility) extra += UTILITY_CSS
-  if (site.footer?.doc.layout === 'columns') extra += FOOTER_COLUMNS_CSS
-  if (site.header?.doc.overHero) extra += OVER_HERO_CSS
+  if (columns) extra += FOOTER_COLUMNS_CSS
+  if (overHero) extra += OVER_HERO_CSS
   const banner = site.banner
   if (banner && banner.doc.enabled && banner.doc.message && banner.doc.tone === 'accent') extra += BANNER_ACCENT_CSS
   if (menuHasTiles(site)) extra += TILE_CSS
+  extra += brandChromeCss(site.brand?.tokens, { columns, overHero })
   return extra
 }
 
