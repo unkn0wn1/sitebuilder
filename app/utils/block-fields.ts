@@ -30,8 +30,10 @@ function labelize(name: string): string {
     caption: 'Caption',
     attribution: 'Attribution',
     image: 'Photo',
-    poster: 'Photo',
+    poster: 'Poster',
     video: 'Video',
+    mode: 'Layout',
+    slides: 'Slides',
     cta: 'Button',
     button: 'Button',
     tone: 'Look',
@@ -150,6 +152,32 @@ export function fieldsForBlock(type: string): FieldSpec[] {
   const def = blockRegistry.get(type)
   if (!def) return []
   return describeObject(def.props as unknown as Zodish, '')
+}
+
+/** Missing Hero layout is the single photo. Hiding a field does not remove its saved value. */
+export function heroLayout(props: Record<string, unknown>): string {
+  return typeof props.mode === 'string' && props.mode ? props.mode : 'image'
+}
+
+/** Fields the inspector shows for the current props. Other section types show every field. */
+export function visibleFieldsForBlock(type: string, props: Record<string, unknown>): FieldSpec[] {
+  const fields = fieldsForBlock(type)
+  if (type !== 'Hero') return fields
+  const mode = heroLayout(props)
+  return fields.filter((field) => {
+    if (field.name === 'image') return mode === 'image' || mode === 'video'
+    if (field.name === 'poster' || field.name === 'video') return mode === 'video'
+    if (field.name === 'slides') return mode === 'image-carousel' || mode === 'video-carousel'
+    return true
+  })
+}
+
+/** Slide subfields. A photo carousel hides the video id; a video carousel keeps it. */
+export function visibleListItemFields(type: string, field: FieldSpec, props: Record<string, unknown>): FieldSpec[] {
+  const items = field.item ?? []
+  if (type !== 'Hero' || field.name !== 'slides') return items
+  if (heroLayout(props) === 'video-carousel') return items
+  return items.filter((sub) => sub.name !== 'video')
 }
 
 export function blockCatalog(): Pick<BlockDefinition, 'type' | 'label' | 'category' | 'headingProps' | 'sample'>[] {

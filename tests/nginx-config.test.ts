@@ -61,14 +61,14 @@ describe('nginx config', () => {
     expect(compose).toContain('./cloudflare-real-ip.conf:/etc/nginx/cloudflare-real-ip.conf:ro')
   })
 
-  it('gives embed.js and header.js a short shell cache and no page CSP', () => {
+  it('gives embed.js, header.js and hero.js a short shell cache and no page CSP', () => {
     const block = (path: string) => {
       const escaped = path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
       const matches = [...template.matchAll(new RegExp(`location = ${escaped} \\{([^}]*)\\}`, 'g'))]
       expect(matches, `location = ${path}`).toHaveLength(1)
       return matches[0]![1]!
     }
-    for (const path of ['/embed.js', '/header.js']) {
+    for (const path of ['/embed.js', '/header.js', '/hero.js']) {
       const body = block(path)
       expect(body).toContain('add_header Cache-Tag "shell" always;')
       expect(body).toContain('add_header Cache-Control "public, max-age=300, s-maxage=3600" always;')

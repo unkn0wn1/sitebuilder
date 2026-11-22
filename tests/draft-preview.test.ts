@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { previewHtml, renderDraftPreview, previewCsp } from '../server/services/draft-preview'
+import { previewAssetBody, previewCsp, previewHtml, renderDraftPreview } from '../server/services/draft-preview'
+import { HERO_JS } from '../server/theme/default'
 import { emptyPageDoc } from '../shared/page'
 import { richTextFromParagraphs } from '../shared/richtext'
 import { setup } from './helpers'
@@ -19,7 +20,7 @@ describe('editor and approval previews use the publish renderer', () => {
     expect(html).toContain('data-block-id="b_hero0001"')
     expect(html).toContain('data-block-id="b_text0001"')
     expect(html).toMatch(/<meta http-equiv="Content-Security-Policy" content="[^"]*script-src 'self';/)
-    expect(html).not.toMatch(/src="\/(menu|islands|embed|header|analytics)\.js"/)
+    expect(html).not.toMatch(/src="\/(menu|islands|embed|header|hero|analytics)\.js"/)
   })
 
   it('shows a placeholder where a photo is not in the library, and points real photos at a builder route', async () => {
@@ -50,12 +51,19 @@ describe('editor and approval previews use the publish renderer', () => {
     expect(html).toContain('Still here')
   })
 
-  it('points a see-through header script at the builder asset route', () => {
-    const html = previewHtml('<script src="/header.js" defer></script>\n<script type="module" src="/embed.js"></script>', "default-src 'self'; script-src 'self';")
+  it('points header, embed and hero scripts at the builder asset route', () => {
+    const html = previewHtml(
+      '<script src="/header.js" defer></script>\n<script type="module" src="/embed.js"></script>\n<script src="/hero.js" defer></script>',
+      "default-src 'self'; script-src 'self';",
+    )
     expect(html).toContain('src="/api/v1/preview/assets/header.js"')
     expect(html).toContain('src="/api/v1/preview/assets/embed.js"')
+    expect(html).toContain('src="/api/v1/preview/assets/hero.js"')
     expect(html).not.toContain('src="/header.js"')
     expect(html).not.toContain('src="/embed.js"')
+    expect(html).not.toContain('src="/hero.js"')
+    expect(previewAssetBody('hero.js')).toBe(HERO_JS)
+    expect(previewAssetBody('missing.js')).toBeUndefined()
   })
 
   it('only lets the builder’s own scripts run, talks to nothing and frames nothing', () => {

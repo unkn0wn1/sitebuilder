@@ -67,6 +67,11 @@ server {
     add_header Cache-Control "public, max-age=300, s-maxage=3600" always;
   }
 
+  location = /hero.js {
+    add_header Cache-Tag "shell" always;
+    add_header Cache-Control "public, max-age=300, s-maxage=3600" always;
+  }
+
   location = /analytics.js {
     add_header Cache-Tag "shell" always;
     add_header Cache-Control "public, max-age=0, s-maxage=3600" always;

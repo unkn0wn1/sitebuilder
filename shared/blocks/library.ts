@@ -23,6 +23,15 @@ const badgeHtml = z
     message: 'This badge snippet could not be used. Use a logo, or a script from a known organisation such as Charity Navigator, Candid or TripAdvisor.',
   })
 
+const heroSlide = z
+  .object({
+    image: imageRef.optional(),
+    video: mediaId.optional(),
+    heading: text({ max: 80 }),
+    subheading: text({ max: 160 }),
+  })
+  .strict()
+
 export const Hero = defineBlock({
   type: 'Hero',
   version: 1,
@@ -33,7 +42,7 @@ export const Hero = defineBlock({
     useWhen: 'Almost every page, especially campaigns, home and stories.',
     pairsWith: ['MatchBanner', 'CallToAction', 'DonationEmbed'],
     avoidWhen: 'The page already has a hero or a video hero. Do not stack two openings.',
-    fields: 'heading (required, the promise of the page), subheading, image with real alt text, optional cta, tone from the brand pack. Do not invent statistics.',
+    fields: 'heading (required, the promise of the page), subheading, optional cta, tone from the brand pack. Layout is one of four modes: single photo, single video, photo carousel, or video carousel. Single photo uses the image. Single video uses a poster, a video id, and the photo. Slides need a real photo, and a video carousel slide needs a video from the library. Do not stack a Hero and a VideoHero. Do not invent statistics.',
     good: {
       note: 'A clear promise, a supporting line, a real photo with alt text, and a button that jumps to the donation form.',
       props: { heading: 'Keep them warm this winter', subheading: 'Your gift pays for blankets, food and treatment.', image: sampleImage, cta: { label: 'Donate now', href: '#donate' } },
@@ -50,9 +59,36 @@ export const Hero = defineBlock({
       image: imageRef,
       cta: linkRef.optional(),
       tone: tone.default('primary'),
+      mode: z.enum(['image', 'video', 'image-carousel', 'video-carousel']).default('image'),
+      video: mediaId.optional(),
+      poster: imageRef.optional(),
+      slides: z.array(heroSlide).max(8).optional(),
     })
-    .strict(),
-  imageSlots: { image: { width: 1280, height: 720 } },
+    .strict()
+    .superRefine((value, ctx) => {
+      if (value.mode === 'video' && !value.video) {
+        ctx.addIssue({ code: 'custom', path: ['video'], message: 'Add a video for video mode.' })
+      }
+      if (value.mode !== 'image-carousel' && value.mode !== 'video-carousel') return
+      const slides = value.slides ?? []
+      if (slides.length < 2) {
+        ctx.addIssue({ code: 'custom', path: ['slides'], message: 'Add at least two slides.' })
+        return
+      }
+      slides.forEach((slide, index) => {
+        if (value.mode === 'image-carousel' && !slide.image) {
+          ctx.addIssue({ code: 'custom', path: ['slides', index, 'image'], message: 'Add a photo on this slide.' })
+        }
+        if (value.mode === 'video-carousel' && !slide.video) {
+          ctx.addIssue({ code: 'custom', path: ['slides', index, 'video'], message: 'Add a video on this slide.' })
+        }
+      })
+    }),
+  imageSlots: {
+    image: { width: 1280, height: 720 },
+    poster: { width: 1280, height: 720 },
+    'slides.image': { width: 1280, height: 720 },
+  },
   headingProps: ['heading'],
   sample: { heading: 'Keep them warm this winter', subheading: 'Your gift pays for blankets, food and treatment.', image: sampleImage, cta: { label: 'Donate now', href: '#donate' } },
 })
@@ -68,7 +104,7 @@ export const VideoHero = defineBlock({
     useWhen: 'A muted video and a poster frame are already in the library.',
     pairsWith: ['CallToAction', 'DonationEmbed'],
     avoidWhen: 'There is no video, or a still hero will do.',
-    fields: 'heading, subheading, poster image, video id, optional cta.',
+    fields: 'heading, subheading, poster image, video id, optional cta. This is the single clip. Several clips belong on Hero.',
     good: {
       note: 'A short muted clip already in the library, with a still poster and the same clear ask as a still hero.',
       props: { heading: 'Keep them warm this winter', subheading: 'Your gift pays for blankets, food and treatment.', poster: sampleImage, video: SAMPLE_VIDEO_ID, cta: { label: 'Donate now', href: '#donate' } },

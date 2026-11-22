@@ -70,6 +70,24 @@ describe('block AI guides', () => {
     expect(briefing).toContain('Section catalogue')
     expect(listBlockAiSummaries()).toHaveLength(createDefaultRegistry().list().length)
   })
+
+  it('names the four Hero layouts and points several clips at Hero', () => {
+    expect(blocksMissingAiGuide()).toEqual([])
+    const registry = createDefaultRegistry()
+    const hero = registry.get('Hero')!.ai!
+    expect(hero.fields).toMatch(/single photo/i)
+    expect(hero.fields).toMatch(/single video/i)
+    expect(hero.fields).toMatch(/photo carousel/i)
+    expect(hero.fields).toMatch(/video carousel/i)
+    expect(hero.fields).toMatch(/real photo/i)
+    expect(hero.fields).toMatch(/video from the library/i)
+    expect(hero.fields).toContain('Do not stack a Hero and a VideoHero')
+    expect(hero.fields).toContain('Do not invent statistics')
+    expect(hero.good.props).not.toHaveProperty('mode')
+    const video = registry.get('VideoHero')!.ai!
+    expect(video.fields).toMatch(/single clip/i)
+    expect(video.fields).toContain('Several clips belong on Hero')
+  })
 })
 
 describe('recommended and enriched outlines', () => {

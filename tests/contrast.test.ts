@@ -41,8 +41,8 @@ describe('brand pack', () => {
     const fonts = { body: 'system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif', heading: null }
     expect(themeCssFromTokens(DEFAULT_THEME_TOKENS)).toBe(THEME_CSS)
     expect(themeCssFromTokens(DEFAULT_THEME_TOKENS, fonts)).toBe(THEME_CSS)
-    expect(THEME_CSS).not.toContain('--highlight')
-    expect(BUNDLE_ID).toBe('theme-default-4')
+    expect(THEME_CSS).toContain('--highlight')
+    expect(BUNDLE_ID).toBe('theme-default-5')
     expect(defaultBrandDoc().tokens.highlight).toBe('#f3b53f')
 
     const { highlight: _highlight, ...without } = DEFAULT_THEME_TOKENS
