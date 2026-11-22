@@ -4,6 +4,7 @@
 import type { ServiceCtx } from '../context'
 import { AppError } from '../errors'
 import { getSite } from './gateway'
+import { strippedSoul } from '../soul'
 import { PROMPTS, RESOURCES, SERVER_INSTRUCTIONS, SERVER_NAME, SERVER_TITLE } from './mcp-docs'
 import { ERROR_CATALOG, OPERATIONS, callOperation, inputJsonSchema, operationAnnotations, toolDescription } from './operations'
 import type { SignedInAgent } from './tokens'
@@ -79,12 +80,13 @@ export function handleRpc(ctx: ServiceCtx, agent: SignedInAgent, msg: RpcRequest
     case 'tools/call':
       return ok(id, toolResult(ctx, agent, params))
     case 'resources/list':
-      return ok(id, { resources: [{ uri: 'sitebuilder://you', name: 'you', title: 'Your permissions right now', description: 'Live: what this token may do, its rules and rate limits. The same as get_site.', mimeType: 'application/json' }, ...RESOURCES.map(({ uri, name, title, description, mimeType }) => ({ uri, name, title, description, mimeType }))] })
+      return ok(id, { resources: [{ uri: 'sitebuilder://you', name: 'you', title: 'Your permissions right now', description: 'Live: what this token may do, its rules and rate limits. The same as get_site.', mimeType: 'application/json' }, { uri: 'sitebuilder://soul', name: 'soul', title: 'Site personality', description: 'The site tone of voice, with comments removed. Read-only. It does not change what this token may do.', mimeType: 'text/markdown' }, ...RESOURCES.map(({ uri, name, title, description, mimeType }) => ({ uri, name, title, description, mimeType }))] })
     case 'resources/templates/list':
       return ok(id, { resourceTemplates: [] })
     case 'resources/read': {
       const uri = typeof params.uri === 'string' ? params.uri : ''
       if (uri === 'sitebuilder://you') return ok(id, { contents: [{ uri, mimeType: 'application/json', text: JSON.stringify(getSite(ctx, agent), null, 2) }] })
+      if (uri === 'sitebuilder://soul') return ok(id, { contents: [{ uri, mimeType: 'text/markdown', text: strippedSoul(ctx) }] })
       const res = RESOURCES.find((r) => r.uri === uri)
       if (!res) return fail(id, -32002, `No resource ${uri}. Use resources/list.`, { uri })
       return ok(id, { contents: [{ uri, mimeType: res.mimeType, text: res.text() }] })

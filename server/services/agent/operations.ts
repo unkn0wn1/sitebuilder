@@ -98,7 +98,7 @@ export const OPERATIONS: Operation[] = [
       dontUseWhen: ['You already called it in this conversation and nothing has changed.'],
       before: [],
       effect: READ_EFFECT,
-      returns: '`site`, `you` (access, rules, `always_allow` and `always_allow_meaning`, `can_publish_by_yourself`, rate limits), `never_list`, `actions`, `start_here`.',
+      returns: '`site`, `you` (access, rules, `always_allow` and `always_allow_meaning`, `can_publish_by_yourself`, rate limits), `never_list`, `actions`, `start_here`, `personality` (tone of voice only, omitted when empty).',
       example: { input: {}, note: 'No inputs.' },
     },
   }),

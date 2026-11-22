@@ -7,6 +7,7 @@ export const SETTINGS_AREAS: { to: string; label: string; note: string; need: Ac
   { to: '/settings/workflow', label: 'Workflow', note: 'Whether someone can approve their own changes.', need: 'settings.manage', icon: 'approvals' },
   { to: '/settings/integrations', label: 'Integrations', note: 'Cloudflare token and Google Workspace email.', need: 'settings.manage', icon: 'link' },
   { to: '/settings/ai', label: 'AI', note: 'Provider, key, caps, and a test call.', need: 'settings.manage', icon: 'sparkles' },
+  { to: '/settings/ai-personality', label: 'AI personality', note: 'How the assistant writes: tone, spelling, and what it must not invent.', need: 'settings.manage', icon: 'sparkles' },
   { to: '/settings/tracking', label: 'Tracking', note: 'Google Analytics, Tag Manager, Plausible and Cookiebot.', need: 'settings.manage', icon: 'search' },
   { to: '/settings/seo', label: 'SEO and redirects', note: 'Indexing, the default social image, and address redirects.', need: 'settings.manage', icon: 'globe' },
   { to: '/settings/security', label: 'Security', note: 'Which embed providers pages may use.', need: 'settings.manage', icon: 'warning' },

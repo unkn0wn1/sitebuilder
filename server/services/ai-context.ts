@@ -8,6 +8,8 @@ import { getPage } from './pages'
 import type { AiSession } from './ai'
 import { formatBlockAiCatalog, recommendedSections } from '../../shared/ai/block-guide'
 import type { PageUsage } from '../../shared/page-brief'
+import { personalitySection } from '../../shared/soul'
+import { strippedSoul } from './soul'
 
 const SYSTEM = `You are the sitebuilder assistant. You help charity staff write and edit pages in this builder.
 
@@ -24,8 +26,11 @@ If you need a photo, use request_upload or search_media. If a crop is needed, pr
 When you are done, reply with a short summary and, if needed, the next question. If you cannot help, say so politely and point them at what they can do by hand.`
 
 export function buildTurnMessages(ctx: ServiceCtx, actor: ActingAs, session: AiSession, history: ChatHistoryItem[], userText: string) {
+  const section = personalitySection(strippedSoul(ctx))
+  const context = contextBlock(ctx, actor, session)
+  const content = section ? `${SYSTEM}\n\n${section}\n\n${context}` : `${SYSTEM}\n\n${context}`
   return [
-    { role: 'system' as const, content: SYSTEM + '\n\n' + contextBlock(ctx, actor, session) },
+    { role: 'system' as const, content },
     ...history,
     { role: 'user' as const, content: userText },
   ]

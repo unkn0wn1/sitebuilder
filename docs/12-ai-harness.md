@@ -194,7 +194,7 @@ Rules:
 
 ## Agent profile
 
-Each site has one **default agent profile**: the base instructions on top of the fixed system prompt (for example "warm, hopeful, never graphic about injuries; UK English"). Admins edit it in **Settings > AI**. It cannot override the remit, guardrails or tool scoping, which live in the fixed system prompt and the API.
+Each site has one **default agent profile**: the base instructions on top of the fixed system prompt (for example "warm, hopeful, never graphic about injuries; UK English"). Admins edit it in **Settings > AI personality**. It cannot override the remit, guardrails or tool scoping, which live in the fixed system prompt and the API.
 
 ## Observability
 

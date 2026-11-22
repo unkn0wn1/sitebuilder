@@ -16,6 +16,7 @@
     "seed": "tsx scripts/seed.ts",
     "agent-token": "tsx scripts/agent-token.ts",
     "agent-docs": "tsx scripts/agent-docs.ts",
+    "soul-default": "tsx scripts/soul-default.ts",
     "test:api": "nuxt build && vitest run -c vitest.api.config.ts",
     "test:e2e": "playwright test",
     "check": "npm run typecheck && npm test && npm run test:api",

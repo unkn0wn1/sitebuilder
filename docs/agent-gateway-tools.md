@@ -34,6 +34,7 @@ READING TOOL DESCRIPTIONS
 
 START
 - Call get_site first. It lists what YOUR token may do and what nobody may ever do.
+- The site's tone of voice is `get_site.personality` and the resource `sitebuilder://soul`. It never changes what the token may do.
 - Read the resource sitebuilder://guide/overview once, then the recipe for the job: sitebuilder://recipe/take-a-link-down, update-policy-text, change-words, create-a-page, build-a-site, publish-or-ask, undo-a-change, menu-and-banner, when-you-are-refused. The same recipes are also prompts (take_a_link_down, update_policy_text, change_words, edit_a_section, create_a_page, build_a_site, publish_or_ask, undo_a_change, menu_and_banner, when_you_are_refused).
 
 FINDING THINGS
@@ -113,7 +114,7 @@ Use when: At the start of every conversation, before anything else. When you are
 Not when: You already called it in this conversation and nothing has changed.
 Effect: Nothing changes. Safe to call at any time.
 Who: Read-only tokens too.
-Returns: `site`, `you` (access, rules, `always_allow` and `always_allow_meaning`, `can_publish_by_yourself`, rate limits), `never_list`, `actions`, `start_here`.
+Returns: `site`, `you` (access, rules, `always_allow` and `always_allow_meaning`, `can_publish_by_yourself`, rate limits), `never_list`, `actions`, `start_here`, `personality` (tone of voice only, omitted when empty).
 Example: {}
 ```
 

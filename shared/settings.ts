@@ -3,6 +3,7 @@
 import { z } from 'zod'
 import { DEFAULT_XAI_MODEL, normaliseAiSettings } from './ai-models'
 import { cloneDraft } from './clone'
+import { SOUL_RAW_MAX } from './soul'
 
 const id = (re: RegExp, example: string) => z.string().trim().regex(re, `Should look like ${example}.`)
 
@@ -67,6 +68,8 @@ export const siteSettingsSchema = z
         sessionCapPence: 200,
         requestCapPence: 50,
       }),
+    /** Assistant personality. Null means the shipped default. Changed through PUT /settings/soul, not PATCH /settings. */
+    soul: z.string().max(SOUL_RAW_MAX).nullable().default(null),
     mail: z
       .object({
         from: z.string().trim().toLowerCase().max(254).nullable().default(null),

@@ -196,6 +196,7 @@ On connect the MCP server sends instructions, and offers:
 
 - **Tools**: 37 of them, each with a long description (what, when, when not, before, effect, permission, returns, errors, example) and a full input schema with a description and example on every field.
 - **Resources**: guides at `sitebuilder://guide/overview`, `tools`, `rules`, `content-model`, `markdown`, `errors`, and `sitebuilder://you` (its own live permissions).
+- `get_site.personality` and `sitebuilder://soul` are read-only tone, agents cannot change settings, and an approved `update_soul` is the follow-up that would let a person accept a new personality.
 - **Prompts and recipes**, with the same text as resources at `sitebuilder://recipe/<name>`: `take_a_link_down`, `update_policy_text`, `change_words`, `edit_a_section`, `create_a_page`, `publish_or_ask`, `undo_a_change`, `menu_and_banner`, `when_you_are_refused`.
 
 All of it is reproduced in [agent-gateway-tools.md](agent-gateway-tools.md) so a person can read what the AI reads.

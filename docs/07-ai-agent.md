@@ -91,6 +91,10 @@ This is the one place the agent produces code, and it never reaches the live sit
 - Should accepted variants be offered back to the shared open-source block library?
 - Screenshot plus HTML, or HTML and CSS only?
 
+## Personality
+
+Admins edit the assistant's voice in **Settings > AI personality**. A stored `null` means the shipped default. The assistant sees at most 48,000 characters. Comments in the text are stripped, including comments inside fenced code blocks, and are not counted. The personality is added to the assistant and the page-brief writer. It is not added to alt text or the connection test.
+
 ## Model and cost
 
 - Bring your own key. Support OpenAI-compatible APIs first (which covers many providers and local models), with others added as adapters.
