@@ -122,6 +122,11 @@ export class PageEditor {
   leftTab: LeftTab = 'add'
   inspectorTab: InspectorTab = 'page'
   device: Device = 'desktop'
+  /**
+   * Valid section CSS the person is typing. The preview injects it until the rendered HTML includes the same text.
+   * Invalid CSS stays in the field and is not stored here.
+   */
+  cssPreview: { blockId: string; css: string } | null = null
   railCollapsed = false
   pending: Op[] = []
   undoStack: UndoEntry[] = []

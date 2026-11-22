@@ -53,6 +53,14 @@ describe('CSS sanitiser rejections', () => {
     ['src external url', `a { background: src(url(https://evil.example/${MARKER}.png)) }`, 'images from this site'],
     ['src protocol-relative string', `a { background: src("//evil.example/${MARKER}.png") }`, 'images from this site'],
     ['src external raw', `a { background: src(https://evil.example/${MARKER}.png) }`, 'images from this site'],
+    ['image-set external raw', `a { background: image-set(https://evil.example/${MARKER}.png 1x) }`, 'images from this site'],
+    ['image-set protocol-relative raw', `a { background: image-set(//evil.example/${MARKER}.png 1x) }`, 'images from this site'],
+    ['webkit image-set external raw', `a { background: -webkit-image-set(https://evil.example/${MARKER}.png 1x) }`, 'images from this site'],
+    ['webkit image-set protocol-relative raw', `a { background: -webkit-image-set(//evil.example/${MARKER}.png 1x) }`, 'images from this site'],
+    ['src protocol-relative raw', `a { background: src(//evil.example/${MARKER}.png) }`, 'images from this site'],
+    ['raw https scheme', `a { --bg: https://evil.example/${MARKER}.png }`, 'images from this site'],
+    ['raw http scheme', `a { --bg: http:${MARKER} }`, 'images from this site'],
+    ['raw protocol-relative', `a { --bg: //evil.example/${MARKER}.png }`, 'images from this site'],
     ['font-face', `@font-face { font-family: ${MARKER}; src: url(https://evil.example/a.woff) }`, '@font-face'],
     ['charset', `@charset "${MARKER}";`, '@charset'],
     ['namespace', `@namespace ${MARKER} url(https://evil.example/);`, '@namespace'],
@@ -104,6 +112,9 @@ describe('CSS sanitiser rejections', () => {
     allow('a { background: src(url(/media/med_00000000000000000000000001)) }')
     allow('a { background: url(data:image/png;base64,iVBORw0KGgo=) }')
     allow('a { background: url(data:image/svg+xml;base64,PHN2Zy8+) }')
+    allow('a { --x: 1 }')
+    allow('a { --x: foo }')
+    allow('a { --bg: 1rem }')
     allow(':root { color: red }')
     allow('body .wrap { color: red }')
     allow('& { background: #f6f1ea }')

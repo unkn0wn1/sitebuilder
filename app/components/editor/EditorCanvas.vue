@@ -51,6 +51,7 @@ const withIssues = computed(() => Object.keys(marks.value).length)
         :path="editor.path"
         :selected-id="editor.selectedId"
         :marks="marks"
+        :live-css="editor.cssPreview"
         @select="(id) => editor.select(id)"
       />
     </div>

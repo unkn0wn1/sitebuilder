@@ -4,6 +4,7 @@ import { canvasScale, timeAgo } from '../app/utils/format'
 import { PageEditor, type EditorApi, type EditorSnapshot, type OpsResult } from '../app/utils/page-editor'
 import { newId } from '../shared/ids'
 import { applyOps, OpError, opsRequestSchema, type Op, type PageMeta } from '../shared/ops'
+import { assessCssBuffer, shouldInjectLiveCss } from '../shared/css/buffer'
 import { emptyPageDoc, type PageDoc } from '../shared/page'
 import { blockRegistry } from '../app/utils/block-fields'
 import { richTextFromParagraphs } from '../shared/richtext'
@@ -490,6 +491,45 @@ describe('saving never gets stuck', () => {
     await ed.flush()
     expect(api.state.doc.blocks[0]!.props).toMatchObject({ text: 'First', attribution: 'Typed while saving' })
     ed.dispose()
+  })
+})
+
+describe('custom CSS buffer', () => {
+  it('sends a new valid rule and injects it only while the preview is behind', () => {
+    const css = '& { background: #f6f1ea; }'
+    const next = assessCssBuffer({ buffer: css, saved: '', scope: 'section', sectionId: 'b_css01' })
+    expect(next.error).toBeNull()
+    expect(next.save).toBe(css)
+    expect(next.live).toEqual({ blockId: 'b_css01', css })
+    expect(shouldInjectLiveCss('', next.live)).toBe(true)
+    expect(shouldInjectLiveCss(css, next.live)).toBe(false)
+  })
+
+  it('does not send or inject when the text already matches the section', () => {
+    const css = '.wrap { padding-block: 4rem; }'
+    const next = assessCssBuffer({ buffer: css, saved: css, scope: 'section', sectionId: 'b_css01' })
+    expect(next.save).toBeNull()
+    expect(next.live).toEqual({ blockId: 'b_css01', css })
+    expect(shouldInjectLiveCss(css, next.live)).toBe(false)
+  })
+
+  it('keeps invalid CSS out of the save and the preview', () => {
+    const next = assessCssBuffer({
+      buffer: 'a { background: url(javascript:MARKER9f3c) }',
+      saved: '.a { color: red }',
+      scope: 'section',
+      sectionId: 'b_css01',
+    })
+    expect(next.error).toMatch(/^Line \d+, column \d+:/)
+    expect(next.error).not.toContain('MARKER9f3c')
+    expect(next.save).toBeNull()
+    expect(next.live).toBeNull()
+    expect(shouldInjectLiveCss('.a { color: red }', next.live)).toBe(false)
+  })
+
+  it('clears a saved sheet with a blank buffer and leaves an empty one alone', () => {
+    expect(assessCssBuffer({ buffer: '  \n', saved: '.a { color: red }', scope: 'section', sectionId: 'b_css01' })).toMatchObject({ error: null, save: '', live: null })
+    expect(assessCssBuffer({ buffer: '', saved: '', scope: 'section', sectionId: 'b_css01' }).save).toBeNull()
   })
 })
 

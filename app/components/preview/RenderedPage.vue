@@ -6,6 +6,7 @@ import type { PageDoc } from '#shared/page'
 import { api, ApiError } from '../../utils/api'
 import { canvasScale } from '../../utils/format'
 import { mediaVersion } from '../../utils/media'
+import { shouldInjectLiveCss } from '#shared/css/live'
 import { DEVICE_WIDTHS, type Device } from '../../utils/page-editor'
 
 export type BlockMark = 'added' | 'changed' | 'issue'
@@ -26,8 +27,13 @@ const props = withDefaults(
     gutter?: number
     /** Sections can be clicked to select them (the editor). Off for read-only previews. */
     selectable?: boolean
+    /**
+     * Section CSS the person is typing. Injected into the open frame when it is valid and the
+     * rendered HTML does not already contain that same text. Null leaves the server HTML as it is.
+     */
+    liveCss?: { blockId: string; css: string } | null
   }>(),
-  { selectedId: null, marks: () => ({}), gutter: 48, pageId: undefined, path: undefined, selectable: true, doc: undefined, endpoint: '/preview/render', payload: undefined },
+  { selectedId: null, marks: () => ({}), gutter: 48, pageId: undefined, path: undefined, selectable: true, doc: undefined, endpoint: '/preview/render', payload: undefined, liveCss: null },
 )
 const emit = defineEmits<{ select: [id: string | null]; rendered: [doc: Document]; meta: [meta: Record<string, unknown>] }>()
 
@@ -57,6 +63,44 @@ let observer: ResizeObserver | null = null
 let timer: ReturnType<typeof setTimeout> | null = null
 let inFlight = false
 let again = false
+/** CSS that was on the document when each frame's HTML was requested. */
+const frameCss: Map<string, string>[] = [new Map(), new Map()]
+let shownCss = new Map<string, string>()
+let liveGen = 0
+
+function cssSnapshot(): Map<string, string> {
+  const map = new Map<string, string>()
+  for (const block of props.doc?.blocks ?? []) map.set(block.id, block.css ?? '')
+  return map
+}
+
+async function applyLiveCss(doc: Document | null) {
+  const gen = ++liveGen
+  if (!doc?.head) return
+  const existing = doc.querySelector('style[data-sb-preview-css]')
+  const live = props.liveCss ?? null
+  const shown = live ? (shownCss.get(live.blockId) ?? '') : ''
+  if (!shouldInjectLiveCss(shown, live) || !live) {
+    existing?.remove()
+    return
+  }
+  const { sanitizeCss } = await import('#shared/css/sanitize')
+  if (gen !== liveGen) return
+  let emitted = ''
+  try {
+    emitted = sanitizeCss(live.css, { scope: 'section', sectionId: live.blockId, mode: 'emit' })
+  } catch {
+    if (gen === liveGen) existing?.remove()
+    return
+  }
+  if (gen !== liveGen) return
+  const block = doc.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(live.blockId)}"]`)
+  if (block) block.setAttribute('data-sb-css', live.blockId)
+  const style = (existing as HTMLStyleElement | null) ?? doc.createElement('style')
+  style.setAttribute('data-sb-preview-css', '')
+  style.textContent = emitted
+  if (!style.parentNode) doc.head.appendChild(style)
+}
 
 function measureHost() {
   available.value = host.value?.clientWidth ?? 1280
@@ -70,10 +114,13 @@ async function render() {
   inFlight = true
   try {
     const body = props.payload ? toRaw(props.payload) : { doc: toRaw(props.doc), pageId: props.pageId, path: props.path }
+    const snapshot = cssSnapshot()
     const { html, ...meta } = await api<{ html: string } & Record<string, unknown>>(props.endpoint, { method: 'POST', body })
     error.value = ''
     emit('meta', meta)
-    const frame = frameEls[1 - front.value]!.value
+    const hidden = 1 - front.value
+    frameCss[hidden] = snapshot
+    const frame = frameEls[hidden]!.value
     if (frame) frame.srcdoc = html
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : 'The preview could not be updated.'
@@ -145,6 +192,8 @@ function onLoad(i: number) {
   )
   doc.addEventListener('submit', (e) => e.preventDefault(), true)
   applyMarks(doc)
+  shownCss = frameCss[i] ?? new Map()
+  void applyLiveCss(doc)
   const size = () => {
     heights[i] = Math.max(200, doc.documentElement.scrollHeight)
   }
@@ -182,6 +231,7 @@ defineExpose({ scrollToBlock, scrollToSelector, frameDocument })
 watch(() => [props.doc, props.payload], () => schedule(), { deep: true })
 watch(() => [props.pageId, props.path, mediaVersion.value], () => schedule(0))
 watch(() => [props.selectedId, props.marks], () => applyMarks(docOf(front.value)), { deep: true })
+watch(() => props.liveCss, () => void applyLiveCss(docOf(front.value)), { deep: true })
 watch(
   () => props.selectedId,
   (id) => id && nextTick(() => scrollToBlock(id)),
