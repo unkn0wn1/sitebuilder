@@ -133,7 +133,9 @@ A template is a set of rules, not a fixed layout:
 
 ## Starter blocks (MVP)
 
-Hero, VideoHero (poster plus a muted looping video), RichText, TextAndImage, Image, Gallery, Quote, Stats, CardGrid, CallToAction, FAQ, DonationEmbed, Embed (allow-listed), ImpactTiers (tier buttons scroll to `#donate` and pre-fill the Virtuous form via documented `amount` and `frequency` URL params plus `RaiseDonorsForms.settings.giftInfo`, with a highlighted amount hint as fallback), DonationProgress, MatchBanner, StoryBeforeAfter, TrustStrip, plus the header and footer from the shell.
+Hero (a single photo, a single video, a photo carousel, or a video carousel), VideoHero (a single muted looping video with a poster), RichText, TextAndImage, Image, Gallery, Quote, Stats, CardGrid, CallToAction, FAQ, DonationEmbed, Embed (allow-listed), ImpactTiers (tier buttons scroll to `#donate` and pre-fill the Virtuous form via documented `amount` and `frequency` URL params plus `RaiseDonorsForms.settings.giftInfo`, with a highlighted amount hint as fallback), DonationProgress, MatchBanner, StoryBeforeAfter, TrustStrip, plus the header and footer from the shell.
+
+Hero's `mode`, `video`, `poster` and `slides` props were added on version 1, with no migration. Documents that omit them still validate, because `mode` defaults to `image` and the other fields are optional. That follows the rule already in [ADR 0010](decisions/0010-zod-versioned-blocks-structured-rich-text.md) and [Schema versions and migrations](#schema-versions-and-migrations): the version goes up only when a change would make old content fail. Without JavaScript a carousel keeps the first slide visible and hides the controls. The page references `/hero.js` only when a Hero is in a carousel mode with at least two slides, and the release writes that file only then. The look of these blocks is in [11-theming.md](11-theming.md).
 
 ## Open questions
 
