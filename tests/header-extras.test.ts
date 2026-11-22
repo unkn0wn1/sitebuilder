@@ -1,7 +1,8 @@
 import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'vitest'
 import { HEADER_JS, THEME_CSS, renderPageHtml, styleHash, type RenderedPage, type SiteRenderContext } from '../server/services/render'
-import { BUNDLE_ID, OVER_HERO_CSS, TILE_CSS } from '../shared/theme-css'
+import { defaultBrandDoc } from '../shared/brand'
+import { BUNDLE_ID, OVER_HERO_CSS, TILE_CSS, themeCssFromTokens } from '../shared/theme-css'
 import type { MediaCatalogEntry } from '../server/services/render'
 import { defaultSitePartDoc, type HeaderDoc, type MenuDoc } from '../shared/site-parts'
 import { emptyPageDoc } from '../shared/page'
@@ -90,6 +91,38 @@ describe('see-through header', () => {
     const missing = await render({ header: { id: 'sp_header', doc: omitted as HeaderDoc } })
     expect(explicit.html).toBe(missing.html)
     expect(explicit.csp).toBe(missing.csp)
+  })
+
+  it('appends a see-through override only for a paper or ink that is not the default', async () => {
+    const defaults = defaultBrandDoc()
+    const headerOn = { id: 'sp_header', doc: header({ overHero: true, appearance: 'dark' }) }
+    const stock = await render({ header: headerOn, brand: defaults, themeCss: themeCssFromTokens(defaults.tokens, defaults.fonts) })
+    expect(styleOf(stock.html)).toBe(THEME_CSS + OVER_HERO_CSS)
+    expect(stock.csp).toContain(styleHash(styleOf(stock.html)))
+
+    const ink = { ...defaults, tokens: { ...defaults.tokens, ink: '#102030' } }
+    const inkCss = themeCssFromTokens(ink.tokens, ink.fonts)
+    const inkPage = await render({ header: headerOn, brand: ink, themeCss: inkCss })
+    const scrim = '\n.site-header-over.js-over { background: linear-gradient(to bottom, color-mix(in srgb, var(--ink) 60%, transparent), color-mix(in srgb, var(--ink) 0%, transparent)); }\n'
+    expect(styleOf(inkPage.html)).toBe(inkCss + OVER_HERO_CSS + scrim)
+    expect(styleOf(inkPage.html)).toContain('.site-header-dark.site-header-over.js-over:not(.is-solid) .site-title { background: transparent;')
+    expect(styleOf(inkPage.html)).not.toContain('.ft-logo { background: var(--paper); }')
+    expect(styleOf(inkPage.html)).not.toContain('#112233')
+    expect(inkPage.csp).toContain(styleHash(styleOf(inkPage.html)))
+
+    const paper = { ...defaults, tokens: { ...defaults.tokens, paper: '#fff1e0' } }
+    const paperCss = themeCssFromTokens(paper.tokens, paper.fonts)
+    const paperPage = await render({ header: headerOn, brand: paper, themeCss: paperCss })
+    const pill = '\n.site-header-over.js-over:not(.is-solid) .site-title { background: var(--paper); }\n'
+    expect(styleOf(paperPage.html)).toBe(paperCss + OVER_HERO_CSS + pill)
+    expect(styleOf(paperPage.html)).toContain('background: transparent;')
+    expect(paperPage.csp).toContain(styleHash(styleOf(paperPage.html)))
+
+    const accent = { ...defaults, tokens: { ...defaults.tokens, accent: '#113399' } }
+    const accentCss = themeCssFromTokens(accent.tokens, accent.fonts)
+    const accentPage = await render({ header: headerOn, brand: accent, themeCss: accentCss })
+    expect(styleOf(accentPage.html)).toBe(accentCss + OVER_HERO_CSS)
+    expect(accentPage.csp).toContain(styleHash(styleOf(accentPage.html)))
   })
 })
 

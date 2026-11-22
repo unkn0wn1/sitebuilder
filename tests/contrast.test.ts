@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { contrastRatio, contrastWarning } from '../shared/contrast'
-import { brandContrastChecks, defaultBrandDoc } from '../shared/brand'
-import { themeCssFromTokens, DEFAULT_THEME_TOKENS, THEME_CSS } from '../shared/theme-css'
+import { brandContrastChecks, defaultBrandDoc, validateBrandDoc } from '../shared/brand'
+import { themeCssFromTokens, BUNDLE_ID, DEFAULT_THEME_TOKENS, THEME_CSS } from '../shared/theme-css'
 
 describe('contrast', () => {
   it('gives black on white 21:1 and warns when a pair is too faint', () => {
@@ -27,5 +27,22 @@ describe('brand pack', () => {
     expect(css).toContain('.site-header')
     expect(css).toContain('.nav-hamburger')
     expect(THEME_CSS).toContain('--accent: #b5471d;')
+  })
+
+  it('keeps the default theme byte-identical and fills highlight on an old brand doc', () => {
+    const fonts = { body: 'system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif', heading: null }
+    expect(themeCssFromTokens(DEFAULT_THEME_TOKENS)).toBe(THEME_CSS)
+    expect(themeCssFromTokens(DEFAULT_THEME_TOKENS, fonts)).toBe(THEME_CSS)
+    expect(THEME_CSS).not.toContain('--highlight')
+    expect(BUNDLE_ID).toBe('theme-default-4')
+    expect(defaultBrandDoc().tokens.highlight).toBe('#f3b53f')
+
+    const { highlight: _highlight, ...without } = DEFAULT_THEME_TOKENS
+    void _highlight
+    const parsed = validateBrandDoc({ schemaVersion: 1, tokens: without })
+    expect(parsed.ok).toBe(true)
+    if (!parsed.ok) return
+    expect(parsed.doc.tokens.highlight).toBe('#f3b53f')
+    expect(parsed.doc.tokens.ink).toBe(DEFAULT_THEME_TOKENS.ink)
   })
 })

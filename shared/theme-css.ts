@@ -10,6 +10,8 @@ export const DEFAULT_THEME_TOKENS = {
   band: '#f3ebe1',
   urgent: '#8b1e1e',
   celebrate: '#2e5a3c',
+  // Footer gold only. Not written into :root, so the default theme CSS stays byte-identical.
+  highlight: '#f3b53f',
 } as const
 export type ThemeTokens = { [K in keyof typeof DEFAULT_THEME_TOKENS]: string }
 
@@ -330,7 +332,8 @@ export const TILE_CSS = `
 `
 
 
-/** Build public CSS from a brand pack, keeping the default rules and swapping tokens and fonts. */
+/** Build public CSS from a brand pack, keeping the default rules and swapping tokens and fonts.
+ *  The :root list is written out by hand. `highlight` is omitted on purpose: it is not a theme variable. */
 export function themeCssFromTokens(tokens: ThemeTokens, fonts?: { body: string; heading: string | null }): string {
   const root = `:root {
   --ink: ${tokens.ink};
@@ -349,4 +352,27 @@ export function themeCssFromTokens(tokens: ThemeTokens, fonts?: { body: string; 
   if (fonts?.body) css = css.replace(/font-family: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;/, `font-family: ${fonts.body};`)
   if (fonts?.heading) css += `\nh1, h2, h3, h4, .site-title, .hero h1 { font-family: ${fonts.heading}; }\n`
   return css
+}
+
+const HEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
+
+function tokenDiffers(value: string | undefined, fallback: string): boolean {
+  if (!value || !HEX.test(value)) return false
+  return value.toLowerCase() !== fallback.toLowerCase()
+}
+
+/** Rules appended after option CSS so a changed brand colour wins. Empty when the token matches the default, or that option is off. */
+export function brandChromeCss(tokens: Pick<ThemeTokens, 'ink' | 'paper' | 'highlight'> | null | undefined, opts: { columns: boolean; overHero: boolean }): string {
+  if (!tokens) return ''
+  const parts: string[] = []
+  if (opts.columns && tokenDiffers(tokens.paper, DEFAULT_THEME_TOKENS.paper)) parts.push('.ft-logo { background: var(--paper); }')
+  if (opts.columns && tokenDiffers(tokens.highlight, DEFAULT_THEME_TOKENS.highlight)) {
+    parts.push(`.site-footer-cols::before { background: linear-gradient(90deg, var(--accent), ${tokens.highlight}, var(--accent)); }`)
+    parts.push(`.ft-tag em { color: ${tokens.highlight}; }`)
+  }
+  if (opts.overHero && tokenDiffers(tokens.paper, DEFAULT_THEME_TOKENS.paper)) parts.push('.site-header-over.js-over:not(.is-solid) .site-title { background: var(--paper); }')
+  if (opts.overHero && tokenDiffers(tokens.ink, DEFAULT_THEME_TOKENS.ink)) {
+    parts.push('.site-header-over.js-over { background: linear-gradient(to bottom, color-mix(in srgb, var(--ink) 60%, transparent), color-mix(in srgb, var(--ink) 0%, transparent)); }')
+  }
+  return parts.length ? `\n${parts.join('\n')}\n` : ''
 }

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { emptyPageDoc } from '../shared/page'
 import { richTextFromParagraphs } from '../shared/richtext'
-import { BANNER_ACCENT_CSS, FOOTER_COLUMNS_CSS, HEART_CSS, UTILITY_CSS } from '../shared/theme-css'
+import { defaultBrandDoc } from '../shared/brand'
+import { BANNER_ACCENT_CSS, FOOTER_COLUMNS_CSS, HEART_CSS, UTILITY_CSS, themeCssFromTokens } from '../shared/theme-css'
 import { defaultSitePartDoc, validateSitePartDoc, type BannerDoc, type FooterDoc, type HeaderDoc, type HeaderStyle, type MenuDoc } from '../shared/site-parts'
 import { THEME_CSS, renderPageHtml, styleHash, type RenderedPage, type SiteRenderContext } from '../server/services/render'
 
@@ -214,6 +215,48 @@ describe('optional shell parts', () => {
     expect(light.html).toContain('>Get in touch</h3>')
     expect(light.html).toContain('>Find out more</h3>')
     expect(light.html).not.toContain('Charity number')
+  })
+
+  it('keeps the columns CSS exact for the default brand, and appends only the colour that changed', async () => {
+    const footer = { id: 'sp_footer', doc: { ...(defaultSitePartDoc('footer') as FooterDoc), layout: 'columns' as const } }
+    const plain = await render({ header: null, footer })
+    expectFullCss(plain, FOOTER_COLUMNS_CSS)
+
+    const defaults = defaultBrandDoc()
+    const withDefault = await render({ header: null, footer, brand: defaults, themeCss: themeCssFromTokens(defaults.tokens, defaults.fonts) })
+    expectFullCss(withDefault, FOOTER_COLUMNS_CSS)
+
+    const samePaper = { ...defaults, tokens: { ...defaults.tokens, paper: '#FFFAF3' } }
+    const folded = await render({ header: null, footer, brand: samePaper, themeCss: themeCssFromTokens(samePaper.tokens, samePaper.fonts) })
+    expect(styleOf(folded.html)).toBe(themeCssFromTokens(samePaper.tokens, samePaper.fonts) + FOOTER_COLUMNS_CSS)
+
+    const paper = { ...defaults, tokens: { ...defaults.tokens, paper: '#fff1e0' } }
+    const paperCss = themeCssFromTokens(paper.tokens, paper.fonts)
+    const paperPage = await render({ header: null, footer, brand: paper, themeCss: paperCss })
+    const paperOverride = '\n.ft-logo { background: var(--paper); }\n'
+    expect(styleOf(paperPage.html)).toBe(paperCss + FOOTER_COLUMNS_CSS + paperOverride)
+    expect(styleOf(paperPage.html)).toContain('#f3b53f')
+    expect(styleOf(paperPage.html)).not.toContain('color-mix(in srgb, var(--ink) 60%')
+    expect(paperPage.csp).toContain(styleHash(styleOf(paperPage.html)))
+
+    const gold = { ...defaults, tokens: { ...defaults.tokens, highlight: '#112233' } }
+    const goldCss = themeCssFromTokens(gold.tokens, gold.fonts)
+    const goldPage = await render({ header: null, footer, brand: gold, themeCss: goldCss })
+    const goldOverride = '\n.site-footer-cols::before { background: linear-gradient(90deg, var(--accent), #112233, var(--accent)); }\n.ft-tag em { color: #112233; }\n'
+    expect(styleOf(goldPage.html)).toBe(goldCss + FOOTER_COLUMNS_CSS + goldOverride)
+    expect(styleOf(goldPage.html)).not.toContain('.ft-logo { background: var(--paper); }')
+    expect(goldPage.csp).toContain(styleHash(styleOf(goldPage.html)))
+
+    const accent = { ...defaults, tokens: { ...defaults.tokens, accent: '#113399' } }
+    const accentCss = themeCssFromTokens(accent.tokens, accent.fonts)
+    const accentPage = await render({ header: null, footer, brand: accent, themeCss: accentCss })
+    expect(styleOf(accentPage.html)).toBe(accentCss + FOOTER_COLUMNS_CSS)
+    expect(styleOf(accentPage.html)).toContain('#f3b53f')
+    expect(accentPage.csp).toContain(styleHash(styleOf(accentPage.html)))
+
+    const inkOnly = { ...defaults, tokens: { ...defaults.tokens, ink: '#102030' } }
+    const inkPage = await render({ header: null, footer, brand: inkOnly, themeCss: themeCssFromTokens(inkOnly.tokens, inkOnly.fonts) })
+    expect(styleOf(inkPage.html)).toBe(themeCssFromTokens(inkOnly.tokens, inkOnly.fonts) + FOOTER_COLUMNS_CSS)
   })
 
   it('renders an accent banner only when the strip is on, with a matching CSP hash', async () => {
