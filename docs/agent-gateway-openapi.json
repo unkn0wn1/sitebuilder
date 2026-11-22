@@ -3118,6 +3118,168 @@
         }
       }
     },
+    "/edits/menu/set-tile": {
+      "post": {
+        "operationId": "set_menu_item_tile",
+        "summary": "Set or clear a photo tile on a mega-menu sub-item.",
+        "description": "Set or clear a photo tile on a mega-menu sub-item. Sets the featured flag and the photo on one sub-item. Only the fields you give change. It works only when the draft header style is mega and menu_key is that header's menu; otherwise nothing is written. At most 5 featured tiles on one item. The photo is a library media id plus alt text, unless decorative is true. null image removes the photo. False featured removes the flag.\nUse when: The person wants a photo tile in the mega menu, or wants one taken down.\nNot when: The header is not mega, or this is not the header's menu. Adding, removing or renaming the item itself.\nFirst: get_site_part for the header (style and menu) and for the sub-item id. list_media for a real media id. Alt text must describe the photo, unless it is decorative.\nEffect: Sets the tile. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish).\nWho: Draft tokens. Rule action: \"edit_menu\".\nReturns: The change reply (see REPLIES in the server instructions) plus `result` (what this call did). `result.menu_now`.\nExample: {\"item_id\":\"b_tile0001\",\"featured\":true,\"image\":{\"media_id\":\"med_01KABCDEFGHJKMNPQRSTVWXYZ0\",\"alt\":\"A row of kennels in the rescue yard.\"},\"reason\":\"The owner asked for a photo tile on Kennel in the mega menu.\"}",
+        "tags": [
+          "Edit (drafts)"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The change reply (see REPLIES in the server instructions) plus `result` (what this call did). `result.menu_now`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "item_id": "b_tile0001",
+          "featured": true,
+          "image": {
+            "media_id": "med_01KABCDEFGHJKMNPQRSTVWXYZ0",
+            "alt": "A row of kennels in the rescue yard."
+          },
+          "reason": "The owner asked for a photo tile on Kennel in the mega menu."
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "menu_key": {
+                    "default": "main",
+                    "description": "Which menu. Default \"main\". Other menus (for example \"legal\") are listed by get_site_part with kind \"menu\".",
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "item_id": {
+                    "description": "The menu item id from get_site_part (kind \"menu\"). Give this or `label`.",
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "label": {
+                    "description": "The words on the menu item (case-insensitive, exact). If two items share the words you get an error listing their ids.",
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "featured": {
+                    "description": "True shows this sub-item as a photo tile in the mega menu. False removes that flag. Leave out to keep it. At most 5 tiles per menu item.",
+                    "type": "boolean"
+                  },
+                  "image": {
+                    "description": "The tile photo: { \"media_id\", \"alt\" }, or { \"media_id\", \"decorative\": true }. null removes the photo. Leave out to keep it. Alt text is required unless decorative is true.",
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "media_id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 80,
+                            "description": "A media id from list_media or get_media_import. Photos and videos already in the library are both allowed.",
+                            "examples": [
+                              "med_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                            ]
+                          },
+                          "alt": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 250,
+                            "description": "What the photo shows, for people who cannot see it, in one plain sentence (up to 250 characters). Describe only what is visible. Required unless decorative is true.",
+                            "examples": [
+                              "A brown street dog with a bandaged leg resting on a blanket."
+                            ]
+                          },
+                          "decorative": {
+                            "description": "True if the photo adds nothing for someone who cannot see it (a pattern, a texture). Then no alt text is needed.",
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "media_id"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "change_id": {
+                    "description": "An open change id from an earlier edit, to add this edit to it (reviewed and published together). Leave out to start a new change; changes in review, published or discarded cannot be added to.",
+                    "examples": [
+                      "chg_01KABCDEFGHJKMNPQRSTVWXYZ0"
+                    ],
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 500,
+                    "description": "Who asked and what they asked, in one or two plain sentences of your own (see REASON in the server instructions). Never paste website text here.",
+                    "examples": [
+                      "The owner asked in chat to take down the link to old-partner.example.org because the partnership ended."
+                    ]
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "example": {
+                "item_id": "b_tile0001",
+                "featured": true,
+                "image": {
+                  "media_id": "med_01KABCDEFGHJKMNPQRSTVWXYZ0",
+                  "alt": "A row of kennels in the rescue yard."
+                },
+                "reason": "The owner asked for a photo tile on Kennel in the mega menu."
+              }
+            }
+          }
+        }
+      }
+    },
     "/edits/banner": {
       "post": {
         "operationId": "set_banner",
@@ -3427,8 +3589,8 @@
     "/edits/footer": {
       "post": {
         "operationId": "set_footer",
-        "summary": "Change the footer words, contact details, social links, tagline, layout, links menu or charity number.",
-        "description": "Change the footer words, contact details, social links, tagline, layout, links menu or charity number. Changes the site-wide footer. Only the fields you give change. You can set the layout (\"simple\" or \"columns\"), the tagline, the column headings, which existing menu fills the links column (links_menu_key), the small print and the charity number. You cannot change colours or the logo: those stay with people in the builder. Links inside the links menu are menu items: use the menu tools.\nUse when: The contact email, phone or address changed. A social profile was added, moved or closed. The about text, tagline, small print or charity number needs new words. The footer should use the columns layout, or its links column should show a menu that already exists.\nNot when: A link in the footer links column: those are a menu (get_site_part kind \"footer\" shows linksMenuKey; use the menu tools). Colours or the logo: a person does that in the builder.\nFirst: get_site_part with kind \"footer\", so you see what is there now (especially the social list, which you send back whole). Contact details and charity numbers must come from the person, word for word. Never guess them.\nEffect: Changes the footer. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish).\nWho: Draft tokens. Rule action: \"edit_footer\".\nReturns: The change reply (see REPLIES in the server instructions) plus `result` (what this call did). `result.changed` (the fields changed) and `result.footer_now`.\nExample: {\"contact\":{\"phone\":\"+91 98290 00000\"},\"reason\":\"The owner gave the new helpline number for the footer.\"}",
+        "summary": "Change the footer words, contact, social links, tagline, layout, menus or charity number.",
+        "description": "Change the footer words, contact, social links, tagline, layout, menus or charity number. Changes the site-wide footer. Only the fields you give change. You can set the layout (\"simple\" or \"columns\"), the tagline, the column headings, which existing menu fills the links column (links_menu_key) or the legal links (legal_menu_key), the small print and the charity number. null or \"\" clears a menu key. You cannot change colours or the logo: those stay with people in the builder. Links inside those menus are menu items: use the menu tools.\nUse when: The contact email, phone or address changed. A social profile was added, moved or closed. The about text, tagline, small print or charity number needs new words. The footer links or legal links should show a menu that already exists.\nNot when: A link in the footer links column: those are a menu (get_site_part kind \"footer\" shows linksMenuKey; use the menu tools). Colours or the logo: a person does that in the builder.\nFirst: get_site_part with kind \"footer\", so you see what is there now (especially the social list, which you send back whole). Contact details and charity numbers must come from the person, word for word. Never guess them.\nEffect: Changes the footer. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish).\nWho: Draft tokens. Rule action: \"edit_footer\".\nReturns: The change reply (see REPLIES in the server instructions) plus `result` (what this call did). `result.changed` (the fields changed) and `result.footer_now`.\nExample: {\"contact\":{\"phone\":\"+91 98290 00000\"},\"reason\":\"The owner gave the new helpline number for the footer.\"}",
         "tags": [
           "Edit (drafts)"
         ],
@@ -3629,6 +3791,18 @@
                   },
                   "links_menu_key": {
                     "description": "The key of an existing menu shown as the links column. null or \"\" removes it. Use get_site_part with kind \"menu\" for the keys.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "legal_menu_key": {
+                    "description": "The key of an existing menu shown as the legal links (privacy, terms). null or \"\" removes it. Same rules as links_menu_key.",
                     "anyOf": [
                       {
                         "type": "string",

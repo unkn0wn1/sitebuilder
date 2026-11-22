@@ -33,6 +33,7 @@ import type { ServiceCtx } from '../context'
 import { AppError, notFound } from '../errors'
 import { createPage, getPage, listPages, readDoc, requirePage } from '../pages'
 import { getTemplateRules, listTemplates } from '../templates'
+import { getMedia } from '../media'
 import { getSitePart, readSitePartDoc } from '../site-parts'
 import {
   changeTargets,
@@ -950,6 +951,35 @@ export function renameMenuItem(ctx: ServiceCtx, agent: SignedInAgent, input: In<
   })
 }
 
+/** Photo tile on a sub-item. Only the draft header's menu, and only while that header is mega. */
+export function setMenuItemTile(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.setMenuItemTileInput>) {
+  const header = readSitePartDoc(ctx, findPart(ctx, 'header')) as HeaderDoc
+  if (header.style !== 'mega') {
+    throw new AppError('validation_failed', `Photo tiles only work when the header style is mega (this header is "${header.style}") and this menu is the header menu ("${header.menuKey}"). Nothing was changed.`, [{ path: 'menu_key', message: 'Header style is not mega.' }])
+  }
+  if (input.menu_key !== header.menuKey) {
+    throw new AppError('validation_failed', `Photo tiles only work on the header's menu ("${header.menuKey}") when the header style is mega. Nothing was changed.`, [{ path: 'menu_key', message: `The header uses the menu "${header.menuKey}".` }])
+  }
+  return editMenu(ctx, agent, input, 'Set a menu photo tile', (menu) => {
+    const found = locateItem(menu, input)
+    if (!found.parent) throw new AppError('validation_failed', `"${found.item.label}" is a top-level menu item. Photo tiles only go on a sub-item. Nothing was changed.`, [{ path: 'item_id', message: 'Not a sub-item.' }])
+    const child = found.item as MenuChild
+    if (input.image !== undefined) {
+      if (input.image === null) delete child.image
+      else {
+        if (!input.image.decorative && !input.image.alt) throw new AppError('validation_failed', 'Give alt text (what the photo shows, for people who cannot see it), or set decorative: true if it adds nothing.', [{ path: 'image.alt', message: 'Required unless decorative.' }])
+        const row = getMedia(ctx, input.image.media_id).media
+        if (row.kind === 'video') throw new AppError('validation_failed', 'A menu tile needs a photo, not a video. Use list_media with kind "image" to find one. Nothing was changed.', [{ path: 'image.media_id', message: 'Not a photo.' }])
+        child.image = { media: row.id, ...(input.image.alt ? { alt: input.image.alt } : {}), ...(input.image.decorative ? { decorative: true } : {}) }
+      }
+    }
+    if (input.featured !== undefined) {
+      if (input.featured) child.featured = true
+      else delete child.featured
+    }
+  })
+}
+
 export function setBanner(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.setBannerInput>) {
   const part = findPart(ctx, 'banner')
   const banner = structuredClone(readSitePartDoc(ctx, part)) as BannerDoc
@@ -1030,13 +1060,15 @@ export function setFooter(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeo
     footer.tagline = input.tagline ? { lead: input.tagline.lead, accent: input.tagline.accent ?? '' } : null
     changed.push('tagline')
   }
-  if (input.links_menu_key !== undefined) {
-    const key = input.links_menu_key || null
-    if (key && !allParts(ctx).some((p) => p.kind === 'menu' && p.key === key)) {
-      throw new AppError('validation_failed', `There is no menu called "${key}". Use get_site_part with kind "menu" to see the menus.`, [{ path: 'links_menu_key', message: 'No menu with that key.' }])
+  for (const [k, field] of [['links_menu_key', 'linksMenuKey'], ['legal_menu_key', 'legalMenuKey']] as const) {
+    if (input[k] !== undefined) {
+      const key = input[k] || null
+      if (key && !allParts(ctx).some((p) => p.kind === 'menu' && p.key === key)) {
+        throw new AppError('validation_failed', `There is no menu called "${key}". Use get_site_part with kind "menu" to see the menus.`, [{ path: k, message: 'No menu with that key.' }])
+      }
+      footer[field] = key
+      changed.push(field)
     }
-    footer.linksMenuKey = key
-    changed.push('linksMenuKey')
   }
   const simple = { contact_title: 'contactTitle', links_title: 'linksTitle', legal_text: 'legalText', charity_number: 'charityNumber' } as const
   for (const [k, field] of Object.entries(simple) as [keyof typeof simple, (typeof simple)[keyof typeof simple]][]) {
@@ -1045,7 +1077,7 @@ export function setFooter(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeo
       changed.push(field)
     }
   }
-  if (!changed.length) throw new AppError('validation_failed', 'Say what to change: text_markdown, contact, social, layout, tagline, contact_title, links_title, links_menu_key, legal_text or charity_number.', [{ path: '(input)', message: 'Nothing to change.' }])
+  if (!changed.length) throw new AppError('validation_failed', 'Say what to change: text_markdown, contact, social, layout, tagline, contact_title, links_title, links_menu_key, legal_menu_key, legal_text or charity_number.', [{ path: '(input)', message: 'Nothing to change.' }])
   const valid = validateSitePartDoc('footer', footer)
   if (!valid.ok) throw new AppError('validation_failed', valid.issues[0]!.message, valid.issues)
   const done = runInChange(ctx, agent, { changeId: input.change_id, title: `Change the footer (${changed.join(', ')})`, reason: input.reason }, (h) => h.editPart(part.id, 'edit_footer', valid.doc))

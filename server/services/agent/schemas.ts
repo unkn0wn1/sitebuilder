@@ -383,6 +383,7 @@ export const setFooterInput = z
       .meta({ description: 'The tagline in the columns footer. null removes it.' }),
     contact_title: nullableText(40, 'Heading over the contact column. null or "" removes it.'),
     links_menu_key: z.string().trim().max(40).nullable().optional().meta({ description: 'The key of an existing menu shown as the links column. null or "" removes it. Use get_site_part with kind "menu" for the keys.' }),
+    legal_menu_key: z.string().trim().max(40).nullable().optional().meta({ description: 'The key of an existing menu shown as the legal links (privacy, terms). null or "" removes it. Same rules as links_menu_key.' }),
     links_title: nullableText(40, 'Heading over the links column. null or "" removes it.'),
     legal_text: nullableText(200, 'The small print line, for example "© 2026 Animal Aid". null or "" removes it.'),
     charity_number: nullableText(40, 'The registered charity number, exactly as the person gave it. null or "" removes it.'),
@@ -428,6 +429,31 @@ export const listMediaInput = z
 
 const altText = z.string().trim().min(1).max(250).meta({ description: 'What the photo shows, for people who cannot see it, in one plain sentence (up to 250 characters). Describe only what is visible. Required unless decorative is true.', examples: ['A brown street dog with a bandaged leg resting on a blanket.'] })
 const decorative = z.boolean().optional().meta({ description: 'True if the photo adds nothing for someone who cannot see it (a pattern, a texture). Then no alt text is needed.' })
+
+export const setMenuItemTileInput = z
+  .object({
+    ...menuRef,
+    ...itemRef,
+    featured: z.boolean().optional().meta({ description: 'True shows this sub-item as a photo tile in the mega menu. False removes that flag. Leave out to keep it. At most 5 tiles per menu item.' }),
+    image: z
+      .union([
+        z
+          .object({
+            media_id: id('A media id from list_media or get_media_import. Photos and videos already in the library are both allowed.', 'med_01KABCDEFGHJKMNPQRSTVWXYZ0'),
+            alt: altText.optional(),
+            decorative,
+          })
+          .strict(),
+        z.null(),
+      ])
+      .optional()
+      .meta({ description: 'The tile photo: { "media_id", "alt" }, or { "media_id", "decorative": true }. null removes the photo. Leave out to keep it. Alt text is required unless decorative is true.' }),
+    change_id: changeId,
+    reason,
+  })
+  .strict()
+  .refine(hasItem, { message: 'Give item_id or label.' })
+  .refine((v) => v.featured !== undefined || v.image !== undefined, { message: 'Give featured or image.' })
 
 export const importMediaInput = z
   .object({

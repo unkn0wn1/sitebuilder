@@ -103,9 +103,9 @@ A rule is a plain object:
 | `edit_sections` | `edit_component`, `add_component`, `remove_component`, `move_component` | Anything beyond plain text. |
 | `edit_page_details` | `set_page_details` | Title, address, search settings. |
 | `create_page` | `create_page`, `create_pages` | New pages. More than one in a change needs a rule with `maxNewPages`, or a person. |
-| `edit_menu` | `remove_menu_item`, `add_menu_item`, `rename_menu_item` | Menu items. |
+| `edit_menu` | `remove_menu_item`, `add_menu_item`, `rename_menu_item`, `set_menu_item_tile` | Menu items. Photo tiles only on a sub-item of the draft header's menu, and only while that header is mega. |
 | `edit_banner` | `set_banner` | The site-wide banner. |
-| `edit_footer` | `set_footer` | Footer words, contact details, social links, tagline, layout, links menu, charity number. Not its colours or logo. |
+| `edit_footer` | `set_footer` | Footer words, contact details, social links, tagline, layout, links menu, legal menu, charity number. Not its colours or logo. |
 | `edit_header` | `set_header` | The small header link, whether the header is see-through over the hero, and the heart on the existing Donate button. Not that button's words or target, and not colours or the logo. |
 | `undo_change` | `undo_change` | Undo a change the token made. |
 

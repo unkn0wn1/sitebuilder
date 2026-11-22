@@ -22,7 +22,7 @@ export const ACTION_LABELS: Record<AgentAction, string> = {
   create_page: 'Create a new page',
   edit_menu: 'Add, remove or rename menu items',
   edit_banner: 'Change the site-wide banner',
-  edit_footer: 'Change the footer: its words, contact details, social links, tagline, layout, links menu and charity number (not its colours or logo)',
+  edit_footer: 'Change the footer: its words, contact details, social links, tagline, layout, links menu, legal menu and charity number (not its colours or logo)',
   edit_header: 'Change the header: the small utility link, whether it sits see-through over the hero, and the heart on the existing Donate button (not that button\'s words or target, and not colours or the logo)',
   undo_change: 'Undo a change this token made earlier',
 }
