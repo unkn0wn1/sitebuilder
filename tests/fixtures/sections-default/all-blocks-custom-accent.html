@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.virtuoussoftware.com; style-src 'self' 'sha256-8DvKX3KVZ/QHeTHDlcFMV93ra2Y3b0OqMrIAwrmVu08='; img-src 'self' data:; font-src 'self'; connect-src 'self' https://cdn.virtuoussoftware.com; frame-src 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.virtuoussoftware.com; style-src 'self' 'sha256-o88PFtY1e43YYMYPzMIoSI9LL+uLFjzJOB3k9DfKNwU='; img-src 'self' data:; font-src 'self'; connect-src 'self' https://cdn.virtuoussoftware.com; frame-src 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none';">
   <title>Sections | Example charity</title>
   
   
@@ -156,13 +156,43 @@ a { color: var(--accent); }
   z-index: 5;
 }
 .cta-btn, .btn {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: var(--accent);
   color: var(--accent-ink);
   text-decoration: none;
-  padding: 0.7rem 1.1rem;
-  border-radius: 0.3rem;
-  font-weight: 600;
+  padding: 0.75rem 1.65rem;
+  border: 0;
+  border-radius: var(--radius-pill);
+  min-height: 48px;
+  font-weight: 800;
+  line-height: 1.2;
+  transition: background-color 0.15s, transform 0.15s;
+}
+.btn:hover, .cta-btn:hover { background: var(--accent-strong); transform: translateY(-1px); }
+.btn:focus-visible, .cta-btn:focus-visible, .btn-secondary:focus-visible { outline: 3px solid var(--highlight); outline-offset: 3px; }
+.btn:active, .cta-btn:active, .btn-secondary:active { transform: none; }
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+  padding: 0.75rem 1.65rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-pill);
+  min-height: 48px;
+  font-weight: 800;
+  line-height: 1.2;
+  transition: background-color 0.15s, transform 0.15s;
+}
+.btn-secondary:hover { background: var(--surface); color: var(--ink); transform: translateY(-1px); }
+.cta-band .btn { min-height: 60px; }
+@media (prefers-reduced-motion: reduce) {
+  .btn, .cta-btn, .btn-secondary { transition: none; }
+  .btn:hover, .cta-btn:hover, .btn-secondary:hover { transform: none; }
 }
 .hero {
   position: relative;
@@ -212,7 +242,7 @@ a { color: var(--accent); }
 .card-body { padding: 1rem; }
 .cta-band { background: var(--band); padding: 3.5rem 0; text-align: center; }
 .cta-band.tone-accent { background: var(--accent); color: var(--accent-ink); }
-.cta-band.tone-accent a.btn { background: var(--paper); color: var(--ink); }
+.cta-band.tone-accent a.btn { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-raised); }
 .faq details { border-bottom: 1px solid var(--line); padding: 0.75rem 0; }
 .faq summary { cursor: pointer; font-weight: 600; }
 .donate, .embed { background: var(--band); padding: 3.5rem 0; }
@@ -249,7 +279,7 @@ a { color: var(--accent); }
 .progress-match, .progress-date { color: var(--muted); margin: 0.35rem 0 0; }
 .match-banner { background: var(--band); padding: 1.25rem 0; }
 .match-banner.tone-primary, .match-banner.tone-accent { background: var(--accent); color: var(--accent-ink); }
-.match-banner.tone-primary a.btn, .match-banner.tone-accent a.btn { background: var(--paper); color: var(--ink); }
+.match-banner.tone-primary a.btn, .match-banner.tone-accent a.btn { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-raised); }
 .match-message { font-size: 1.15rem; font-weight: 600; margin: 0 0 0.35rem; }
 .match-line, .match-countdown { margin: 0 0 0.35rem; }
 .before-after { display: grid; gap: 1rem; margin: 1.5rem 0; }

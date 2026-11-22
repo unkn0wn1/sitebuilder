@@ -169,13 +169,43 @@ a { color: var(--accent); }
   z-index: 5;
 }
 .cta-btn, .btn {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: var(--accent);
   color: var(--accent-ink);
   text-decoration: none;
-  padding: 0.7rem 1.1rem;
-  border-radius: 0.3rem;
-  font-weight: 600;
+  padding: 0.75rem 1.65rem;
+  border: 0;
+  border-radius: var(--radius-pill);
+  min-height: 48px;
+  font-weight: 800;
+  line-height: 1.2;
+  transition: background-color 0.15s, transform 0.15s;
+}
+.btn:hover, .cta-btn:hover { background: var(--accent-strong); transform: translateY(-1px); }
+.btn:focus-visible, .cta-btn:focus-visible, .btn-secondary:focus-visible { outline: 3px solid var(--highlight); outline-offset: 3px; }
+.btn:active, .cta-btn:active, .btn-secondary:active { transform: none; }
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+  padding: 0.75rem 1.65rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-pill);
+  min-height: 48px;
+  font-weight: 800;
+  line-height: 1.2;
+  transition: background-color 0.15s, transform 0.15s;
+}
+.btn-secondary:hover { background: var(--surface); color: var(--ink); transform: translateY(-1px); }
+.cta-band .btn { min-height: 60px; }
+@media (prefers-reduced-motion: reduce) {
+  .btn, .cta-btn, .btn-secondary { transition: none; }
+  .btn:hover, .cta-btn:hover, .btn-secondary:hover { transform: none; }
 }
 .hero {
   position: relative;
@@ -225,7 +255,7 @@ a { color: var(--accent); }
 .card-body { padding: 1rem; }
 .cta-band { background: var(--band); padding: 3.5rem 0; text-align: center; }
 .cta-band.tone-accent { background: var(--accent); color: var(--accent-ink); }
-.cta-band.tone-accent a.btn { background: var(--paper); color: var(--ink); }
+.cta-band.tone-accent a.btn { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-raised); }
 .faq details { border-bottom: 1px solid var(--line); padding: 0.75rem 0; }
 .faq summary { cursor: pointer; font-weight: 600; }
 .donate, .embed { background: var(--band); padding: 3.5rem 0; }
@@ -262,7 +292,7 @@ a { color: var(--accent); }
 .progress-match, .progress-date { color: var(--muted); margin: 0.35rem 0 0; }
 .match-banner { background: var(--band); padding: 1.25rem 0; }
 .match-banner.tone-primary, .match-banner.tone-accent { background: var(--accent); color: var(--accent-ink); }
-.match-banner.tone-primary a.btn, .match-banner.tone-accent a.btn { background: var(--paper); color: var(--ink); }
+.match-banner.tone-primary a.btn, .match-banner.tone-accent a.btn { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-raised); }
 .match-message { font-size: 1.15rem; font-weight: 600; margin: 0 0 0.35rem; }
 .match-line, .match-countdown { margin: 0 0 0.35rem; }
 .before-after { display: grid; gap: 1rem; margin: 1.5rem 0; }
@@ -284,7 +314,7 @@ a { color: var(--accent); }
 // Extra rules for optional shell parts. Appended to a page only when that option is used,
 // so a page that leaves them at their defaults keeps the theme CSS byte-identical.
 export const HEART_CSS = `
-.cta-btn:has(.ico-heart) { display: inline-flex; align-items: center; white-space: nowrap; }
+.cta-btn:has(.ico-heart) { display: inline-flex; align-items: center; white-space: nowrap; box-shadow: 0 0 0 0.3rem color-mix(in srgb, var(--highlight) 70%, transparent); }
 .ico-heart { margin-right: 0.45rem; vertical-align: -2px; flex: none; }
 `
 
@@ -344,7 +374,7 @@ export const OVER_HERO_CSS = `
 .site-header-over.js-over:not(.is-solid) .nav-hamburger > summary { border-color: rgba(255, 255, 255, 0.7); }
 .site-header-over.js-over:not(.is-solid) .site-title { background: #fff; padding: 0.3rem 0.9rem; border-radius: 999px; box-shadow: 0 0.15rem 0.6rem rgba(0, 0, 0, 0.25); }
 .site-header-dark.site-header-over.js-over:not(.is-solid) .site-title { background: transparent; padding: 0; border-radius: 0; box-shadow: none; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
-.site-header-over.js-over:not(.is-solid) .cta-btn { border: 2px solid rgba(255, 255, 255, 0.9); box-shadow: 0 0 0 0.3rem color-mix(in srgb, var(--accent) 40%, transparent); }
+.site-header-over.js-over:not(.is-solid) .cta-btn { border: 2px solid color-mix(in srgb, var(--paper) 90%, transparent); box-shadow: 0 0 0 0.3rem color-mix(in srgb, var(--accent) 40%, transparent); }
 @media (prefers-reduced-motion: reduce) { .site-header-over.js-over { transition: none; } }
 .site-header-over.js-over ~ main > .hero:first-child { box-sizing: content-box; padding-top: var(--sb-header-h, 0px); }
 `
