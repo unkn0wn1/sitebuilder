@@ -260,11 +260,23 @@ describe('optional shell parts', () => {
     const paper = { ...defaults, tokens: { ...defaults.tokens, paper: '#fff1e0' } }
     const paperCss = themeCssFromTokens(paper.tokens, paper.fonts)
     const paperPage = await render({ header: null, footer, brand: paper, themeCss: paperCss })
-    const paperOverride = '\n.ft-logo { background: var(--paper); }\n'
-    expect(styleOf(paperPage.html)).toBe(paperCss + FOOTER_COLUMNS_CSS + paperOverride)
+    expect(styleOf(paperPage.html)).toBe(paperCss + FOOTER_COLUMNS_CSS)
+    expect(styleOf(paperPage.html)).not.toContain('.ft-logo { background:')
     expect(styleOf(paperPage.html)).toContain('#f3b53f')
     expect(styleOf(paperPage.html)).not.toContain('color-mix(in srgb, var(--ink) 60%')
     expect(paperPage.csp).toContain(styleHash(styleOf(paperPage.html)))
+
+    const pill = { ...defaults, tokens: { ...defaults.tokens, logoPill: '#112233' } }
+    const pillCss = themeCssFromTokens(pill.tokens, pill.fonts)
+    const pillPage = await render({ header: null, footer, brand: pill, themeCss: pillCss })
+    expect(styleOf(pillPage.html)).toBe(pillCss + FOOTER_COLUMNS_CSS + '\n.ft-logo { background: #112233; }\n')
+    expect(pillPage.csp).toContain(styleHash(styleOf(pillPage.html)))
+
+    const whitePill = { ...defaults, tokens: { ...defaults.tokens, logoPill: '#FFFFFF' } }
+    const whiteCss = themeCssFromTokens(whitePill.tokens, whitePill.fonts)
+    const whitePage = await render({ header: null, footer, brand: whitePill, themeCss: whiteCss })
+    expect(styleOf(whitePage.html)).toBe(whiteCss + FOOTER_COLUMNS_CSS)
+    expect(styleOf(whitePage.html)).not.toContain('.ft-logo { background:')
 
     const gold = { ...defaults, tokens: { ...defaults.tokens, highlight: '#112233' } }
     const goldCss = themeCssFromTokens(gold.tokens, gold.fonts)

@@ -15,8 +15,15 @@ describe('brand pack', () => {
   it('starts from the default theme tokens and warns about a faint body colour', () => {
     const doc = defaultBrandDoc()
     expect(doc.tokens).toEqual(DEFAULT_THEME_TOKENS)
+    expect(doc.tokens).not.toHaveProperty('logoPill')
     expect(doc.menuStyle).toBe('simple')
     expect(brandContrastChecks(doc).warnings).toEqual([])
+    const darkPill = { ...doc, tokens: { ...doc.tokens, logoPill: '#1f1a17' } }
+    const pillWarning = brandContrastChecks(darkPill).warnings.find((issue) => issue.path === 'tokens.logoPill')
+    expect(pillWarning?.message).toMatch(/Logo text/)
+    expect(brandContrastChecks(darkPill).blocking).toEqual([])
+    const lightPill = { ...doc, tokens: { ...doc.tokens, logoPill: '#f7f4ef' } }
+    expect(brandContrastChecks(lightPill).warnings.find((issue) => issue.path === 'tokens.logoPill')).toBeUndefined()
     const faint = { ...doc, tokens: { ...doc.tokens, ink: '#eee8e0' } }
     expect(brandContrastChecks(faint).warnings[0]?.message).toMatch(/Body text/)
   })
@@ -44,5 +51,17 @@ describe('brand pack', () => {
     if (!parsed.ok) return
     expect(parsed.doc.tokens.highlight).toBe('#f3b53f')
     expect(parsed.doc.tokens.ink).toBe(DEFAULT_THEME_TOKENS.ink)
+    expect(parsed.doc.tokens).not.toHaveProperty('logoPill')
+
+    for (const logoPill of ['#fff', '#FFF', '#ffffff', '#FFFFFF', '', null]) {
+      const white = validateBrandDoc({ schemaVersion: 1, tokens: { ...DEFAULT_THEME_TOKENS, logoPill } })
+      expect(white.ok).toBe(true)
+      if (!white.ok) return
+      expect(white.doc.tokens).not.toHaveProperty('logoPill')
+    }
+    const chosen = validateBrandDoc({ schemaVersion: 1, tokens: { ...DEFAULT_THEME_TOKENS, logoPill: '#112233' } })
+    expect(chosen.ok).toBe(true)
+    if (!chosen.ok) return
+    expect(chosen.doc.tokens.logoPill).toBe('#112233')
   })
 })

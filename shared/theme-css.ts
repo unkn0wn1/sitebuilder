@@ -367,16 +367,30 @@ function tokenDiffers(value: string | undefined, fallback: string): boolean {
   return value.toLowerCase() !== fallback.toLowerCase()
 }
 
-/** Rules appended after option CSS so a changed brand colour wins. Empty when the token matches the default, or that option is off. */
-export function brandChromeCss(tokens: Pick<ThemeTokens, 'ink' | 'paper' | 'highlight'> | null | undefined, opts: { columns: boolean; overHero: boolean }): string {
+/** A chosen logo-pill colour, or null when the base white rules should stay. `#fff` and `#ffffff` count as white. */
+export function logoPillColour(value: string | null | undefined): string | null {
+  if (!value) return null
+  const trimmed = value.trim()
+  if (!HEX.test(trimmed)) return null
+  const lower = trimmed.toLowerCase()
+  if (lower === '#fff' || lower === '#ffffff') return null
+  return trimmed
+}
+
+/** Rules appended after option CSS. The logo pills stay white unless `logoPill` is a non-white colour, and then only for options that are on. */
+export function brandChromeCss(
+  tokens: (Pick<ThemeTokens, 'ink' | 'highlight'> & { logoPill?: string | null }) | null | undefined,
+  opts: { columns: boolean; overHero: boolean },
+): string {
   if (!tokens) return ''
   const parts: string[] = []
-  if (opts.columns && tokenDiffers(tokens.paper, DEFAULT_THEME_TOKENS.paper)) parts.push('.ft-logo { background: var(--paper); }')
+  const pill = logoPillColour(tokens.logoPill)
+  if (opts.columns && pill) parts.push(`.ft-logo { background: ${pill}; }`)
   if (opts.columns && tokenDiffers(tokens.highlight, DEFAULT_THEME_TOKENS.highlight)) {
     parts.push(`.site-footer-cols::before { background: linear-gradient(90deg, var(--accent), ${tokens.highlight}, var(--accent)); }`)
     parts.push(`.ft-tag em { color: ${tokens.highlight}; }`)
   }
-  if (opts.overHero && tokenDiffers(tokens.paper, DEFAULT_THEME_TOKENS.paper)) parts.push('.site-header-over.js-over:not(.is-solid) .site-title { background: var(--paper); }')
+  if (opts.overHero && pill) parts.push(`.site-header-over.js-over:not(.is-solid) .site-title { background: ${pill}; }`)
   if (opts.overHero && tokenDiffers(tokens.ink, DEFAULT_THEME_TOKENS.ink)) {
     parts.push('.site-header-over.js-over { background: linear-gradient(to bottom, color-mix(in srgb, var(--ink) 60%, transparent), color-mix(in srgb, var(--ink) 0%, transparent)); }')
   }

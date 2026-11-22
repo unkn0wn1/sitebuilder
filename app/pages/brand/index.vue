@@ -2,7 +2,7 @@
 import { api, ApiError } from '../../utils/api'
 import { can } from '#shared/roles'
 import { defaultBrandDoc, type BrandDoc, type BrandTokens } from '#shared/brand'
-import { themeCssFromTokens } from '#shared/theme-css'
+import { logoPillColour, themeCssFromTokens } from '#shared/theme-css'
 import { scopeThemeCss } from '../../utils/theme-css'
 import { mediaFileUrl, type MediaItem } from '../../utils/media'
 import { statusLabel, type WorkflowState } from '#shared/workflow'
@@ -35,7 +35,9 @@ let timer: ReturnType<typeof setTimeout> | null = null
 let lastSaved = ''
 let dirty = false
 
-const TOKEN_FIELDS: { key: keyof BrandTokens; label: string }[] = [
+type ColourToken = Exclude<keyof BrandTokens, 'logoPill'>
+
+const TOKEN_FIELDS: { key: ColourToken; label: string }[] = [
   { key: 'ink', label: 'Body text' },
   { key: 'paper', label: 'Page background' },
   { key: 'muted', label: 'Muted text' },
@@ -61,6 +63,12 @@ const canSubmitNow = computed(() => {
 })
 
 const previewCss = computed(() => scopeThemeCss(themeCssFromTokens(doc.value.tokens, doc.value.fonts), '.sb-brand-preview'))
+const logoPillPicker = computed(() => {
+  const colour = logoPillColour(doc.value.tokens.logoPill)
+  if (!colour) return '#ffffff'
+  if (colour.length === 4) return `#${colour[1]}${colour[1]}${colour[2]}${colour[2]}${colour[3]}${colour[3]}`
+  return colour
+})
 const status = computed(() => (pack.value ? statusLabel(pack.value.workflowState, hasUnpublishedChanges.value) : 'Draft'))
 const statusClass = computed(() => {
   const state = pack.value?.workflowState
@@ -170,8 +178,20 @@ function patch(update: Partial<BrandDoc>) {
   scheduleSave()
 }
 
-function setToken(key: keyof BrandTokens, value: string) {
+function setToken(key: ColourToken, value: string) {
   doc.value = { ...doc.value, tokens: { ...doc.value.tokens, [key]: value } }
+  scheduleSave()
+}
+
+function setLogoPill(value: string) {
+  const trimmed = value.trim()
+  const white = !trimmed || /^#f{3}$|^#f{6}$/i.test(trimmed)
+  const tokens = { ...doc.value.tokens }
+  if (white) delete tokens.logoPill
+  else tokens.logoPill = trimmed
+  const next = { ...doc.value, tokens }
+  if (snapshot(next) === snapshot(doc.value)) return
+  doc.value = next
   scheduleSave()
 }
 
@@ -244,6 +264,15 @@ onBeforeUnmount(() => {
               </span>
             </label>
           </div>
+          <label class="mt-3 flex items-center gap-3 text-sm">
+            <input type="color" class="h-9 w-12 cursor-pointer rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800" :value="logoPillPicker" :disabled="!canEdit" @input="setLogoPill(($event.target as HTMLInputElement).value)" />
+            <span class="flex-1">
+              <span class="block font-medium text-gray-800 dark:text-gray-200">Logo background</span>
+              <input class="mt-1 w-full rounded border border-gray-300 dark:border-gray-600 px-2 py-1 font-mono text-xs" :value="doc.tokens.logoPill ?? ''" :disabled="!canEdit" @change="setLogoPill(($event.target as HTMLInputElement).value)" />
+              <button type="button" class="mt-2 rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 dark:border-gray-600 dark:text-gray-200" :disabled="!canEdit" @click="setLogoPill('')">Use white</button>
+            </span>
+          </label>
+          <p class="mt-2 mb-0 text-sm text-gray-500 dark:text-gray-400">White unless you choose a colour. Used behind the logo in the footer and the see-through header.</p>
         </section>
         <section class="rounded-xl border border-gray-200/90 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
           <h2 class="mt-0 mb-3 text-base font-semibold text-gray-900 dark:text-white">Type</h2>
