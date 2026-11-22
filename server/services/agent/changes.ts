@@ -9,7 +9,6 @@ import { and, desc, eq, gte, inArray } from 'drizzle-orm'
 import { sameDraft } from '../../../shared/clone'
 import { diffPages, type PageDiff } from '../../../shared/diff'
 import { newId } from '../../../shared/ids'
-import { blockUsesMockData } from '../../../shared/data-sources'
 import type { InternalOp } from '../../../shared/ops'
 import type { PageDoc } from '../../../shared/page'
 import type { SitePartDoc, SitePartKind } from '../../../shared/site-parts'
@@ -294,7 +293,6 @@ export function evaluateTargets(ctx: ServiceCtx, token: AgentTokenRow, targets: 
       const checks = checksFor(ctx, page.template, draft)
       const holdsMoney = draft.blocks.some((b) => isMoneyBlockType(b.type)) || !!live?.blocks.some((b) => isMoneyBlockType(b.type))
       if (diff.blocks.some((c) => isMoneyBlockType(c.type))) floor.push('money_section_touched')
-      if (draft.blocks.some(blockUsesMockData)) floor.push('mock_data')
       if (t.foreignDraft || page.draftRevision !== t.revision) floor.push('foreign_draft')
       if (checks.blocking.length) floor.push('checks_failing')
       const links = restoring(linkDelta(live ?? { blocks: [] }, draft, 'block', origin))

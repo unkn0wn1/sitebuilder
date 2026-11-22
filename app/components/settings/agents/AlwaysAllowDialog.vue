@@ -35,7 +35,7 @@ async function enable() {
   <SimpleModal title="Always-allow" @close="emit('close')">
     <form id="always-allow-form" class="space-y-4" @submit.prevent="enable">
       <p class="m-0 text-sm text-gray-700 dark:text-gray-300">
-        Always-allow lets <strong>{{ token.name }}</strong> publish a change that no rule covers, without waiting for a person. Donation forms and embeds, money sections, pages that show mock data, someone else's unpublished work and failing checks still need a person. A "refuse" rule still refuses.
+        Always-allow lets <strong>{{ token.name }}</strong> publish a change that no rule covers, without waiting for a person. Donation forms and embeds, money sections, someone else's unpublished work and failing checks still need a person. A "refuse" rule still refuses.
       </p>
       <FwbAlert v-if="error" type="danger">{{ error }}</FwbAlert>
       <fieldset class="min-w-0 border-0 p-0">

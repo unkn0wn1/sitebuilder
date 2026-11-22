@@ -23,7 +23,6 @@ import {
 } from '../../../shared/agent/content'
 import { listBlockAiSummaries } from '../../../shared/ai/block-guide'
 import { newId } from '../../../shared/ids'
-import { blockUsesMockData } from '../../../shared/data-sources'
 import type { InternalOp } from '../../../shared/ops'
 import type { PageDoc } from '../../../shared/page'
 import { isSafeHref } from '../../../shared/richtext'
@@ -257,7 +256,7 @@ export function getSite(ctx: ServiceCtx, agent: SignedInAgent) {
       sections_that_cannot_be_touched: [...NEVER_BLOCK_TYPES],
       props_that_cannot_be_set: [...NEVER_PROP_KEYS],
       sections_that_never_publish_without_a_person: ['ImpactTiers', 'DonationProgress', 'MatchBanner', 'MatchThermometer'],
-      also: ['Theme, colours, fonts, logo', 'Site settings, users, tokens, secrets', 'Raw HTML, CSS, scripts, tracking', 'Pages that show mock data can never go live'],
+      also: ['Theme, colours, fonts, logo', 'Site settings, users, tokens, secrets', 'Raw HTML, CSS, scripts, tracking'],
     },
     actions: Object.fromEntries((Object.keys(ACTION_LABELS) as AgentAction[]).map((a) => [a, ACTION_LABELS[a]])),
     default_rate_limits: DEFAULT_LIMITS,
@@ -290,7 +289,6 @@ export function getPageFor(ctx: ServiceCtx, input: In<typeof S.getPageInput>) {
       type: b.type,
       label: ctx.registry.get(b.type)?.label ?? b.type,
       agent_access: accessOf(b.type),
-      uses_mock_data: blockUsesMockData(b),
       preview: previewProps(b.props),
       props: b.props,
       rich_text: richText,

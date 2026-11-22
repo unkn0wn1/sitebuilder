@@ -20,5 +20,4 @@ Short records of decisions that are locked in. Each has a status, the context, t
 | [0014](0014-first-party-vue-editor.md) | Build our own Vue editor, do not depend on Gissen or Page Composer in v1 | Accepted |
 | [0015](0015-gmail-workspace-mail.md) | Send mail through Google Workspace and the Gmail API | Accepted |
 | [0016](0016-xai-oauth.md) | Optional Sign in with xAI (device code, off by default) | Accepted |
-| [0017](0017-data-sources-and-mock.md) | Data sources and mock data | Accepted |
 | [0018](0018-agent-gateway.md) | Agent gateway: one REST API and one MCP server, drafts first, rules decide what goes live | Accepted |

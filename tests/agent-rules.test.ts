@@ -62,7 +62,7 @@ describe('rule decisions', () => {
   })
 
   it('never publishes past the floor, even with always-allow', () => {
-    for (const flag of ['money_section_touched', 'mock_data', 'foreign_draft', 'checks_failing'] as const) {
+    for (const flag of ['money_section_touched', 'foreign_draft', 'checks_failing'] as const) {
       const d = decideChange([facts({ floor: [flag] })], input(rules({ label: 'All', actions: '*', result: 'publish' }), { alwaysAllow: true }))
       expect(d.outcome, flag).toBe('review')
     }

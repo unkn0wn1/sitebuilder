@@ -25,7 +25,7 @@ Three things made this a decision rather than a feature:
 
 **The floor and the never-list are not configurable.**
 - Never-list, refused even as a draft: `DonationEmbed` and `Embed` sections, the props `embed`, `source` and `campaignId`; and everything outside page content (theme, settings, users, tokens, secrets, code and scripts), which has no tool at all.
-- Floor, always a person even with always-allow: the change touches a money section (`ImpactTiers`, `DonationProgress`, `MatchBanner`, `MatchThermometer`); the page shows mock data; the page or part has someone else's unpublished work; the standard submission checks fail.
+- Floor, always a person even with always-allow: the change touches a money section (`ImpactTiers`, `DonationProgress`, `MatchBanner`, `MatchThermometer`); the page or part has someone else's unpublished work; the standard submission checks fail.
 
 **Always-allow** is a per-token switch for an emergency window. It needs the site name typed and the admin's password, lasts one to seven days or is **permanent** (no end date, added in the 20 Nov 2026 update), and never covers the never-list or the floor. Deny rules still win.
 
@@ -70,5 +70,5 @@ Spencer reviewed the gateway and made two decisions.
    - **Stored as its own flag** (`always_allow_permanent`, migration 0004), not as a far-future date, so it cannot be mistaken for a timed one and cannot silently end.
    - **Revocable:** switching it off (API `DELETE`, or `agent-token.ts always-allow-off`) or revoking the token clears it. Both are audited (`agent.token.always_allow_on` with `permanent: true`, `agent.token.always_allow_off` with `wasPermanent`).
    - **Visible as permanent:** `alwaysAllow: { permanent: true, until: null }` in the token list, `ALWAYS-ALLOW: PERMANENT (no end date)` in the command line list, and `you.always_allow` plus `you.always_allow_meaning` for the AI.
-   - **Nothing else widens.** The decision order is unchanged. Deny rules, the never-list (donation forms and embeds, embed props), the floor (money sections, mock data, someone else's unpublished work, failing checks), rate limits, the IP list, the token's own expiry and the kill switch all still win over it. A test covers each.
+   - **Nothing else widens.** The decision order is unchanged. Deny rules, the never-list (donation forms and embeds, embed props), the floor (money sections, someone else's unpublished work, failing checks), rate limits, the IP list, the token's own expiry and the kill switch all still win over it. A test covers each.
    - **Cost accepted:** a permanent token can publish any wording or link change that no rule covers, with no one reading it first, until someone turns it off. The mitigations are the floor, the audit log, the owner and admin notification on every publish, one-call undo, and the advice to prefer timed and to keep deny rules on legal pages.
