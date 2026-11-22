@@ -14,7 +14,7 @@ Let an AI assistant read this site and change it, safely. It can fix a phone num
 3. It asks for a **preview**: exactly what differs, and whether a rule would let it go live.
 4. It then **publishes** (only if a rule on its token allows exactly this kind of change) or **asks a person** to approve.
 5. Everything is in the **audit log**, and any change can be **undone in one call**.
-6. Some things are **never** open to an agent: donation forms and embeds, form bindings, the theme, code, and settings other than the AI personality. A draft token may propose a new personality, and a person approves it.
+6. Some things are **never** open to an agent: donation forms and embeds, form bindings, the theme, code, and settings other than the AI personality. A draft token may propose a new personality, and a person approves it. Section CSS is not on that list: `set_block_css` may draft it, and a person must approve it every time. Site-wide CSS has no agent tool.
 
 ## Turn it on
 
@@ -101,6 +101,7 @@ A rule is a plain object:
 | `remove_link` | `remove_link` | Take links out. The words stay, or the button or menu item goes. |
 | `add_link` | `replace_link` | Add a link, or point one somewhere new. |
 | `edit_sections` | `edit_component`, `add_component`, `remove_component`, `move_component` | Anything beyond plain text. |
+| `edit_css` | `set_block_css` | Change custom CSS on a section. Always needs a person. Site-wide CSS has no agent tool. |
 | `edit_page_details` | `set_page_details` | Title, address, search settings. |
 | `create_page` | `create_page`, `create_pages` | New pages. More than one in a change needs a rule with `maxNewPages`, or a person. |
 | `edit_menu` | `remove_menu_item`, `add_menu_item`, `rename_menu_item`, `set_menu_item_tile` | Menu items. Photo tiles only on a sub-item of the draft header's menu, and only while that header is mega. |
@@ -111,12 +112,15 @@ A rule is a plain object:
 
 `list_media`, `import_media`, `get_media_import` and `set_alt_text` need no rule: the media library is open to any token with draft access (decided 21 Nov 2026). A photo is only live once a published page uses it. Imports run in the background: `import_media` returns an `import_id`, and `get_media_import` says when it is done.
 
-**How a change is decided**, always in this order:
+**How a change is decided**, always in this order (`shared/agent/rules.ts`):
 
 1. A matching `deny` rule refuses it. This happens when the draft is made, not at publish time, and counts as a blocked attempt.
-2. **The floor.** A person is needed, whatever the rules or always-allow say, if: the change touches a money section (`ImpactTiers`, `DonationProgress`, `MatchBanner`); the page or part has someone else's unpublished work (publishing would publish it too); the standard submission checks fail.
-3. **Always-allow**, if switched on (and, for a timed one, not ended): it publishes without a matching rule.
-4. Otherwise every action in every part of the change must be covered by a `publish` rule whose limits hold. If one part is not, the **whole change** goes to review. It never publishes half.
+2. **The floor.** A person is needed, whatever the rules or always-allow say, if: the change touches a money section (`ImpactTiers`, `DonationProgress`, `MatchBanner`); the page or part has someone else's unpublished work (publishing would publish it too); the standard submission checks fail; or the custom CSS text on a section was added, changed or cleared. Removing a whole section does not count as a CSS change: the CSS goes away because the section went away, and that can still publish under an `edit_sections` rule. When the floor applies, its message (with the page name) is the one used, including when the change is also custom CSS.
+3. **Custom CSS.** If the part includes `edit_css`, it goes to review with "Custom CSS always needs a person to review it." This is before a part with no actions, before always-allow, and before publish rules, including a rule whose actions are `"*"`. A publish rule that names `edit_css` does not publish it. Presets have no publish rule for it. A deny rule (step 1) still refuses the draft instead.
+4. **Always-allow**, if switched on (and, for a timed one, not ended): it publishes without a matching rule, unless the change creates more than one page. A part with no actions has already gone to review. Always-allow never covers the never-list, the floor, or custom CSS.
+5. Otherwise every action in every part of the change must be covered by a `publish` rule whose limits hold. If one part is not, the **whole change** goes to review. It never publishes half.
+
+`set_block_css` is the tool that drafts section CSS (action `edit_css`). `get_page` returns `custom_css` on every section, and `css` (the author's text, not the prefixed copy) when that text is not blank. Site-wide CSS has no agent tool. The builder assistant still has no CSS tool.
 
 Each tool declares its action, so "take this link down" is `remove_link` even when it removes a menu item. Link, word and section counts come from comparing the draft with what is live.
 
@@ -135,7 +139,8 @@ Either kind needs the **site name typed exactly** and **your password**, every t
 
 - A matching **deny** rule.
 - The **never-list**: donation forms and embeds, the embed, source and campaign props, theme, users, tokens, code, and settings other than the AI personality. These are refused even as drafts. A draft token may propose the AI personality. A person approves it. Rules and always-allow never apply that proposal.
-- The **floor**: a money section (`ImpactTiers`, `DonationProgress`, `MatchBanner`), someone else's unpublished work on the same page or part, and failing checks. A person approves these.
+- The **floor**: a money section (`ImpactTiers`, `DonationProgress`, `MatchBanner`), someone else's unpublished work on the same page or part, failing checks, and custom CSS text that was added, changed or cleared. A person approves these.
+- **Custom CSS** (`edit_css`), including when a publish rule or always-allow would otherwise apply, and including a rule whose actions are `"*"`. A person approves it. Site-wide CSS has no agent tool.
 - Rate limits, the IP list, the token's own expiry, pausing and the kill switch.
 
 **Seeing it.** A permanent setting is labelled **permanent** (no end date) wherever it is shown: the token list (`alwaysAllow: { permanent: true, until: null }`), the command line (`ALWAYS-ALLOW: PERMANENT (no end date)`), and to the assistant itself (`you.always_allow` and `you.always_allow_meaning` from `get_site`). A timed one shows its end time.

@@ -1,9 +1,15 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, test, type Page } from 'playwright/test'
 
 const email = process.env.SEED_ADMIN_EMAIL ?? 'admin@example.org'
 const password = process.env.SEED_ADMIN_PASSWORD ?? 'sb-demo-pass-17'
+
+async function docsShot(page: Page, name: string, fullPage = true) {
+  if (process.env.SB_SCREENSHOTS !== '1') return
+  mkdirSync('docs/screenshots', { recursive: true })
+  await page.screenshot({ path: `docs/screenshots/${name}`, fullPage })
+}
 
 async function signIn(page: Page) {
   await page.goto('/login')
@@ -82,7 +88,13 @@ test('a brand change still publishes after leaving the page for approvals', asyn
   await page.goto('/brand')
   await expect(page.getByRole('heading', { name: 'Brand and Design' })).toBeVisible({ timeout: 20_000 })
   await expectSaved(page)
+  const cssCard = page.getByTestId('custom-css')
+  await expect(cssCard.getByRole('heading', { name: 'Custom CSS (advanced)' })).toBeVisible()
+  await cssCard.getByRole('textbox', { name: 'CSS' }).fill('a { text-underline-offset: 0.15em; }')
+  await expectSaved(page)
+  await docsShot(page, 'custom-css-brand.png')
   // The menu look now lives on the Header; the body font is a brand change that reaches every page.
+  // The short rule above is part of this same brand draft. There is no second publish.
   await page.getByLabel('Body font').fill('Georgia, serif')
   await expectSaved(page)
 

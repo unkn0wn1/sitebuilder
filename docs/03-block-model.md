@@ -29,7 +29,8 @@ Draft, with v1 choices decided in [ADR 0008](decisions/0008-editor-shape.md) (fl
         "subheading": "Your gift pays for blankets, food and treatment.",
         "image": { "media": "med_01J...", "alt": "A rescued puppy wrapped in a blanket" },
         "cta": { "label": "Donate now", "href": "#donate" }
-      }
+      },
+      "css": "& { outline: 3px solid #b5471d; }"
     },
     {
       "id": "b_2m9q",
@@ -61,6 +62,7 @@ Draft, with v1 choices decided in [ADR 0008](decisions/0008-editor-shape.md) (fl
 Notes:
 
 - `id` on every block (given by the server), so the agent and the diff view can refer to a block exactly.
+- `css`, when present, sits beside `props`. It is the author's custom CSS for that one section (at most 8 KB). It is checked on save. At render it is prefixed with the section id. Pages and blocks with no `css` stay as they were. See [ADR 0019](decisions/0019-custom-css.md).
 - `schemaVersion` is the page document format; `v` is the version of that block type when it was written. Both are migrated forward on read (see below).
 - Slug, path, parent, locale and template live on the page record, not in the document. See [13-data-model.md](13-data-model.md).
 - **Blocks are a flat list in v1** ([ADR 0008](decisions/0008-editor-shape.md)). Layout variety comes from options on a block (for example `layout: "image-left"`). Nested containers may come later behind a `schemaVersion` bump.

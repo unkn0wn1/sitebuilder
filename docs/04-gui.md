@@ -77,7 +77,7 @@ flowchart TD
 | **Media** | Library, upload, processing status, alt text, crops, bin | Editors and up |
 | **Forms and embeds** | Registered donation forms (for example Virtuous) and other embeds by name. Only from domains on the admin allow-list | Approvers and up |
 | **Approvals** | Items waiting for approval, with a count badge; the review screen | Approvers and up |
-| **Brand and Design** 🤖 | Brand pack, contrast checks, favicon from logo, optional logo for dark backgrounds, re-run wizard steps, Design tab for themes ([11-theming.md](11-theming.md)) | Admins |
+| **Brand and Design** 🤖 | Brand pack, contrast checks, favicon from logo, optional logo for dark backgrounds, re-run wizard steps, Design tab for themes, and custom CSS for the whole site ([11-theming.md](11-theming.md)) | Admins |
 | **Page types** 🤖 | Allowed page types, allowed and required sections per type | Admins |
 | **Settings** | See below | Admins (System: operators) |
 
@@ -146,6 +146,8 @@ The first-party Vue editor (ADR 0014) is in the app: sign in, the pages list, an
 - **Canvas:** the page rendered with the real sections and the site's theme, at the width chosen in the toolbar (Desktop 1280, Tablet 768, Mobile 390). Narrower than the space available, it is centred on grey; wider, it scales down to fit and says so ("Shown at 80%").
 - **Inline text:** headings and body text are edited on the canvas. A character counter appears as you near a section's limit. Pasted text is cleaned into the rich text format ([ADR 0010](decisions/0010-zod-versioned-blocks-structured-rich-text.md)).
 - **Inspector, tabbed:** **Section** (the selected section's fields, generated from its schema), **Page** (title, address, parent, page type, SEO: title, description, social image, canonical, hide from search engines), **History** (versions). It slides away when nothing is selected, giving the canvas the room.
+- **Custom CSS on a section (admins).** The Section tab ends with a closed disclosure, Custom CSS. The text applies only inside that section. A selector that starts with `&` means the section itself. Open full screen edits the same text, and Escape closes it when the text matches what is saved. In the outline, a section that has custom CSS shows `{ }`.
+- **Brand and Design exception.** That screen is colours, type and logos, plus one advanced card, Custom CSS, for the whole site. It is published with the brand. Writing it, like section CSS, needs `design.css`, which is admin only. Roles are a minimum-role ladder, so an approver cannot be given it. See [ADR 0019](decisions/0019-custom-css.md).
 - **Section toolbar** on the canvas when a section is selected: move up, move down, duplicate, remove, and "Ask the assistant about this section" (pre-fills the chat).
 - **Flat sections in v1.** No nesting. Layout choices are options on a section.
 
@@ -412,7 +414,7 @@ The builder itself meets **WCAG 2.2 AA**: everything works by keyboard, focus is
 
 - **Editor:** create and edit drafts, use the assistant, upload media, submit for approval.
 - **Approver:** everything an editor can do, plus approve and publish, unpublish, Site parts, Forms and embeds, redirects.
-- **Admin:** everything, plus Brand and Design, Page types, users, settings, integrations and emergency site rollback.
+- **Admin:** everything, plus Brand and Design, Page types, users, settings, integrations, emergency site rollback, and custom CSS (`design.css`) on a section or the brand.
 - **Operator** (a flag, can be combined with any role or none): System, backups, upgrades and integrations, without content rights ([ADR 0007](decisions/0007-single-site-install.md)).
 
 ## Open questions

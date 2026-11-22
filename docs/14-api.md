@@ -8,7 +8,7 @@
 - **Auth:** a session cookie (`sb_session`, `HttpOnly`, `Secure`, `SameSite=Strict`). No tokens in local storage.
 - **CSRF:** cookies are `SameSite=Strict`, and every request that changes something must have an `Origin` header matching the builder's own origin.
 - **Validation:** every body and query is checked with Zod before any work is done.
-- **Permissions:** checked on the server on every route, by role, and for AI calls also by task and target. The GUI hiding a button is never the protection.
+- **Permissions:** checked on the server on every route, by role, and for AI calls also by task and target. The GUI hiding a button is never the protection. Custom CSS (`design.css`), on a section or the brand, is admin only. Roles are a minimum-role ladder, not a per-person grant, so an approver cannot be given it.
 - **Lists** take `page` and `pageSize` (default 25, maximum 100) and return `{ items, page, pageSize, total }`.
 - **Times** are ISO 8601 UTC.
 - **Ids** are prefixed strings ([13-data-model.md](13-data-model.md#conventions)).
@@ -161,10 +161,12 @@ Tools run inside the server. They call the same services as the routes above, so
   { "op": "move_block", "blockId": "b_9x2m", "toIndex": 0 },
   { "op": "remove_block", "blockId": "b_1aa1" },
   { "op": "set_meta", "title": "Winter appeal 2026", "slug": "winter-appeal" },
-  { "op": "set_seo", "description": "Help keep injured street animals warm." }
+  { "op": "set_seo", "description": "Help keep injured street animals warm." },
+  { "op": "set_block_css", "blockId": "b_7f3k", "css": "& { outline: 3px solid #b5471d; }" }
 ] }
 ```
 
 - New sections get their id from the server.
+- `set_block_css` sets or clears the author's CSS on one section. A blank `css` removes it. The text is checked on save. Writing it needs `design.css`, which is admin only (see Permissions above). Agents draft the same field with the gateway tool `set_block_css`. That draft always needs a person. See [ADR 0019](decisions/0019-custom-css.md).
 - The whole batch is applied or none of it is.
 - After the batch, the page is validated against the section schemas and the template's allowed sections. **Required** sections are only enforced at submit, so a half-built draft can still be saved.

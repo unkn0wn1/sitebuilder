@@ -24,7 +24,7 @@ Not in scope: a plugin marketplace, payments, ecommerce, memberships or user acc
 
 - **Simple as possible.** Fewest moving parts that do the job well.
 - **Speed first.** Static output, tiny pages, images resized automatically, a built-in speed advisor.
-- **Guardrails by design.** The AI never writes HTML or CSS. It can only assemble approved blocks inside a locked brand, and nothing goes live without human approval.
+- **Guardrails by design.** The AI never writes HTML or JavaScript. It may draft section CSS through the same sanitiser and scope as a person, and a person must approve it. It does not write site-wide CSS. It can only assemble approved blocks inside a locked brand, and nothing goes live without human approval.
 - **Own your site.** Self-hostable on one small server, with no platform lock-in.
 - **No payments built in.** Donation and payment providers are embedded (for example Virtuous forms).
 
