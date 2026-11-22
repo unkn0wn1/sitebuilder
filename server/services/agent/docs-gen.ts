@@ -1,11 +1,20 @@
-// Renders the committed reference docs from the operation table: docs/agent-gateway-tools.md and the OpenAPI JSON.
-// scripts/agent-docs.ts writes them; a test fails if they are out of date.
+// Renders the committed reference docs from the operation table: docs/agent-gateway-tools.md, the OpenAPI JSON,
+// and the tool count in docs/agent-gateway.md. scripts/agent-docs.ts writes them; a test fails if they are out of date.
 import { ERROR_CATALOG, OPERATIONS, inputJsonSchema, toolDescription } from './operations'
 import { RECIPES, SERVER_INSTRUCTIONS } from './mcp-docs'
 import { buildOpenApi } from './openapi'
 
 export const TOOLS_DOC_PATH = 'docs/agent-gateway-tools.md'
 export const OPENAPI_PATH = 'docs/agent-gateway-openapi.json'
+export const GATEWAY_DOC_PATH = 'docs/agent-gateway.md'
+
+const TOOL_COUNT = /(\*\*Tools\*\*: )\d+( of them)/
+
+/** Replace the tool count in docs/agent-gateway.md with OPERATIONS.length. The rest of that file is written by hand. */
+export function withToolCount(markdown: string): string {
+  if (!TOOL_COUNT.test(markdown)) throw new Error('docs/agent-gateway.md is missing the "**Tools**: N of them" sentence.')
+  return markdown.replace(TOOL_COUNT, `$1${OPERATIONS.length}$2`)
+}
 
 type Prop = { type?: string | string[]; description?: string; enum?: unknown[]; default?: unknown; examples?: unknown[]; minimum?: number; maximum?: number; minLength?: number; maxLength?: number }
 

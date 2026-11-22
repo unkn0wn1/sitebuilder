@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { normaliseRules } from '../shared/agent/rules'
 import { RULE_PRESETS } from '../shared/agent/presets'
 import { buildOpenApi } from '../server/services/agent/openapi'
-import { OPENAPI_PATH, TOOLS_DOC_PATH, renderOpenApi, renderToolsDoc } from '../server/services/agent/docs-gen'
+import { GATEWAY_DOC_PATH, OPENAPI_PATH, TOOLS_DOC_PATH, renderOpenApi, renderToolsDoc, withToolCount } from '../server/services/agent/docs-gen'
 import { OPERATIONS } from '../server/services/agent/operations'
 import { matchRoute } from '../server/utils/agent'
 
@@ -11,6 +11,9 @@ describe('generated reference docs', () => {
   it('are up to date (run npm run agent-docs)', () => {
     expect(readFileSync(TOOLS_DOC_PATH, 'utf8'), 'docs/agent-gateway-tools.md is stale: run npm run agent-docs').toBe(renderToolsDoc())
     expect(readFileSync(OPENAPI_PATH, 'utf8'), 'docs/agent-gateway-openapi.json is stale: run npm run agent-docs').toBe(renderOpenApi())
+    const gateway = readFileSync(GATEWAY_DOC_PATH, 'utf8')
+    expect(gateway, 'docs/agent-gateway.md tool count is stale: run npm run agent-docs').toBe(withToolCount(gateway))
+    expect(gateway.match(/\*\*Tools\*\*: (\d+) of them/)?.[1]).toBe(String(OPERATIONS.length))
   })
 
   it('describe every operation once in the OpenAPI file, with a body or query schema', () => {

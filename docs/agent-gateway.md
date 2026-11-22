@@ -64,7 +64,7 @@ npm run agent-token -- pause-all     # the kill switch for every token
 npm run agent-token -- resume-all
 ```
 
-Or by the admin API (signed in as an admin, with the usual `Origin` header): `POST /api/v1/agent/tokens` with `{ "name", "access", "rules", "expiresAt", "ipAllow", "limits" }`. There is no Settings screen yet.
+Or by the admin API (signed in as an admin, with the usual `Origin` header): `POST /api/v1/agent/tokens` with `{ "name", "access", "rules", "expiresAt", "ipAllow", "limits" }`. Tokens and rules are also on the Settings screen, under Agents (`app/pages/settings/agents/`).
 
 ### Presets
 
@@ -194,7 +194,7 @@ curl -s -X POST https://builder.example.org/agent/v1/edits/remove-link -H "Autho
 
 On connect the MCP server sends instructions, and offers:
 
-- **Tools**: 29 of them, each with a long description (what, when, when not, before, effect, permission, returns, errors, example) and a full input schema with a description and example on every field.
+- **Tools**: 37 of them, each with a long description (what, when, when not, before, effect, permission, returns, errors, example) and a full input schema with a description and example on every field.
 - **Resources**: guides at `sitebuilder://guide/overview`, `tools`, `rules`, `content-model`, `markdown`, `errors`, and `sitebuilder://you` (its own live permissions).
 - **Prompts and recipes**, with the same text as resources at `sitebuilder://recipe/<name>`: `take_a_link_down`, `update_policy_text`, `change_words`, `edit_a_section`, `create_a_page`, `publish_or_ask`, `undo_a_change`, `menu_and_banner`, `when_you_are_refused`.
 
@@ -290,4 +290,4 @@ Against a demo site first, with a `drafts` token:
 
 ## What is not built yet
 
-OAuth for connector screens (deferred on purpose: bearer tokens are fine for now), a Settings screen for tokens and rules, rendered preview links, unpublishing or deleting pages by an agent, building a whole multi-page site in one go, and alerts to Slack or a webhook. See the [plan](agent-gateway-plan.md).
+OAuth for connector screens (bearer tokens remain the supported way). An agent still cannot unpublish or delete an arbitrary page. Undo can take offline a page that the same token created. See the [plan](agent-gateway-plan.md).
