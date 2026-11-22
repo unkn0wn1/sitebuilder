@@ -90,7 +90,7 @@ Blocks, theme and the site's own layer are **compiled once** into a render bundl
 
 ### nginx and Cloudflare
 
-nginx serves the static files and only accepts requests from Cloudflare. Cloudflare sits in front for edge caching, TLS and protection, and is purged by cache tag after each publish. No Varnish. See [08-hosting.md](08-hosting.md).
+nginx serves the static files. The public and builder servers listen on port 80. The shipped config does not terminate TLS, does not check a client certificate, and has no IP allow list. The builder server uses Cloudflare `set_real_ip_from` ranges and `CF-Connecting-IP`, then the proxy overwrites `X-Forwarded-For` and clears `CF-Connecting-IP`. HTML is `max-age=0, s-maxage=86400`, except 404 and 410, which are `no-store`. Firewall the host's ports 80 and 443 to Cloudflare's published ranges. Authenticated Origin Pulls need TLS on the origin, which this config does not provide. Cloudflare sits in front for edge caching, TLS and protection, and is purged by cache tag after each publish. No Varnish. See [08-hosting.md](08-hosting.md).
 
 ### Speed advisor
 
