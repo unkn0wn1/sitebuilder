@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { callOperation } from '../server/services/agent/operations'
 import { applyPageOps, createPage, getPage, readDoc, requirePage } from '../server/services/pages'
-import { createSitePart } from '../server/services/site-parts'
+import { createSitePart, editSitePart, requireSitePart } from '../server/services/site-parts'
 import { richTextToMarkdown } from '../shared/agent/content'
 import { richTextFromParagraphs } from '../shared/richtext'
+import { IMG } from './helpers'
 import { PUBLISH_ALL, SIGNUP, code, drain, world, type World } from './agent-helpers'
 
 const REASON = 'Testing the agent gateway'
@@ -208,6 +209,52 @@ describe('sections, details, pages, menus and banner', () => {
     createSitePart(w.ctx, 'banner', 'main', 'Banner')
     const b = call(w, 'set_banner', { message: 'Closed on Monday', enabled: true, tone: 'info', reason: REASON })
     expect(b.result.banner_now).toMatchObject({ enabled: true, message: 'Closed on Monday' })
+  })
+
+  it('sets an accent banner with a heart link and keeps fields a later call does not mention', async () => {
+    const w = await world()
+    createSitePart(w.ctx, 'banner', 'main', 'Banner')
+    const b = call(w, 'set_banner', { enabled: true, message: 'Give today', tone: 'accent', link: { label: 'Donate', url: 'https://example.org/donate', icon: 'heart' }, reason: REASON })
+    expect(b.result.banner_now).toMatchObject({ enabled: true, tone: 'accent', link: { label: 'Donate', icon: 'heart', target: { type: 'url', url: 'https://example.org/donate' } } })
+    const later = call(w, 'set_banner', { message: 'Give this week', change_id: b.change.id, reason: REASON })
+    expect(later.result.banner_now).toMatchObject({ message: 'Give this week', tone: 'accent', enabled: true, link: { icon: 'heart', label: 'Donate' } })
+  })
+
+  it('keeps photo tiles when a menu child is renamed, a sibling is added, or another item is removed', async () => {
+    const w = await world()
+    const part = requireSitePart(w.ctx, w.menuId)
+    editSitePart(w.ctx, w.admin, w.menuId, part.draftRevision, {
+      schemaVersion: 1,
+      items: [
+        { id: 'b_menu0001', label: 'Home', target: { type: 'url', url: '/' }, children: [{ id: 'b_tile0001', label: 'Kennel', target: { type: 'url', url: '/kennel' }, featured: true, image: { media: IMG.media, alt: 'Kennel' } }] },
+        { id: 'b_menu0002', label: 'Sign up', target: { type: 'url', url: SIGNUP }, children: [] },
+      ],
+    })
+    const renamed = call(w, 'rename_menu_item', { item_id: 'b_tile0001', new_label: 'The kennel', reason: REASON })
+    expect(renamed.result.menu_now[0].children[0]).toMatchObject({ label: 'The kennel', featured: true, image: { media: IMG.media, alt: 'Kennel' } })
+    const added = call(w, 'add_menu_item', { label: 'Clinic', url: '/clinic', parent_item_id: 'b_menu0001', change_id: renamed.change.id, reason: REASON })
+    expect(added.result.menu_now[0].children[0]).toMatchObject({ featured: true, image: { alt: 'Kennel' } })
+    expect(added.result.menu_now[0].children).toHaveLength(2)
+    call(w, 'remove_menu_item', { label: 'Sign up', change_id: renamed.change.id, reason: REASON })
+    const doc = call(w, 'get_site_part', { kind: 'menu' }).document
+    expect(doc.items.map((i: { label: string }) => i.label)).toEqual(['Home'])
+    expect(doc.items[0].children[0]).toMatchObject({ label: 'The kennel', featured: true, image: { media: IMG.media, alt: 'Kennel' } })
+  })
+
+  it('returns header utility, the heart icon and overHero in the document', async () => {
+    const w = await world()
+    const id = createSitePart(w.ctx, 'header', 'main', 'Header')
+    editSitePart(w.ctx, w.admin, id, 0, {
+      schemaVersion: 1,
+      overHero: true,
+      utility: { label: 'Report', target: { type: 'url', url: '/report' } },
+      cta: { label: 'Donate', target: { type: 'url', url: 'https://example.org/donate' }, icon: 'heart' },
+    })
+    expect(call(w, 'get_site_part', { kind: 'header' }).document).toMatchObject({
+      overHero: true,
+      utility: { label: 'Report', target: { type: 'url', url: '/report' } },
+      cta: { label: 'Donate', icon: 'heart' },
+    })
   })
 })
 

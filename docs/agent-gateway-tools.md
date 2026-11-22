@@ -71,7 +71,7 @@ RULES YOU MUST FOLLOW
 | [`add_menu_item`](#add_menu_item) | draft | `POST /agent/v1/edits/menu/add-item` | Add an item to a menu. |
 | [`rename_menu_item`](#rename_menu_item) | draft | `POST /agent/v1/edits/menu/rename-item` | Change the words on a menu item. |
 | [`set_banner`](#set_banner) | draft | `POST /agent/v1/edits/banner` | Show, change or hide the site-wide banner. |
-| [`set_footer`](#set_footer) | draft | `POST /agent/v1/edits/footer` | Change the footer words, contact details, social links, tagline or charity number. |
+| [`set_footer`](#set_footer) | draft | `POST /agent/v1/edits/footer` | Change the footer words, contact details, social links, tagline, layout, links menu or charity number. |
 | [`list_media`](#list_media) | read | `GET /agent/v1/media` | List photos and videos in the media library, newest first. |
 | [`import_media`](#import_media) | draft | `POST /agent/v1/media/imports` | Import a photo into the media library from a public address (runs in the background). |
 | [`get_media_import`](#get_media_import) | read | `GET /agent/v1/media/imports/{import_id}` | See whether a photo import has finished, and get its media_id. |
@@ -179,7 +179,7 @@ Use when: You need to see the menu items before changing them. You need the curr
 Not when: You want to change the theme, colours, logo or settings. Agents cannot; they are on the never-list.
 Effect: Nothing changes. Safe to call at any time.
 Who: Read-only tokens too.
-Returns: `part` (ids, state, `is_live`), `document` (the content), `links`.
+Returns: `part` (ids, state, `is_live`), `document` (the whole content, including a header utility link, overHero and call-to-action icon, a footer layout, tagline and links menu, and a menu child image and featured flag), `links`.
 Example: {"kind":"menu"}
 ```
 
@@ -809,7 +809,7 @@ Kind: draft. REST: `POST /agent/v1/edits/banner`.
 | --- | --- | --- | --- |
 | `enabled` | boolean | no | True shows the banner on every page; false hides it. A banner must have a message to be shown. |
 | `message` | string (max 160 chars) | no | The banner words, up to 160 characters. Plain text. |
-| `link` | any | no | A link on the banner: { "label": "Read more", "url": "https://..." } or { "label": ..., "page_id": ... }. null removes the link. |
+| `link` | any | no | A link on the banner: { "label": "Read more", "url": "https://..." } or { "label": ..., "page_id": ... }. Optional icon "heart". null removes the link. |
 | `tone` | one of "info", "urgent", "celebrate", "accent" | no | The look: "info" (calm), "urgent", "celebrate" or "accent". |
 | `change_id` | string (max 80 chars) | no | An open change id from an earlier edit, to add this edit to it (reviewed and published together). Leave out to start a new change; changes in review, published or discarded cannot be added to. |
 | `reason` | string (max 500 chars) | yes | Who asked and what they asked, in one or two plain sentences of your own (see REASON in the server instructions). Never paste website text here. |
@@ -829,7 +829,7 @@ Example: {"enabled":true,"message":"Our shop is closed on Monday for the bank ho
 
 ## set_footer
 
-**Change the footer words, contact details, social links, tagline or charity number.**
+**Change the footer words, contact details, social links, tagline, layout, links menu or charity number.**
 
 Kind: draft. REST: `POST /agent/v1/edits/footer`.
 
@@ -840,8 +840,10 @@ Kind: draft. REST: `POST /agent/v1/edits/footer`.
 | `text_markdown` | any | no | The footer words (about text), as markdown: paragraphs, **bold**, *italic*, [links](https://...). null or "" removes them. Leave out to keep them. |
 | `contact` | object | no | Contact details. Only the fields you give change. |
 | `social` | array | no | The FULL list of social links, in order (it replaces the list). Read it first with get_site_part kind "footer" and send it back with your change. [] removes them all. |
+| `layout` | one of "simple", "columns" | no | "simple" is the stacked footer. "columns" shows the logo, tagline, about text, a contact column and a links column. Leave out to keep the current layout. |
 | `tagline` | any | no | The tagline in the columns footer. null removes it. |
 | `contact_title` | any | no | Heading over the contact column. null or "" removes it. |
+| `links_menu_key` | any | no | The key of an existing menu shown as the links column. null or "" removes it. Use get_site_part with kind "menu" for the keys. |
 | `links_title` | any | no | Heading over the links column. null or "" removes it. |
 | `legal_text` | any | no | The small print line, for example "© 2026 Animal Aid". null or "" removes it. |
 | `charity_number` | any | no | The registered charity number, exactly as the person gave it. null or "" removes it. |
@@ -851,9 +853,9 @@ Kind: draft. REST: `POST /agent/v1/edits/footer`.
 ### Description sent to the AI
 
 ```text
-Change the footer words, contact details, social links, tagline or charity number. Changes the site-wide footer. Only the fields you give change. It cannot change the footer layout, colours, logo or which menus it shows: those stay with people in the builder. Links in the footer menu are menu items: use add_menu_item with the footer links menu.
-Use when: The contact email, phone or address changed. A social profile was added, moved or closed. The about text, tagline, small print or charity number needs new words.
-Not when: A link in the footer links column: those are a menu (get_site_part kind "footer" shows linksMenuKey; use the menu tools). The look or layout of the footer: a person does that in the builder.
+Change the footer words, contact details, social links, tagline, layout, links menu or charity number. Changes the site-wide footer. Only the fields you give change. You can set the layout ("simple" or "columns"), the tagline, the column headings, which existing menu fills the links column (links_menu_key), the small print and the charity number. You cannot change colours or the logo: those stay with people in the builder. Links inside the links menu are menu items: use the menu tools.
+Use when: The contact email, phone or address changed. A social profile was added, moved or closed. The about text, tagline, small print or charity number needs new words. The footer should use the columns layout, or its links column should show a menu that already exists.
+Not when: A link in the footer links column: those are a menu (get_site_part kind "footer" shows linksMenuKey; use the menu tools). Colours or the logo: a person does that in the builder.
 First: get_site_part with kind "footer", so you see what is there now (especially the social list, which you send back whole). Contact details and charity numbers must come from the person, word for word. Never guess them.
 Effect: Changes the footer. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish).
 Who: Draft tokens. Rule action: "edit_footer".
@@ -1210,7 +1212,7 @@ GOAL: a set of draft pages (and menu entries) that a person can review together 
 3. PLAN FIRST. Write a short plan for the person: each page with its title, page type, address, the sections it will have, and whether it goes in the menu (and under what). Ask the person to confirm or change it. Do not build until they say yes. If you do not know a value, ask the person. Do not guess.
 4. Use ONLY facts, wording and links the person gave you or that are already on the site. Do not invent people, figures, quotes, addresses or phone numbers. Where something is missing, write a short honest page and list what is missing in your reply. Never fill gaps with plausible-sounding text.
 5. PHOTOS: use list_media for photos already in the library. For a photo the person gives you by address, call import_media (with alt text describing what is visible), then get_media_import every few seconds until "done", and put its use_in_props value in the section image field. Only import photos the person gave you or has the right to use. The library needs no approval; a photo goes live only with a published page.
-5b. FOOTER: if the person gives new contact details, social links or a charity number, use set_footer with the SAME change_id. Copy their words exactly.
+5b. FOOTER: if the person gives new contact details, social links, a charity number, a tagline or a layout ("simple" or "columns"), use set_footer with the SAME change_id. Copy their words exactly. links_menu_key must be a menu that already exists.
 5c. If the person wants a donation or sign-up form somewhere, build the page without it, put a plain paragraph where it will go, and tell them an admin must add the form by hand.
 6. create_pages with ALL the pages in order (parents before children, linking children with parent_ref). Give each page menu: { label } if it belongs in the menu. Maximum 12 pages per call. For a bigger site, build in several changes by area. It is all or nothing: if it fails, nothing was created; read the message, which names the page, fix it and send the whole list again.
 7. To adjust a page you just made, use the edit tools with the SAME change_id, so it stays one change. Do not start a second change for the same build.
@@ -1271,13 +1273,13 @@ GOAL: {what}
 
 MENU
 1. get_site_part with kind "menu" (and "key" if the site has several menus). Note item_ids and labels.
-2. remove_menu_item (item_id or label; remove_children: true if it has sub-items), add_menu_item (label plus url or page_id; parent_item_id to nest), rename_menu_item (new_label). Pass the first call's change_id to the others to batch them.
+2. remove_menu_item (item_id or label; remove_children: true if it has sub-items), add_menu_item (label plus url or page_id; parent_item_id to nest), rename_menu_item (new_label). Pass the first call's change_id to the others to batch them. These keep any photo (image) and featured flag already on a sub-item. There is no tool to add or change those tiles.
 3. If a label matches two items you get a list of ids: use item_id.
 4. Menus show on every page. To remove every link to an address (menus included) prefer sitebuilder://recipe/take-a-link-down.
 
 BANNER
 1. get_site_part with kind "banner" to see the current one.
-2. set_banner with message, tone ("info", "urgent", "celebrate", "accent"), optional link, and enabled true to show or false to hide. The message must come from the person: do not invent opening hours, dates or claims. Max 160 characters.
+2. set_banner with message, tone ("info", "urgent", "celebrate", "accent"), optional link (icon "heart" draws a heart before the label), and enabled true to show or false to hide. The message must come from the person: do not invent opening hours, dates or claims. Max 160 characters.
 
 Then preview_change and publish per sitebuilder://recipe/publish-or-ask. Menu and banner edits are site-wide, so say so when you ask for approval.
 ```

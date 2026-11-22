@@ -180,8 +180,38 @@ describe('set_footer', () => {
     expect(await code(() => call(w2, 'set_footer', { social: [{ network: 'x', url: 'http://x.com/a' }], reason: REASON }))).toBe('validation_failed')
     expect(await code(() => call(w2, 'set_footer', { text_markdown: '[x](javascript:alert(1))', reason: REASON }))).toBe('validation_failed')
     expect(await code(() => call(w2, 'set_footer', { reason: REASON }))).toBe('validation_failed')
-    expect(await code(() => call(w2, 'set_footer', { layout: 'columns', reason: REASON }))).toBe('validation_failed')
     expect(call(w2, 'list_changes', {}).changes).toHaveLength(0)
+  })
+
+  it('sets the columns layout and links menu, and a later call keeps the fields it does not mention', async () => {
+    const w = await withFooter()
+    const r = call(w, 'set_footer', {
+      layout: 'columns',
+      tagline: { lead: 'For the animals', accent: 'every day' },
+      contact_title: 'Talk to us',
+      links_title: 'More',
+      links_menu_key: 'main',
+      legal_text: '© 2026 Animal Aid',
+      reason: REASON,
+    })
+    expect(r.result.changed).toEqual(['layout', 'tagline', 'linksMenuKey', 'contactTitle', 'linksTitle', 'legalText'])
+    expect(r.result.footer_now).toMatchObject({
+      layout: 'columns',
+      tagline: { lead: 'For the animals', accent: 'every day' },
+      contactTitle: 'Talk to us',
+      linksTitle: 'More',
+      linksMenuKey: 'main',
+      legalText: '© 2026 Animal Aid',
+      contact: { email: 'old@example.org' },
+    })
+    const later = call(w, 'set_footer', { charity_number: '12345', change_id: r.change.id, reason: REASON })
+    expect(later.result.changed).toEqual(['charityNumber'])
+    expect(later.result.footer_now).toMatchObject({ layout: 'columns', linksMenuKey: 'main', legalText: '© 2026 Animal Aid', charityNumber: '12345', contact: { email: 'old@example.org' } })
+    expect(await code(() => call(w, 'set_footer', { links_menu_key: 'no-such-menu', reason: REASON }))).toBe('validation_failed')
+    expect(call(w, 'get_site_part', { kind: 'footer' }).document.linksMenuKey).toBe('main')
+    const cleared = call(w, 'set_footer', { links_menu_key: '', change_id: r.change.id, reason: REASON })
+    expect(cleared.result.footer_now.linksMenuKey).toBeNull()
+    expect(cleared.result.footer_now.layout).toBe('columns')
   })
 
   it('obeys a deny rule for edit_footer', async () => {

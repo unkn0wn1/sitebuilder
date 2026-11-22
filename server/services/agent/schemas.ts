@@ -321,9 +321,19 @@ export const setBannerInput = z
     enabled: z.boolean().optional().meta({ description: 'True shows the banner on every page; false hides it. A banner must have a message to be shown.' }),
     message: z.string().trim().max(160).optional().meta({ description: 'The banner words, up to 160 characters. Plain text.', examples: ['Our shop is closed on Monday for the bank holiday.'] }),
     link: z
-      .union([z.object({ label: z.string().trim().min(1).max(30), url: z.string().trim().max(2048).optional(), page_id: z.string().trim().max(80).optional() }).strict(), z.null()])
+      .union([
+        z
+          .object({
+            label: z.string().trim().min(1).max(30),
+            url: z.string().trim().max(2048).optional(),
+            page_id: z.string().trim().max(80).optional(),
+            icon: z.enum(['heart']).optional().meta({ description: 'Set "heart" to draw a small heart before the label.' }),
+          })
+          .strict(),
+        z.null(),
+      ])
       .optional()
-      .meta({ description: 'A link on the banner: { "label": "Read more", "url": "https://..." } or { "label": ..., "page_id": ... }. null removes the link.' }),
+      .meta({ description: 'A link on the banner: { "label": "Read more", "url": "https://..." } or { "label": ..., "page_id": ... }. Optional icon "heart". null removes the link.' }),
     tone: z.enum(['info', 'urgent', 'celebrate', 'accent']).optional().meta({ description: 'The look: "info" (calm), "urgent", "celebrate" or "accent".' }),
     change_id: changeId,
     reason,
@@ -364,6 +374,7 @@ export const setFooterInput = z
       .max(8)
       .optional()
       .meta({ description: 'The FULL list of social links, in order (it replaces the list). Read it first with get_site_part kind "footer" and send it back with your change. [] removes them all.' }),
+    layout: z.enum(['simple', 'columns']).optional().meta({ description: '"simple" is the stacked footer. "columns" shows the logo, tagline, about text, a contact column and a links column. Leave out to keep the current layout.' }),
     tagline: z
       .object({ lead: z.string().trim().min(1).max(60).meta({ description: 'The first words of the tagline.' }), accent: z.string().trim().max(60).optional().meta({ description: 'Words shown in the accent colour after the lead.' }) })
       .strict()
@@ -371,6 +382,7 @@ export const setFooterInput = z
       .optional()
       .meta({ description: 'The tagline in the columns footer. null removes it.' }),
     contact_title: nullableText(40, 'Heading over the contact column. null or "" removes it.'),
+    links_menu_key: z.string().trim().max(40).nullable().optional().meta({ description: 'The key of an existing menu shown as the links column. null or "" removes it. Use get_site_part with kind "menu" for the keys.' }),
     links_title: nullableText(40, 'Heading over the links column. null or "" removes it.'),
     legal_text: nullableText(200, 'The small print line, for example "© 2026 Animal Aid". null or "" removes it.'),
     charity_number: nullableText(40, 'The registered charity number, exactly as the person gave it. null or "" removes it.'),

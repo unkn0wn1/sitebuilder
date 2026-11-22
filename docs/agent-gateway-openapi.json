@@ -301,7 +301,7 @@
       "get": {
         "operationId": "get_site_part",
         "summary": "Read the header, footer, a menu, or the banner.",
-        "description": "Read the header, footer, a menu, or the banner. Returns the DRAFT document of a site-wide part (it shows on every page) and every link in it. Menu items have ids you can use with remove_menu_item and rename_menu_item.\nUse when: You need to see the menu items before changing them. You need the current banner text.\nNot when: You want to change the theme, colours, logo or settings. Agents cannot; they are on the never-list.\nEffect: Nothing changes. Safe to call at any time.\nWho: Read-only tokens too.\nReturns: `part` (ids, state, `is_live`), `document` (the content), `links`.\nExample: {\"kind\":\"menu\"}",
+        "description": "Read the header, footer, a menu, or the banner. Returns the DRAFT document of a site-wide part (it shows on every page) and every link in it. Menu items have ids you can use with remove_menu_item and rename_menu_item.\nUse when: You need to see the menu items before changing them. You need the current banner text.\nNot when: You want to change the theme, colours, logo or settings. Agents cannot; they are on the never-list.\nEffect: Nothing changes. Safe to call at any time.\nWho: Read-only tokens too.\nReturns: `part` (ids, state, `is_live`), `document` (the whole content, including a header utility link, overHero and call-to-action icon, a footer layout, tagline and links menu, and a menu child image and featured flag), `links`.\nExample: {\"kind\":\"menu\"}",
         "tags": [
           "Read"
         ],
@@ -312,7 +312,7 @@
         ],
         "responses": {
           "200": {
-            "description": "`part` (ids, state, `is_live`), `document` (the content), `links`.",
+            "description": "`part` (ids, state, `is_live`), `document` (the whole content, including a header utility link, overHero and call-to-action icon, a footer layout, tagline and links menu, and a menu child image and featured flag), `links`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3194,7 +3194,7 @@
                     "maxLength": 160
                   },
                   "link": {
-                    "description": "A link on the banner: { \"label\": \"Read more\", \"url\": \"https://...\" } or { \"label\": ..., \"page_id\": ... }. null removes the link.",
+                    "description": "A link on the banner: { \"label\": \"Read more\", \"url\": \"https://...\" } or { \"label\": ..., \"page_id\": ... }. Optional icon \"heart\". null removes the link.",
                     "anyOf": [
                       {
                         "type": "object",
@@ -3211,6 +3211,13 @@
                           "page_id": {
                             "type": "string",
                             "maxLength": 80
+                          },
+                          "icon": {
+                            "description": "Set \"heart\" to draw a small heart before the label.",
+                            "type": "string",
+                            "enum": [
+                              "heart"
+                            ]
                           }
                         },
                         "required": [
@@ -3270,8 +3277,8 @@
     "/edits/footer": {
       "post": {
         "operationId": "set_footer",
-        "summary": "Change the footer words, contact details, social links, tagline or charity number.",
-        "description": "Change the footer words, contact details, social links, tagline or charity number. Changes the site-wide footer. Only the fields you give change. It cannot change the footer layout, colours, logo or which menus it shows: those stay with people in the builder. Links in the footer menu are menu items: use add_menu_item with the footer links menu.\nUse when: The contact email, phone or address changed. A social profile was added, moved or closed. The about text, tagline, small print or charity number needs new words.\nNot when: A link in the footer links column: those are a menu (get_site_part kind \"footer\" shows linksMenuKey; use the menu tools). The look or layout of the footer: a person does that in the builder.\nFirst: get_site_part with kind \"footer\", so you see what is there now (especially the social list, which you send back whole). Contact details and charity numbers must come from the person, word for word. Never guess them.\nEffect: Changes the footer. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish).\nWho: Draft tokens. Rule action: \"edit_footer\".\nReturns: The change reply (see REPLIES in the server instructions) plus `result` (what this call did). `result.changed` (the fields changed) and `result.footer_now`.\nExample: {\"contact\":{\"phone\":\"+91 98290 00000\"},\"reason\":\"The owner gave the new helpline number for the footer.\"}",
+        "summary": "Change the footer words, contact details, social links, tagline, layout, links menu or charity number.",
+        "description": "Change the footer words, contact details, social links, tagline, layout, links menu or charity number. Changes the site-wide footer. Only the fields you give change. You can set the layout (\"simple\" or \"columns\"), the tagline, the column headings, which existing menu fills the links column (links_menu_key), the small print and the charity number. You cannot change colours or the logo: those stay with people in the builder. Links inside the links menu are menu items: use the menu tools.\nUse when: The contact email, phone or address changed. A social profile was added, moved or closed. The about text, tagline, small print or charity number needs new words. The footer should use the columns layout, or its links column should show a menu that already exists.\nNot when: A link in the footer links column: those are a menu (get_site_part kind \"footer\" shows linksMenuKey; use the menu tools). Colours or the logo: a person does that in the builder.\nFirst: get_site_part with kind \"footer\", so you see what is there now (especially the social list, which you send back whole). Contact details and charity numbers must come from the person, word for word. Never guess them.\nEffect: Changes the footer. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish).\nWho: Draft tokens. Rule action: \"edit_footer\".\nReturns: The change reply (see REPLIES in the server instructions) plus `result` (what this call did). `result.changed` (the fields changed) and `result.footer_now`.\nExample: {\"contact\":{\"phone\":\"+91 98290 00000\"},\"reason\":\"The owner gave the new helpline number for the footer.\"}",
         "tags": [
           "Edit (drafts)"
         ],
@@ -3422,6 +3429,14 @@
                       "additionalProperties": false
                     }
                   },
+                  "layout": {
+                    "description": "\"simple\" is the stacked footer. \"columns\" shows the logo, tagline, about text, a contact column and a links column. Leave out to keep the current layout.",
+                    "type": "string",
+                    "enum": [
+                      "simple",
+                      "columns"
+                    ]
+                  },
                   "tagline": {
                     "description": "The tagline in the columns footer. null removes it.",
                     "anyOf": [
@@ -3452,6 +3467,18 @@
                   },
                   "contact_title": {
                     "description": "Heading over the contact column. null or \"\" removes it.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "links_menu_key": {
+                    "description": "The key of an existing menu shown as the links column. null or \"\" removes it. Use get_site_part with kind \"menu\" for the keys.",
                     "anyOf": [
                       {
                         "type": "string",

@@ -58,5 +58,5 @@ Total is about 46 to 51 days. This branch contains phases 0 to 3, 5 and 6.
 - An agent will not edit a page that is waiting for approval, and will not publish over someone else's unpublished edits on the same page. It reports the page and stops.
 - Admin undo of an agent change is the Undo button in Settings > Agents (or `POST /api/v1/agent/changes/:id/undo`), and is refused if the page was published again since.
 - Photo imports run in the background (`import_media` returns an `import_id`; poll `get_media_import`). Public https only, every redirect hop and the resolved addresses are checked, 25 MB cap, at most 10 waiting per token. Video cannot be imported by address.
-- `set_footer` changes words and details only. Footer layout, look, logo and which menus it shows stay with people.
+- `set_footer` changes words, contact details, social links, the tagline, the layout (`simple` or `columns`), the links menu and the charity number. Colours and the logo stay with people.
 - OpenAPI is public at `/agent/v1/openapi.json` (it contains no secrets). Tools still need a bearer token.

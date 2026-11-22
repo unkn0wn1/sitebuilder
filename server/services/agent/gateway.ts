@@ -919,7 +919,7 @@ function editMenu(ctx: ServiceCtx, agent: SignedInAgent, base: { menu_key: strin
   const valid = validateSitePartDoc('menu', menu)
   if (!valid.ok) throw new AppError('validation_failed', valid.issues[0]!.message, valid.issues)
   const done = runInChange(ctx, agent, { changeId: base.change_id, title, reason: base.reason }, (h) => h.editPart(part.id, 'edit_menu', valid.doc))
-  return { ...editView(ctx, agent, done.change), result: { menu_now: (valid.doc as MenuDoc).items.map((i) => ({ item_id: i.id, label: i.label, children: i.children.map((c) => ({ item_id: c.id, label: c.label })) })) } }
+  return { ...editView(ctx, agent, done.change), result: { menu_now: (valid.doc as MenuDoc).items.map((i) => ({ item_id: i.id, label: i.label, children: i.children.map((c) => ({ item_id: c.id, label: c.label, ...(c.image ? { image: c.image } : {}), ...(c.featured ? { featured: true } : {}) })) })) } }
 }
 
 export function removeMenuItem(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.removeMenuItemInput>) {
@@ -959,7 +959,7 @@ export function setBanner(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeo
     if (input.link === null) banner.link = null
     else {
       if (!!input.link.url === !!input.link.page_id) throw new AppError('validation_failed', 'The banner link needs url or page_id, not both and not neither.', [{ path: 'link', message: 'Give url or page_id.' }])
-      banner.link = { label: input.link.label, target: menuTarget(input.link, ctx) }
+      banner.link = { label: input.link.label, target: menuTarget(input.link, ctx), ...(input.link.icon ? { icon: input.link.icon } : {}) }
     }
   }
   if (input.enabled !== undefined) banner.enabled = input.enabled
@@ -969,7 +969,7 @@ export function setBanner(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeo
   return { ...editView(ctx, agent, done.change), result: { banner_now: valid.doc } }
 }
 
-/** Change the footer's words and details (phase 5). Layout, look and which menus it shows stay with people. */
+/** Change the footer's words and details. Colours and the logo stay with people. */
 export function setFooter(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.setFooterInput>) {
   const part = findPart(ctx, 'footer')
   const footer = structuredClone(readSitePartDoc(ctx, part)) as FooterDoc
@@ -991,9 +991,21 @@ export function setFooter(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeo
     footer.social = input.social
     changed.push('social')
   }
+  if (input.layout !== undefined) {
+    footer.layout = input.layout
+    changed.push('layout')
+  }
   if (input.tagline !== undefined) {
     footer.tagline = input.tagline ? { lead: input.tagline.lead, accent: input.tagline.accent ?? '' } : null
     changed.push('tagline')
+  }
+  if (input.links_menu_key !== undefined) {
+    const key = input.links_menu_key || null
+    if (key && !allParts(ctx).some((p) => p.kind === 'menu' && p.key === key)) {
+      throw new AppError('validation_failed', `There is no menu called "${key}". Use get_site_part with kind "menu" to see the menus.`, [{ path: 'links_menu_key', message: 'No menu with that key.' }])
+    }
+    footer.linksMenuKey = key
+    changed.push('linksMenuKey')
   }
   const simple = { contact_title: 'contactTitle', links_title: 'linksTitle', legal_text: 'legalText', charity_number: 'charityNumber' } as const
   for (const [k, field] of Object.entries(simple) as [keyof typeof simple, (typeof simple)[keyof typeof simple]][]) {
@@ -1002,7 +1014,7 @@ export function setFooter(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeo
       changed.push(field)
     }
   }
-  if (!changed.length) throw new AppError('validation_failed', 'Say what to change: text_markdown, contact, social, tagline, contact_title, links_title, legal_text or charity_number.', [{ path: '(input)', message: 'Nothing to change.' }])
+  if (!changed.length) throw new AppError('validation_failed', 'Say what to change: text_markdown, contact, social, layout, tagline, contact_title, links_title, links_menu_key, legal_text or charity_number.', [{ path: '(input)', message: 'Nothing to change.' }])
   const valid = validateSitePartDoc('footer', footer)
   if (!valid.ok) throw new AppError('validation_failed', valid.issues[0]!.message, valid.issues)
   const done = runInChange(ctx, agent, { changeId: input.change_id, title: `Change the footer (${changed.join(', ')})`, reason: input.reason }, (h) => h.editPart(part.id, 'edit_footer', valid.doc))
