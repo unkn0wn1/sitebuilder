@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { ga4SkippedBecauseGtm } from '#shared/settings'
 import { api, ApiError } from '../../utils/api'
 import { emptyToNull, type SettingsPayload } from '../../utils/settings'
 import SettingsNav from '../../components/settings/SettingsNav.vue'
+
+const GA4_SKIPPED_MESSAGE = 'Google Analytics is not loaded separately while Tag Manager is set. Add your GA4 tag inside Tag Manager, or clear the Tag Manager ID.'
 
 definePageMeta({ layout: 'builder' })
 
@@ -13,6 +16,7 @@ const ga4 = ref('')
 const gtm = ref('')
 const plausible = ref('')
 const cookiebot = ref('')
+const ga4Skipped = computed(() => ga4SkippedBecauseGtm({ ga4: ga4.value, gtm: gtm.value }))
 
 async function load() {
   loading.value = true
@@ -63,8 +67,10 @@ onMounted(load)
     <form v-else class="max-w-xl" @submit.prevent="save">
       <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
       <FwbAlert v-else-if="saved" type="success" class="mb-4">{{ saved }}</FwbAlert>
+      <FwbAlert v-if="ga4Skipped" type="warning" class="mb-4">{{ GA4_SKIPPED_MESSAGE }}</FwbAlert>
       <div class="mb-4">
         <FwbInput v-model="ga4" label="Google Analytics 4" placeholder="G-ABC123XYZ" />
+        <p v-if="ga4Skipped" class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ GA4_SKIPPED_MESSAGE }}</p>
       </div>
       <div class="mb-4">
         <FwbInput v-model="gtm" label="Google Tag Manager" placeholder="GTM-ABC1234" />
