@@ -25,6 +25,8 @@ describe('block fields', () => {
     expect(headingProp('Hero')).toBe('heading')
     expect(blockCatalog().some((b) => b.type === 'VideoHero')).toBe(true)
     expect(imageSlotFor('Hero', 'image')).toEqual({ width: 1280, height: 720, ratio: '16:9' })
+    expect(imageSlotFor('Hero', 'poster')).toEqual({ width: 1280, height: 720, ratio: '16:9' })
+    expect(imageSlotFor('Hero', 'slides.0.image')).toEqual({ width: 1280, height: 720, ratio: '16:9' })
     expect(imageSlotFor('Image', 'image')?.ratio).toBe('3:2')
   })
 

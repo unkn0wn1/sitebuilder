@@ -405,6 +405,19 @@ export const TILE_CSS = `
 @media (max-width: 640px) { .nav-mega details .nav-mega-panel-tiles { grid-template-columns: 1fr; position: static; } }
 `
 
+/** Carousel stage and controls. Appended only when a hero has two or more slides in a carousel mode. */
+export const HERO_CAROUSEL_CSS = `
+.hero-carousel .hero-stage { position: absolute; inset: 0; }
+.hero-carousel .hero-slide { position: absolute; inset: 0; }
+.hero-carousel .hero-controls { position: absolute; z-index: 2; left: 0; right: 0; bottom: 1.25rem; display: flex; justify-content: center; align-items: center; gap: 0.35rem; }
+.hero-carousel .hero-controls button { min-width: 44px; min-height: 44px; padding: 0 0.75rem; border: 0; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--ink) 55%, transparent); color: var(--paper); font: inherit; font-weight: 700; cursor: pointer; transition: background-color 0.15s; }
+.hero-carousel .hero-controls button:hover { background: color-mix(in srgb, var(--ink) 72%, transparent); }
+.hero-carousel .hero-controls button:focus-visible { outline: 3px solid var(--highlight); outline-offset: 2px; }
+.hero-carousel .hero-live { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.hero-carousel [hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .hero-carousel .hero-controls button { transition: none; } }
+`
+
 
 /** Build public CSS from a brand pack, keeping the default rules and swapping tokens and fonts.
  *  Replaces the whole :root block, including --highlight and the derived variables. */

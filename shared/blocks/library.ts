@@ -23,6 +23,15 @@ const badgeHtml = z
     message: 'This badge snippet could not be used. Use a logo, or a script from a known organisation such as Charity Navigator, Candid or TripAdvisor.',
   })
 
+const heroSlide = z
+  .object({
+    image: imageRef.optional(),
+    video: mediaId.optional(),
+    heading: text({ max: 80 }),
+    subheading: text({ max: 160 }),
+  })
+  .strict()
+
 export const Hero = defineBlock({
   type: 'Hero',
   version: 1,
@@ -50,9 +59,36 @@ export const Hero = defineBlock({
       image: imageRef,
       cta: linkRef.optional(),
       tone: tone.default('primary'),
+      mode: z.enum(['image', 'video', 'image-carousel', 'video-carousel']).default('image'),
+      video: mediaId.optional(),
+      poster: imageRef.optional(),
+      slides: z.array(heroSlide).max(8).optional(),
     })
-    .strict(),
-  imageSlots: { image: { width: 1280, height: 720 } },
+    .strict()
+    .superRefine((value, ctx) => {
+      if (value.mode === 'video' && !value.video) {
+        ctx.addIssue({ code: 'custom', path: ['video'], message: 'Add a video for video mode.' })
+      }
+      if (value.mode !== 'image-carousel' && value.mode !== 'video-carousel') return
+      const slides = value.slides ?? []
+      if (slides.length < 2) {
+        ctx.addIssue({ code: 'custom', path: ['slides'], message: 'Add at least two slides.' })
+        return
+      }
+      slides.forEach((slide, index) => {
+        if (value.mode === 'image-carousel' && !slide.image) {
+          ctx.addIssue({ code: 'custom', path: ['slides', index, 'image'], message: 'Add a photo on this slide.' })
+        }
+        if (value.mode === 'video-carousel' && !slide.video) {
+          ctx.addIssue({ code: 'custom', path: ['slides', index, 'video'], message: 'Add a video on this slide.' })
+        }
+      })
+    }),
+  imageSlots: {
+    image: { width: 1280, height: 720 },
+    poster: { width: 1280, height: 720 },
+    'slides.image': { width: 1280, height: 720 },
+  },
   headingProps: ['heading'],
   sample: { heading: 'Keep them warm this winter', subheading: 'Your gift pays for blankets, food and treatment.', image: sampleImage, cta: { label: 'Donate now', href: '#donate' } },
 })

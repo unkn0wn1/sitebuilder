@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { scopeThemeCss } from '../app/utils/theme-css'
-import { DEFAULT_THEME_TOKENS, THEME_CSS, themeCssFromTokens } from '../shared/theme-css'
+import { DEFAULT_THEME_TOKENS, HERO_CAROUSEL_CSS, THEME_CSS, themeCssFromTokens } from '../shared/theme-css'
 
 /** Every rule line is scoped. Blank lines and at-rules are left alone. */
 function unscopedRuleLines(css: string): string[] {
@@ -21,5 +21,10 @@ describe('theme canvas scope', () => {
     expect(custom).toContain('--accent: #113399;')
     expect(custom).toContain('--highlight: #f3b53f;')
     expect(custom).toContain('--decor:')
+  })
+
+  it('scopes the carousel sheet, with no keyframes', () => {
+    expect(HERO_CAROUSEL_CSS).not.toContain('@keyframes')
+    expect(unscopedRuleLines(scopeThemeCss(HERO_CAROUSEL_CSS))).toEqual([])
   })
 })

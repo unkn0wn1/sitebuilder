@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { defineBlock, text } from '../shared/blocks/define'
 import { createDefaultRegistry, createRegistry } from '../shared/blocks/registry'
-import { STARTER_BLOCKS, VideoHero } from '../shared/blocks/library'
+import { Hero, SAMPLE_MEDIA_ID, SAMPLE_VIDEO_ID, STARTER_BLOCKS, VideoHero } from '../shared/blocks/library'
 import { checkTemplateRules, withLibraryBlockUpdates } from '../shared/templates'
 import { migratePageDoc, PageMigrationError } from '../shared/page'
 
@@ -51,6 +51,30 @@ describe('block registry', () => {
 
   it('a block without a migration path cannot be defined', () => {
     expect(() => defineBlock({ type: 'X', version: 2, label: 'X', category: 'Text', props: z.object({}), sample: {} })).toThrow(/no migration/)
+  })
+
+  it('accepts an old hero and the four modes, and rejects a broken carousel', () => {
+    const image = { media: SAMPLE_MEDIA_ID, alt: 'A rescued puppy wrapped in a blanket' }
+    const base = { heading: 'Keep them warm', image }
+    const block = (props: Record<string, unknown>) => ({ id: 'b_test1', type: 'Hero', v: 1, props })
+    expect(registry.validate(block(Hero.sample as Record<string, unknown>)).ok).toBe(true)
+    expect(registry.validate(block(base)).ok).toBe(true)
+    expect(registry.validate(block({ ...base, mode: 'image' })).ok).toBe(true)
+    expect(registry.validate(block({ ...base, mode: 'video', video: SAMPLE_VIDEO_ID })).ok).toBe(true)
+    expect(registry.validate(block({ ...base, mode: 'image-carousel', slides: [{ image }, { image }] })).ok).toBe(true)
+    expect(registry.validate(block({ ...base, mode: 'video-carousel', slides: [{ video: SAMPLE_VIDEO_ID }, { video: SAMPLE_VIDEO_ID }] })).ok).toBe(true)
+
+    const noVideo = registry.validate(block({ ...base, mode: 'video' }))
+    expect(noVideo.ok).toBe(false)
+    if (!noVideo.ok) expect(noVideo.issues.some((issue) => issue.path.endsWith('video'))).toBe(true)
+
+    const oneSlide = registry.validate(block({ ...base, mode: 'video-carousel', slides: [{ video: SAMPLE_VIDEO_ID }] }))
+    expect(oneSlide.ok).toBe(false)
+    if (!oneSlide.ok) expect(oneSlide.issues.some((issue) => issue.path.endsWith('slides'))).toBe(true)
+
+    const noImage = registry.validate(block({ ...base, mode: 'image-carousel', slides: [{ image }, { heading: 'Second' }] }))
+    expect(noImage.ok).toBe(false)
+    if (!noImage.ok) expect(noImage.issues.some((issue) => issue.path.endsWith('image'))).toBe(true)
   })
 
   it('treats a VideoHero as satisfying a required Hero on a Home page', () => {

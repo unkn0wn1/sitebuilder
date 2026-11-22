@@ -1,6 +1,10 @@
 #!/usr/bin/env tsx
 // Rewrite golden HTML from the render fixtures. Do not hand-edit the HTML.
 //   npm run golden:regen
+// tests/fixtures/item5 (hero-one.html, videohero-one.html) is a frozen markup oracle
+// for the item 5 Hero and VideoHero body. This script does not write those files.
+// tests/hero-modes.test.ts strips the <style> block and CSP sha256 hashes and compares
+// body markup only, so a later THEME_CSS change does not require editing them.
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'

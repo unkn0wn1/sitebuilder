@@ -25,7 +25,7 @@ import {
 } from '../../shared/site-parts'
 import { BUNDLE_ID, EMBED_JS, HEADER_JS, THEME_CSS } from '../theme/default'
 import { migrateBrandDoc, validateBrandDoc, type BrandDoc } from '../../shared/brand'
-import { BANNER_ACCENT_CSS, FOOTER_COLUMNS_CSS, HEART_CSS, OVER_HERO_CSS, TILE_CSS, UTILITY_CSS, brandChromeCss, themeCssFromTokens } from '../../shared/theme-css'
+import { BANNER_ACCENT_CSS, FOOTER_COLUMNS_CSS, HEART_CSS, HERO_CAROUSEL_CSS, OVER_HERO_CSS, TILE_CSS, UTILITY_CSS, brandChromeCss, themeCssFromTokens } from '../../shared/theme-css'
 import { embeds, media, mediaCrops, pages, redirects, siteParts, sites, versions, type ReleaseManifest } from '../db/schema'
 import type { ServiceCtx } from './context'
 import { widthsFor } from './media'
@@ -126,13 +126,14 @@ interface Collector {
   connectSrcs: Set<string>
   needsEmbedJs: boolean
   needsHeaderJs: boolean
+  needsHeroJs: boolean
   pageIdByPath: Map<string, string>
   origin: string | null
   aliases: Map<string, string>
 }
 
 function newCollector(site: SiteRenderContext): Collector {
-  return { media: new Set(), links: new Set(), linkedPageIds: new Set(), siteParts: new Set(), scriptSrcs: new Set(), frameSrcs: new Set(), imgSrcs: new Set(), connectSrcs: new Set(), needsEmbedJs: false, needsHeaderJs: false, pageIdByPath: pageIdByPath(site.pagesById), origin: site.origin, aliases: site.pathAliases ?? new Map() }
+  return { media: new Set(), links: new Set(), linkedPageIds: new Set(), siteParts: new Set(), scriptSrcs: new Set(), frameSrcs: new Set(), imgSrcs: new Set(), connectSrcs: new Set(), needsEmbedJs: false, needsHeaderJs: false, needsHeroJs: false, pageIdByPath: pageIdByPath(site.pagesById), origin: site.origin, aliases: site.pathAliases ?? new Map() }
 }
 
 /** Record an internal target and return the href that should be written (the live path, if known). */
@@ -325,10 +326,142 @@ function wrapSection(children: VNode | null | Array<VNode | null>, className = '
   return h('section', { class: className }, [h('div', { class: 'wrap' }, Array.isArray(children) ? children : [children])])
 }
 
+function heroSlides(props: Record<string, unknown>): Array<Record<string, unknown>> {
+  if (!Array.isArray(props.slides)) return []
+  return props.slides.filter((slide): slide is Record<string, unknown> => !!slide && typeof slide === 'object' && !Array.isArray(slide))
+}
+
+/** A real carousel: Hero in a carousel mode with at least two slides. The same check picks the CSS and the script flag. */
+function heroCarouselActive(block: { type: string; props: Record<string, unknown> }): boolean {
+  if (block.type !== 'Hero') return false
+  const mode = block.props.mode
+  if (mode !== 'image-carousel' && mode !== 'video-carousel') return false
+  return heroSlides(block.props).length >= 2
+}
+
+function renderVideoHeroSection(
+  heading: unknown,
+  subheading: unknown,
+  poster: ImageRef | undefined,
+  videoId: string,
+  cta: unknown,
+  site: SiteRenderContext,
+  bag: Collector,
+  firstHero: boolean,
+): VNode {
+  if (videoId && (site.media[videoId] || !site.mediaComplete)) bag.media.add(videoId)
+  const clip = videoId ? site.media[videoId] : undefined
+  const playVideo = !!videoId && (!!clip || !site.mediaComplete)
+  const ext = clip?.mime === 'video/webm' ? 'webm' : 'mp4'
+  const mime = clip?.mime === 'video/webm' ? 'video/webm' : 'video/mp4'
+  return h('section', { class: 'hero', 'aria-label': String(heading ?? '') }, [
+    pictureVNode(poster, site, bag, { slot: { width: 1280, height: 720 }, eager: firstHero, class: 'hero-media' }),
+    playVideo
+      ? h('video', { class: 'hero-video', autoplay: true, muted: true, loop: true, playsinline: true, preload: 'none', 'aria-hidden': 'true' }, [
+          h('source', { src: `/media/${videoId}.${ext}`, type: mime, media: '(min-width: 641px)' }),
+        ])
+      : null,
+    h('div', { class: 'hero-inner' }, [
+      h('h1', String(heading ?? '')),
+      subheading ? h('p', String(subheading)) : null,
+      linkButton(cta as { label: string; href: string } | undefined, bag),
+    ]),
+  ])
+}
+
+function slideText(value: unknown): string {
+  return typeof value === 'string' && value ? value : ''
+}
+
+function renderHeroCarousel(block: StoredBlock, site: SiteRenderContext, bag: Collector, firstHero: boolean): VNode {
+  const p = block.props
+  const slides = heroSlides(p)
+  const count = slides.length
+  const videoMode = p.mode === 'video-carousel'
+  const first = slides[0] ?? {}
+  const heading = slideText(first.heading) || String(p.heading ?? '')
+  const subheading = slideText(first.subheading) || (p.subheading ? String(p.subheading) : '')
+  return h('section', { class: 'hero hero-carousel', 'aria-roledescription': 'carousel', 'aria-label': String(p.heading ?? '') }, [
+    h(
+      'div',
+      { class: 'hero-stage' },
+      slides.map((slide, index) => {
+        const slideHeading = slideText(slide.heading)
+        const image = (slide.image as ImageRef | undefined) ?? (p.poster as ImageRef | undefined) ?? (p.image as ImageRef | undefined)
+        const children: VNode[] = []
+        const picture = pictureVNode(image, site, bag, { slot: { width: 1280, height: 720 }, eager: firstHero && index === 0, class: 'hero-media' })
+        if (picture) children.push(picture)
+        if (videoMode) {
+          const video = carouselVideo(slide, site, bag)
+          if (video) children.push(video)
+        }
+        return h(
+          'div',
+          {
+            class: 'hero-slide',
+            'aria-roledescription': 'slide',
+            'aria-label': `Slide ${index + 1} of ${count}`,
+            hidden: index === 0 ? undefined : true,
+            'data-heading': slideHeading || undefined,
+          },
+          children,
+        )
+      }),
+    ),
+    h('div', { class: 'hero-inner' }, [
+      h('h1', heading),
+      subheading ? h('p', subheading) : null,
+      linkButton(p.cta as { label: string; href: string } | undefined, bag),
+    ]),
+    h('div', { class: 'hero-controls', hidden: true }, [
+      h('button', { type: 'button', class: 'hero-prev', 'aria-label': 'Previous slide' }, 'Previous slide'),
+      h('button', { type: 'button', class: 'hero-pause', 'aria-label': 'Pause' }, 'Pause'),
+      ...slides.map((_, index) => h('button', { type: 'button', class: 'hero-dot', 'aria-label': `Slide ${index + 1} of ${count}` }, `Slide ${index + 1} of ${count}`)),
+      h('button', { type: 'button', class: 'hero-next', 'aria-label': 'Next slide' }, 'Next slide'),
+      h('span', { class: 'hero-live', 'aria-live': 'off' }, `Slide 1 of ${count}`),
+    ]),
+  ])
+}
+
+function carouselVideo(slide: Record<string, unknown>, site: SiteRenderContext, bag: Collector): VNode | null {
+  const videoId = typeof slide.video === 'string' ? slide.video : ''
+  if (!videoId) return null
+  const clip = site.media[videoId]
+  if (!clip && site.mediaComplete) return null
+  if (clip || !site.mediaComplete) bag.media.add(videoId)
+  const ext = clip?.mime === 'video/webm' ? 'webm' : 'mp4'
+  const mime = clip?.mime === 'video/webm' ? 'video/webm' : 'video/mp4'
+  return h('video', {
+    class: 'hero-video',
+    muted: true,
+    playsinline: true,
+    loop: true,
+    preload: 'none',
+    'data-src': `/media/${videoId}.${ext}`,
+    'data-type': mime,
+  })
+}
+
 function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector, firstHero: boolean): VNode {
   const p = block.props as Record<string, unknown>
   switch (block.type) {
-    case 'Hero':
+    case 'Hero': {
+      if (p.mode === 'video' || (p.mode === 'video-carousel' && !heroCarouselActive(block))) {
+        return renderVideoHeroSection(
+          p.heading,
+          p.subheading,
+          (p.poster as ImageRef | undefined) ?? (p.image as ImageRef | undefined),
+          typeof p.video === 'string' ? p.video : '',
+          p.cta,
+          site,
+          bag,
+          firstHero,
+        )
+      }
+      if (heroCarouselActive(block)) {
+        bag.needsHeroJs = true
+        return renderHeroCarousel(block, site, bag, firstHero)
+      }
       return h('section', { class: 'hero', 'aria-label': String(p.heading ?? '') }, [
         pictureVNode(p.image as ImageRef | undefined, site, bag, { slot: { width: 1280, height: 720 }, eager: firstHero, class: 'hero-media' }),
         h('div', { class: 'hero-inner' }, [
@@ -337,27 +470,9 @@ function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector
           linkButton(p.cta as { label: string; href: string } | undefined, bag),
         ]),
       ])
-    case 'VideoHero': {
-      const videoId = typeof p.video === 'string' ? p.video : ''
-      if (videoId && (site.media[videoId] || !site.mediaComplete)) bag.media.add(videoId)
-      const clip = videoId ? site.media[videoId] : undefined
-      const playVideo = !!videoId && (!!clip || !site.mediaComplete)
-      const ext = clip?.mime === 'video/webm' ? 'webm' : 'mp4'
-      const mime = clip?.mime === 'video/webm' ? 'video/webm' : 'video/mp4'
-      return h('section', { class: 'hero', 'aria-label': String(p.heading ?? '') }, [
-        pictureVNode(p.poster as ImageRef | undefined, site, bag, { slot: { width: 1280, height: 720 }, eager: firstHero, class: 'hero-media' }),
-        playVideo
-          ? h('video', { class: 'hero-video', autoplay: true, muted: true, loop: true, playsinline: true, preload: 'none', 'aria-hidden': 'true' }, [
-              h('source', { src: `/media/${videoId}.${ext}`, type: mime, media: '(min-width: 641px)' }),
-            ])
-          : null,
-        h('div', { class: 'hero-inner' }, [
-          h('h1', String(p.heading ?? '')),
-          p.subheading ? h('p', String(p.subheading)) : null,
-          linkButton(p.cta as { label: string; href: string } | undefined, bag),
-        ]),
-      ])
     }
+    case 'VideoHero':
+      return renderVideoHeroSection(p.heading, p.subheading, p.poster as ImageRef | undefined, typeof p.video === 'string' ? p.video : '', p.cta, site, bag, firstHero)
     case 'RichText':
       return wrapSection([h('div', { class: 'prose' }, renderRichText(p.content as RichTextDoc, bag))])
     case 'TextAndImage': {
@@ -1127,7 +1242,8 @@ export async function renderPageHtml(input: {
 }): Promise<RenderedPage> {
   const bag = newCollector(input.site)
   const { doc, site } = input
-  const css = (site.themeCss ?? THEME_CSS) + shellOptionCss(site) + emitSiteCss(site.brand) + doc.blocks.map((block) => emitSectionCss(block as StoredBlock)).join('')
+  const carouselCss = doc.blocks.some((block) => heroCarouselActive(block as StoredBlock)) ? HERO_CAROUSEL_CSS : ''
+  const css = (site.themeCss ?? THEME_CSS) + shellOptionCss(site) + carouselCss + emitSiteCss(site.brand) + doc.blocks.map((block) => emitSectionCss(block as StoredBlock)).join('')
   if (css.toLowerCase().includes('</')) throw new CssRejected(1, 1, 'The generated CSS was rejected.')
   if (Buffer.byteLength(css, 'utf8') > STYLE_MAX_BYTES) throw new CssRejected(1, 1, 'This page CSS is over the 65,536 byte limit.')
   const app = createSSRApp(
@@ -1193,7 +1309,13 @@ export async function renderPageHtml(input: {
 }
 
 function firstHeroPreload(block: StoredBlock, site: SiteRenderContext): string {
-  const image = (block.props as { image?: ImageRef; poster?: ImageRef }).image ?? (block.props as { poster?: ImageRef }).poster
+  const props = block.props as { image?: ImageRef; poster?: ImageRef; mode?: unknown }
+  let image = props.image ?? props.poster
+  if (block.type === 'Hero' && props.mode === 'video') image = props.poster ?? props.image
+  if (heroCarouselActive(block)) {
+    const first = heroSlides(block.props)[0]
+    image = (first?.image as ImageRef | undefined) ?? props.poster ?? props.image
+  }
   if (!image) return ''
   const entry = site.media[image.media]
   if (!entry && (site.mediaComplete || site.preview)) return ''

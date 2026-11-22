@@ -1,7 +1,7 @@
 // Inputs for the sections golden. The HTML next to this file is written by
 // scripts/regen-golden.ts. Do not hand-edit those HTML files.
-// Hero mode cases are appended to HERO_MODE_CASES once those modes exist.
-import { SAMPLE_EMBED_ID, SAMPLE_MEDIA_ID, SAMPLE_VIDEO_ID, STARTER_BLOCKS } from '../../../shared/blocks/library'
+// Hero mode cases cover the four Hero modes. The sample hero in all-blocks stays a single image.
+import { Hero, SAMPLE_EMBED_ID, SAMPLE_MEDIA_ID, SAMPLE_VIDEO_ID, STARTER_BLOCKS } from '../../../shared/blocks/library'
 import { emptyPageDoc, type PageDoc } from '../../../shared/page'
 import { DEFAULT_THEME_TOKENS, themeCssFromTokens } from '../../../shared/theme-css'
 import type { EmbedCatalogEntry, MediaCatalogEntry, SiteRenderContext } from '../../../server/services/render'
@@ -114,7 +114,47 @@ const blockCases: SectionCase[] = [
   },
 ]
 
-/** Append hero mode fixtures here once the four modes exist. */
-export const HERO_MODE_CASES: SectionCase[] = []
+const heroSample = Hero.sample as Record<string, unknown>
+const slideImage = heroSample.image
+
+function heroPage(id: string, props: Record<string, unknown>): PageDoc {
+  const doc = emptyPageDoc('Sections')
+  doc.blocks = [{ id, type: 'Hero', v: 1, props }]
+  return doc
+}
+
+/** One page per hero mode. The image case is the old sample, so its hero matches all-blocks. */
+export const HERO_MODE_CASES: SectionCase[] = [
+  { name: 'hero-image', doc: heroPage('b_hero', heroSample), site: sectionSite() },
+  {
+    name: 'hero-video',
+    doc: heroPage('b_herovid', { ...heroSample, mode: 'video', video: SAMPLE_VIDEO_ID }),
+    site: sectionSite(),
+  },
+  {
+    name: 'hero-image-carousel',
+    doc: heroPage('b_heroimgc', {
+      ...heroSample,
+      mode: 'image-carousel',
+      slides: [
+        { image: slideImage, heading: 'A warm bed tonight', subheading: 'Blankets for every kennel.' },
+        { image: slideImage, heading: 'Food and treatment' },
+      ],
+    }),
+    site: sectionSite(),
+  },
+  {
+    name: 'hero-video-carousel',
+    doc: heroPage('b_herovidc', {
+      ...heroSample,
+      mode: 'video-carousel',
+      slides: [
+        { image: slideImage, video: SAMPLE_VIDEO_ID, heading: 'A warm bed tonight', subheading: 'Blankets for every kennel.' },
+        { image: slideImage, video: SAMPLE_VIDEO_ID, heading: 'Food and treatment' },
+      ],
+    }),
+    site: sectionSite(),
+  },
+]
 
 export const SECTION_CASES: SectionCase[] = [...blockCases, ...HERO_MODE_CASES]
