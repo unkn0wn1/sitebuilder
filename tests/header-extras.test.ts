@@ -79,7 +79,8 @@ describe('see-through header', () => {
     const { overHero: _off, ...omitted } = header()
     void _off
     const explicit = await render({ header: { id: 'sp_header', doc: header({ overHero: false }) } })
-    const missing = await render({ header: { id: 'sp_header', doc: omitted } })
+    // The key is absent on purpose: old saves omit it, and that must match an explicit false.
+    const missing = await render({ header: { id: 'sp_header', doc: omitted as HeaderDoc } })
     expect(explicit.html).toBe(missing.html)
     expect(explicit.csp).toBe(missing.csp)
   })
