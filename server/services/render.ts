@@ -348,13 +348,15 @@ function renderVideoHeroSection(
   site: SiteRenderContext,
   bag: Collector,
   firstHero: boolean,
+  reserve: VNode | null = null,
 ): VNode {
   if (videoId && (site.media[videoId] || !site.mediaComplete)) bag.media.add(videoId)
   const clip = videoId ? site.media[videoId] : undefined
   const playVideo = !!videoId && (!!clip || !site.mediaComplete)
   const ext = clip?.mime === 'video/webm' ? 'webm' : 'mp4'
   const mime = clip?.mime === 'video/webm' ? 'video/webm' : 'video/mp4'
-  return h('section', { class: 'hero', 'aria-label': String(heading ?? '') }, [
+  return h('section', { class: reserve ? 'hero hero-lead' : 'hero', 'aria-label': String(heading ?? '') }, [
+    ...(reserve ? [reserve] : []),
     pictureVNode(poster, site, bag, { slot: { width: 1280, height: 720 }, eager: firstHero, class: 'hero-media' }),
     playVideo
       ? h('video', { class: 'hero-video', autoplay: true, muted: true, loop: true, playsinline: true, preload: 'none', 'aria-hidden': 'true' }, [
@@ -475,7 +477,7 @@ function carouselVideo(slide: Record<string, unknown>, site: SiteRenderContext, 
   })
 }
 
-function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector, firstHero: boolean): VNode {
+function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector, firstHero: boolean, reserve: VNode | null = null): VNode {
   const p = block.props as Record<string, unknown>
   switch (block.type) {
     case 'Hero': {
@@ -489,13 +491,15 @@ function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector
           site,
           bag,
           firstHero,
+          reserve,
         )
       }
       if (heroCarouselActive(block)) {
         bag.needsHeroJs = true
         return renderHeroCarousel(block, site, bag, firstHero)
       }
-      return h('section', { class: 'hero', 'aria-label': String(p.heading ?? '') }, [
+      return h('section', { class: reserve ? 'hero hero-lead' : 'hero', 'aria-label': String(p.heading ?? '') }, [
+        ...(reserve ? [reserve] : []),
         pictureVNode(p.image as ImageRef | undefined, site, bag, { slot: { width: 1280, height: 720 }, eager: firstHero, class: 'hero-media' }),
         h('div', { class: 'hero-inner' }, [
           h('h1', String(p.heading ?? '')),
@@ -505,7 +509,7 @@ function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector
       ])
     }
     case 'VideoHero':
-      return renderVideoHeroSection(p.heading, p.subheading, p.poster as ImageRef | undefined, typeof p.video === 'string' ? p.video : '', p.cta, site, bag, firstHero)
+      return renderVideoHeroSection(p.heading, p.subheading, p.poster as ImageRef | undefined, typeof p.video === 'string' ? p.video : '', p.cta, site, bag, firstHero, reserve)
     case 'RichText':
       return wrapSection([h('div', { class: 'prose' }, renderRichText(p.content as RichTextDoc, bag))])
     case 'TextAndImage': {
@@ -835,7 +839,7 @@ function menuStyleOf(site: SiteRenderContext): HeaderDoc['style'] {
   return site.header?.doc.style ?? site.brand?.menuStyle ?? 'simple'
 }
 
-function headerClass(style: HeaderDoc['style'] | undefined, appearance?: HeaderDoc['appearance'], overHero = false): string {
+function headerClass(style: HeaderDoc['style'] | undefined, appearance?: HeaderDoc['appearance'], overHero = false, jsOver = false): string {
   const base =
     style === 'centred'
       ? 'site-header site-header-centred'
@@ -845,7 +849,8 @@ function headerClass(style: HeaderDoc['style'] | undefined, appearance?: HeaderD
           ? 'site-header site-header-hamburger'
           : 'site-header'
   const withLook = appearance === 'dark' ? `${base} site-header-dark` : base
-  return overHero ? `${withLook} site-header-over` : withLook
+  const withOver = overHero ? `${withLook} site-header-over` : withLook
+  return jsOver ? `${withOver} js-over` : withOver
 }
 
 /** A small heart for Donate buttons. Decorative: the button text carries the meaning. */
@@ -855,12 +860,12 @@ function heartIcon(): VNode {
   ])
 }
 
-function utilityLink(site: SiteRenderContext, bag: Collector, place?: 'bar' | 'drawer'): VNode | null {
+function utilityLink(site: SiteRenderContext, bag: Collector, place?: 'bar' | 'drawer', tabIndex?: string): VNode | null {
   const utility = site.header?.doc.utility
   if (!utility) return null
   const link = resolveLink(utility.target, utility.label, site, bag)
   const className = place === 'bar' ? 'util util-bar' : place === 'drawer' ? 'util util-drawer' : 'util'
-  return h('a', { class: className, href: link.href }, utility.label)
+  return h('a', { class: className, href: link.href, tabindex: tabIndex }, utility.label)
 }
 
 const TILE_SIZES = '(max-width: 640px) 45vw, 13rem'
@@ -1014,6 +1019,61 @@ function logoOrName(site: SiteRenderContext, bag: Collector, opts: { dark?: bool
   })
 }
 
+/** Top-level labels only. Closed dropdowns are position absolute, so the panel markup is not needed for height,
+ *  and a second details/summary would be a second menu. */
+function reserveNav(site: SiteRenderContext, bag: Collector): VNode | null {
+  if (menuStyleOf(site) === 'hamburger') return null
+  const key = site.header?.doc.menuKey ?? 'main'
+  const menu = site.menus[key]
+  if (!menu) return null
+  const style = menuStyleOf(site)
+  const items = menu.doc.items.map((item) => {
+    const link = resolveLink(item.target, item.label, site, bag)
+    return h('a', { href: link.href, tabindex: '-1' }, item.label)
+  })
+  const utility = utilityLink(site, bag, undefined, '-1')
+  return h('nav', { class: style === 'mega' ? 'nav nav-mega' : 'nav' }, utility ? [...items, utility] : items)
+}
+
+/** Inert copy of the closed bar. The phone panel is omitted. A span stands in for the Menu button, because that
+ *  button is in the row on a phone and is the whole menu for a hamburger header. */
+function reserveBar(site: SiteRenderContext, bag: Collector): VNode {
+  const style = menuStyleOf(site)
+  const hamburger = style === 'hamburger'
+  const menuKey = site.header?.doc.menuKey ?? 'main'
+  const hasMenu = !!site.menus[menuKey]
+  const cta = site.header?.doc.cta
+  const headerCta = cta ? resolveLink(cta.target, cta.label, site, bag) : null
+  const ctaNode = headerCta
+    ? h('a', { class: 'cta-btn', href: headerCta.href, tabindex: '-1' }, cta?.icon === 'heart' ? [heartIcon(), h('span', headerCta.label)] : headerCta.label)
+    : null
+  const standIn = hasMenu ? h('span', { class: 'reserve-menu' }, 'Menu') : null
+  const barUtility = hamburger && hasMenu ? utilityLink(site, bag, 'bar', '-1') : null
+  return h(
+    'div',
+    {
+      class: `hero-reserve ${headerClass(style, site.header?.doc.appearance, true, true)}`,
+      'aria-hidden': 'true',
+      inert: true,
+    },
+    [
+      h('div', { class: 'site-header-inner' }, [
+        h('a', { class: 'site-title', href: '/', tabindex: '-1' }, logoOrName(site, bag, { dark: site.header?.doc.appearance === 'dark' })),
+        hamburger ? standIn : reserveNav(site, bag),
+        barUtility,
+        ctaNode,
+        hamburger ? null : standIn,
+      ]),
+    ],
+  )
+}
+
+function leadingOverHero(doc: PageDoc, overHero: boolean): boolean {
+  if (!overHero) return false
+  const type = doc.blocks[0]?.type
+  return type === 'Hero' || type === 'VideoHero'
+}
+
 function faviconTags(site: SiteRenderContext): string {
   const id = site.brand?.logoMediaId
   if (!id || !site.media[id]) return ''
@@ -1037,11 +1097,37 @@ function renderShell(doc: PageDoc, site: SiteRenderContext, bag: Collector): VNo
   const headerCta = header?.doc.cta ? resolveLink(header.doc.cta.target, header.doc.cta.label, site, bag) : null
   const overHero = !!header?.doc.overHero
   if (overHero) bag.needsHeaderJs = true
+  const seeThrough = leadingOverHero(doc, overHero)
+  const reserveForFirst = seeThrough && doc.blocks[0] && !heroCarouselActive(doc.blocks[0]) ? reserveBar(site, bag) : null
   let firstHero = true
   const menuKey = site.header?.doc.menuKey ?? 'main'
   // Two copies, one hidden by UTILITY_CSS: the drawer on a phone, the bar from 641px up.
   const barUtility = menuStyleOf(site) === 'hamburger' && site.menus[menuKey] ? utilityLink(site, bag, 'bar') : null
   const mobileNav = renderMobileNav(site, bag)
+
+  const headerNode = h('header', { class: headerClass(menuStyleOf(site), site.header?.doc.appearance, overHero, seeThrough) }, [
+    h('div', { class: 'site-header-inner' }, [
+      h('a', { class: 'site-title', href: '/' }, logoOrName(site, bag, { dark: site.header?.doc.appearance === 'dark' })),
+      renderNav(site, bag),
+      ...(barUtility ? [barUtility] : []),
+      headerCta
+        ? h('a', { class: 'cta-btn', href: headerCta.href }, header?.doc.cta?.icon === 'heart' ? [heartIcon(), h('span', headerCta.label)] : headerCta.label)
+        : null,
+      ...(mobileNav ? [mobileNav] : []),
+    ]),
+  ])
+  const mainNode = h(
+    'main',
+    { id: 'main' },
+    doc.blocks.map((block, index) => {
+      const eager = firstHero && (block.type === 'Hero' || block.type === 'VideoHero')
+      if (block.type === 'Hero' || block.type === 'VideoHero') firstHero = false
+      const reserve = index === 0 ? reserveForFirst : null
+      const vnode = site.preview ? previewBlock(block as StoredBlock, () => renderBlock(block as StoredBlock, site, bag, eager, reserve)) : renderBlock(block as StoredBlock, site, bag, eager, reserve)
+      return withSectionCss(block as StoredBlock, vnode)
+    }),
+  )
+  const framed = seeThrough ? h('div', { class: 'over-frame' }, [headerNode, mainNode]) : [headerNode, mainNode]
 
   return h('div', [
     h('a', { class: 'skip', href: '#main' }, 'Skip to content'),
@@ -1051,27 +1137,7 @@ function renderShell(doc: PageDoc, site: SiteRenderContext, bag: Collector): VNo
           bannerLink ? [' ', h('a', { href: bannerLink.href }, bannerLink.label)] : null,
         ])
       : null,
-    h('header', { class: headerClass(menuStyleOf(site), site.header?.doc.appearance, overHero) }, [
-      h('div', { class: 'site-header-inner' }, [
-        h('a', { class: 'site-title', href: '/' }, logoOrName(site, bag, { dark: site.header?.doc.appearance === 'dark' })),
-        renderNav(site, bag),
-        ...(barUtility ? [barUtility] : []),
-        headerCta
-          ? h('a', { class: 'cta-btn', href: headerCta.href }, header?.doc.cta?.icon === 'heart' ? [heartIcon(), h('span', headerCta.label)] : headerCta.label)
-          : null,
-        ...(mobileNav ? [mobileNav] : []),
-      ]),
-    ]),
-    h(
-      'main',
-      { id: 'main' },
-      doc.blocks.map((block) => {
-        const eager = firstHero && (block.type === 'Hero' || block.type === 'VideoHero')
-        if (block.type === 'Hero' || block.type === 'VideoHero') firstHero = false
-        const vnode = site.preview ? previewBlock(block as StoredBlock, () => renderBlock(block as StoredBlock, site, bag, eager)) : renderBlock(block as StoredBlock, site, bag, eager)
-        return withSectionCss(block as StoredBlock, vnode)
-      }),
-    ),
+    ...(Array.isArray(framed) ? framed : [framed]),
     renderFooter(site, bag, footer),
   ])
 }
