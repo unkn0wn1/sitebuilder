@@ -6,9 +6,14 @@ import { accessConfigFromEnv, createAccessVerifier } from '../services/access'
 const config = accessConfigFromEnv(process.env)
 const verify = config ? createAccessVerifier(config) : null
 const EXEMPT = new Set(['/api/health', '/api/v1/health'])
+// Cloudflare Access cannot sign in an AI connector. With SITEBUILDER_AGENT_ACCESS=bypass the /agent/ paths skip the Access
+// check here and rely on the bearer token alone. Do the same in Cloudflare: a Bypass policy for /agent/*. See ADR 0007 and docs/agent-gateway.md.
+const AGENT_BYPASS = process.env.SITEBUILDER_AGENT_ACCESS === 'bypass' && process.env.SITEBUILDER_AGENT_GATEWAY === '1'
+const isAgentPath = (path: string) => path === '/agent' || path.startsWith('/agent/')
 
 export default defineEventHandler(async (event) => {
-  if (!verify || EXEMPT.has(event.path.split('?')[0]!)) return
+  const path = event.path.split('?')[0]!
+  if (!verify || EXEMPT.has(path) || (AGENT_BYPASS && isAgentPath(path))) return
   const result = await verify(getRequestHeader(event, 'cf-access-jwt-assertion'))
   if (result.ok) {
     event.context.accessEmail = result.email

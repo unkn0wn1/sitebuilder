@@ -62,6 +62,7 @@ interface EmailPayload {
   kind: string
   userId: string
   message?: string
+  body?: string
 }
 
 export function buildEmail(ctx: ServiceCtx, payload: EmailPayload, baseUrl: string): EmailMessage | null {
@@ -94,7 +95,7 @@ export function buildEmail(ctx: ServiceCtx, payload: EmailPayload, baseUrl: stri
       }
     default:
       if (user.status !== 'active' || !payload.message) return null
-      return { to: user.email, subject: payload.message.slice(0, 120), text: `${payload.message}\n\n${baseUrl}` }
+      return { to: user.email, subject: payload.message.slice(0, 120), text: `${payload.body ?? payload.message}\n\n${baseUrl}` }
   }
 }
 

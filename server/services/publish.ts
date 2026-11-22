@@ -248,14 +248,28 @@ function addRedirect(ctx: ServiceCtx, fromPath: string, toPath: string, source: 
 
 export function unpublishPage(ctx: ServiceCtx, actor: ActingAs, pageId: string, redirectTo?: string | null) {
   if (actor.aiSessionId || !can(actor, 'page.unpublish')) throw forbidden()
+  return enqueueUnpublish(ctx, actor, pageId, redirectTo ?? null)
+}
+
+/**
+ * An agent token taking offline a page that its own change created, as part of undoing that change. The caller
+ * (undoChange) has checked that the change is the token's own, nobody has published the page since, and a rule
+ * allows undo_change to go live. Nothing else may call this.
+ */
+export function unpublishOwnAgentPage(ctx: ServiceCtx, actor: ActingAs, pageId: string, basis: string) {
+  if (!actor.agent) throw forbidden()
+  return enqueueUnpublish(ctx, actor, pageId, null, basis)
+}
+
+function enqueueUnpublish(ctx: ServiceCtx, actor: ActingAs, pageId: string, redirectTo: string | null, basis?: string) {
   return inTx(ctx, () => {
     const page = requirePage(ctx, pageId)
     if (!page.publishedVersionId) throw new AppError('invalid_state', "This page isn't live.")
     if (page.workflowState === 'approved') throw new AppError('invalid_state', 'This page is being published. Try again in a moment.')
     if (page.isSystem) throw new AppError('invalid_state', "System pages can't be taken offline.")
-    const jobId = enqueueJob(ctx, 'publish', { unpublishPageId: pageId, redirectTo: redirectTo ?? null }, { createdBy: actor.id })
+    const jobId = enqueueJob(ctx, 'publish', { unpublishPageId: pageId, redirectTo }, { createdBy: actor.id })
     ctx.db.update(pages).set({ workflowState: 'approved', updatedAt: iso(ctx) }).where(eq(pages.id, pageId)).run()
-    audit(ctx, actor, 'page.unpublish_requested', { type: 'page', id: pageId }, { jobId, redirectTo: redirectTo ?? null })
+    audit(ctx, actor, 'page.unpublish_requested', { type: 'page', id: pageId }, { jobId, redirectTo, ...(basis ? { basis } : {}) })
     return { jobId }
   })
 }

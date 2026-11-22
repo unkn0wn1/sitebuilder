@@ -15,6 +15,8 @@ export const LANE_OF: Record<JobKind, Lane> = {
   purge_cache: 'light',
   backup: 'light',
   bin_cleanup: 'light',
+  agent_webhook: 'light',
+  agent_media_import: 'media',
 }
 
 /** Delay before retry n (1-based). */

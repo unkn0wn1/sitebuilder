@@ -183,6 +183,34 @@ async function approve(withOverride = false) {
 }
 
 const preview = ref<InstanceType<typeof ReviewPreview> | null>(null)
+// When this review is one part of an agent change, offer to approve the whole change at once.
+const agentChange = ref<{ id: string; title: string; pending: number; total: number } | null>(null)
+const approvingAll = ref(false)
+async function loadAgentChange() {
+  agentChange.value = null
+  try {
+    agentChange.value = (await api<{ change: typeof agentChange.value }>(`/reviews/${id.value}/agent-change`)).change
+  } catch {
+    agentChange.value = null
+  }
+}
+async function approveWholeChange() {
+  const c = agentChange.value
+  if (!c || !window.confirm(`Approve and publish all ${c.pending} waiting items in "${c.title}"?`)) return
+  approvingAll.value = true
+  actionError.value = ''
+  try {
+    await api(`/agent/changes/${c.id}/approve`, { method: 'POST', body: {} })
+    await loadQuiet()
+    await loadAgentChange()
+  } catch (err) {
+    actionError.value = err instanceof ApiError ? err.message : 'Could not approve this change.'
+  } finally {
+    approvingAll.value = false
+  }
+}
+watch(id, loadAgentChange, { immediate: true })
+
 function scrollTo(blockId?: string) {
   if (blockId) preview.value?.scrollToBlock(blockId)
 }
@@ -212,6 +240,11 @@ watch(id, load, { immediate: true })
           </FwbButton>
         </div>
       </header>
+      <div v-if="canDecide && agentChange && agentChange.pending > 1" class="flex flex-wrap items-center gap-3 border-b border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-950 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-50">
+        <span class="min-w-0 break-words">Part of the agent change “{{ agentChange.title }}”: {{ agentChange.pending }} of {{ agentChange.total }} items are waiting.</span>
+        <FwbButton size="sm" :disabled="approvingAll" @click="approveWholeChange">{{ approvingAll ? 'Approving…' : `Approve all ${agentChange.pending}` }}</FwbButton>
+        <NuxtLink v-if="user?.role === 'admin'" :to="`/settings/agents/changes/${agentChange.id}`" class="text-blue-800 underline dark:text-blue-200">See the whole change</NuxtLink>
+      </div>
       <FwbAlert v-if="actionError" type="danger" class="rounded-none">{{ actionError }}</FwbAlert>
       <FwbAlert v-else-if="detail.draftChangedSinceSubmit" type="warning" class="rounded-none">
         This changed after it was submitted. It needs submitting again before it can be approved.

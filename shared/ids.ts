@@ -28,6 +28,8 @@ export const ID_PREFIXES = {
   secret: 'sec',
   block: 'b',
   pageBrief: 'pbr',
+  agentToken: 'agt',
+  agentChange: 'chg',
 } as const
 
 export type IdKind = keyof typeof ID_PREFIXES

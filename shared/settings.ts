@@ -22,6 +22,18 @@ export const siteSettingsSchema = z
     workflow: z.object({ selfApproval: z.boolean().default(false) }).strict().default({ selfApproval: false }),
     allowedEmbedProviders: z.array(z.enum(EMBED_PROVIDER_KEYS)).optional(),
     tracking: trackingSchema.default({ ga4: null, gtm: null, plausible: null, cookiebot: null }),
+    /** Kill switch for every agent token at once (ADR 0018). Changed through /api/v1/agent/pause, not PATCH /settings. */
+    agent: z
+      .object({
+        paused: z.boolean().default(false),
+        /** Optional alert to an address you choose when an agent publishes, asks for review, is blocked or is paused (ADR 0018). Changed through /api/v1/agent/webhook. The signing secret is stored encrypted, not here. */
+        webhook: z
+          .object({ url: z.string().max(500).nullable().default(null), events: z.array(z.enum(['published', 'review_requested', 'blocked', 'token_paused'])).max(4).default(['published', 'blocked', 'token_paused']) })
+          .strict()
+          .default({ url: null, events: ['published', 'blocked', 'token_paused'] }),
+      })
+      .strict()
+      .default({ paused: false, webhook: { url: null, events: ['published', 'blocked', 'token_paused'] } }),
     seo: z.object({ defaultSocialImage: z.string().max(64).nullable().default(null), allowIndexing: z.boolean().default(true), robotsTxt: z.string().max(8000).nullable().default(null) }).strict().default({ defaultSocialImage: null, allowIndexing: true, robotsTxt: null }),
     ai: z
       .object({

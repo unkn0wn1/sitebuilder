@@ -103,7 +103,7 @@ export function summariseDiff(diff: PageDiff, type: (t: string) => string): stri
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
-function checksFor(ctx: ServiceCtx, template: string, doc: PageDoc) {
+export function checksFor(ctx: ServiceCtx, template: string, doc: PageDoc) {
   const rules = getTemplateRules(ctx, template)
   const valid = validatePageDoc(doc, ctx.registry, rules, { enforceRequired: false })
   const checks = runChecks(doc, ctx.registry, rules)
@@ -173,6 +173,34 @@ export function approveReview(ctx: ServiceCtx, actor: ActingAs, reviewId: string
   })
 }
 
+/**
+ * Approve without a second person, for two cases that have their own rules (ADR 0018, amends ADR 0005):
+ *  - "rule": an agent token's allow rule covered the whole change. Recorded as approved by that rule, never as self-approval.
+ *  - "admin_undo": an admin undoing a change an agent made. Admins can already roll the whole site back alone (ADR 0005).
+ * The caller has made the decision. This still insists the review is pending, pinned to the version, and free of blocking checks.
+ */
+export function approveReviewDirect(ctx: ServiceCtx, actor: ActingAs, reviewId: string, input: { versionId: string; basis: string; via: 'rule' | 'admin_undo' }) {
+  if (input.via === 'rule' && !actor.agent) throw forbidden('Only an agent token can approve by rule.')
+  if (input.via === 'admin_undo' && (actor.agent || !can(actor, 'site.rollback'))) throw forbidden('Only an admin can undo an agent change this way.')
+  return inTx(ctx, () => {
+    const review = requireReview(ctx, reviewId)
+    if (review.state !== 'pending') throw new AppError('invalid_state', 'This review has already been decided.')
+    if (input.versionId !== review.versionId) throw new AppError('invalid_state', "This isn't the version that was submitted.")
+    const target = loadReviewTarget(ctx, review.targetType, review.targetId)
+    const checks = targetChecks(ctx, target, review.versionId)
+    if (checks.blocking.length) throw new AppError('validation_failed', 'There are problems to fix first.', checks.blocking)
+    const jobId = enqueueJob(ctx, 'publish', { reviewId }, { createdBy: actor.id })
+    ctx.db
+      .update(reviews)
+      .set({ state: 'approved', decidedBy: actor.agent ? `agent:${actor.agent.tokenId}` : actor.id, decidedAt: iso(ctx), selfApproved: false, decisionComment: input.basis, jobId })
+      .where(eq(reviews.id, reviewId))
+      .run()
+    setTargetState(ctx, target, 'approved')
+    audit(ctx, actor, input.via === 'rule' ? 'review.approved_by_rule' : 'review.approved_admin_undo', { type: target.type, id: target.id }, { reviewId, versionId: review.versionId, basis: input.basis })
+    return { jobId }
+  })
+}
+
 export function sendBackReview(ctx: ServiceCtx, actor: ActingAs, reviewId: string, comment: string) {
   if (!can(actor, 'review.decide')) throw forbidden()
   if (!comment.trim()) throw new AppError('validation_failed', 'Add a comment so they know what to change.', [{ path: 'comment', message: 'Needed.' }])
@@ -203,6 +231,10 @@ function namesById(ctx: ServiceCtx, ids: string[]): Map<string, string> {
   return new Map(ctx.db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, unique)).all().map((u) => [u.id, u.name]))
 }
 
+function decidedByName(names: Map<string, string>, id: string): string {
+  return id.startsWith('agent:') ? 'An agent, by rule' : (names.get(id) ?? 'Someone')
+}
+
 function targetTitle(ctx: ServiceCtx, type: ReviewRow['targetType'], id: string): string {
   try {
     return loadReviewTarget(ctx, type, id).title
@@ -225,7 +257,7 @@ export function listReviews(ctx: ServiceCtx, actor: ActingAs, state?: ReviewRow[
     ...r,
     title: targetTitle(ctx, r.targetType, r.targetId),
     submittedByName: names.get(r.submittedBy) ?? 'Someone',
-    decidedByName: r.decidedBy ? (names.get(r.decidedBy) ?? 'Someone') : null,
+    decidedByName: r.decidedBy ? decidedByName(names, r.decidedBy) : null,
   }))
 }
 
@@ -236,7 +268,7 @@ export function getReview(ctx: ServiceCtx, actor: ActingAs, reviewId: string) {
   const names = namesById(ctx, [review.submittedBy, review.decidedBy ?? '', ...comments.map((c) => c.authorId)])
   const withNames = {
     submittedByName: names.get(review.submittedBy) ?? 'Someone',
-    decidedByName: review.decidedBy ? (names.get(review.decidedBy) ?? 'Someone') : null,
+    decidedByName: review.decidedBy ? decidedByName(names, review.decidedBy) : null,
     comments: comments.map((c) => ({ ...c, authorName: names.get(c.authorId) ?? 'Someone' })),
   }
   const draftChangedSinceSubmit = (t: { draftVersionId: string | null }) => t.draftVersionId !== review.versionId

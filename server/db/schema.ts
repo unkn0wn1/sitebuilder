@@ -289,7 +289,7 @@ export const releases = sqliteTable('releases', {
   finishedAt: text('finished_at'),
 })
 
-export const JOB_KINDS = ['publish', 'render_preview', 'media_renditions', 'run_checks', 'send_email', 'backup', 'purge_cache', 'bin_cleanup'] as const
+export const JOB_KINDS = ['publish', 'render_preview', 'media_renditions', 'run_checks', 'send_email', 'backup', 'purge_cache', 'bin_cleanup', 'agent_webhook', 'agent_media_import'] as const
 export type JobKind = (typeof JOB_KINDS)[number]
 
 export const jobs = sqliteTable(
@@ -320,7 +320,7 @@ export const auditEvents = sqliteTable(
     id: id(),
     siteId: siteId(),
     at: text('at').notNull(),
-    actorType: text('actor_type', { enum: ['user', 'ai', 'system'] }).notNull(),
+    actorType: text('actor_type', { enum: ['user', 'ai', 'system', 'agent'] }).notNull(),
     actorId: text('actor_id'),
     aiSessionId: text('ai_session_id'),
     action: text('action').notNull(),
@@ -425,3 +425,71 @@ export const pageBriefs = sqliteTable(
   (tb) => [index('page_briefs_site_user').on(tb.siteId, tb.userId)],
 )
 
+
+export const AGENT_CHANGE_STATUSES = ['open', 'review', 'publishing', 'published', 'discarded', 'undone', 'failed'] as const
+export type AgentChangeStatus = (typeof AGENT_CHANGE_STATUSES)[number]
+
+/** A token an outside agent (Claude, ChatGPT, a script) signs in with. The secret is stored only as a SHA-256 hash. See ADR 0018. */
+export const agentTokens = sqliteTable(
+  'agent_tokens',
+  {
+    id: id(),
+    siteId: siteId(),
+    ownerUserId: text('owner_user_id').notNull().references(() => users.id),
+    name: text('name').notNull(),
+    secretHash: text('secret_hash').notNull(),
+    /** First characters of the secret, so a person can tell tokens apart. Not enough to use it. */
+    prefix: text('prefix').notNull(),
+    access: text('access', { enum: ['read', 'draft'] }).notNull(),
+    rules: json<unknown[]>('rules').notNull(),
+    alwaysAllowUntil: text('always_allow_until'),
+    /** Always-allow with no end date. Set only with the site name and the admin's password, cleared by switching it off or revoking the token. */
+    alwaysAllowPermanent: bool('always_allow_permanent').notNull().default(false),
+    limits: json<Record<string, number>>('limits'),
+    ipAllow: json<string[]>('ip_allow'),
+    status: text('status', { enum: ['active', 'paused', 'revoked'] }).notNull(),
+    pausedReason: text('paused_reason'),
+    expiresAt: text('expires_at'),
+    createdAt: createdAt(),
+    createdBy: text('created_by').notNull(),
+    lastUsedAt: text('last_used_at'),
+    lastUsedIp: text('last_used_ip'),
+    revokedAt: text('revoked_at'),
+  },
+  (t) => [uniqueIndex('agent_tokens_secret_hash').on(t.secretHash), index('agent_tokens_site').on(t.siteId)],
+)
+
+/** One agent change: a titled set of draft edits across pages and site parts, with the rule decision and the way back. */
+export const agentChanges = sqliteTable(
+  'agent_changes',
+  {
+    id: id(),
+    siteId: siteId(),
+    tokenId: text('token_id').notNull().references(() => agentTokens.id),
+    ownerUserId: text('owner_user_id').notNull(),
+    title: text('title').notNull(),
+    /** The agent's own stated reason. Sitebuilder cannot see the chat, so this is the agent's words, not proof of what a person asked. */
+    reason: text('reason').notNull(),
+    status: text('status', { enum: AGENT_CHANGE_STATUSES }).notNull(),
+    targets: json<unknown[]>('targets').notNull(),
+    decision: json<Record<string, unknown>>('decision'),
+    undoOf: text('undo_of'),
+    createdAt: createdAt(),
+    updatedAt: text('updated_at').notNull(),
+    appliedAt: text('applied_at'),
+    publishedAt: text('published_at'),
+  },
+  (t) => [index('agent_changes_site_created').on(t.siteId, t.createdAt), index('agent_changes_token_status').on(t.tokenId, t.status)],
+)
+
+/** Calls and rule violations per token, for limits that survive a restart. Old rows are pruned. */
+export const agentCalls = sqliteTable(
+  'agent_calls',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    tokenId: text('token_id').notNull(),
+    kind: text('kind', { enum: ['read', 'write', 'publish', 'violation'] }).notNull(),
+    at: text('at').notNull(),
+  },
+  (t) => [index('agent_calls_token_kind_at').on(t.tokenId, t.kind, t.at)],
+)
