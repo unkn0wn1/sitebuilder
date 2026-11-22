@@ -192,15 +192,16 @@ test('see-through header and mega tiles, from renderer HTML, with no sign-in', a
   await page.evaluate(() => window.scrollTo(0, 80))
   await expect.poll(() => headerLook(page)).toEqual({ over: true, jsOver: true, solid: true, fixed: true, gradient: false, paper: true })
 
-  const images = page.locator('.nav-mega-tiles img')
+  const images = page.locator('header nav .nav-mega-tiles img')
   await expect(images).toHaveCount(1)
   await expect(images).toHaveAttribute('loading', 'lazy')
   await expect(images).toHaveAttribute('width', '1200')
   await expect(images).toHaveAttribute('height', '800')
 
-  await page.locator('header summary').click()
-  await expect(page.locator('header details')).toHaveJSProperty('open', true)
-  await page.locator('header summary').focus()
+  const about = page.locator('header nav details')
+  await about.locator('summary').click()
+  await expect(about).toHaveJSProperty('open', true)
+  await about.locator('summary').focus()
   const order: { href: string | null; tile: boolean }[] = []
   for (let i = 0; i < 5; i++) {
     await page.keyboard.press('Tab')
@@ -231,6 +232,60 @@ test('see-through header and mega tiles, from renderer HTML, with no sign-in', a
   await show(page, 'hero', 'omit')
   expect(await headerLook(page)).toEqual({ over: true, jsOver: false, solid: false, fixed: false, gradient: false, paper: false })
   expect(await heroPad(page)).toEqual({ padTop: '0px', boxSizing: 'border-box' })
+})
+
+test('simple, centred and mega headers collapse to Menu and Donate on a phone', async ({ page }) => {
+  for (const style of ['simple', 'centred', 'mega'] as const) {
+    const ctx = site()
+    ctx.header = {
+      id: 'sp_header',
+      doc: { ...headerDoc(), style, overHero: true },
+    }
+    const rendered = await renderPageHtml({ doc: pageDoc('hero'), pageId: 'pg_home', versionId: 'ver_1', path: '/', site: ctx })
+    await page.setViewportSize({ width: 390, height: 800 })
+    await page.setContent(browserHtml(rendered.html, 'run'), { waitUntil: 'load' })
+
+    await expect(page.locator('header > .site-header-inner > nav')).toHaveCSS('display', 'none')
+    const summary = page.locator('header details.nav-hamburger > summary')
+    await expect(summary).toBeVisible()
+    await expect(summary).toHaveText('Menu')
+    await expect(page.getByRole('link', { name: 'Donate', exact: true })).toBeVisible()
+    if (style === 'centred') await expect(page.locator('.site-header-inner')).toHaveCSS('flex-direction', 'row')
+
+    const menu = page.locator('header details.nav-hamburger')
+    await menu.locator('> summary').click()
+    await expect(menu).toHaveJSProperty('open', true)
+    const panel = menu.locator('.nav-panel')
+    await expect(panel.getByRole('link', { name: 'Home', exact: true })).toBeVisible()
+    await panel.locator('summary', { hasText: 'About' }).click()
+    await expect(panel.getByRole('link', { name: 'Our team', exact: true })).toBeVisible()
+
+    const open = await page.evaluate(() => {
+      const root = document.documentElement
+      const panelEl = document.querySelector('header details.nav-hamburger .nav-panel')
+      const header = document.querySelector('header')
+      if (!panelEl || !header) return null
+      return {
+        scrollWidth: root.scrollWidth,
+        clientWidth: root.clientWidth,
+        panelScroll: panelEl.scrollHeight - panelEl.clientHeight,
+        overflowY: getComputedStyle(panelEl).overflowY,
+        solid: header.classList.contains('is-solid'),
+        position: getComputedStyle(header).position,
+      }
+    })
+    expect(open?.scrollWidth).toBe(open?.clientWidth)
+    expect(open?.panelScroll).toBeLessThanOrEqual(1)
+    expect(open?.overflowY).not.toBe('auto')
+    expect(open?.overflowY).not.toBe('scroll')
+    expect(open?.solid).toBe(true)
+    expect(open?.position).not.toBe('fixed')
+
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await expect(menu).toHaveCSS('display', 'none')
+    await expect(page.locator('header > .site-header-inner > nav')).toBeVisible()
+    await expect(page.locator('header summary').first()).toHaveText('About')
+  }
 })
 
 test('hamburger utility link is shown once, in the drawer on a phone and in the bar on a desktop', async ({ page }) => {

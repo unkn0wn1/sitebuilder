@@ -64,17 +64,20 @@ function expectFullCss(rendered: RenderedPage, extra: string) {
 }
 
 describe('optional shell parts', () => {
-  it('puts one utility link in the nav for simple, centred and mega, on light and dark', async () => {
+  it('puts a utility link in the bar and in the phone menu for simple, centred and mega', async () => {
     const utility = { label: 'Report an animal', target: { type: 'url' as const, url: 'https://example.org/report' } }
     for (const style of ['simple', 'centred', 'mega'] as HeaderStyle[]) {
       for (const appearance of ['light', 'dark'] as const) {
         const rendered = await render({ header: { id: 'sp_header', doc: header({ style, appearance, utility }) } })
-        expect(rendered.html.split('class="util"').length - 1).toBe(1)
+        expect(rendered.html.split('class="util"').length - 1).toBe(2)
         const navClass = style === 'mega' ? 'nav nav-mega' : 'nav'
+        const detailsClass = style === 'mega' ? 'nav nav-hamburger nav-mega' : 'nav nav-hamburger'
         expect(rendered.html).toMatch(new RegExp(`<nav class="${navClass}" aria-label="Site">[\\s\\S]*class="util" href="https://example.org/report">Report an animal</a>[\\s\\S]*</nav>`))
+        expect(rendered.html).toMatch(new RegExp(`<details class="${detailsClass}" aria-label="Site"><summary>Menu</summary><div class="nav-panel">[\\s\\S]*class="util" href="https://example.org/report">Report an animal</a>`))
+        expect(rendered.html).toMatch(new RegExp(`</nav><a class="cta-btn" href="https://example.org/donate">Donate</a><details class="${detailsClass}"`))
         const markup = rendered.html.replace(/<style>[\s\S]*?<\/style>/, '')
-        expect(markup).not.toContain('class="nav-panel"')
-        expect(markup).not.toContain('nav-hamburger')
+        expect(markup).toContain('class="nav-panel"')
+        expect(markup).toContain('nav-hamburger')
         expectFullCss(rendered, UTILITY_CSS)
       }
     }

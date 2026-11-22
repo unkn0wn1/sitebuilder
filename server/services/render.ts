@@ -902,13 +902,13 @@ function tileImage(image: ImageRef, label: string, site: SiteRenderContext, bag:
   })
 }
 
-function renderNav(site: SiteRenderContext, bag: Collector): VNode | null {
+/** Fresh vnodes each call. A vnode cannot sit in both the desktop bar and the phone menu. */
+function menuItems(site: SiteRenderContext, bag: Collector): VNode[] {
   const key = site.header?.doc.menuKey ?? 'main'
   const menu = site.menus[key]
-  if (!menu) return null
-  bag.siteParts.add(menu.id)
+  if (!menu) return []
   const style = menuStyleOf(site)
-  const items = menu.doc.items.map((item) => {
+  return menu.doc.items.map((item) => {
     const link = resolveLink(item.target, item.label, site, bag)
     if (!item.children.length) return h('a', { href: link.href }, item.label)
     const textLinks = item.children.map((child) => {
@@ -940,6 +940,15 @@ function renderNav(site: SiteRenderContext, bag: Collector): VNode | null {
       ]),
     ])
   })
+}
+
+function renderNav(site: SiteRenderContext, bag: Collector): VNode | null {
+  const key = site.header?.doc.menuKey ?? 'main'
+  const menu = site.menus[key]
+  if (!menu) return null
+  bag.siteParts.add(menu.id)
+  const style = menuStyleOf(site)
+  const items = menuItems(site, bag)
   if (style === 'hamburger') {
     const inMenu = utilityLink(site, bag, 'drawer')
     return h('details', { class: 'nav nav-hamburger', 'aria-label': 'Site' }, [
@@ -949,6 +958,22 @@ function renderNav(site: SiteRenderContext, bag: Collector): VNode | null {
   }
   const utility = utilityLink(site, bag)
   return h('nav', { class: style === 'mega' ? 'nav nav-mega' : 'nav', 'aria-label': 'Site' }, utility ? [...items, utility] : items)
+}
+
+/** Phone menu for simple, centred, and mega. Hamburger already returns its one details from renderNav. */
+function renderMobileNav(site: SiteRenderContext, bag: Collector): VNode | null {
+  if (menuStyleOf(site) === 'hamburger') return null
+  const key = site.header?.doc.menuKey ?? 'main'
+  const menu = site.menus[key]
+  if (!menu) return null
+  const style = menuStyleOf(site)
+  const items = menuItems(site, bag)
+  const utility = utilityLink(site, bag)
+  const className = style === 'mega' ? 'nav nav-hamburger nav-mega' : 'nav nav-hamburger'
+  return h('details', { class: className, 'aria-label': 'Site' }, [
+    h('summary', 'Menu'),
+    h('div', { class: 'nav-panel' }, utility ? [...items, utility] : items),
+  ])
 }
 
 function logoOrName(site: SiteRenderContext, bag: Collector, opts: { dark?: boolean } = {}): VNode | string {
@@ -1016,6 +1041,7 @@ function renderShell(doc: PageDoc, site: SiteRenderContext, bag: Collector): VNo
   const menuKey = site.header?.doc.menuKey ?? 'main'
   // Two copies, one hidden by UTILITY_CSS: the drawer on a phone, the bar from 641px up.
   const barUtility = menuStyleOf(site) === 'hamburger' && site.menus[menuKey] ? utilityLink(site, bag, 'bar') : null
+  const mobileNav = renderMobileNav(site, bag)
 
   return h('div', [
     h('a', { class: 'skip', href: '#main' }, 'Skip to content'),
@@ -1033,6 +1059,7 @@ function renderShell(doc: PageDoc, site: SiteRenderContext, bag: Collector): VNo
         headerCta
           ? h('a', { class: 'cta-btn', href: headerCta.href }, header?.doc.cta?.icon === 'heart' ? [heartIcon(), h('span', headerCta.label)] : headerCta.label)
           : null,
+        ...(mobileNav ? [mobileNav] : []),
       ]),
     ]),
     h(

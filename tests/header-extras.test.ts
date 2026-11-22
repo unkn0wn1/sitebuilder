@@ -67,6 +67,7 @@ describe('see-through header', () => {
     expect(OVER_HERO_CSS).toContain('text-shadow: 0 1px 3px color-mix(in srgb, var(--ink) 50%, transparent)')
     expect(OVER_HERO_CSS).toContain('prefers-reduced-motion: reduce')
     expect(OVER_HERO_CSS).toContain('.site-header-over.js-over ~ main > .hero:first-child { box-sizing: content-box; padding-top: var(--sb-header-h, 0px); }')
+    expect(OVER_HERO_CSS).toContain('.site-header-over.js-over:has(.nav-hamburger[open]) { position: absolute; top: var(--strip, 0px); left: 0; right: 0; }')
     expect(THEME_CSS).not.toContain('site-header-over')
     expect(THEME_CSS).not.toContain('--sb-header-h')
     expect(THEME_CSS).not.toContain('content-box')
