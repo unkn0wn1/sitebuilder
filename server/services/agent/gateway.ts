@@ -308,8 +308,8 @@ export function getSite(ctx: ServiceCtx, agent: SignedInAgent) {
       always_allow: alwaysAllowView(token, ctx.now()),
       always_allow_meaning: always
         ? alwaysAllowView(token, ctx.now())!.permanent
-          ? 'Always-allow is ON with no end date. A change that no rule covers can still go live by itself. It never covers the never-list or the floor, and a deny rule still wins.'
-          : 'Always-allow is ON until the time given. A change that no rule covers can still go live by itself until then. It never covers the never-list or the floor, and a deny rule still wins.'
+          ? 'Always-allow is ON with no end date. A change that no rule covers can still go live by itself. It never covers the never-list, the floor or custom CSS, and a deny rule still wins.'
+          : 'Always-allow is ON until the time given. A change that no rule covers can still go live by itself until then. It never covers the never-list, the floor or custom CSS, and a deny rule still wins.'
         : 'Always-allow is off. Only a "publish" rule lets a change go live by itself.',
       rules: rules.map((r) => ({ id: r.id, label: r.label, result: r.result, actions: r.actions, targets: r.targets, limits: r.limits })),
       can_publish_by_yourself: always || rules.some((r) => r.result === 'publish'),
@@ -323,7 +323,8 @@ export function getSite(ctx: ServiceCtx, agent: SignedInAgent) {
       also: [
         'Theme, colours, fonts, logo',
         'Site settings other than the AI personality. A draft token may propose one. A person approves it. Users, tokens, secrets, and every other setting stay closed.',
-        'Raw HTML, CSS, scripts, tracking',
+        'Raw HTML, scripts, tracking',
+        'Section CSS is drafted with set_block_css and always needs a person. Site-wide CSS has no agent tool.',
       ],
     },
     actions: Object.fromEntries((Object.keys(ACTION_LABELS) as AgentAction[]).map((a) => [a, ACTION_LABELS[a]])),
@@ -358,6 +359,8 @@ export function getPageFor(ctx: ServiceCtx, input: In<typeof S.getPageInput>) {
   const blocks = doc.blocks.map((b, i) => {
     const richText: { prop: string; markdown: string }[] = []
     for (const [prop, value] of Object.entries(b.props)) if (isRichTextValue(value)) richText.push({ prop, markdown: richTextToMarkdown(value) })
+    const authored = b.css ?? ''
+    const hasCss = authored.trim().length > 0
     return {
       block_id: b.id,
       index: i,
@@ -368,6 +371,8 @@ export function getPageFor(ctx: ServiceCtx, input: In<typeof S.getPageInput>) {
       props: b.props,
       rich_text: richText,
       links: findLinks(b.props, 'block').map((l) => linkSummary(l, ctx, paths)),
+      custom_css: hasCss,
+      ...(hasCss ? { css: authored } : {}),
     }
   })
   return {
@@ -818,12 +823,27 @@ export function editComponent(ctx: ServiceCtx, agent: SignedInAgent, input: In<t
   const page = pageOf(ctx, input)
   const { block } = requireBlock(ctx, page.id, input.block_id)
   checkBlockType(block.type)
+  if (Object.prototype.hasOwnProperty.call(input.props, 'css') || input.unset?.includes('css')) {
+    const path = Object.prototype.hasOwnProperty.call(input.props, 'css') ? 'props.css' : 'unset'
+    throw new AppError('validation_failed', 'Custom CSS is set with set_block_css, not as a section field.', [{ path, message: 'Use set_block_css.' }])
+  }
   checkEditProps(block.props, input.props, input.unset)
   if (!Object.keys(input.props).length && !input.unset?.length) throw new AppError('validation_failed', 'Give props to set or unset.', [{ path: 'props', message: 'Nothing to change.' }])
   const done = runInChange(ctx, agent, { changeId: input.change_id, title: `Edit ${block.type} on ${page.title}`, reason: input.reason }, (h) => {
     h.editPage(page.id, 'edit_sections', [{ op: 'update_props', blockId: block.id, props: input.props, ...(input.unset?.length ? { unset: input.unset } : {}) }])
   })
   return { ...editView(ctx, agent, done.change), result: { page_id: page.id, block_id: block.id } }
+}
+
+export function setBlockCss(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.setBlockCssInput>) {
+  const page = pageOf(ctx, input)
+  const { block } = requireBlock(ctx, page.id, input.block_id)
+  checkBlockType(block.type)
+  const done = runInChange(ctx, agent, { changeId: input.change_id, title: `Custom CSS on ${block.type} on ${page.title}`, reason: input.reason }, (h) => {
+    return h.editPage(page.id, 'edit_css', [{ op: 'set_block_css', blockId: block.id, css: input.css }])
+  })
+  const stored = done.result.doc.blocks.find((b) => b.id === block.id)?.css
+  return { ...editView(ctx, agent, done.change), result: { page_id: page.id, block_id: block.id, custom_css: !!stored } }
 }
 
 export function addComponent(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.addComponentInput>) {

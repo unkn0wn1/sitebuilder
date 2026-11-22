@@ -194,7 +194,7 @@ curl -s -X POST https://builder.example.org/agent/v1/edits/remove-link -H "Autho
 
 On connect the MCP server sends instructions, and offers:
 
-- **Tools**: 38 of them, each with a long description (what, when, when not, before, effect, permission, returns, errors, example) and a full input schema with a description and example on every field.
+- **Tools**: 39 of them, each with a long description (what, when, when not, before, effect, permission, returns, errors, example) and a full input schema with a description and example on every field.
 - **Resources**: guides at `sitebuilder://guide/overview`, `tools`, `rules`, `content-model`, `markdown`, `errors`, and `sitebuilder://you` (its own live permissions).
 - `get_site.personality` and `sitebuilder://soul` are the tone of voice. `update_soul` proposes a new one. A person approves it on Settings, AI personality. It does not change what the token may do. Other settings stay closed.
 - **Prompts and recipes**, with the same text as resources at `sitebuilder://recipe/<name>`: `take_a_link_down`, `update_policy_text`, `change_words`, `edit_a_section`, `create_a_page`, `publish_or_ask`, `undo_a_change`, `menu_and_banner`, `when_you_are_refused`.

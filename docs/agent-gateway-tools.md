@@ -29,7 +29,7 @@ HOW CHANGES WORK
 
 READING TOOL DESCRIPTIONS
 - REPLIES: edit tools return `change` in brief (id, status, preview link, one summary line per page or part), `if_you_publish` (would it go live now, and why), `problems_to_fix` (only when there are some), `result` (what this call did) and `next_steps`. get_change and preview_change return the full `change` with `text_changes` and `section_changes`: exactly what differs from the live site.
-- "Who" says which tokens may call it. "Rule action" is the action a rule on your token must allow for the change to go live by itself; without one it goes to a person.
+- "Who" says which tokens may call it. "Rule action" is the action a rule on your token must allow for the change to go live by itself; without one it goes to a person. Custom CSS (set_block_css) always needs a person, even when a rule or always-allow would otherwise publish it.
 - Errors have a `code`, a `message` and sometimes `fields`. Common recovery for every tool is in sitebuilder://guide/errors. Ids in examples are placeholders: use real ones.
 
 START
@@ -74,6 +74,7 @@ RULES YOU MUST FOLLOW
 | [`replace_link`](#replace_link) | draft | `POST /agent/v1/edits/replace-link` | Point every link to one address at a different address. |
 | [`insert_rich_text`](#insert_rich_text) | draft | `POST /agent/v1/edits/insert-rich-text` | Add paragraphs, headings or lists to a text section, written in simple markdown. |
 | [`edit_component`](#edit_component) | draft | `POST /agent/v1/edits/component` | Change props of one section, for example a heading, button or list of cards. |
+| [`set_block_css`](#set_block_css) | draft | `POST /agent/v1/edits/block-css` | Set or clear the custom CSS on one section. |
 | [`add_component`](#add_component) | draft | `POST /agent/v1/edits/add-component` | Add a section to a page. |
 | [`remove_component`](#remove_component) | draft | `POST /agent/v1/edits/remove-component` | Remove one section from a page. |
 | [`move_component`](#move_component) | draft | `POST /agent/v1/edits/move-component` | Move a section up or down a page. |
@@ -169,7 +170,7 @@ Not when: You only want to know whether some words or a link appear: search_cont
 First: A page id (from list_pages) or an address such as "/privacy".
 Effect: Nothing changes. Safe to call at any time.
 Who: Read-only tokens too.
-Returns: `page` (ids, state, `is_live`, `has_unpublished_changes`, `waiting_for_approval`, allowed section types), `sections[]` (block_id, type, agent_access, props, rich_text, links). If `has_unpublished_changes` is true the live page differs from what you see.
+Returns: `page` (ids, state, `is_live`, `has_unpublished_changes`, `waiting_for_approval`, allowed section types), `sections[]` (block_id, type, agent_access, props, rich_text, links, `custom_css`). When a section has custom CSS, `css` is the author text. If `has_unpublished_changes` is true the live page differs from what you see.
 Errors: not_found: No page has that id or address. Use list_pages to find it.
 Example: {"path":"/privacy"}
 ```
@@ -529,13 +530,44 @@ Kind: draft. REST: `POST /agent/v1/edits/component`.
 ```text
 Change props of one section, for example a heading, button or list of cards. Sets the props you give (each replaces that whole prop) and optionally removes optional props. The section must stay valid; if not you get the exact problem. Sections for donation forms and embeds, and props that bind a form, embed or data source, cannot be touched.
 Use when: edit_text cannot do it (not a plain replacement): changing a card list, a button, an image alt text, a layout.
-Not when: A simple wording change: edit_text. A link: remove_link or replace_link. Anything about donation forms: never allowed.
+Not when: A simple wording change: edit_text. A link: remove_link or replace_link. Custom CSS: use set_block_css. A css key in props or unset is refused. Anything about donation forms: never allowed.
 First: get_page for the block_id and current props. list_components for the props_schema if the shape is unclear.
 Effect: Changes the section. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish). Sections that show money (ImpactTiers, DonationProgress, MatchBanner) can be drafted but always need a person to approve.
 Who: Draft tokens. Rule action: "edit_sections".
 Returns: The change reply (see REPLIES in the server instructions) plus `result` (what this call did).
 Errors: never_list: This section or prop is protected. Tell the person it must be done by hand. validation_failed: The new props are not valid for this section. `error.fields` says which. Fix and call again.
 Example: {"page_id":"pg_01KABCDEFGHJKMNPQRSTVWXYZ0","block_id":"b_k3j9x2ab","props":{"heading":"Help us this winter"},"reason":"The owner asked to reword the heading."}
+```
+
+## set_block_css
+
+**Set or clear the custom CSS on one section.**
+
+Kind: draft. REST: `POST /agent/v1/edits/block-css`.
+
+### Inputs
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `page_id` | string (max 80 chars) | no | The page id from list_pages or get_page, for example pg_01K.... Give this or `path`. |
+| `path` | string (max 300 chars) | no | The page address on the site, for example "/privacy". Give this or `page_id`. |
+| `block_id` | string (max 40 chars) | yes | The section: its `block_id` from get_page. |
+| `css` | string (max 8192 chars) | yes | The custom CSS for this section. Blank removes it. It is checked on save and, once a person publishes, scoped to this section. Site-wide CSS has no agent tool. |
+| `change_id` | string (max 80 chars) | no | An open change id from an earlier edit, to add this edit to it (reviewed and published together). Leave out to start a new change; changes in review, published or discarded cannot be added to. |
+| `reason` | string (max 500 chars) | yes | Who asked and what they asked, in one or two plain sentences of your own (see REASON in the server instructions). Never paste website text here. |
+
+### Description sent to the AI
+
+```text
+Set or clear the custom CSS on one section. Saves the CSS you give on that section, or removes it when the text is blank. The CSS is checked. It applies only inside that section once a person publishes the page. This does not change site-wide CSS.
+Use when: The person asks for custom CSS on one section, such as link spacing or a colour on that section only.
+Not when: Site-wide CSS: there is no agent tool for it. A person does that on Brand. Changing a heading or other prop: edit_component. Donation forms and embeds: never allowed.
+First: get_page for the block_id, and for any CSS already there (`css` when `custom_css` is true).
+Effect: Sets the section CSS. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish). Custom CSS always needs a person to approve it. Always-allow and a publish rule do not apply it, including a rule whose actions are "*". A deny rule refuses the draft.
+Who: Draft tokens. Rule action: "edit_css".
+Returns: The change reply (see REPLIES in the server instructions) plus `result` (what this call did).
+Errors: not_found: The page has no section with that block_id. Use get_page. validation_failed: The CSS was rejected. The message gives the line and column. Nothing was saved. rule_denied: A rule on this token forbids edit_css. No draft was made.
+Example: {"page_id":"pg_01KABCDEFGHJKMNPQRSTVWXYZ0","block_id":"b_k3j9x2ab","css":"a { text-underline-offset: 0.15em; }","reason":"The owner asked for links in this section to sit a little further from the words."}
 ```
 
 ## add_component

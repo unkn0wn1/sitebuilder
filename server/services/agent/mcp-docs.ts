@@ -34,7 +34,7 @@ HOW CHANGES WORK
 
 READING TOOL DESCRIPTIONS
 - REPLIES: edit tools return \`change\` in brief (id, status, preview link, one summary line per page or part), \`if_you_publish\` (would it go live now, and why), \`problems_to_fix\` (only when there are some), \`result\` (what this call did) and \`next_steps\`. get_change and preview_change return the full \`change\` with \`text_changes\` and \`section_changes\`: exactly what differs from the live site.
-- "Who" says which tokens may call it. "Rule action" is the action a rule on your token must allow for the change to go live by itself; without one it goes to a person.
+- "Who" says which tokens may call it. "Rule action" is the action a rule on your token must allow for the change to go live by itself; without one it goes to a person. Custom CSS (set_block_css) always needs a person, even when a rule or always-allow would otherwise publish it.
 - Errors have a \`code\`, a \`message\` and sometimes \`fields\`. Common recovery for every tool is in sitebuilder://guide/errors. Ids in examples are placeholders: use real ones.
 
 START
@@ -280,7 +280,7 @@ Then preview_change and publish per sitebuilder://recipe/publish-or-ask. Menu an
 
 const COMPONENT_GUIDE = `# How the site is built
 - A PAGE has a title, an address (path, like /privacy), a page type, SEO details, and an ordered list of SECTIONS (also called components or blocks).
-- Each SECTION has a block_id, a type (for example RichText, Hero, CallToAction, FAQ), and props. get_page shows them; list_components explains every type.
+- Each SECTION has a block_id, a type (for example RichText, Hero, CallToAction, FAQ), and props. get_page shows them; list_components explains every type. Custom CSS is separate: get_page shows css when custom_css is true, and set_block_css drafts it. A person always approves it. Site-wide CSS has no agent tool.
 - SITE PARTS show on every page: the header, the footer, menus and the banner. Each is one document. get_site_part shows them.
 - RICH TEXT is a structured document of paragraphs, headings and bullet or numbered lists, with bold, italic and links inside. get_page shows each rich-text prop as markdown for reading; insert_rich_text takes the same markdown to add text.
 - LINKS appear in four kinds: in rich text (words that link), in button props (a label and an href), in menu items, header, footer and banner (a link to a page on the site by id, or to an address), and social links in the footer. find_links finds all of them; remove_link and replace_link change all of them.
@@ -300,12 +300,12 @@ function rulesGuide(): string {
   return `# What you may do, and what happens next
 Your token has an ACCESS level and RULES. get_site shows both.
 - access "read": you can only read. "draft": you can also make drafts.
-- Each rule says: which ACTIONS (edit_text, remove_link, add_link, edit_sections, edit_page_details, create_page, edit_menu, edit_banner, edit_footer, edit_header, undo_change), on which TARGETS (page types, page addresses, header/footer/menu/banner), with what RESULT (publish = may go live by itself, review = a person must approve, deny = refused), and LIMITS (most sections, most words, whether new links are allowed, which link domains, how many per hour, and for create_page how many new pages one change may hold: maxNewPages, default 1).
+- Each rule says: which ACTIONS (edit_text, remove_link, add_link, edit_sections, edit_css, edit_page_details, create_page, edit_menu, edit_banner, edit_footer, edit_header, undo_change), on which TARGETS (page types, page addresses, header/footer/menu/banner), with what RESULT (publish = may go live by itself, review = a person must approve, deny = refused), and LIMITS (most sections, most words, whether new links are allowed, which link domains, how many per hour, and for create_page how many new pages one change may hold: maxNewPages, default 1).
 - A change goes live by itself only if EVERY part of it is covered by a "publish" rule and its limits hold. Otherwise publish_change sends it to a person (it never publishes half).
 - BUILDING SEVERAL PAGES: a change that creates more than one page goes to a person unless a publish rule for create_page has limits.maxNewPages high enough. Always-allow does not cover it.
 - A "deny" rule beats everything.
-- Always-allow is a switch the owner turns on for a token, either for 1 to 7 days (for example during an emergency) or permanently (no end date, until the owner switches it off). get_site shows it as "you.always_allow": null when off, or { permanent, until }, with "you.always_allow_meaning" in words. While it is on, a change that no rule covers can still publish, except what the floor and the never-list forbid, and a deny rule still wins. Permanent does NOT widen anything else: the same floor, never-list, deny rules and rate limits apply. Never turn it on or off yourself: only a person can, with the site name and their password.
-- THE FLOOR (always a person, even with timed or permanent always-allow): the change touches a money section; the page or part has someone else's unpublished work; the standard submission checks fail.
+- Always-allow is a switch the owner turns on for a token, either for 1 to 7 days (for example during an emergency) or permanently (no end date, until the owner switches it off). get_site shows it as "you.always_allow": null when off, or { permanent, until }, with "you.always_allow_meaning" in words. While it is on, a change that no rule covers can still publish, except what the floor, custom CSS and the never-list forbid, and a deny rule still wins. Permanent does NOT widen anything else: the same floor, never-list, deny rules and rate limits apply. Never turn it on or off yourself: only a person can, with the site name and their password.
+- THE FLOOR (always a person, even with timed or permanent always-allow, and even under a publish rule with actions "*"): the change touches a money section; the page or part has someone else's unpublished work; the standard submission checks fail; custom CSS on a section is added, changed or cleared. The action edit_css always needs a person too, even if the CSS text ends up unchanged. Removing a whole section is not a CSS change. Site-wide CSS has no agent tool. A deny rule still refuses that draft before it is written.
 - THE NEVER-LIST (always refused, even as a draft): DonationEmbed and Embed sections; the props embed, source and campaignId; theme, settings, users, tokens, code and scripts. The AI personality is the exception: update_soul proposes one, and a person must approve it. A deny rule with actions "*" refuses that proposal and saves nothing. Rules and always-allow never apply it.
 - RATE LIMITS: reads, edits and publishes per minute, hour and day are limited per token; rate_limited tells you how long to wait.
 - Everything you do is recorded in the audit log with your token's name, and the owner is emailed when you publish or ask for approval. An admin can pause you or undo any change at any time.`
@@ -349,7 +349,7 @@ You can read this charity's website and propose changes to it. The site owner de
 THE LOOP
 1. get_site: what am I allowed to do?
 2. Find: search_content (words), find_links (links), list_pages / get_page (pages), get_site_part (header, footer, menu, banner).
-3. Edit: edit_text, remove_link, replace_link, insert_rich_text, edit_component, add_component, remove_component, move_component, set_page_details, create_page, create_pages, remove_menu_item, add_menu_item, rename_menu_item, set_menu_item_tile, set_banner, set_header, set_footer. These make DRAFTS and return a change.
+3. Edit: edit_text, remove_link, replace_link, insert_rich_text, edit_component, set_block_css, add_component, remove_component, move_component, set_page_details, create_page, create_pages, remove_menu_item, add_menu_item, rename_menu_item, set_menu_item_tile, set_banner, set_header, set_footer. These make DRAFTS and return a change. set_block_css always needs a person. Site-wide CSS has no agent tool.
 4. preview_change: what will differ, would it go live by itself.
 5. Decide: publish_change (live only if a rule allows; otherwise asks a person), request_publish (asks a person), discard_change.
 6. Confirm: get_change. Tell the person what happened. undo_change if wrong.
