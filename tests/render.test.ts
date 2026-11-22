@@ -7,7 +7,7 @@ import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
 import { auditEvents, jobs, redirects, releases, sites, versions } from '../server/db/schema'
 import { createPurgeCacheHandler, setPurgeHttp } from '../server/services/cloudflare'
-import { editBrand, submitBrand } from '../server/services/brand'
+
 import { createMediaRenditionsHandler, updateMedia, uploadMedia } from '../server/services/media'
 import { applyPageOps, createPage, getPage } from '../server/services/pages'
 import { createPublishHandler, currentRelease, unpublishPage } from '../server/services/publish'
@@ -32,7 +32,8 @@ import {
 } from '../server/services/render'
 import { CssRejected } from '../shared/css/sanitize'
 import { emptyPageDoc } from '../shared/page'
-import { defaultBrandDoc } from '../shared/brand'
+import { defaultBrandDoc, validateBrandDoc } from '../shared/brand'
+import { editBrand, getBrand, submitBrand } from '../server/services/brand'
 import { defaultSitePartDoc, type HeaderDoc } from '../shared/site-parts'
 import { richTextFromParagraphs } from '../shared/richtext'
 import { runJobsOnce } from '../server/services/jobs'
@@ -629,8 +630,19 @@ describe('custom CSS in rendered HTML', () => {
       { id: 'b_hero1', type: 'Hero', v: 1, props: { heading: 'Brand', image: IMG }, css: '.wrap { color: #123456 }' },
       { id: 'b_text1', type: 'RichText', v: 1, props: { content: richTextFromParagraphs(['Hello']) } },
     ]
-    const brand = { ...defaultBrandDoc(), customCss: 'a.sitewide { color: #abcdef }' } as NonNullable<SiteRenderContext['brand']>
-    const rendered = await renderPageHtml({ doc, pageId: 'pg_brand', versionId: 'ver_1', path: '/brand', site: site({ brand }) })
+    const input = { doc, pageId: 'pg_brand', versionId: 'ver_1', path: '/brand' }
+    const bare = await renderPageHtml({ ...input, site: site() })
+    const plainBrand = validateBrandDoc(defaultBrandDoc())
+    expect(plainBrand.ok).toBe(true)
+    if (!plainBrand.ok) return
+    expect(plainBrand.doc).not.toHaveProperty('customCss')
+    const plain = await renderPageHtml({ ...input, site: site({ brand: plainBrand.doc }) })
+    expect(styleText(plain.html)).toBe(styleText(bare.html))
+
+    const validated = validateBrandDoc({ ...defaultBrandDoc(), customCss: 'a.sitewide { color: #abcdef }' })
+    expect(validated.ok).toBe(true)
+    if (!validated.ok) return
+    const rendered = await renderPageHtml({ ...input, site: site({ brand: validated.doc }) })
     const css = styleText(rendered.html)
     const siteAt = css.indexOf('a.sitewide')
     const sectionAt = css.indexOf('[data-sb-css="b_hero1"]')
@@ -639,6 +651,13 @@ describe('custom CSS in rendered HTML', () => {
     expect(sectionAt).toBeGreaterThan(siteAt)
     expect(css.slice(0, sectionAt)).not.toContain('data-sb-css')
     expect(rendered.csp).toContain(styleHash(css))
+
+    const cleared = validateBrandDoc({ ...validated.doc, customCss: ' \n ' })
+    expect(cleared.ok).toBe(true)
+    if (!cleared.ok) return
+    expect(cleared.doc).not.toHaveProperty('customCss')
+    const again = await renderPageHtml({ ...input, site: site({ brand: cleared.doc }) })
+    expect(styleText(again.html)).toBe(styleText(bare.html))
   })
 
   it('refuses a style sheet over 65,536 bytes', async () => {
@@ -674,6 +693,56 @@ async function publishStandard(s: ReturnType<typeof setup>, title: string, headi
   const { jobId } = approveReview(s.ctx, s.approver, sub.reviewId, { versionId: sub.versionId })
   return { page, jobId, versionId: sub.versionId }
 }
+
+describe('published brand CSS', () => {
+  it('writes the unprefixed rule after the theme, restores the previous style when it is cleared, and purges the shell', async () => {
+    const s = setup({ selfApproval: true })
+    s.ctx.db.update(sites).set({ primaryDomain: 'example.org' }).where(eq(sites.id, s.ctx.siteId)).run()
+    const root = mkdtempSync(join(tmpdir(), 'sb-brand-css-'))
+    const writer = createFileReleaseWriter(root, { keep: 10 })
+    const handlers = {
+      publish: createPublishHandler(writer),
+      send_email: { run: () => ({ skipped: true }) },
+      purge_cache: { run: () => ({ skipped: true }) },
+    }
+    const { page } = createPage(s.ctx, s.editor, { title: 'Home', template: 'standard' })
+    applyPageOps(s.ctx, s.editor, page.id, 0, [{ op: 'add_block', block: { id: 'b_css01', type: 'Hero', props: { heading: 'Hello', image: IMG } } }])
+    applyPageOps(s.ctx, s.admin, page.id, getPage(s.ctx, page.id).revision, [{ op: 'set_block_css', blockId: 'b_css01', css: '.wrap { color: #123456 }' }])
+    const pageReview = submitPage(s.ctx, s.editor, page.id)
+    approveReview(s.ctx, s.admin, pageReview.reviewId, { versionId: pageReview.versionId })
+    while (await runJobsOnce(s.ctx, handlers)) {}
+
+    const before = styleText(readFileSync(join(root, 'releases', readCurrentReleaseId(root)!, 'home', 'index.html'), 'utf8'))
+    expect(before.startsWith(THEME_CSS)).toBe(true)
+    expect(before).toContain('[data-sb-css="b_css01"]')
+    expect(before).not.toContain('a.sitewide')
+
+    const sheet = 'a.sitewide { color: #abcdef }'
+    const saved = editBrand(s.ctx, s.admin, getBrand(s.ctx).revision, { ...defaultBrandDoc(), customCss: sheet })
+    const brandReview = submitBrand(s.ctx, s.admin)
+    approveReview(s.ctx, s.admin, brandReview.reviewId, { versionId: brandReview.versionId })
+    while (await runJobsOnce(s.ctx, handlers)) {}
+    expect(lastPurgeTags(s.ctx)).toEqual(['shell'])
+
+    const styled = styleText(readFileSync(join(root, 'releases', readCurrentReleaseId(root)!, 'home', 'index.html'), 'utf8'))
+    const siteAt = styled.indexOf('a.sitewide')
+    const sectionAt = styled.indexOf('[data-sb-css="b_css01"]')
+    expect(styled.startsWith(THEME_CSS)).toBe(true)
+    expect(siteAt).toBeGreaterThanOrEqual(THEME_CSS.length)
+    expect(sectionAt).toBeGreaterThan(siteAt)
+    expect(styled.slice(0, sectionAt)).not.toContain('data-sb-css')
+
+    const current = getBrand(s.ctx)
+    editBrand(s.ctx, s.admin, current.revision, { ...current.doc, customCss: '  ' })
+    const clearedReview = submitBrand(s.ctx, s.admin)
+    approveReview(s.ctx, s.admin, clearedReview.reviewId, { versionId: clearedReview.versionId })
+    while (await runJobsOnce(s.ctx, handlers)) {}
+    expect(lastPurgeTags(s.ctx)).toEqual(['shell'])
+    const cleared = styleText(readFileSync(join(root, 'releases', readCurrentReleaseId(root)!, 'home', 'index.html'), 'utf8'))
+    expect(cleared).toBe(before)
+    expect(saved.doc.customCss).toBe(sheet)
+  })
+})
 
 describe('filesystem releases and Cloudflare purge', () => {
   it('publishes only changed pages, hard-links the rest, and writes sitemap, robots and cache-tag maps', async () => {

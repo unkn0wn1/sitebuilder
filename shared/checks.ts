@@ -5,6 +5,7 @@ import type { FieldIssue } from './issues'
 import type { PageDoc } from './page'
 import type { BlockRegistry } from './blocks/registry'
 import { checkTemplateRules, type TemplateRules } from './templates'
+import { cssCautionWarnings } from './css/cautions'
 
 export interface CheckResult {
   blocking: FieldIssue[]
@@ -90,13 +91,7 @@ export function runChecks(doc: PageDoc, registry: BlockRegistry, rules: Template
       }
     })
 
-    const css = block.css ?? ''
-    if (css.trim()) {
-      if (/position\s*:\s*fixed/i.test(css)) warnings.push({ path: `blocks.${i}.css`, message: 'This CSS uses position: fixed, so it can cover other parts of the page.' })
-      if (/display\s*:\s*none/i.test(css) || /visibility\s*:\s*hidden/i.test(css) || /opacity\s*:\s*0(?![0-9.])/i.test(css)) {
-        warnings.push({ path: `blocks.${i}.css`, message: 'This CSS hides something (display: none, visibility: hidden or opacity: 0).' })
-      }
-    }
+    warnings.push(...cssCautionWarnings(block.css ?? '', `blocks.${i}.css`))
   })
 
   if (looksLikePlaceholder(doc.title)) blocking.push({ path: 'title', message: 'The page title looks like placeholder text.' })

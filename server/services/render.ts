@@ -295,7 +295,7 @@ function emitSectionCss(block: StoredBlock): string {
 
 function emitSiteCss(brand: SiteRenderContext['brand']): string {
   if (!brand) return ''
-  const css = authoredCss((brand as { customCss?: unknown }).customCss)
+  const css = authoredCss(brand.customCss)
   if (!css) return ''
   return sanitizeCss(css, { scope: 'site', mode: 'emit' })
 }

@@ -85,6 +85,8 @@ describe('approving custom CSS', () => {
     const plain = submitBrand(s.ctx, s.admin)
     expect(code(() => approveReview(s.ctx, s.approver, plain.reviewId, { versionId: plain.versionId }))).toBe('ok')
     while (await runJobsOnce(s.ctx, handlers)) {}
+    const colourPurge = s.ctx.db.select().from(jobs).where(eq(jobs.kind, 'purge_cache')).all().at(-1)
+    expect((colourPurge?.payload as { tags?: string[] } | undefined)?.tags).toEqual(['shell'])
 
     editBrand(s.ctx, s.admin, saved.revision, { ...colour, tokens: { ...colour.tokens, ink: '#112233' } })
     const sub = submitBrand(s.ctx, s.admin)
@@ -94,6 +96,9 @@ describe('approving custom CSS', () => {
     expect(refused).toBe('Custom CSS changes need an admin to approve them.')
     expect(refused).not.toContain(MARKER)
     expect(code(() => approveReview(s.ctx, s.admin, sub.reviewId, { versionId: sub.versionId }))).toBe('ok')
+    while (await runJobsOnce(s.ctx, handlers)) {}
+    const cssPurge = s.ctx.db.select().from(jobs).where(eq(jobs.kind, 'purge_cache')).all().at(-1)
+    expect((cssPurge?.payload as { tags?: string[] } | undefined)?.tags).toEqual(['shell'])
   })
 })
 

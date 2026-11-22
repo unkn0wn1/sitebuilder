@@ -29,12 +29,13 @@ export function pageCssChanged(before: unknown, after: unknown): boolean {
   return false
 }
 
-function brandCss(doc: unknown): string {
+/** Author text of brand `customCss`. An absent field and a blank field are both empty. */
+export function brandCustomCss(doc: unknown): string {
   if (!doc || typeof doc !== 'object') return ''
   return cssText((doc as { customCss?: unknown }).customCss)
 }
 
 /** True when brand `customCss` differs. An absent field and a blank field are the same. */
 export function brandCssChanged(before: unknown, after: unknown): boolean {
-  return brandCss(before) !== brandCss(after)
+  return brandCustomCss(before) !== brandCustomCss(after)
 }

@@ -7,6 +7,7 @@ import type { PageDoc } from '#shared/page'
 import type { MenuDoc, SitePartDoc } from '#shared/site-parts'
 import { blockRegistry } from '../../utils/block-fields'
 import { CHANGE_KIND_LABELS, cssTextChange, type ReviewDetail } from '../../utils/reviews'
+import { brandCustomCss } from '#shared/css/changed'
 import CssDiff from '../../components/approvals/CssDiff.vue'
 import type { PageOption, SitePartDetail, SitePartListItem } from '../../utils/site-parts'
 import type { Device } from '../../utils/page-editor'
@@ -62,6 +63,15 @@ const changeLines = computed(() => {
     else if (key.startsWith('seo.')) lines.push({ key: `meta-${key}`, text: 'Changed search settings' })
   }
   return lines
+})
+
+const brandCssDiff = computed(() => {
+  const d = detail.value
+  if (!d || d.target.type !== 'brand') return null
+  const before = brandCustomCss(d.liveDoc)
+  const after = brandCustomCss(d.doc)
+  if (before === after) return null
+  return { before, after }
 })
 
 const liveHref = computed(() => {
@@ -278,7 +288,10 @@ watch(id, load, { immediate: true })
               <FwbButton size="sm" :color="mode === 'changes' ? 'default' : 'light'" @click="mode = 'changes'">Show changes</FwbButton>
             </FwbButtonGroup>
           </div>
-          <p v-if="detail.target.type === 'brand'" class="p-8 text-sm text-gray-600 dark:text-gray-400">This is a brand and design change. Checks and the summary are in the right-hand column. After publish, every page is updated (about a minute).</p>
+          <div v-if="detail.target.type === 'brand'" class="p-8 text-sm text-gray-600 dark:text-gray-400">
+            <p class="m-0">This is a brand and design change. Checks and the summary are in the right-hand column. After publish, every page is updated (about a minute).</p>
+            <CssDiff v-if="brandCssDiff" class="mt-4" :before="brandCssDiff.before" :after="brandCssDiff.after" />
+          </div>
           <div v-else-if="detail.target.type === 'template'" class="p-8 text-sm text-gray-700 dark:text-gray-300">
             <p class="mt-0">This is a page type change. After it is published, the new rules apply when people edit or submit pages of this type. Existing live pages are not re-rendered.</p>
             <p v-if="'allowedBlocks' in detail.doc && Array.isArray(detail.doc.allowedBlocks)" class="mb-0">
