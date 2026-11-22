@@ -6,7 +6,7 @@ import type { TemplateRules } from '#shared/templates'
 import { canSubmit, type WorkflowState } from '#shared/workflow'
 import { ApiError } from './api'
 import type { FieldIssue } from '#shared/issues'
-import { blockRegistry } from './block-fields'
+import { blockRegistry, pluginSample } from './block-fields'
 import { cloneDraft } from '#shared/clone'
 
 export const DEVICE_WIDTHS = { desktop: 1280, tablet: 768, mobile: 390 } as const
@@ -239,7 +239,7 @@ export class PageEditor {
       return
     }
     const def = blockRegistry.get(type)
-    const props = cloneDraft((def?.sample ?? {}) as Record<string, unknown>)
+    const props = cloneDraft((def?.sample ?? pluginSample(type) ?? {}) as Record<string, unknown>)
     // The id is chosen here so edits to the new section can go in the same save as adding it.
     const block = { id: newId('block'), type, props }
     const op: Op = afterId ? { op: 'add_block', afterBlockId: afterId, block } : { op: 'add_block', block }

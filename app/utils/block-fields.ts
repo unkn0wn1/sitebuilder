@@ -1,5 +1,6 @@
 // Turn a section's Zod props schema into fields the inspector can render.
 import type { z } from 'zod'
+import { ref } from 'vue'
 import { STARTER_BLOCKS } from '#shared/blocks/library'
 import type { BlockDefinition } from '#shared/blocks/define'
 import { createDefaultRegistry } from '#shared/blocks/registry'
@@ -7,7 +8,7 @@ import { ratioFromSize } from '#shared/crop'
 
 export const blockRegistry = createDefaultRegistry()
 
-export type FieldKind = 'text' | 'textarea' | 'enum' | 'boolean' | 'image' | 'link' | 'media' | 'embed' | 'richtext' | 'list' | 'object' | 'unknown'
+export type FieldKind = 'text' | 'textarea' | 'enum' | 'boolean' | 'number' | 'image' | 'link' | 'media' | 'embed' | 'richtext' | 'list' | 'object' | 'unknown'
 
 export interface FieldSpec {
   name: string
@@ -19,6 +20,52 @@ export interface FieldSpec {
   options?: string[]
   item?: FieldSpec[]
   fields?: FieldSpec[]
+}
+
+/** One enabled plugin block, as GET /api/v1/plugins/catalog returns it. The client does not compile templates. */
+export interface PluginCatalogBlock {
+  type: string
+  label: string
+  category: BlockDefinition['category']
+  trust: 'Official' | 'Self-installed'
+  sample: Record<string, unknown>
+  imageSlots: Record<string, { width: number; height: number }>
+  fields: FieldSpec[]
+}
+
+export interface CatalogItem {
+  type: string
+  label: string
+  category: BlockDefinition['category']
+  headingProps?: string[]
+  sample: Record<string, unknown>
+  plugin?: boolean
+  trust?: 'Official' | 'Self-installed'
+}
+
+const pluginCatalogState = ref<PluginCatalogBlock[]>([])
+
+export function setPluginCatalog(blocks: PluginCatalogBlock[]) {
+  pluginCatalogState.value = blocks
+}
+
+function pluginByType(type: string): PluginCatalogBlock | undefined {
+  return pluginCatalogState.value.find((block) => block.type === type)
+}
+
+export function pluginSample(type: string): Record<string, unknown> | undefined {
+  return pluginByType(type)?.sample
+}
+
+export function pluginTrust(type: string): PluginCatalogBlock['trust'] | undefined {
+  return pluginByType(type)?.trust
+}
+
+/** A stored slash type whose plugin is off or was removed. Core types are never missing plugins. */
+export function isMissingPlugin(type: string): boolean {
+  if (!type.includes('/')) return false
+  if (blockRegistry.get(type)) return false
+  return !pluginByType(type)
 }
 
 function labelize(name: string): string {
@@ -136,6 +183,7 @@ function describe(schema: Zodish, name: string, path: string): FieldSpec {
   }
   if (type === 'enum') return { ...base, kind: 'enum', options: Object.keys(inner.def.entries ?? {}) }
   if (type === 'boolean') return { ...base, kind: 'boolean' }
+  if (type === 'number') return { ...base, kind: 'number' }
   if (type === 'array' && inner.def.element) {
     const el = unwrap(inner.def.element).schema
     return { ...base, kind: 'list', item: el.def.type === 'object' ? describeObject(el, `${path}[]`) : [describe(inner.def.element, 'item', `${path}[]`)] }
@@ -148,10 +196,15 @@ function describeObject(schema: Zodish, prefix: string): FieldSpec[] {
   return Object.entries(schema.shape ?? {}).map(([key, value]) => describe(value, key, prefix ? `${prefix}.${key}` : key))
 }
 
+/** Field specs for a props schema. Plugin blocks use the same walk on the server. */
+export function describeProps(schema: object): FieldSpec[] {
+  return describeObject(schema as Zodish, '')
+}
+
 export function fieldsForBlock(type: string): FieldSpec[] {
   const def = blockRegistry.get(type)
-  if (!def) return []
-  return describeObject(def.props as unknown as Zodish, '')
+  if (def) return describeObject(def.props as unknown as Zodish, '')
+  return pluginByType(type)?.fields ?? []
 }
 
 /** Missing Hero layout is the single photo. Hiding a field does not remove its saved value. */
@@ -180,12 +233,27 @@ export function visibleListItemFields(type: string, field: FieldSpec, props: Rec
   return items.filter((sub) => sub.name !== 'video')
 }
 
-export function blockCatalog(): Pick<BlockDefinition, 'type' | 'label' | 'category' | 'headingProps' | 'sample'>[] {
-  return STARTER_BLOCKS.map((b) => ({ type: b.type, label: b.label, category: b.category, headingProps: b.headingProps, sample: b.sample as Record<string, unknown> }))
+export function blockCatalog(): CatalogItem[] {
+  const core = STARTER_BLOCKS.map((b) => ({
+    type: b.type,
+    label: b.label,
+    category: b.category,
+    headingProps: b.headingProps,
+    sample: b.sample as Record<string, unknown>,
+  }))
+  const plugins = pluginCatalogState.value.map((block) => ({
+    type: block.type,
+    label: block.label,
+    category: block.category,
+    sample: block.sample,
+    plugin: true as const,
+    trust: block.trust,
+  }))
+  return [...core, ...plugins]
 }
 
 export function blockLabel(type: string): string {
-  return blockRegistry.get(type)?.label ?? type
+  return blockRegistry.get(type)?.label ?? pluginByType(type)?.label ?? type
 }
 
 export function headingProp(type: string): string | undefined {
@@ -193,8 +261,7 @@ export function headingProp(type: string): string | undefined {
 }
 
 export function imageSlotFor(type: string, path: string): { width: number; height: number; ratio: string } | null {
-  const def = blockRegistry.get(type)
-  const slots = def?.imageSlots
+  const slots = blockRegistry.get(type)?.imageSlots ?? pluginByType(type)?.imageSlots
   if (!slots) return null
   const parts = path.split('.')
   const last = parts.at(-1) ?? ''
