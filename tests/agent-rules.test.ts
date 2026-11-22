@@ -4,6 +4,7 @@ import {
   globMatches,
   isMoneyBlockType,
   isNeverBlockType,
+  MONEY_BLOCK_TYPES,
   normaliseRules,
   stagingDenial,
   type AgentRule,
@@ -121,6 +122,9 @@ describe('rule shapes', () => {
     expect(isNeverBlockType('Embed')).toBe(true)
     expect(isNeverBlockType('RichText')).toBe(false)
     expect(isMoneyBlockType('ImpactTiers')).toBe(true)
+    expect(isMoneyBlockType('MatchBanner')).toBe(true)
+    expect(isMoneyBlockType('MatchThermometer')).toBe(false)
     expect(isMoneyBlockType('Hero')).toBe(false)
+    expect([...MONEY_BLOCK_TYPES]).toEqual(['ImpactTiers', 'DonationProgress', 'MatchBanner'])
   })
 })

@@ -25,7 +25,7 @@ Three things made this a decision rather than a feature:
 
 **The floor and the never-list are not configurable.**
 - Never-list, refused even as a draft: `DonationEmbed` and `Embed` sections, the props `embed`, `source` and `campaignId`; and everything outside page content (theme, settings, users, tokens, secrets, code and scripts), which has no tool at all.
-- Floor, always a person even with always-allow: the change touches a money section (`ImpactTiers`, `DonationProgress`, `MatchBanner`, `MatchThermometer`); the page or part has someone else's unpublished work; the standard submission checks fail.
+- Floor, always a person even with always-allow: the change touches a money section (`ImpactTiers`, `DonationProgress`, `MatchBanner`); the page or part has someone else's unpublished work; the standard submission checks fail.
 
 **Always-allow** is a per-token switch for an emergency window. It needs the site name typed and the admin's password, lasts one to seven days or is **permanent** (no end date, added in the 20 Nov 2026 update), and never covers the never-list or the floor. Deny rules still win.
 

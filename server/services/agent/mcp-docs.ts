@@ -1,6 +1,7 @@
 // What the MCP server tells an AI about itself: server instructions, guide resources and step-by-step recipes (also
 // offered as prompts). Written so the model has no room for doubt. REST users read the same text in docs/agent-gateway.md.
 import { ERROR_CATALOG, OPERATIONS, ZERO_DOUBT_RULES } from './operations'
+import { MONEY_BLOCK_TYPES } from '../../../shared/agent/rules'
 
 export const SERVER_NAME = 'sitebuilder'
 export const SERVER_TITLE = 'Charity site builder'
@@ -264,7 +265,7 @@ const COMPONENT_GUIDE = `# How the site is built
 - RICH TEXT is a structured document of paragraphs, headings and bullet or numbered lists, with bold, italic and links inside. get_page shows each rich-text prop as markdown for reading; insert_rich_text takes the same markdown to add text.
 - LINKS appear in four kinds: in rich text (words that link), in button props (a label and an href), in menu items, header, footer and banner (a link to a page on the site by id, or to an address), and social links in the footer. find_links finds all of them; remove_link and replace_link change all of them.
 - A DRAFT is the working copy. LIVE is what visitors see. Editing makes a draft; only publishing (by a rule or by a person) changes live.
-- Money sections (ImpactTiers, DonationProgress, MatchBanner, MatchThermometer) show or ask for money: you may draft them, but a person always approves. Donation forms (DonationEmbed, Embed) are off limits entirely.
+- Money sections (${MONEY_BLOCK_TYPES.join(', ')}) show or ask for money: you may draft them, but a person always approves. Donation forms (DonationEmbed, Embed) are off limits entirely.
 - A page waiting for approval cannot be edited by you until it is decided. A page someone else is editing will make your change go to a person, because publishing would publish their unfinished work too.`
 
 const MARKDOWN_GUIDE = `# Markdown accepted by insert_rich_text

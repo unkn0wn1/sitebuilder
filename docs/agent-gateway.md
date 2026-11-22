@@ -113,7 +113,7 @@ A rule is a plain object:
 **How a change is decided**, always in this order:
 
 1. A matching `deny` rule refuses it. This happens when the draft is made, not at publish time, and counts as a blocked attempt.
-2. **The floor.** A person is needed, whatever the rules or always-allow say, if: the change touches a money section (`ImpactTiers`, `DonationProgress`, `MatchBanner`, `MatchThermometer`); the page or part has someone else's unpublished work (publishing would publish it too); the standard submission checks fail.
+2. **The floor.** A person is needed, whatever the rules or always-allow say, if: the change touches a money section (`ImpactTiers`, `DonationProgress`, `MatchBanner`); the page or part has someone else's unpublished work (publishing would publish it too); the standard submission checks fail.
 3. **Always-allow**, if switched on (and, for a timed one, not ended): it publishes without a matching rule.
 4. Otherwise every action in every part of the change must be covered by a `publish` rule whose limits hold. If one part is not, the **whole change** goes to review. It never publishes half.
 
@@ -134,7 +134,7 @@ Either kind needs the **site name typed exactly** and **your password**, every t
 
 - A matching **deny** rule.
 - The **never-list**: donation forms and embeds, the embed, source and campaign props, theme, settings, users, tokens, code. These are refused even as drafts.
-- The **floor**: a money section (`ImpactTiers`, `DonationProgress`, `MatchBanner`, `MatchThermometer`), someone else's unpublished work on the same page or part, and failing checks. A person approves these.
+- The **floor**: a money section (`ImpactTiers`, `DonationProgress`, `MatchBanner`), someone else's unpublished work on the same page or part, and failing checks. A person approves these.
 - Rate limits, the IP list, the token's own expiry, pausing and the kill switch.
 
 **Seeing it.** A permanent setting is labelled **permanent** (no end date) wherever it is shown: the token list (`alwaysAllow: { permanent: true, until: null }`), the command line (`ALWAYS-ALLOW: PERMANENT (no end date)`), and to the assistant itself (`you.always_allow` and `you.always_allow_meaning` from `get_site`). A timed one shows its end time.

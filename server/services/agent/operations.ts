@@ -12,7 +12,7 @@ import * as S from './schemas'
 import { takeCall } from './limits'
 import { violationGuard } from './changes'
 import type { SignedInAgent } from './tokens'
-import type { AgentAction } from '../../../shared/agent/rules'
+import { MONEY_BLOCK_TYPES, type AgentAction } from '../../../shared/agent/rules'
 
 export type OperationLevel = 'read' | 'draft' | 'decide'
 
@@ -380,7 +380,7 @@ export const OPERATIONS: Operation[] = [
       useWhen: ['edit_text cannot do it (not a plain replacement): changing a card list, a button, an image alt text, a layout.'],
       dontUseWhen: ['A simple wording change: edit_text.', 'A link: remove_link or replace_link.', 'Anything about donation forms: never allowed.'],
       before: ['get_page for the block_id and current props.', 'list_components for the props_schema if the shape is unclear.'],
-      effect: DRAFT_EFFECT('Changes the section.') + ' Sections that show money (ImpactTiers, DonationProgress, MatchBanner, MatchThermometer) can be drafted but always need a person to approve.',
+      effect: DRAFT_EFFECT('Changes the section.') + ` Sections that show money (${MONEY_BLOCK_TYPES.join(', ')}) can be drafted but always need a person to approve.`,
       returns: CHANGE_RETURNS,
       errors: { never_list: 'This section or prop is protected. Tell the person it must be done by hand.', validation_failed: 'The new props are not valid for this section. `error.fields` says which. Fix and call again.' },
       example: { input: { page_id: 'pg_01KABCDEFGHJKMNPQRSTVWXYZ0', block_id: 'b_k3j9x2ab', props: { heading: 'Help us this winter' }, reason: 'The owner asked to reword the heading.' }, note: 'Change one prop.' },

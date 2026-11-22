@@ -2,7 +2,7 @@
 // functions (through operations.ts), so the two doors cannot behave differently. See ADR 0018.
 import { and, eq, isNull } from 'drizzle-orm'
 import { z } from 'zod'
-import { NEVER_BLOCK_TYPES, NEVER_PROP_KEYS, ACTION_LABELS, isMoneyBlockType, isNeverBlockType, type AgentAction } from '../../../shared/agent/rules'
+import { NEVER_BLOCK_TYPES, NEVER_PROP_KEYS, ACTION_LABELS, MONEY_BLOCK_TYPES, isMoneyBlockType, isNeverBlockType, type AgentAction } from '../../../shared/agent/rules'
 import {
   domainOfHref,
   findLinks,
@@ -255,7 +255,7 @@ export function getSite(ctx: ServiceCtx, agent: SignedInAgent) {
       meaning: 'Things no agent can do, whatever the token says. If asked, tell the person it has to be done by hand in the builder.',
       sections_that_cannot_be_touched: [...NEVER_BLOCK_TYPES],
       props_that_cannot_be_set: [...NEVER_PROP_KEYS],
-      sections_that_never_publish_without_a_person: ['ImpactTiers', 'DonationProgress', 'MatchBanner', 'MatchThermometer'],
+      sections_that_never_publish_without_a_person: [...MONEY_BLOCK_TYPES],
       also: ['Theme, colours, fonts, logo', 'Site settings, users, tokens, secrets', 'Raw HTML, CSS, scripts, tracking'],
     },
     actions: Object.fromEntries((Object.keys(ACTION_LABELS) as AgentAction[]).map((a) => [a, ACTION_LABELS[a]])),
