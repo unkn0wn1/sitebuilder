@@ -92,6 +92,19 @@ describe('rule decisions', () => {
     expect(floored.reasons[0]).toBe(`${reason} (the page "Privacy" (/privacy))`)
   })
 
+  it('treats removal of a section that has CSS as the custom_css floor, and a deny rule still wins', () => {
+    const removed = facts({ actions: ['edit_sections'], floor: ['custom_css'] })
+    const reason = 'Custom CSS always needs a person to review it. (the page "Privacy" (/privacy))'
+    expect(decideChange([removed], input(rules({ label: 'Sections', actions: ['edit_sections'], result: 'publish' }))).outcome).toBe('review')
+    expect(decideChange([removed], input(rules({ label: 'Sections', actions: ['edit_sections'], result: 'publish' }))).reasons[0]).toBe(reason)
+    expect(decideChange([removed], input([], { alwaysAllow: true })).outcome).toBe('review')
+    expect(decideChange([removed], input([], { alwaysAllow: true })).viaAlwaysAllow).toBe(false)
+    expect(decideChange([removed], input(rules({ label: 'All', actions: '*', result: 'publish' }), { alwaysAllow: true })).outcome).toBe('review')
+    const denied = decideChange([removed], input(rules({ label: 'No sections', actions: ['edit_sections'], result: 'deny' }, { label: 'All', actions: '*', result: 'publish' }), { alwaysAllow: true }))
+    expect(denied.outcome).toBe('deny')
+    expect(denied.reasons[0]).toMatch(/No sections/)
+  })
+
   it('lets a deny rule refuse custom CSS before a draft is written', () => {
     const r = rules({ label: 'No CSS', actions: ['edit_css'], result: 'deny' }, { label: 'Allow all', actions: '*', result: 'publish' })
     expect(decideChange([facts({ actions: ['edit_css'] })], input(r, { alwaysAllow: true })).outcome).toBe('deny')

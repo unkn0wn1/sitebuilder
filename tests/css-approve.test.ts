@@ -67,6 +67,22 @@ describe('approving custom CSS', () => {
     expect(currentRelease(s.ctx)).toBeUndefined()
   })
 
+  it('needs an admin to approve removal of a section that has CSS', async () => {
+    const s = setup()
+    const pageId = withCss(s, '.wrap { color: #123456 }')
+    const first = submitPage(s.ctx, s.editor, pageId)
+    approveReview(s.ctx, s.admin, first.reviewId, { versionId: first.versionId })
+    while (await runJobsOnce(s.ctx, handlers)) {}
+    applyPageOps(s.ctx, s.editor, pageId, getPage(s.ctx, pageId).revision, [
+      { op: 'add_block', block: { type: 'RichText', props: { content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Still here.' }] }] } } } },
+      { op: 'remove_block', blockId: 'b_css01' },
+    ])
+    const second = submitPage(s.ctx, s.editor, pageId)
+    expect(message(() => approveReview(s.ctx, s.approver, second.reviewId, { versionId: second.versionId }))).toBe('Custom CSS changes need an admin to approve them.')
+    expect(code(() => approveReview(s.ctx, s.approver, second.reviewId, { versionId: second.versionId }))).toBe('forbidden')
+    expect(code(() => approveReview(s.ctx, s.admin, second.reviewId, { versionId: second.versionId }))).toBe('ok')
+  })
+
   it('lets an approver publish a later edit that does not change the CSS', async () => {
     const s = setup()
     const pageId = withCss(s, '.wrap { color: #123456 }')

@@ -442,7 +442,7 @@ export const OPERATIONS: Operation[] = [
     run: (ctx, agent, input) => G.removeComponent(ctx, agent, input),
     doc: {
       summary: 'Remove one section from a page.',
-      what: 'Removes the section from the draft. The page must still have the sections its page type requires, which is checked when the change is sent.',
+      what: 'Removes the section from the draft. The page must still have the sections its page type requires, which is checked when the change is sent. If that section has custom CSS, the change always needs a person, even under a publish rule or always-allow.',
       useWhen: ['A whole section must go, for example a call-to-action pointing at something that no longer exists.'],
       dontUseWhen: ['Only a link or some words must go: remove_link or edit_text.', 'The section is a donation form or embed: never allowed.'],
       before: ['get_page for the block_id.'],
