@@ -7,6 +7,7 @@ import type { MenuDoc, SitePartDoc, SitePartKind } from '#shared/site-parts'
 import type { Device } from '../../../../utils/page-editor'
 import type { PageOption, SitePartDetail, SitePartListItem } from '../../../../utils/site-parts'
 import ReviewPreview from '../../../../components/approvals/ReviewPreview.vue'
+import SettingsNav from '../../../../components/settings/SettingsNav.vue'
 import UndoDialog from '../../../../components/settings/agents/UndoDialog.vue'
 
 definePageMeta({ layout: 'builder' })
@@ -119,15 +120,17 @@ onMounted(() => {
 
 <template>
   <div class="sb-page">
-    <p class="mb-1 text-sm text-gray-500 dark:text-gray-400"><NuxtLink to="/settings/agents?tab=changes" class="text-gray-500 dark:text-gray-400 no-underline hover:underline">← Agents, changes</NuxtLink></p>
+    <SettingsNav>
+      <template #title>
+        <p class="mb-1 text-sm text-gray-500 dark:text-gray-400"><NuxtLink to="/settings/agents?tab=changes" class="text-gray-500 no-underline hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">← Agents, changes</NuxtLink></p>
+        <h1 class="m-0 break-words text-2xl font-semibold text-gray-900 dark:text-gray-100">{{ data?.change.title ?? 'Change' }}</h1>
+      </template>
+    </SettingsNav>
     <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading…</p>
     <FwbAlert v-else-if="error" type="danger">{{ error }}</FwbAlert>
     <template v-else-if="data">
       <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div class="min-w-0">
-          <h1 class="m-0 break-words text-2xl font-semibold text-gray-900 dark:text-gray-100">{{ data.change.title }}</h1>
-          <p class="m-0 mt-1 text-sm text-gray-600 dark:text-gray-400"><strong>{{ CHANGE_STATUS_LABELS[data.change.status] }}.</strong> {{ summary }} By <strong>{{ data.change.tokenName }}</strong>, {{ when(data.change.createdAt) }}. <code>{{ data.change.id }}</code></p>
-        </div>
+        <p class="m-0 min-w-0 text-sm text-gray-600 dark:text-gray-400"><strong>{{ CHANGE_STATUS_LABELS[data.change.status] }}.</strong> {{ summary }} By <strong>{{ data.change.tokenName }}</strong>, {{ when(data.change.createdAt) }}. <code>{{ data.change.id }}</code></p>
         <div class="flex flex-wrap gap-2">
           <FwbButton v-if="pendingCount" :disabled="approving" @click="approveAll">{{ approving ? 'Approving…' : `Approve whole change (${pendingCount})` }}</FwbButton>
           <FwbButton v-if="data.undoable" color="red" @click="undoing = true">Undo this change</FwbButton>
