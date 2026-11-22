@@ -1,6 +1,7 @@
 // HTTP plumbing for the agent gateway: is it on, who is calling, and which operation does a request mean.
 // The gateway never reads cookies and never accepts a browser session (ADR 0018).
-import { getQuery, getRequestHeader, getRequestIP, readBody, setResponseHeader, setResponseStatus, type H3Event } from 'h3'
+import { getQuery, getRequestHeader, readBody, setResponseHeader, setResponseStatus, type H3Event } from 'h3'
+import { clientIp } from './client-ip'
 import type { ServiceCtx } from '../services/context'
 import { AppError } from '../services/errors'
 import { authenticateAgent, type SignedInAgent } from '../services/agent/tokens'
@@ -8,10 +9,6 @@ import { OPERATIONS, callOperation, type Operation } from '../services/agent/ope
 import { hit } from './rate-limit'
 
 export const agentGatewayEnabled = () => process.env.SITEBUILDER_AGENT_GATEWAY === '1'
-
-export function clientIp(event: H3Event): string | null {
-  return getRequestHeader(event, 'cf-connecting-ip') ?? getRequestIP(event, { xForwardedFor: true }) ?? null
-}
 
 export function bearerToken(event: H3Event): string | null {
   const h = getRequestHeader(event, 'authorization')

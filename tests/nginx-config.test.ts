@@ -8,7 +8,28 @@ import { describe, expect, it } from 'vitest'
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const templatePath = join(root, 'deploy/nginx.conf.template')
 const shippedPath = join(root, 'deploy/nginx.conf')
+const realIpPath = join(root, 'deploy/cloudflare-real-ip.conf')
 const template = readFileSync(templatePath, 'utf8')
+const realIp = readFileSync(realIpPath, 'utf8')
+
+const CLOUDFLARE_V4 = [
+  '173.245.48.0/20',
+  '103.21.244.0/22',
+  '103.22.200.0/22',
+  '103.31.4.0/22',
+  '141.101.64.0/18',
+  '108.162.192.0/18',
+  '190.93.240.0/20',
+  '188.114.96.0/20',
+  '197.234.240.0/22',
+  '198.41.128.0/17',
+  '162.158.0.0/15',
+  '104.16.0.0/13',
+  '104.24.0.0/14',
+  '172.64.0.0/13',
+  '131.0.72.0/22',
+]
+const CLOUDFLARE_V6 = ['2400:cb00::/32', '2606:4700::/32', '2803:f800::/32', '2405:b500::/32', '2405:8100::/32', '2a06:98c0::/29', '2c0f:f248::/32']
 
 function edgeCacheMapBody(): string {
   const match = template.match(/map \$status \$edge_cache_control \{([\s\S]*?)\n\}/)
@@ -19,6 +40,25 @@ function edgeCacheMapBody(): string {
 describe('nginx config', () => {
   it('keeps deploy/nginx.conf identical to the template', () => {
     expect(readFileSync(shippedPath, 'utf8')).toBe(template)
+  })
+
+  it('trusts Cloudflare real IP on the builder only, then overwrites X-Forwarded-For', () => {
+    const publicBlock = template.slice(0, template.indexOf('# Builder'))
+    const builderBlock = template.slice(template.indexOf('# Builder'))
+    expect(publicBlock).not.toContain('cloudflare-real-ip')
+    expect(publicBlock).not.toContain('X-Forwarded-For')
+    expect(builderBlock).toContain('include /etc/nginx/cloudflare-real-ip.conf;')
+    expect(builderBlock.match(/include \/etc\/nginx\/cloudflare-real-ip\.conf;/g)).toHaveLength(1)
+    expect(builderBlock).not.toContain('$proxy_add_x_forwarded_for')
+    expect(builderBlock.match(/proxy_set_header X-Forwarded-For \$remote_addr;/g)).toHaveLength(2)
+    expect(builderBlock.match(/proxy_set_header CF-Connecting-IP "";/g)).toHaveLength(2)
+    expect(realIp).toContain('22 Nov 2026')
+    expect(realIp).toContain('ips-v4')
+    expect(realIp).toContain('ips-v6')
+    expect(realIp).toContain('real_ip_header CF-Connecting-IP;')
+    for (const range of [...CLOUDFLARE_V4, ...CLOUDFLARE_V6]) expect(realIp).toContain(`set_real_ip_from ${range};`)
+    const compose = readFileSync(join(root, 'deploy/docker-compose.yml'), 'utf8')
+    expect(compose).toContain('./cloudflare-real-ip.conf:/etc/nginx/cloudflare-real-ip.conf:ro')
   })
 
   it('does not give 404 or 410 an edge cache', () => {
@@ -51,6 +91,9 @@ describe('nginx config', () => {
       writeFileSync(path, '')
       rendered = rendered.replaceAll(`/var/lib/sitebuilder/site/current/${name}`, path)
     }
+    const realIpCopy = join(dir, 'cloudflare-real-ip.conf')
+    writeFileSync(realIpCopy, realIp)
+    rendered = rendered.replaceAll('/etc/nginx/cloudflare-real-ip.conf', realIpCopy)
     const confPath = join(dir, 'nginx.conf')
     writeFileSync(
       confPath,

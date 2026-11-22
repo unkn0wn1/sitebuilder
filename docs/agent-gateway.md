@@ -46,7 +46,7 @@ Bypass switches off Cloudflare's Access logging for those requests. The protecti
 
 ## Make a token
 
-A token has an **owner** (an admin; the token acts as them), an **access level** (`read` or `draft`), **rules**, optional **expiry** and **IP allow-list**, and **rate limits**. The secret starts `sbt_`, is shown once, and is stored only as a hash.
+A token has an **owner** (an admin; the token acts as them), an **access level** (`read` or `draft`), **rules**, optional **expiry** and **IP allow-list**, and **rate limits**. The secret starts `sbt_`, is shown once, and is stored only as a hash. The allow-list is checked against the last `X-Forwarded-For` entry. The shipped nginx overwrites that header with `$remote_addr` after Cloudflare real-ip (`deploy/cloudflare-real-ip.conf`) and clears `CF-Connecting-IP`. The app does not read `CF-Connecting-IP`. Anyone who runs without that nginx must overwrite `X-Forwarded-For` the same way. Appending, or trusting `CF-Connecting-IP` in the app, is not what this build does.
 
 From the command line, on the server:
 

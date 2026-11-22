@@ -36,6 +36,7 @@ services:
       - ${SITEBUILDER_SITE_DIR}:/var/lib/sitebuilder/site:ro
       - ${SITEBUILDER_MEDIA_HOST_DIR}:/var/lib/sitebuilder/media:ro
       - ./nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./cloudflare-real-ip.conf:/etc/nginx/cloudflare-real-ip.conf:ro
       - ./nginx-entrypoint.sh:/nginx-entrypoint.sh:ro
     entrypoint: ["/bin/sh", "/nginx-entrypoint.sh"]
     restart: unless-stopped

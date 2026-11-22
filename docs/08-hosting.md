@@ -16,6 +16,8 @@ The builder (Nuxt app, Nitro API and job worker) runs on the same server as ngin
 
 **Only Cloudflare can reach the origin:** the web ports are firewalled to Cloudflare's IP ranges and nginx requires Authenticated Origin Pulls. See [15-security.md](15-security.md#the-origin-server).
 
+The builder proxy includes Cloudflare's published ranges (`deploy/cloudflare-real-ip.conf`) and reads `CF-Connecting-IP`, then overwrites `X-Forwarded-For` with `$remote_addr` and clears `CF-Connecting-IP` before the request reaches the app. Sign-in limits and agent IP allow-lists use the last `X-Forwarded-For` entry. Anyone who runs without that nginx must overwrite `X-Forwarded-For` the same way. Appending, or trusting `CF-Connecting-IP` in the app, is not what this build does.
+
 ## Why Cloudflare is mandatory
 
 - Visitors are often spread across countries. One origin server alone means slow pages for distant visitors.

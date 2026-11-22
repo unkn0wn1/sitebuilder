@@ -1,16 +1,17 @@
-import { getRequestIP, setCookie } from 'h3'
+import { setCookie } from 'h3'
 import { z } from 'zod'
 import { checkLogin, createSession } from '../../../services/auth'
 import { audit } from '../../../services/audit'
 import { AppError } from '../../../services/errors'
 import { defineApi, parseBody, secureCookies, SESSION_COOKIE } from '../../../utils/api'
+import { clientIp } from '../../../utils/client-ip'
 import { hit } from '../../../utils/rate-limit'
 
 const schema = z.object({ email: z.string().trim().email().max(254), password: z.string().min(1).max(200) })
 
 export default defineApi(async (event, ctx) => {
   const { email, password } = await parseBody(event, schema)
-  const ip = getRequestIP(event, { xForwardedFor: true }) ?? 'unknown'
+  const ip = clientIp(event) ?? 'unknown'
   if (!hit(`login:ip:${ip}`, 20, 15 * 60_000) || !hit(`login:email:${email.toLowerCase()}`, 10, 15 * 60_000)) {
     throw new AppError('rate_limited', 'Too many sign-in attempts. Wait 15 minutes and try again.')
   }
