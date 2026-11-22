@@ -89,6 +89,14 @@ export function runChecks(doc: PageDoc, registry: BlockRegistry, rules: Template
         if (VAGUE_LINK_TEXT.test(label.trim())) warnings.push({ path, message: `Button text "${label}" doesn't say what it does.` })
       }
     })
+
+    const css = block.css ?? ''
+    if (css.trim()) {
+      if (/position\s*:\s*fixed/i.test(css)) warnings.push({ path: `blocks.${i}.css`, message: 'This CSS uses position: fixed, so it can cover other parts of the page.' })
+      if (/display\s*:\s*none/i.test(css) || /visibility\s*:\s*hidden/i.test(css) || /opacity\s*:\s*0(?![0-9.])/i.test(css)) {
+        warnings.push({ path: `blocks.${i}.css`, message: 'This CSS hides something (display: none, visibility: hidden or opacity: 0).' })
+      }
+    }
   })
 
   if (looksLikePlaceholder(doc.title)) blocking.push({ path: 'title', message: 'The page title looks like placeholder text.' })

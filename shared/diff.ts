@@ -4,7 +4,7 @@ import type { PageDoc } from './page'
 export type BlockChange =
   | { kind: 'added'; blockId: string; type: string }
   | { kind: 'removed'; blockId: string; type: string }
-  | { kind: 'changed'; blockId: string; type: string; fields: string[] }
+  | { kind: 'changed'; blockId: string; type: string; fields: string[]; cssBefore?: string; cssAfter?: string }
   | { kind: 'moved'; blockId: string; type: string; from: number; to: number }
 
 export interface PageDiff {
@@ -32,7 +32,12 @@ export function diffPages(before: PageDoc | null, after: PageDoc): PageDiff {
       return
     }
     const fields = [...new Set([...Object.keys(old.block.props), ...Object.keys(block.props)])].filter((k) => !same(old.block.props[k], block.props[k]))
-    if (fields.length) blocks.push({ kind: 'changed', blockId: block.id, type: block.type, fields })
+    const cssBefore = old.block.css ?? ''
+    const cssAfter = block.css ?? ''
+    if (cssBefore !== cssAfter) fields.push('css')
+    if (fields.length) {
+      blocks.push(cssBefore !== cssAfter ? { kind: 'changed', blockId: block.id, type: block.type, fields, cssBefore, cssAfter } : { kind: 'changed', blockId: block.id, type: block.type, fields })
+    }
     if (commonBefore.indexOf(block.id) !== commonAfter.indexOf(block.id)) blocks.push({ kind: 'moved', blockId: block.id, type: block.type, from: old.index, to: i })
   })
   for (const [id, { block }] of prev) if (!next.has(id)) blocks.push({ kind: 'removed', blockId: id, type: block.type })

@@ -189,6 +189,42 @@ function urlLike(value: string): boolean {
   return url.includes(':') || url.startsWith('/') || url.startsWith('\\')
 }
 
+function unquote(value: string): string {
+  const trimmed = value.trim()
+  if (trimmed.length >= 2 && ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'")))) return trimmed.slice(1, -1).trim()
+  return trimmed
+}
+
+/**
+ * css-tree leaves src(https://...) as one Raw value, because // is not a url token there.
+ * A parsed src() is checked as a function. This covers the raw form.
+ */
+function assertRawSrc(node: CssNode) {
+  if (node.type !== 'Raw') return
+  const value = stringValue(node)
+  const re = /src\s*\(/gi
+  let match: RegExpExecArray | null
+  while ((match = re.exec(value))) {
+    let i = match.index + match[0].length
+    let depth = 1
+    const start = i
+    while (i < value.length && depth > 0) {
+      const ch = value[i]
+      if (ch === '(') depth++
+      else if (ch === ')') depth--
+      if (depth > 0) i++
+    }
+    const arg = unquote(value.slice(start, i).trim())
+    const urlCall = /^url\s*\(\s*([\s\S]*?)\s*\)$/i.exec(arg)
+    const candidate = unquote((urlCall?.[1] ?? arg).trim())
+    if (urlLike(candidate) && !allowedUrl(candidate)) {
+      const pos = locOf(node)
+      throw new CssRejected(pos.line, pos.column, 'Only images from this site are allowed.')
+    }
+    re.lastIndex = Math.max(re.lastIndex, i + 1)
+  }
+}
+
 function eachChild(node: CssNode, fn: (child: CssNode) => void) {
   const kids = node.children
   if (!kids) return
@@ -222,14 +258,15 @@ function assertAst(ast: CssNode) {
     if (node.type === 'Function' && typeof node.name === 'string') {
       const name = unescapeIdent(node.name).toLowerCase()
       if (name === 'expression') throw new CssRejected(locOf(node).line, locOf(node).column, 'expression() is not allowed.')
-      if (name === 'image-set' || name === '-webkit-image-set') {
+      if (name === 'image-set' || name === '-webkit-image-set' || name === 'src') {
         eachChild(node, (child) => {
-          if (child.type === 'String' && urlLike(stringValue(child)) && !allowedUrl(stringValue(child))) {
+          if ((child.type === 'String' || child.type === 'Raw') && urlLike(stringValue(child)) && !allowedUrl(stringValue(child))) {
             throw new CssRejected(locOf(child).line, locOf(child).column, 'Only images from this site are allowed.')
           }
         })
       }
     }
+    if (node.type === 'Raw') assertRawSrc(node)
     if (node.type === 'Url') {
       const url = stringValue(node)
       if (!allowedUrl(url)) throw new CssRejected(locOf(node).line, locOf(node).column, 'Only images from this site are allowed.')

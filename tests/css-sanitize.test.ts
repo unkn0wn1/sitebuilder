@@ -49,6 +49,10 @@ describe('CSS sanitiser rejections', () => {
     ['protocol-relative url', `a { background: url(//evil.example/${MARKER}.png) }`, 'images from this site'],
     ['image-set external', `a { background: image-set(url(https://evil.example/${MARKER}.png) 1x) }`, 'images from this site'],
     ['image-set string', `a { background: image-set("https://evil.example/${MARKER}.png" 1x) }`, 'images from this site'],
+    ['src external string', `a { background: src("https://evil.example/${MARKER}.png") }`, 'images from this site'],
+    ['src external url', `a { background: src(url(https://evil.example/${MARKER}.png)) }`, 'images from this site'],
+    ['src protocol-relative string', `a { background: src("//evil.example/${MARKER}.png") }`, 'images from this site'],
+    ['src external raw', `a { background: src(https://evil.example/${MARKER}.png) }`, 'images from this site'],
     ['font-face', `@font-face { font-family: ${MARKER}; src: url(https://evil.example/a.woff) }`, '@font-face'],
     ['charset', `@charset "${MARKER}";`, '@charset'],
     ['namespace', `@namespace ${MARKER} url(https://evil.example/);`, '@namespace'],
@@ -94,6 +98,10 @@ describe('CSS sanitiser rejections', () => {
     allow('@keyframes fade { from { opacity: 0 } to { opacity: 1 } } .a { animation: fade 1s ease; animation-name: fade }')
     allow(`a { background: url(/media/med_00000000000000000000000001) }`)
     allow(`a { background: url(/media/med_00000000000000000000000001-1280.webp) }`)
+    allow('a { background: src("/media/med_00000000000000000000000001") }')
+    allow('a { background: src("/media/med_00000000000000000000000001-1280.webp") }')
+    allow('a { background: src("data:image/png;base64,iVBORw0KGgo=") }')
+    allow('a { background: src(url(/media/med_00000000000000000000000001)) }')
     allow('a { background: url(data:image/png;base64,iVBORw0KGgo=) }')
     allow('a { background: url(data:image/svg+xml;base64,PHN2Zy8+) }')
     allow(':root { color: red }')

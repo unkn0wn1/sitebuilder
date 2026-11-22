@@ -94,7 +94,7 @@ export function summariseDiff(diff: PageDiff, type: (t: string) => string): stri
   for (const c of diff.blocks) {
     if (c.kind === 'added') parts.push(`added ${type(c.type)}`)
     if (c.kind === 'removed') parts.push(`removed ${type(c.type)}`)
-    if (c.kind === 'changed') parts.push(`changed ${type(c.type)}`)
+    if (c.kind === 'changed') parts.push(c.fields.length === 1 && c.fields[0] === 'css' ? 'changed custom CSS' : `changed ${type(c.type)}`)
     if (c.kind === 'moved') parts.push(`moved ${type(c.type)}`)
   }
   if (diff.meta.includes('title')) parts.push('changed the title')

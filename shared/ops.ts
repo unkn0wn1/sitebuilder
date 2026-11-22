@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { blockIdSchema, pageTitleSchema, seoSchema, type PageDoc, type PageSeo } from './page'
 import type { BlockRegistry, StoredBlock } from './blocks/registry'
 import { cloneDraft } from './clone'
+import { SECTION_CSS_MAX_BYTES } from './css/limits'
 
 export const slugSchema = z
   .string()
@@ -18,6 +19,8 @@ const blockInput = z
     id: blockIdSchema.optional(),
     type: z.string().min(1).max(60),
     props: z.record(z.string(), z.unknown()).default({}),
+    /** Copied only when duplicating a section. Any other value needs design.css. */
+    css: z.string().max(SECTION_CSS_MAX_BYTES).optional(),
   })
   .strict()
 
@@ -41,6 +44,13 @@ const updatePropsOp = z
 
 const moveBlockOp = z.object({ op: z.literal('move_block'), blockId: blockIdSchema, toIndex: z.number().int().min(0) }).strict()
 const removeBlockOp = z.object({ op: z.literal('remove_block'), blockId: blockIdSchema }).strict()
+const setBlockCssOp = z
+  .object({
+    op: z.literal('set_block_css'),
+    blockId: blockIdSchema,
+    css: z.string().max(SECTION_CSS_MAX_BYTES),
+  })
+  .strict()
 
 const setMetaOp = z
   .object({
@@ -63,7 +73,7 @@ const setSeoOp = z
   .strict()
 
 /** Operations accepted from clients (GUI and AI). */
-export const opSchema = z.discriminatedUnion('op', [addBlockOp, updatePropsOp, moveBlockOp, removeBlockOp, setMetaOp, setSeoOp])
+export const opSchema = z.discriminatedUnion('op', [addBlockOp, updatePropsOp, moveBlockOp, removeBlockOp, setBlockCssOp, setMetaOp, setSeoOp])
 export const opsRequestSchema = z.object({ baseRevision: z.number().int().min(0), ops: z.array(opSchema).min(1).max(50) }).strict()
 
 export type Op = z.infer<typeof opSchema>
@@ -133,6 +143,7 @@ export function applyOps(state: DraftState, ops: InternalOp[], ctx: ApplyContext
         const id = op.block.id ?? ctx.newBlockId()
         if (doc.blocks.some((b) => b.id === id)) throw new OpError('That section is already on the page.', `${path}.block.id`)
         const block: StoredBlock = { id, type: op.block.type, v: def.version, props: op.block.props }
+        if (typeof op.block.css === 'string' && op.block.css.trim()) block.css = op.block.css
         doc.blocks.splice(index, 0, block)
         const normalised: InternalOp = { op: 'restore_block', index, block: cloneDraft(block) }
         applied.push({ op: normalised, inverse: { op: 'remove_block', blockId: block.id }, touches: [`block:${block.id}`] })
@@ -146,6 +157,9 @@ export function applyOps(state: DraftState, ops: InternalOp[], ctx: ApplyContext
         break
       }
       case 'update_props': {
+        if (Object.prototype.hasOwnProperty.call(op.props, 'css') || (op.unset ?? []).includes('css')) {
+          throw new OpError('Custom CSS is not one of the section fields.', `${path}.props.css`)
+        }
         const i = indexOf(doc, op.blockId, `${path}.blockId`)
         const block = doc.blocks[i]!
         const before: Record<string, unknown> = {}
@@ -162,6 +176,22 @@ export function applyOps(state: DraftState, ops: InternalOp[], ctx: ApplyContext
           op,
           inverse: { op: 'update_props', blockId: op.blockId, props: before, ...(unsetBack.length ? { unset: unsetBack } : {}) },
           touches: keys.map((k) => `block:${op.blockId}.${k}`),
+        })
+        break
+      }
+      case 'set_block_css': {
+        const i = indexOf(doc, op.blockId, `${path}.blockId`)
+        const block = doc.blocks[i]!
+        const previous = block.css ?? ''
+        const next = op.css.trim() ? op.css : ''
+        const stored: StoredBlock = { ...block }
+        if (next) stored.css = next
+        else delete stored.css
+        doc.blocks[i] = stored
+        applied.push({
+          op,
+          inverse: { op: 'set_block_css', blockId: op.blockId, css: previous },
+          touches: [`block:${op.blockId}.css`],
         })
         break
       }
