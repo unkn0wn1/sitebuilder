@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import { canvasImageUrl } from '../../utils/media'
 import { newId } from '#shared/ids'
 import type { LinkTarget, MenuDoc } from '#shared/site-parts'
+import type { ImageRef } from '#shared/blocks/define'
+import type { MediaItem } from '../../utils/media'
+import MediaPickerModal from '../media/MediaPickerModal.vue'
 import type { PageOption } from '../../utils/site-parts'
 import LinkTargetField from './LinkTargetField.vue'
 import { cloneDraft } from '#shared/clone'
@@ -73,13 +77,50 @@ function setItem(index: number, patch: { label?: string; target?: LinkTarget }) 
   emitDoc(items)
 }
 
-function setChild(index: number, childIndex: number, patch: { label?: string; target?: LinkTarget }) {
+function setChild(index: number, childIndex: number, patch: { label?: string; target?: LinkTarget; featured?: boolean; image?: ImageRef | null }) {
   const items = cloneDraft(props.modelValue.items)
   const child = items[index]?.children[childIndex]
   if (!child) return
   if (patch.label !== undefined) child.label = patch.label
   if (patch.target) child.target = patch.target
+  if (patch.featured !== undefined) {
+    if (patch.featured) child.featured = true
+    else {
+      delete child.featured
+      delete child.image
+    }
+  }
+  if (patch.image !== undefined) {
+    if (patch.image) child.image = patch.image
+    else delete child.image
+  }
   emitDoc(items)
+}
+
+// Tiles render only in a mega header. The menu screen does not load that header, so the control stays available with a hint.
+const FEATURED_MAX = 5
+const featuredCount = (index: number) => props.modelValue.items[index]?.children.filter((c) => c.featured).length ?? 0
+const picking = ref<{ index: number; childIndex: number } | null>(null)
+const pickingImageId = computed(() => {
+  const at = picking.value
+  if (!at) return null
+  return props.modelValue.items[at.index]?.children[at.childIndex]?.image?.media ?? null
+})
+
+function onPick(item: MediaItem) {
+  const at = picking.value
+  picking.value = null
+  if (!at) return
+  const label = props.modelValue.items[at.index]?.children[at.childIndex]?.label ?? ''
+  const image: ImageRef = { media: item.id }
+  if (item.decorative) image.decorative = true
+  else image.alt = item.alt?.trim() || label
+  setChild(at.index, at.childIndex, { image })
+}
+
+function setAlt(index: number, childIndex: number, alt: string) {
+  const image = props.modelValue.items[index]?.children[childIndex]?.image
+  if (image) setChild(index, childIndex, { image: { ...image, alt } })
 }
 </script>
 
@@ -109,6 +150,8 @@ function setChild(index: number, childIndex: number, patch: { label?: string; ta
         </div>
         <div class="space-y-3 p-3">
           <LinkTargetField :model-value="item.target" :pages="pages" @update:model-value="setItem(index, { target: $event })" />
+          <p v-if="item.children.length" class="m-0 text-xs text-gray-500 dark:text-gray-400">Photo tiles show beside the links when the header menu look is Mega.</p>
+          <p v-if="featuredCount(index) >= FEATURED_MAX" class="m-0 text-xs text-amber-800 dark:text-amber-200">Feature at most 5 tiles per menu item.</p>
           <ol v-if="item.children.length" class="m-0 list-none space-y-2 border-l-2 border-gray-100 p-0 pl-3 dark:border-gray-800">
             <li v-for="(child, childIndex) in item.children" :key="child.id" class="rounded-lg bg-gray-50 p-3 dark:bg-gray-800/60">
               <div class="flex items-center gap-1.5">
@@ -124,6 +167,22 @@ function setChild(index: number, childIndex: number, patch: { label?: string; ta
               </div>
               <div class="mt-2 space-y-2">
                 <LinkTargetField :model-value="child.target" :pages="pages" @update:model-value="setChild(index, childIndex, { target: $event })" />
+                <label class="inline-flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300">
+                  <input
+                    type="checkbox"
+                    class="rounded text-blue-600"
+                    :checked="!!child.featured"
+                    :disabled="!child.featured && featuredCount(index) >= FEATURED_MAX"
+                    @change="setChild(index, childIndex, { featured: ($event.target as HTMLInputElement).checked })"
+                  />
+                  Show as a photo tile
+                </label>
+                <div v-if="child.featured" class="flex flex-wrap items-center gap-2">
+                  <img v-if="child.image" :src="canvasImageUrl(child.image.media, 640)" :alt="child.image.alt ?? ''" class="h-12 w-16 rounded-md bg-gray-200 object-cover dark:bg-gray-700" @error="($event.target as HTMLImageElement).style.opacity = '0.2'">
+                  <FwbButton size="xs" color="light" @click="picking = { index, childIndex }">{{ child.image ? 'Change photo' : 'Add a photo' }}</FwbButton>
+                  <FwbButton v-if="child.image" size="xs" color="light" @click="setChild(index, childIndex, { image: null })">Remove photo</FwbButton>
+                  <FwbInput v-if="child.image" :model-value="child.image.alt ?? ''" class="min-w-40 flex-1" size="sm" placeholder="Describe the photo" @update:model-value="setAlt(index, childIndex, String($event))" />
+                </div>
               </div>
             </li>
           </ol>
@@ -137,5 +196,6 @@ function setChild(index: number, childIndex: number, patch: { label?: string; ta
       <span class="inline-flex items-center gap-1.5"><UiIcon name="plus" :size="14" /> Add a menu item</span>
     </FwbButton>
     <p v-if="modelValue.items.length >= 12" class="text-xs text-gray-500 dark:text-gray-400">A menu can have 12 top-level items. Put the rest in sub-menus.</p>
+    <MediaPickerModal v-if="picking" :selected-id="pickingImageId" @close="picking = null" @pick="onPick" />
   </div>
 </template>

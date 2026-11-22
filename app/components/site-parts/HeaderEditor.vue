@@ -137,6 +137,13 @@ function setUtilityTarget(target: LinkTarget) {
           @update:model-value="patch({ appearance: $event === 'dark' ? 'dark' : 'light' })"
         />
       </div>
+      <label class="flex items-start gap-2 text-sm text-gray-900 dark:text-white">
+        <input type="checkbox" class="mt-0.5 rounded text-blue-600" :checked="!!modelValue.overHero" @change="patch({ overHero: ($event.target as HTMLInputElement).checked })" />
+        <span>
+          See-through over the top photo
+          <span class="block text-xs text-gray-500 dark:text-gray-400">It turns solid when the visitor scrolls, and on pages that don’t start with a picture.</span>
+        </span>
+      </label>
     </UiSection>
   </div>
 </template>
