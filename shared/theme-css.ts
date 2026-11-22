@@ -263,6 +263,12 @@ export const HEART_CSS = `
 export const UTILITY_CSS = `
 .util { font-size: 0.9rem; font-weight: 600; color: var(--muted); white-space: nowrap; text-decoration: none; }
 .site-header-dark .util { color: var(--paper); }
+@media (max-width: 640px) {
+  .site-header-hamburger .util-bar { display: none; }
+}
+@media (min-width: 641px) {
+  .site-header-hamburger .nav-panel .util-drawer { display: none; }
+}
 `
 
 export const BANNER_ACCENT_CSS = `

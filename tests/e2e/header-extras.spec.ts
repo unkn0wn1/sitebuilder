@@ -232,3 +232,46 @@ test('see-through header and mega tiles, from renderer HTML, with no sign-in', a
   expect(await headerLook(page)).toEqual({ over: true, jsOver: false, solid: false, fixed: false, gradient: false, paper: false })
   expect(await heroPad(page)).toEqual({ padTop: '0px', boxSizing: 'border-box' })
 })
+
+test('hamburger utility link is shown once, in the drawer on a phone and in the bar on a desktop', async ({ page }) => {
+  const ctx = site()
+  ctx.header = {
+    id: 'sp_header',
+    doc: {
+      ...(defaultSitePartDoc('header') as HeaderDoc),
+      style: 'hamburger',
+      menuKey: 'main',
+      utility: { label: 'Report an animal', target: { type: 'url', url: 'https://example.org/report' } },
+    },
+  }
+  const rendered = await renderPageHtml({ doc: emptyPageDoc('Home'), pageId: 'pg_home', versionId: 'ver_1', path: '/', site: ctx })
+  expect(rendered.html).toContain('class="util util-drawer"')
+  expect(rendered.html).toContain('class="util util-bar"')
+  expect(rendered.html).not.toContain('header.js')
+  await page.setContent(rendered.html, { waitUntil: 'load' })
+
+  const shown = () => page.evaluate(() => [...document.querySelectorAll('a.util')].flatMap((el) => {
+    const style = getComputedStyle(el)
+    return style.display === 'none' || style.visibility === 'hidden' ? [] : [el.className]
+  }))
+
+  await page.setViewportSize({ width: 390, height: 800 })
+  await page.locator('header details.nav-hamburger > summary').click()
+  await expect(page.locator('header details.nav-hamburger')).toHaveJSProperty('open', true)
+  await expect(page.getByRole('link', { name: 'Report an animal' })).toHaveCount(1)
+  await expect(page.getByRole('link', { name: 'Report an animal' })).toHaveClass('util util-drawer')
+  await expect(page.locator('.util-bar')).toHaveCSS('display', 'none')
+  expect(await shown()).toEqual(['util util-drawer'])
+
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await expect(page.getByRole('link', { name: 'Report an animal' })).toHaveCount(1)
+  await expect(page.getByRole('link', { name: 'Report an animal' })).toHaveClass('util util-bar')
+  await expect(page.locator('.nav-panel .util-drawer')).toHaveCSS('display', 'none')
+  expect(await shown()).toEqual(['util util-bar'])
+
+  await page.locator('header details.nav-hamburger > summary').click()
+  await expect(page.locator('header details.nav-hamburger')).toHaveJSProperty('open', false)
+  await expect(page.getByRole('link', { name: 'Report an animal' })).toHaveCount(1)
+  await expect(page.getByRole('link', { name: 'Report an animal' })).toHaveClass('util util-bar')
+  expect(await shown()).toEqual(['util util-bar'])
+})

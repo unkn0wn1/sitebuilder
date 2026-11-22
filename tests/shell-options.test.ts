@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { emptyPageDoc } from '../shared/page'
 import { richTextFromParagraphs } from '../shared/richtext'
 import { defaultBrandDoc } from '../shared/brand'
-import { BANNER_ACCENT_CSS, FOOTER_COLUMNS_CSS, HEART_CSS, UTILITY_CSS, themeCssFromTokens } from '../shared/theme-css'
+import { BANNER_ACCENT_CSS, FOOTER_COLUMNS_CSS, HEART_CSS, OVER_HERO_CSS, UTILITY_CSS, themeCssFromTokens } from '../shared/theme-css'
 import { defaultSitePartDoc, validateSitePartDoc, type BannerDoc, type FooterDoc, type HeaderDoc, type HeaderStyle, type MenuDoc } from '../shared/site-parts'
 import { THEME_CSS, renderPageHtml, styleHash, type RenderedPage, type SiteRenderContext } from '../server/services/render'
 
@@ -94,15 +94,42 @@ describe('optional shell parts', () => {
       },
       pagesById: { pg_about: { path: '/about-us', title: 'About' } },
     })
-    expect(rendered.html.split('class="util"').length - 1).toBe(2)
+    expect(rendered.html).not.toMatch(/class="util"/)
     const panel = rendered.html.match(/<div class="nav-panel">([\s\S]*?)<\/div>/)?.[1]
-    expect(panel).toContain('class="util" href="/about-us">Report an animal</a>')
+    expect(panel).toContain('class="util util-drawer" href="/about-us">Report an animal</a>')
+    expect(panel).not.toContain('util-bar')
     const inner = rendered.html.match(/<div class="site-header-inner">([\s\S]*?)<\/header>/)?.[1]
     expect(inner).toBeTruthy()
     const bar = (inner ?? '').replace(/<div class="nav-panel">[\s\S]*?<\/div>/, '')
-    expect(bar).toContain('class="util" href="/about-us">Report an animal</a>')
+    expect(bar).toContain('class="util util-bar" href="/about-us">Report an animal</a>')
+    expect(bar).not.toContain('util-drawer')
     expect(rendered.deps.linkedPageIds).toContain('pg_about')
     expectFullCss(rendered, UTILITY_CSS)
+    expect(UTILITY_CSS).toContain('@media (max-width: 640px) {\n  .site-header-hamburger .util-bar { display: none; }\n}')
+    expect(UTILITY_CSS).toContain('@media (min-width: 641px) {\n  .site-header-hamburger .nav-panel .util-drawer { display: none; }\n}')
+    expect(THEME_CSS).not.toContain('util-bar')
+    expect(THEME_CSS).not.toContain('util-drawer')
+
+    const bare = await render({ header: { id: 'sp_header', doc: header({ style: 'hamburger', utility: null }) } })
+    expect(bare.html).not.toContain('class="util')
+    expect(bare.html).not.toContain('util-bar')
+    expect(styleOf(bare.html)).toBe(THEME_CSS)
+
+    // .util is on both copies, including the bar link outside .nav, so the see-through white rule covers both.
+    const seeThrough = await render({
+      header: {
+        id: 'sp_header',
+        doc: header({
+          style: 'hamburger',
+          overHero: true,
+          utility: { label: 'Report an animal', target: { type: 'url', url: 'https://example.org/report' } },
+        }),
+      },
+    })
+    expect(seeThrough.html).toContain('class="util util-drawer"')
+    expect(seeThrough.html).toContain('class="util util-bar"')
+    expect(styleOf(seeThrough.html)).toBe(THEME_CSS + UTILITY_CSS + OVER_HERO_CSS)
+    expect(OVER_HERO_CSS).toContain('.site-header-over.js-over:not(.is-solid) .util,')
   })
 
   it('draws a heart on the header button only when the icon is set, and hashes the full CSS', async () => {

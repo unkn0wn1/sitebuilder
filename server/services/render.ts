@@ -681,11 +681,12 @@ function heartIcon(): VNode {
   ])
 }
 
-function utilityLink(site: SiteRenderContext, bag: Collector): VNode | null {
+function utilityLink(site: SiteRenderContext, bag: Collector, place?: 'bar' | 'drawer'): VNode | null {
   const utility = site.header?.doc.utility
   if (!utility) return null
   const link = resolveLink(utility.target, utility.label, site, bag)
-  return h('a', { class: 'util', href: link.href }, utility.label)
+  const className = place === 'bar' ? 'util util-bar' : place === 'drawer' ? 'util util-drawer' : 'util'
+  return h('a', { class: className, href: link.href }, utility.label)
 }
 
 const TILE_SIZES = '(max-width: 640px) 45vw, 13rem'
@@ -766,7 +767,7 @@ function renderNav(site: SiteRenderContext, bag: Collector): VNode | null {
     ])
   })
   if (style === 'hamburger') {
-    const inMenu = utilityLink(site, bag)
+    const inMenu = utilityLink(site, bag, 'drawer')
     return h('details', { class: 'nav nav-hamburger', 'aria-label': 'Site' }, [
       h('summary', 'Menu'),
       h('div', { class: 'nav-panel' }, inMenu ? [...items, inMenu] : items),
@@ -839,8 +840,8 @@ function renderShell(doc: PageDoc, site: SiteRenderContext, bag: Collector): VNo
   if (overHero) bag.needsHeaderJs = true
   let firstHero = true
   const menuKey = site.header?.doc.menuKey ?? 'main'
-  // Hamburger hides its links until the menu opens, so the utility link is also beside the Menu button.
-  const barUtility = menuStyleOf(site) === 'hamburger' && site.menus[menuKey] ? utilityLink(site, bag) : null
+  // Two copies, one hidden by UTILITY_CSS: the drawer on a phone, the bar from 641px up.
+  const barUtility = menuStyleOf(site) === 'hamburger' && site.menus[menuKey] ? utilityLink(site, bag, 'bar') : null
 
   return h('div', [
     h('a', { class: 'skip', href: '#main' }, 'Skip to content'),

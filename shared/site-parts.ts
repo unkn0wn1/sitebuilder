@@ -63,7 +63,7 @@ export const headerDocSchema = z
     style: z.enum(['simple', 'centred', 'mega', 'hamburger']).default('simple'),
     menuKey: z.string().min(1).max(40).default('main'),
     cta: callToAction.nullable().default(null),
-    /** A small link above the bar, for example "Report an ill or injured animal". Also shown in the mobile menu. */
+    /** A small link, for example "Report an ill or injured animal". A hamburger header draws it twice and CSS shows one. */
     utility: callToAction.nullable().default(null),
     appearance: z.enum(['light', 'dark']).default('light'),
     /** Transparent over a hero at the top of the page, solid once scrolled. Always the normal solid header without JavaScript. */
