@@ -175,6 +175,7 @@ async function heroPad(page: Page) {
 test('see-through header and mega tiles, from renderer HTML, with no sign-in', async ({ page }) => {
   await show(page, 'hero', 'run')
   expect(await headerLook(page)).toEqual({ over: true, jsOver: true, solid: false, fixed: true, gradient: true, paper: false })
+  await expect(page.locator('header > .site-header-inner > nav a').first()).toHaveCSS('font-weight', '600')
   expect(await heroFit(page)).toEqual(HERO_FIT)
 
   await page.setViewportSize({ width: 390, height: 800 })
@@ -186,6 +187,7 @@ test('see-through header and mega tiles, from renderer HTML, with no sign-in', a
   const padAtTop = (await heroPad(page))?.padTop
   await page.evaluate(() => window.scrollTo(0, 80))
   await expect.poll(() => headerLook(page)).toEqual({ over: true, jsOver: true, solid: true, fixed: true, gradient: false, paper: true })
+  await expect(page.locator('header > .site-header-inner > nav a').first()).toHaveCSS('font-weight', '500')
   expect((await heroPad(page))?.padTop).toBe(padAtTop)
   await page.evaluate(() => window.scrollTo(0, 0))
   await expect.poll(() => heroFit(page)).toEqual(HERO_FIT)
