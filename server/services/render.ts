@@ -761,7 +761,7 @@ function renderImpactPicker(blockId: string, p: Record<string, unknown>, site: S
       h('div', { class: 'ga-list' }, labels),
       h('div', { class: 'ga-foot' }, [...gives, other]),
     ]),
-    linkButton(asLink(p.cta), bag),
+    // No section button under the picker: the card's own "Give $X" is the ask.
   ], p)
 }
 

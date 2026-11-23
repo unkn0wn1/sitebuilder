@@ -128,4 +128,13 @@ describe('impact tiers picker', () => {
     expect(both.html.match(/name="it-b_pickera"/g)).toHaveLength(3)
     expect(both.html.match(/name="it-b_pickerb"/g)).toHaveLength(3)
   })
+
+  it('draws one ask in the picker: the card button, not a second section button', async () => {
+    const props = { heading: 'How your gift is spent', layout: 'picker', items, cta: { label: 'Give now', href: '#donate' } }
+    const picked = await renderPageHtml({ doc: page(props), pageId: 'pg_give', versionId: 'ver_1', path: '/give', site: site() })
+    expect(picked.html).not.toContain('>Give now</a>')
+    expect(picked.html).toContain('ga-give')
+    const grid = await renderPageHtml({ doc: page({ ...props, layout: 'grid' }), pageId: 'pg_give', versionId: 'ver_1', path: '/give', site: site() })
+    expect(grid.html).toContain('>Give now</a>')
+  })
 })
