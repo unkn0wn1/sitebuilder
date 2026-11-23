@@ -99,7 +99,7 @@ function browserHtml(html: string, script: 'run' | 'omit'): string {
 async function show(page: Page, first: 'hero' | 'section', script: 'run' | 'omit') {
   const rendered = await renderPageHtml({ doc: pageDoc(first), pageId: 'pg_home', versionId: 'ver_1', path: '/', site: site() })
   expect(rendered.html).toContain('site-header-over')
-  expect(rendered.html).toContain('.tile:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }')
+  expect(rendered.html).toContain('.nav-mega-tiles .tile:focus-visible { outline:3px solid var(--accent);outline-offset:2px;}')
   await page.setContent(browserHtml(rendered.html, script), { waitUntil: 'load' })
 }
 
@@ -193,7 +193,14 @@ async function heroPad(page: Page) {
 test('see-through header and mega tiles, from renderer HTML, with no sign-in', async ({ page }) => {
   await show(page, 'hero', 'run')
   expect(await headerLook(page)).toEqual({ over: true, jsOver: true, solid: false, fixed: false, sticky: true, gradient: true, paper: false })
-  await expect(page.locator('header > .site-header-inner > nav a').first()).toHaveCSS('font-weight', '600')
+  const scrim = await page.evaluate(() => getComputedStyle(document.querySelector('header')!).backgroundImage)
+  expect(scrim).toContain('linear-gradient')
+  expect(scrim).toMatch(/0\.72|72%/)
+  await page.locator('header nav details').first().locator('summary').click()
+  await expect.poll(async () => page.evaluate(() => getComputedStyle(document.querySelector('header')!).backgroundColor)).toBe(PAPER)
+  await page.locator('header nav details').first().locator('summary').click()
+  await expect.poll(() => headerLook(page)).toEqual({ over: true, jsOver: true, solid: false, fixed: false, sticky: true, gradient: true, paper: false })
+  await expect(page.locator('header > .site-header-inner > nav a').first()).toHaveCSS('font-weight', '700')
   expect(await heroFit(page)).toEqual(HERO_FIT)
 
   const beforeVars = await heroBox(page)
@@ -212,7 +219,7 @@ test('see-through header and mega tiles, from renderer HTML, with no sign-in', a
   const atTop = await heroBox(page)
   await page.evaluate(() => window.scrollTo(0, 80))
   await expect.poll(() => headerLook(page)).toEqual({ over: true, jsOver: true, solid: true, fixed: false, sticky: true, gradient: false, paper: true })
-  await expect(page.locator('header > .site-header-inner > nav a').first()).toHaveCSS('font-weight', '500')
+  await expect(page.locator('header > .site-header-inner > nav a').first()).toHaveCSS('font-weight', '700')
   const moved = await heroBox(page)
   expect(moved.hero).toBe(atTop.hero)
   expect(moved.reserve).toBe(atTop.reserve)
@@ -248,11 +255,11 @@ test('see-through header and mega tiles, from renderer HTML, with no sign-in', a
     }
   }
   expect(order).toEqual([
-    { href: '/kennel', tile: false },
-    { href: '/plain', tile: false },
-    { href: '/about/team', tile: false },
     { href: '/kennel', tile: true },
     { href: '/plain', tile: true },
+    { href: '/about', tile: false },
+    { href: '/kennel', tile: false },
+    { href: '/plain', tile: false },
   ])
 
   await show(page, 'section', 'run')
@@ -287,7 +294,7 @@ test('simple, centred and mega headers collapse to Menu and Donate on a phone', 
     await expect(page.locator('header > .site-header-inner > nav')).toHaveCSS('display', 'none')
     const summary = page.locator('header details.nav-hamburger > summary')
     await expect(summary).toBeVisible()
-    await expect(summary).toHaveText('Menu')
+    await expect(summary).toHaveAccessibleName('Menu')
     await expect(page.getByRole('link', { name: 'Donate', exact: true })).toBeVisible()
     if (style === 'centred') await expect(page.locator('header > .site-header-inner')).toHaveCSS('flex-direction', 'row')
 
@@ -318,7 +325,7 @@ test('simple, centred and mega headers collapse to Menu and Donate on a phone', 
     expect(open?.overflowY).not.toBe('auto')
     expect(open?.overflowY).not.toBe('scroll')
     expect(open?.solid).toBe(true)
-    expect(open?.position).toBe('sticky')
+    expect(open?.position).toBe('relative')
 
     await menu.locator('> summary').click()
     await expect(menu).toHaveJSProperty('open', false)

@@ -15,6 +15,7 @@ import {
   EMBED_JS,
   HEADER_JS,
   HERO_JS,
+  THERMOMETER_JS,
   htmlPathFor,
   loadPageDoc,
   loadSiteRenderContext,
@@ -158,20 +159,24 @@ function writeSiteFiles(ctx: ServiceCtx, dest: string, manifest: ReleaseManifest
   const cspEntries: { uri: string; value: string }[] = []
   let needsHeaderJs = false
   let needsHeroJs = false
+  let needsThermometerJs = false
   for (const [id, entry] of Object.entries(manifest.pages)) {
     const file = join(dest, htmlPathFor(entry.path))
     if (!existsSync(file)) continue
     const html = readFileSync(file, 'utf8')
     if (html.includes('src="/header.js"')) needsHeaderJs = true
     if (html.includes('src="/hero.js"')) needsHeroJs = true
+    if (html.includes('src="/thermometer.js"')) needsThermometerJs = true
     const match = html.match(/http-equiv="Content-Security-Policy" content="([^"]*)"/)
     if (match?.[1]) cspEntries.push({ uri: entry.path, value: unescapeHtml(match[1]) })
   }
-  // Write header.js and hero.js into this release only. Leave an existing file in place when this
-  // release does not ask for it: hardLinkCopy already linked the previous release's copy, and a later
-  // publish that drops the carousel keeps that file. Nothing outside this release directory is removed.
+  // Write header.js, hero.js and thermometer.js into this release only when a page references them.
+  // Leave an existing file in place when this release does not ask for it: hardLinkCopy already
+  // linked the previous release's copy, and a later publish that drops the block keeps that file.
+  // Nothing outside this release directory is removed.
   if (needsHeaderJs) writeNew(join(dest, 'header.js'), HEADER_JS)
   if (needsHeroJs) writeNew(join(dest, 'hero.js'), HERO_JS)
+  if (needsThermometerJs) writeNew(join(dest, 'thermometer.js'), THERMOMETER_JS)
   writeNew(join(dest, 'csp.map'), nginxMapLines(cspEntries))
 
   const rows = ctx.db.select().from(redirects).where(eq(redirects.siteId, ctx.siteId)).all()

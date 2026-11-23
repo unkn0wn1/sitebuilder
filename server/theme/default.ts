@@ -57,19 +57,42 @@ function loadVirtuous(root) {
   if (root.dataset.orgId) script.dataset.orgId = root.dataset.orgId;
   script.dataset.isGiving = "true";
   script.dataset.dependencies = "[]";
-  script.onerror = function () {
-    var fallback = root.querySelector(".embed-fallback");
-    if (fallback instanceof HTMLElement) fallback.hidden = false;
+  script.onload = function () {
+    watchProvider(root);
   };
   root.append(script);
+}
+
+// Hide the static preview only once the provider has drawn a real form
+// in the box. A loaded script with a bad or demo form id draws nothing,
+// so the preview stays instead of leaving an empty white box.
+function providerDrawn(root) {
+  for (var node of Array.from(root.children)) {
+    if (!(node instanceof HTMLElement) || node.tagName === "SCRIPT") continue;
+    if (node.classList.contains("embed-fallback") || node.classList.contains("donate-preview") || node.hasAttribute("data-donate-hint")) continue;
+    if (node.offsetHeight > 40) return true;
+  }
+  return false;
+}
+
+function watchProvider(root) {
+  if (providerDrawn(root)) { root.classList.add("is-provider"); return; }
+  if (!("MutationObserver" in window)) return;
+  var mo = new MutationObserver(function () {
+    if (!providerDrawn(root)) return;
+    mo.disconnect();
+    root.classList.add("is-provider");
+  });
+  mo.observe(root, { childList: true, subtree: true, attributes: true });
 }
 
 function remountVirtuous(root) {
   if (!(root instanceof HTMLElement)) return;
   delete root.dataset.loaded;
+  root.classList.remove("is-provider");
   for (var node of Array.from(root.children)) {
     if (!(node instanceof HTMLElement)) continue;
-    if (node.classList.contains("embed-fallback") || node.hasAttribute("data-donate-hint")) continue;
+    if (node.classList.contains("embed-fallback") || node.classList.contains("donate-preview") || node.hasAttribute("data-donate-hint")) continue;
     node.remove();
   }
   loadVirtuous(root);
@@ -344,6 +367,39 @@ export const HERO_JS = `// Advances each hero carousel. Without this file the fi
     go(0);
     setPaused(reduced);
   }
+})();
+`
+
+/** Match countdown, served as /thermometer.js only when a page has a MatchThermometer. The HTML already shows the split. */
+export const THERMOMETER_JS = `// Rewrites each match countdown once a second. Without this file the server-rendered numbers stay.
+(function () {
+  var roots = document.querySelectorAll('.th-cd');
+  function tick(el) {
+    var end = Date.parse(el.getAttribute('data-end') || '');
+    var endedText = el.getAttribute('data-ended-text') || '';
+    if (!end) return;
+    function render() {
+      if (el.getAttribute('data-done') === '1') return;
+      var ms = end - Date.now();
+      if (ms <= 0) {
+        el.textContent = endedText;
+        el.setAttribute('data-done', '1');
+        return;
+      }
+      var boxes = el.querySelectorAll('b');
+      var s = Math.floor(ms / 1000);
+      var values = [
+        String(Math.floor(s / 86400)),
+        String(Math.floor((s % 86400) / 3600)).padStart(2, '0'),
+        String(Math.floor((s % 3600) / 60)).padStart(2, '0'),
+        String(s % 60).padStart(2, '0')
+      ];
+      for (var n = 0; n < boxes.length && n < values.length; n++) boxes[n].textContent = values[n];
+    }
+    render();
+    setInterval(render, 1000);
+  }
+  for (var i = 0; i < roots.length; i++) tick(roots[i]);
 })();
 `
 

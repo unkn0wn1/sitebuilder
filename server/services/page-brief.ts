@@ -235,8 +235,8 @@ Question shape:
 Plan shape:
 {"kind":"plan","plan":{"title":"...","slug":"...","template":"${ctxInfo.templates.join('|') || 'standard'}","purpose":"...","audience":"...","usage":"campaign|evergreen|story|event|standard|home","contentNotes":"...","cta":{"kind":"donation|link|none","embedId":"...","label":"...","href":"..."},"tone":"primary|neutral|accent","sections":[{"type":"Hero","purpose":"..."}],"seoTitle":"...","seoDescription":"...","summary":"Here's what I'll build: ..."}}
 
-Use only these block types: Hero, RichText, TextAndImage, Image, Gallery, Quote, Stats, CardGrid, CallToAction, FAQ, DonationEmbed, Embed, ImpactTiers, DonationProgress, MatchBanner, StoryBeforeAfter, TrustStrip.
-Prefer the campaign blocks (ImpactTiers, DonationProgress, MatchBanner, StoryBeforeAfter, TrustStrip) on a fundraising campaign.
+Use only these block types: Hero, RichText, TextAndImage, Image, Gallery, Quote, Stats, CardGrid, CallToAction, FAQ, DonationEmbed, Embed, ImpactTiers, DonationProgress, MatchBanner, MatchThermometer, StoryBeforeAfter, TrustStrip.
+Prefer the campaign blocks (ImpactTiers, DonationProgress, MatchBanner, MatchThermometer, StoryBeforeAfter, TrustStrip) on a fundraising campaign.
 Registered donation forms: ${embedList}.
 Do not invent statistics, totals, ratings, deadlines or quotes as if they were facts. If a figure is unknown, leave it out of the plan so placeholders can be used.
 The page will stay a draft and will not be published.

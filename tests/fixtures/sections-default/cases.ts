@@ -8,6 +8,9 @@ import type { EmbedCatalogEntry, MediaCatalogEntry, SiteRenderContext } from '..
 
 export const SECTION_RENDER = { pageId: 'pg_sections', versionId: 'ver_1', path: '/' } as const
 
+/** Pinned clock for the MatchThermometer countdown. The sample ends 2026-12-02T04:59:59.000Z. */
+export const SECTION_NOW = new Date('2026-11-23T01:00:00.000Z')
+
 export interface SectionCase {
   name: string
   doc: PageDoc
@@ -32,6 +35,7 @@ const BLOCK_IDS: Record<string, string> = {
   ImpactTiers: 'b_impacttiers',
   DonationProgress: 'b_donationprogress',
   MatchBanner: 'b_matchbanner',
+  MatchThermometer: 'b_matchthermo',
   StoryBeforeAfter: 'b_storybeforeafter',
   TrustStrip: 'b_truststrip',
 }

@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { SAMPLE_MEDIA_ID } from '../shared/blocks/library'
 import { BUNDLE_ID, THEME_CSS, renderPageHtml } from '../server/services/render'
-import { HERO_MODE_CASES, SECTION_CASES, SECTION_RENDER } from './fixtures/sections-default/cases'
+import { DONATE_PREVIEW_CSS, THERMOMETER_CSS } from '../shared/theme-css'
+import { HERO_MODE_CASES, SECTION_CASES, SECTION_NOW, SECTION_RENDER } from './fixtures/sections-default/cases'
 import type { PageDoc } from '../shared/page'
 
 const fixtureDir = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/sections-default')
@@ -18,7 +19,7 @@ function bodyOf(html: string): string {
 describe('starter sections match the golden HTML', () => {
   it.each(SECTION_CASES.map((c) => c.name))('%s is byte-identical', async (name) => {
     const sectionCase = SECTION_CASES.find((c) => c.name === name)!
-    const rendered = await renderPageHtml({ ...SECTION_RENDER, doc: sectionCase.doc, site: sectionCase.site })
+    const rendered = await renderPageHtml({ ...SECTION_RENDER, doc: sectionCase.doc, site: sectionCase.site, now: SECTION_NOW })
     const expected = readFileSync(join(fixtureDir, `${name}.html`), 'utf8')
     expect(rendered.html).toBe(expected)
     expect(rendered.deps.bundleId).toBe(BUNDLE_ID)
@@ -28,9 +29,9 @@ describe('starter sections match the golden HTML', () => {
   it('keeps the default sheet on the stock brand and swaps only the accent on the custom brand', async () => {
     const stock = SECTION_CASES.find((c) => c.name === 'all-blocks-default')!
     const custom = SECTION_CASES.find((c) => c.name === 'all-blocks-custom-accent')!
-    const stockHtml = await renderPageHtml({ ...SECTION_RENDER, doc: stock.doc, site: stock.site })
-    const customHtml = await renderPageHtml({ ...SECTION_RENDER, doc: custom.doc, site: custom.site })
-    expect(stockHtml.html).toContain('<style>' + THEME_CSS + '</style>')
+    const stockHtml = await renderPageHtml({ ...SECTION_RENDER, doc: stock.doc, site: stock.site, now: SECTION_NOW })
+    const customHtml = await renderPageHtml({ ...SECTION_RENDER, doc: custom.doc, site: custom.site, now: SECTION_NOW })
+    expect(stockHtml.html).toContain('<style>' + THEME_CSS + THERMOMETER_CSS + DONATE_PREVIEW_CSS + '</style>')
     expect(customHtml.html).toContain('--accent: #113399;')
     expect(customHtml.html).not.toContain('--accent: #b5471d;')
     expect(bodyOf(customHtml.html)).toBe(bodyOf(stockHtml.html))
@@ -71,7 +72,7 @@ describe('starter sections match the golden HTML', () => {
     expect(tier).toBeTruthy()
     card!.image = { media: SAMPLE_MEDIA_ID, alt: 'A rescued animal' }
     tier!.image = { media: SAMPLE_MEDIA_ID, alt: 'A meal' }
-    const rendered = await renderPageHtml({ ...SECTION_RENDER, doc, site: stock.site })
+    const rendered = await renderPageHtml({ ...SECTION_RENDER, doc, site: stock.site, now: SECTION_NOW })
     const html = rendered.html
 
     const heroes = elementsByClass(html, 'section', 'hero')
@@ -86,7 +87,7 @@ describe('starter sections match the golden HTML', () => {
     assertPictureSizes(elementsByClass(html, 'ul', 'trust-strip')[0]!, '10rem')
 
     const carousel = HERO_MODE_CASES.find((entry) => entry.name === 'hero-image-carousel')!
-    const slides = await renderPageHtml({ ...SECTION_RENDER, doc: carousel.doc, site: carousel.site })
+    const slides = await renderPageHtml({ ...SECTION_RENDER, doc: carousel.doc, site: carousel.site, now: SECTION_NOW })
     const carouselHero = elementsByClass(slides.html, 'section', 'hero-carousel')
     expect(carouselHero).toHaveLength(1)
     assertPictureSizes(carouselHero[0]!, '100vw')
