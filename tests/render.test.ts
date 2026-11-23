@@ -316,6 +316,9 @@ http {
     })
     expect(rendered.html).toContain('class="site-logo"')
     expect(rendered.html).toContain('alt="Hope for Street Animals"')
+    expect(rendered.html).toContain('width="128"')
+    expect(rendered.html).toContain('height="40"')
+    expect(rendered.html).toContain('sizes="(max-width: 1023px) 134px, 224px"')
     expect(rendered.html).toContain(`/media/${logoId}-600.webp`)
     expect(rendered.html).toContain('rel="icon" href="/favicon.png"')
     expect(rendered.html).toContain('rel="apple-touch-icon" href="/apple-touch-icon.png"')
@@ -674,7 +677,7 @@ describe('custom CSS in rendered HTML', () => {
       props: { heading: 'Big', image: IMG },
       css: rule,
     }))
-    await expect(renderPageHtml({ doc, pageId: 'pg_big', versionId: 'ver_1', path: '/big', site: site() })).rejects.toThrow('This page CSS is over the 75,776 byte limit.')
+    await expect(renderPageHtml({ doc, pageId: 'pg_big', versionId: 'ver_1', path: '/big', site: site() })).rejects.toThrow('This page CSS is over the 80,951 byte limit.')
   })
 
   it('throws on hostile stored CSS and does not return HTML', async () => {

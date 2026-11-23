@@ -73,8 +73,9 @@ describe('see-through header', () => {
     expect(OVER_HERO_CSS).not.toContain('--sb-header-h')
     expect(OVER_HERO_CSS).not.toContain('var(--strip')
     expect(OVER_HERO_CSS).not.toContain('content-box')
-    expect(OVER_HERO_CSS).toContain('.site-header-over.js-over:not(.is-solid) .nav a, .site-header-over.js-over:not(.is-solid) .nav summary { font-weight: 600; }')
+    expect(OVER_HERO_CSS).not.toContain('font-weight: 600')
     expect(THEME_CSS).toMatch(/\.nav a, \.nav summary \{[^}]*font-weight:\s*500/)
+    expect(THEME_CSS).toContain('.nav > a, .nav > details > summary { display:flex;align-items:center;gap:5px;min-height:44px;padding:0 10px;font-weight:700;font-size:16px;white-space:nowrap;')
     expect(THEME_CSS).not.toContain('site-header-over')
     expect(THEME_CSS).not.toContain('--sb-header-h')
     expect(THEME_CSS).not.toContain('content-box')
@@ -312,18 +313,20 @@ describe('mega menu photo tiles', () => {
       menus: { main: { id: 'sp_menu', doc: items } },
       media: { [PHOTO]: photoEntry() },
     })
-    const panel = rendered.html.match(/<div class="nav-mega-panel nav-mega-panel-tiles">([\s\S]*?)<\/div>/)?.[1] ?? ''
-    expect(panel.indexOf('nav-mega-links')).toBeLessThan(panel.indexOf('nav-mega-tiles'))
+    const panel = rendered.html.match(/<nav class="nav nav-mega"[^>]*>([\s\S]*?)<\/nav>/)?.[1] ?? ''
+    expect(panel.indexOf('nav-mega-tiles')).toBeLessThan(panel.indexOf('nav-mega-links'))
+    expect(panel).toContain('class="nav-group-title" href="/about"')
     expect(panel).toContain('>Tile 6</a>')
-    expect(panel.split('class="tile"').length - 1).toBe(4)
-    expect(panel.split('class="tile tile-text"').length - 1).toBe(1)
+    expect(panel.split('class="tile tile-lg"').length - 1).toBe(2)
+    expect(panel.split('class="tile tile-sm"').length - 1).toBe(2)
+    expect(panel.split('class="tile tile-sm tile-text"').length - 1).toBe(1)
     expect(panel).not.toContain('Alt Sixth')
     expect(panel).not.toContain('>Tile 6</span>')
-    const photo = panel.match(/<a class="tile" href="\/tile-1">([\s\S]*?)<\/a>/)?.[1] ?? ''
+    const photo = panel.match(/<a class="tile tile-lg" href="\/tile-1">([\s\S]*?)<\/a>/)?.[1] ?? ''
     expect(photo).toContain('src="/media/med_00000000000000000000000009-640.webp"')
     expect(photo).toContain('srcset="')
     expect(photo).toContain('/media/med_00000000000000000000000009-320.webp 320w')
-    expect(photo).toContain('sizes="(max-width: 640px) 45vw, 13rem"')
+    expect(photo).toContain('sizes="(max-width: 1023px) 45vw, 28rem"')
     expect(photo).not.toContain('100vw')
     expect(photo).toContain('width="1200"')
     expect(photo).toContain('height="800"')
@@ -336,7 +339,7 @@ describe('mega menu photo tiles', () => {
     expect(panel).toMatch(/\salt(?:=\"\"|(?=[\s/>]))/)
     expect(rendered.deps.media).toContain(PHOTO)
     expect(styleOf(rendered.html)).toBe(THEME_CSS + TILE_CSS)
-    expect(TILE_CSS).toContain('.tile:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }')
+    expect(TILE_CSS).toContain('.nav-mega-tiles .tile:focus-visible { outline:3px solid var(--accent);outline-offset:2px;}')
     expect(THEME_CSS).not.toContain('nav-mega-tiles')
     expect(rendered.deps.bundleId).toBe(BUNDLE_ID)
   })
@@ -356,7 +359,7 @@ describe('mega menu photo tiles', () => {
       menus: { main: { id: 'sp_menu', doc: items } },
       mediaComplete: true,
     })
-    expect(rendered.html).toContain('class="tile tile-text"')
+    expect(rendered.html).toContain('class="tile tile-lg tile-text"')
     expect(rendered.html).not.toContain('<img')
     expect(rendered.html).not.toContain(PHOTO)
     expect(rendered.deps.media).not.toContain(PHOTO)
@@ -426,7 +429,7 @@ describe('mega menu photo tiles', () => {
       },
     })
     expect(explicit.html).toBe(plain.html)
-    expect(explicit.html).toContain('<ul class="nav-mega-panel">')
+    expect(explicit.html).toContain('<ul class="nav-mega-panel nav-mega-links">')
     expect(explicit.html).not.toContain('nav-mega-tiles')
   })
 
@@ -455,10 +458,47 @@ describe('mega menu photo tiles', () => {
     expect(rendered.html).toContain('width="80"')
     expect(rendered.html).toContain('height="40"')
     expect(rendered.html).not.toContain('srcset=')
-    expect(rendered.html).toContain('class="tile tile-text"')
-    expect(rendered.html).toContain('>Tile 2</span>')
+    expect(rendered.html).toContain('class="tile tile-lg"')
+    expect(rendered.html).toContain('class="tile tile-lg tile-text"')
+    expect(rendered.html).not.toContain('class="tile tile-sm')
+    expect(rendered.html).toContain('>Tile 2<svg class="nav-arw"')
     expect(rendered.deps.media).toContain(PHOTO)
     expect(rendered.deps.media).not.toContain('med_0000000000000000000000000A')
+  })
+
+  it('puts the banner message and a second Donate in the phone drawer only', async () => {
+    const message = 'Report an ill or injured animal in Udaipur'
+    const withLink = await render({
+      header: { id: 'sp_header', doc: header({ style: 'mega', cta: { label: 'Donate', target: { type: 'url', url: 'https://example.org/donate' }, icon: 'heart' } }) },
+      banner: {
+        id: 'sp_banner',
+        doc: {
+          schemaVersion: 1,
+          enabled: true,
+          message,
+          link: { label: 'Get help', target: { type: 'url', url: 'https://example.org/help' } },
+          tone: 'urgent',
+        },
+      },
+    })
+    const body = withLink.html.slice(withLink.html.indexOf('<body'))
+    const drawerStart = body.indexOf('<details class="nav nav-hamburger')
+    const drawer = body.slice(drawerStart, body.indexOf('</header>'))
+    expect(drawer).toContain(`class="nav-report" href="https://example.org/help">${message}`)
+    expect(drawer).toContain('class="cta-btn nav-donate-wide"')
+    expect(drawer).toContain('class="ico-heart"')
+    const bar = body.slice(0, drawerStart)
+    expect(bar).not.toContain('nav-report')
+    expect(bar).not.toContain('nav-donate-wide')
+    expect(bar).toContain('class="cta-btn"')
+
+    const noLink = await render({
+      banner: {
+        id: 'sp_banner',
+        doc: { schemaVersion: 1, enabled: true, message: 'Winter appeal is open', link: null, tone: 'info' },
+      },
+    })
+    expect(noLink.html).not.toContain('class="nav-report"')
   })
 })
 

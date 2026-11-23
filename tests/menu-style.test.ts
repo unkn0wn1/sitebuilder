@@ -42,11 +42,11 @@ describe('menu look presets', () => {
     const classic = await renderPageHtml({ doc, pageId: 'pg_home', versionId: 'ver_1', path: '/', site: site() })
     expect(classic.html).toContain('class="site-header"')
     expect(classic.html).toContain('>Home</a>')
-    expect(classic.html).toContain('>About</summary>')
+    expect(classic.html).toContain('>About<svg class="nav-chev"')
     expect(classic.html).toContain('<nav class="nav" aria-label="Site">')
     expect(classic.html.match(/<details class="nav nav-hamburger"/g)).toHaveLength(1)
-    expect(classic.html).toContain('>Menu</summary>')
-    expect(classic.html).toMatch(/<\/nav>(?:<!---->)?<details class="nav nav-hamburger" aria-label="Site"><summary>Menu<\/summary>/)
+    expect(classic.html).toContain('<summary aria-label="Menu"><span></span><span></span><span></span></summary>')
+    expect(classic.html).toMatch(/<\/nav>(?:<!---->)?<details class="nav nav-hamburger" aria-label="Site"><summary aria-label="Menu"><span><\/span><span><\/span><span><\/span><\/summary>/)
 
     const mega = await renderPageHtml({
       doc,
@@ -69,7 +69,7 @@ describe('menu look presets', () => {
     expect(burger.html).toContain('site-header-hamburger')
     expect(burger.html.match(/<details class="nav nav-hamburger"/g)).toHaveLength(1)
     expect(burger.html).not.toContain('<nav class="nav"')
-    expect(burger.html).toContain('>Menu</summary>')
+    expect(burger.html).toContain('<summary aria-label="Menu"><span></span><span></span><span></span></summary>')
     expect(burger.html).toContain('>Home</a>')
   })
 

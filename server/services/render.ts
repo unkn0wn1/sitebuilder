@@ -1097,7 +1097,50 @@ function utilityLink(site: SiteRenderContext, bag: Collector, place?: 'bar' | 'd
   return h('a', { class: className, href: link.href, tabindex: tabIndex }, utility.label)
 }
 
-const TILE_SIZES = '(max-width: 640px) 45vw, 13rem'
+const TILE_SIZES = '(max-width: 1023px) 45vw, 28rem'
+/** Displayed logo box at a 16px root: 2.5rem tall, width capped at 14rem. Attributes stop a wide file from wrapping the bar. */
+const LOGO_DISPLAY_H = 40
+const LOGO_MAX_W = 224
+
+function logoBox(width?: number | null, height?: number | null): { width: number; height: number } {
+  if (!width || !height || width <= 0 || height <= 0) return { width: LOGO_MAX_W, height: LOGO_DISPLAY_H }
+  const scaled = Math.round((LOGO_DISPLAY_H * width) / height)
+  if (scaled <= LOGO_MAX_W) return { width: scaled, height: LOGO_DISPLAY_H }
+  return { width: LOGO_MAX_W, height: Math.max(1, Math.round((LOGO_MAX_W * height) / width)) }
+}
+
+function navChevron(): VNode {
+  return h('svg', { class: 'nav-chev', viewBox: '0 0 24 24', width: '14', height: '14', 'aria-hidden': 'true', focusable: 'false' }, [
+    h('path', { d: 'M5 9l7 7 7-7', fill: 'none', stroke: 'currentColor', 'stroke-width': '2.6', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }),
+  ])
+}
+
+function navArrow(): VNode {
+  return h('svg', { class: 'nav-arw', viewBox: '0 0 24 24', width: '16', height: '16', 'aria-hidden': 'true', focusable: 'false' }, [
+    h('path', { d: 'M9 5l7 7-7 7', fill: 'none', stroke: 'currentColor', 'stroke-width': '2.8', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }),
+  ])
+}
+
+function burgerSummary(): VNode {
+  return h('summary', { 'aria-label': 'Menu' }, [h('span'), h('span'), h('span')])
+}
+
+/** Banner message and a second Donate, phone drawer only. Desktop keeps the banner above the bar. */
+function drawerTail(site: SiteRenderContext, bag: Collector): VNode[] {
+  const nodes: VNode[] = []
+  const banner = site.banner
+  if (banner?.doc.enabled && banner.doc.message && banner.doc.link) {
+    const link = resolveLink(banner.doc.link.target, banner.doc.link.label, site, bag)
+    nodes.push(h('a', { class: 'nav-report', href: link.href }, banner.doc.message))
+  }
+  const cta = site.header?.doc.cta
+  if (cta) {
+    const headerCta = resolveLink(cta.target, cta.label, site, bag)
+    const label = cta.icon === 'heart' ? [heartIcon(), h('span', headerCta.label)] : headerCta.label
+    nodes.push(h('a', { class: 'cta-btn nav-donate-wide', href: headerCta.href }, label))
+  }
+  return nodes
+}
 
 /** One small WebP for a mega tile. Missing library photos are left out on a real publish, same as other pictures. */
 function tileImage(image: ImageRef, label: string, site: SiteRenderContext, bag: Collector): VNode | null {
@@ -1150,27 +1193,41 @@ function menuItems(site: SiteRenderContext, bag: Collector): VNode[] {
       return h('li', [h('a', { href: c.href }, child.label)])
     })
     const tiles = style === 'mega' ? item.children.filter((child) => child.featured).slice(0, 5) : []
+    const summary = h('summary', [item.label, navChevron()])
     if (!tiles.length) {
+      if (style !== 'mega') return h('details', [summary, h('ul', textLinks)])
       return h('details', [
-        h('summary', item.label),
-        h('ul', { class: style === 'mega' ? 'nav-mega-panel' : undefined }, textLinks),
+        summary,
+        h('div', { class: 'nav-drop' }, [
+          h('div', { class: 'nav-drop-in' }, [
+            h('a', { class: 'nav-group-title', href: link.href }, [item.label, navArrow()]),
+            h('ul', { class: 'nav-mega-panel nav-mega-links' }, textLinks),
+          ]),
+        ]),
       ])
     }
     return h('details', [
-      h('summary', item.label),
-      h('div', { class: 'nav-mega-panel nav-mega-panel-tiles' }, [
-        h('ul', { class: 'nav-mega-links' }, textLinks),
-        h(
-          'ul',
-          { class: 'nav-mega-tiles' },
-          tiles.map((child) => {
-            const c = resolveLink(child.target, child.label, site, bag)
-            const img = child.image ? tileImage(child.image, child.label, site, bag) : null
-            return h('li', [
-              h('a', { class: img ? 'tile' : 'tile tile-text', href: c.href }, img ? [img, h('span', child.label)] : [h('span', child.label)]),
-            ])
-          }),
-        ),
+      summary,
+      h('div', { class: 'nav-drop' }, [
+        h('div', { class: 'nav-drop-in nav-drop-grid' }, [
+          h(
+            'ul',
+            { class: 'nav-mega-tiles' },
+            tiles.map((child, index) => {
+              const c = resolveLink(child.target, child.label, site, bag)
+              const img = child.image ? tileImage(child.image, child.label, site, bag) : null
+              const size = index < 2 ? 'tile-lg' : 'tile-sm'
+              const className = img ? `tile ${size}` : `tile ${size} tile-text`
+              return h('li', [
+                h('a', { class: className, href: c.href }, img ? [img, h('span', [child.label, navArrow()])] : [h('span', [child.label, navArrow()])]),
+              ])
+            }),
+          ),
+          h('div', { class: 'nav-drop-side' }, [
+            h('a', { class: 'nav-group-title', href: link.href }, [item.label, navArrow()]),
+            h('ul', { class: 'nav-mega-links' }, textLinks),
+          ]),
+        ]),
       ]),
     ])
   })
@@ -1185,9 +1242,10 @@ function renderNav(site: SiteRenderContext, bag: Collector): VNode | null {
   const items = menuItems(site, bag)
   if (style === 'hamburger') {
     const inMenu = utilityLink(site, bag, 'drawer')
+    const panel = [...items, ...(inMenu ? [inMenu] : []), ...drawerTail(site, bag)]
     return h('details', { class: 'nav nav-hamburger', 'aria-label': 'Site' }, [
-      h('summary', 'Menu'),
-      h('div', { class: 'nav-panel' }, inMenu ? [...items, inMenu] : items),
+      burgerSummary(),
+      h('div', { class: 'nav-panel' }, panel),
     ])
   }
   const utility = utilityLink(site, bag)
@@ -1204,9 +1262,10 @@ function renderMobileNav(site: SiteRenderContext, bag: Collector): VNode | null 
   const items = menuItems(site, bag)
   const utility = utilityLink(site, bag)
   const className = style === 'mega' ? 'nav nav-hamburger nav-mega' : 'nav nav-hamburger'
+  const panel = [...items, ...(utility ? [utility] : []), ...drawerTail(site, bag)]
   return h('details', { class: className, 'aria-label': 'Site' }, [
-    h('summary', 'Menu'),
-    h('div', { class: 'nav-panel' }, utility ? [...items, utility] : items),
+    burgerSummary(),
+    h('div', { class: 'nav-panel' }, panel),
   ])
 }
 
@@ -1224,13 +1283,14 @@ function logoOrName(site: SiteRenderContext, bag: Collector, opts: { dark?: bool
   const alt = entry.alt?.trim() || site.name
   const fallback = dark && !darkId
   const className = fallback ? 'site-logo site-logo-fallback-light' : 'site-logo'
+  const box = logoBox(entry.width, entry.height)
   if (entry.kind === 'svg' || entry.mime === 'image/svg+xml') {
     return h('img', {
       class: className,
       src: `/media/${id}.svg`,
       alt,
-      width: entry.width ?? undefined,
-      height: entry.height ?? undefined,
+      width: box.width,
+      height: box.height,
       decoding: 'async',
     })
   }
@@ -1240,10 +1300,10 @@ function logoOrName(site: SiteRenderContext, bag: Collector, opts: { dark?: bool
     class: className,
     src: `/media/${id}-${srcW}.webp`,
     srcset: widths.map((w) => `/media/${id}-${w}.webp ${w}w`).join(', '),
-    sizes: '(max-width: 640px) 180px, 220px',
+    sizes: '(max-width: 1023px) 134px, 224px',
     alt,
-    width: entry.width ?? undefined,
-    height: entry.height ?? undefined,
+    width: box.width,
+    height: box.height,
     decoding: 'async',
   })
 }
@@ -1276,7 +1336,7 @@ function reserveBar(site: SiteRenderContext, bag: Collector): VNode {
   const ctaNode = headerCta
     ? h('a', { class: 'cta-btn', href: headerCta.href, tabindex: '-1' }, cta?.icon === 'heart' ? [heartIcon(), h('span', headerCta.label)] : headerCta.label)
     : null
-  const standIn = hasMenu ? h('span', { class: 'reserve-menu' }, 'Menu') : null
+  const standIn = hasMenu ? h('span', { class: 'reserve-menu' }, [h('span'), h('span'), h('span')]) : null
   const barUtility = hamburger && hasMenu ? utilityLink(site, bag, 'bar', '-1') : null
   return h(
     'div',
@@ -1330,7 +1390,7 @@ function renderShell(doc: PageDoc, site: SiteRenderContext, bag: Collector): VNo
   const reserveForFirst = seeThrough && doc.blocks[0] && !heroCarouselActive(doc.blocks[0]) ? reserveBar(site, bag) : null
   let firstHero = true
   const menuKey = site.header?.doc.menuKey ?? 'main'
-  // Two copies, one hidden by UTILITY_CSS: the drawer on a phone, the bar from 641px up.
+  // Two copies, one hidden by UTILITY_CSS: the drawer below 1024, the bar from 1024 up.
   const barUtility = menuStyleOf(site) === 'hamburger' && site.menus[menuKey] ? utilityLink(site, bag, 'bar') : null
   const mobileNav = renderMobileNav(site, bag)
 

@@ -73,7 +73,7 @@ describe('optional shell parts', () => {
         const navClass = style === 'mega' ? 'nav nav-mega' : 'nav'
         const detailsClass = style === 'mega' ? 'nav nav-hamburger nav-mega' : 'nav nav-hamburger'
         expect(rendered.html).toMatch(new RegExp(`<nav class="${navClass}" aria-label="Site">[\\s\\S]*class="util" href="https://example.org/report">Report an animal</a>[\\s\\S]*</nav>`))
-        expect(rendered.html).toMatch(new RegExp(`<details class="${detailsClass}" aria-label="Site"><summary>Menu</summary><div class="nav-panel">[\\s\\S]*class="util" href="https://example.org/report">Report an animal</a>`))
+        expect(rendered.html).toMatch(new RegExp(`<details class="${detailsClass}" aria-label="Site"><summary aria-label="Menu"><span><\\/span><span><\\/span><span><\\/span><\\/summary><div class="nav-panel">[\\s\\S]*class="util" href="https://example.org/report">Report an animal</a>`))
         expect(rendered.html).toMatch(new RegExp(`</nav><a class="cta-btn" href="https://example.org/donate">Donate</a><details class="${detailsClass}"`))
         const markup = rendered.html.replace(/<style>[\s\S]*?<\/style>/, '')
         expect(markup).toContain('class="nav-panel"')
@@ -108,8 +108,8 @@ describe('optional shell parts', () => {
     expect(bar).not.toContain('util-drawer')
     expect(rendered.deps.linkedPageIds).toContain('pg_about')
     expectFullCss(rendered, UTILITY_CSS)
-    expect(UTILITY_CSS).toContain('@media (max-width: 640px) {\n  .site-header-hamburger .util-bar { display: none; }\n}')
-    expect(UTILITY_CSS).toContain('@media (min-width: 641px) {\n  .site-header-hamburger .nav-panel .util-drawer { display: none; }\n}')
+    expect(UTILITY_CSS).toContain('@media (max-width: 1023px) {\n  .site-header-hamburger .util-bar { display: none; }\n}')
+    expect(UTILITY_CSS).toContain('@media (min-width: 1024px) {\n  .site-header-hamburger .nav-panel .util-drawer { display: none; }\n}')
     expect(THEME_CSS).not.toContain('util-bar')
     expect(THEME_CSS).not.toContain('util-drawer')
 

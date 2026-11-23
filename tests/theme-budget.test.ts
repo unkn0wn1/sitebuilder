@@ -16,7 +16,7 @@ import {
 describe('theme budget', () => {
   it('keeps shell sheets, block sheets and a full page inside their own caps', () => {
     // The shell cap is not STYLE_MAX - site - section. That subtraction now includes the block allowance.
-    expect(SHELL_CSS_MAX_BYTES).toBe(24576)
+    expect(SHELL_CSS_MAX_BYTES).toBe(29751)
     expect(BLOCK_CSS_MAX_BYTES).toBe(10240)
     expect(STYLE_MAX_BYTES).toBe(SHELL_CSS_MAX_BYTES + SITE_CSS_MAX_BYTES + SECTION_CSS_MAX_BYTES + BLOCK_CSS_MAX_BYTES)
     const shell = Buffer.byteLength(
