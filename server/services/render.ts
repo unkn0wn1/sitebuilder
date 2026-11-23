@@ -38,7 +38,7 @@ import {
 } from '../../shared/site-parts'
 import { BUNDLE_ID, EMBED_JS, HEADER_JS, HERO_JS, THEME_CSS, THERMOMETER_JS } from '../theme/default'
 import { migrateBrandDoc, validateBrandDoc, type BrandDoc } from '../../shared/brand'
-import { BANNER_ACCENT_CSS, FOOTER_COLUMNS_CSS, HEART_CSS, HERO_CAROUSEL_CSS, OVER_HERO_CSS, PICKER_CSS, THERMOMETER_CSS, TILE_CSS, UTILITY_CSS, brandChromeCss, themeCssFromTokens } from '../../shared/theme-css'
+import { BANNER_ACCENT_CSS, DONATE_PREVIEW_CSS, FOOTER_COLUMNS_CSS, HEART_CSS, HERO_CAROUSEL_CSS, OVER_HERO_CSS, PICKER_CSS, RHYTHM_CSS, THERMOMETER_CSS, TILE_CSS, UTILITY_CSS, brandChromeCss, themeCssFromTokens } from '../../shared/theme-css'
 import { embeds, media, mediaCrops, pages, redirects, siteParts, sites, versions, type ReleaseManifest } from '../db/schema'
 import type { ServiceCtx } from './context'
 import { widthsFor } from './media'
@@ -345,8 +345,14 @@ function previewBlock(block: StoredBlock, draw: () => VNode): VNode {
   return h('div', { 'data-block-id': block.id }, [vnode])
 }
 
-function wrapSection(children: VNode | null | Array<VNode | null>, className = 'section'): VNode {
-  return h('section', { class: className }, [h('div', { class: 'wrap' }, Array.isArray(children) ? children : [children])])
+function backgroundClass(props?: Record<string, unknown>): string {
+  if (props?.background === 'card') return ' bg-card'
+  if (props?.background === 'warm') return ' bg-warm'
+  return ''
+}
+
+function wrapSection(children: VNode | null | Array<VNode | null>, props?: Record<string, unknown>): VNode {
+  return h('section', { class: 'section' + backgroundClass(props) }, [h('div', { class: 'wrap' }, Array.isArray(children) ? children : [children])])
 }
 
 function heroSlides(props: Record<string, unknown>): Array<Record<string, unknown>> {
@@ -534,7 +540,7 @@ function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector
     case 'VideoHero':
       return renderVideoHeroSection(p.heading, p.subheading, p.poster as ImageRef | undefined, typeof p.video === 'string' ? p.video : '', p.cta, site, bag, firstHero, reserve)
     case 'RichText':
-      return wrapSection([h('div', { class: 'prose' }, renderRichText(p.content as RichTextDoc, bag))])
+      return wrapSection([h('div', { class: 'prose' }, renderRichText(p.content as RichTextDoc, bag))], p)
     case 'TextAndImage': {
       const layout = p.layout === 'image-left' ? 'split split-image-left' : 'split'
       return wrapSection(
@@ -545,6 +551,7 @@ function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector
           ]),
           pictureVNode(p.image as ImageRef | undefined, site, bag, { slot: { width: 960, height: 720 }, sizes: HALF_SIZES }),
         ]),
+        p,
       )
     }
     case 'Image':
@@ -553,24 +560,26 @@ function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector
           pictureVNode(p.image as ImageRef | undefined, site, bag, { slot: { width: 1280, height: 853 }, sizes: FIGURE_SIZES }),
           p.caption ? h('figcaption', String(p.caption)) : null,
         ]),
+        p,
       )
     case 'Gallery': {
       const images = (p.images as ImageRef[] | undefined) ?? []
       return wrapSection([
         p.heading ? h('h2', String(p.heading)) : null,
         h('div', { class: 'gallery' }, images.map((img) => pictureVNode(img, site, bag, { slot: { width: 800, height: 800 }, sizes: GRID_SIZES }))),
-      ])
+      ], p)
     }
     case 'Quote':
       return wrapSection(
         h('blockquote', { class: 'quote' }, [h('p', String(p.text ?? '')), p.attribution ? h('footer', String(p.attribution)) : null]),
+        p,
       )
     case 'Stats': {
       const items = (p.items as { value: string; label: string }[] | undefined) ?? []
       return wrapSection([
         p.heading ? h('h2', String(p.heading)) : null,
         h('div', { class: 'stats' }, items.map((item) => h('div', [h('span', { class: 'stat-value' }, item.value), h('span', { class: 'stat-label' }, item.label)]))),
-      ])
+      ], p)
     }
     case 'CardGrid': {
       const cards = (p.cards as { title: string; text?: string; image?: ImageRef; link?: { label: string; href: string } }[] | undefined) ?? []
@@ -590,7 +599,7 @@ function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector
             ]),
           ),
         ),
-      ])
+      ], p)
     }
     case 'CallToAction':
       return h('section', { class: `cta-band tone-${String(p.tone ?? 'accent')}` }, [
@@ -609,7 +618,7 @@ function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector
           { class: 'faq' },
           items.map((item) => h('details', [h('summary', item.question), h('div', { class: 'prose' }, renderRichText(item.answer, bag))])),
         ),
-      ])
+      ], p)
     }
     case 'DonationEmbed':
     case 'Embed':
@@ -711,7 +720,7 @@ function renderImpactTiers(blockId: string, p: Record<string, unknown>, site: Si
     ),
     p.otherAmount ? h('p', { class: 'tier-other' }, [h('a', { class: 'tier-give', href: '#donate' }, String(p.otherAmount))]) : null,
     linkButton(asLink(p.cta), bag),
-  ])
+  ], p)
 }
 
 const PICKER_SIZES = '(max-width: 759px) 100vw, 560px'
@@ -753,7 +762,7 @@ function renderImpactPicker(blockId: string, p: Record<string, unknown>, site: S
       h('div', { class: 'ga-foot' }, [...gives, other]),
     ]),
     linkButton(asLink(p.cta), bag),
-  ])
+  ], p)
 }
 
 function renderDonationProgress(p: Record<string, unknown>, bag: Collector): VNode {
@@ -773,7 +782,7 @@ function renderDonationProgress(p: Record<string, unknown>, bag: Collector): VNo
     p.matchLine ? h('p', { class: 'progress-match' }, String(p.matchLine)) : null,
     p.endDate ? h('p', { class: 'progress-date' }, `Until ${String(p.endDate)}`) : null,
     linkButton(asLink(p.cta), bag),
-  ])
+  ], p)
 }
 
 function renderMatchBanner(p: Record<string, unknown>, bag: Collector): VNode {
@@ -935,7 +944,7 @@ function renderMatchThermometer(blockId: string, p: Record<string, unknown>, bag
         p.note ? h('p', { class: 'th-note' }, String(p.note)) : null,
       ]),
     ]),
-  ])
+  ], p)
 }
 
 function r1Text(n: number): number {
@@ -953,7 +962,7 @@ function renderStoryBeforeAfter(p: Record<string, unknown>, site: SiteRenderCont
     ]),
     p.quote ? h('blockquote', { class: 'quote' }, [h('p', String(p.quote)), p.attribution ? h('footer', String(p.attribution)) : null]) : null,
     linkButton(asLink(p.cta), bag),
-  ])
+  ], p)
 }
 
 interface TrustItem {
@@ -1005,6 +1014,28 @@ function renderTrustStrip(p: Record<string, unknown>, site: SiteRenderContext, b
         ]),
       ),
     ),
+  ], p)
+}
+
+function donateSymbol(config: Record<string, unknown>): string {
+  const raw = config.currency
+  if (typeof raw !== 'string' || raw.length < 1 || raw.length > 4 || /[\s<>]/.test(raw)) return '$'
+  return raw
+}
+
+function donatePreview(symbol: string): VNode {
+  const money = (amount: number) => `${symbol}${amount}`
+  const chips = [50, 100, 250, 500]
+  return h('div', { class: 'donate-preview' }, [
+    h('div', { class: 'dp-tabs', role: 'group', 'aria-label': 'How often' }, [
+      h('span', { class: 'dp-tab is-on', 'aria-current': 'true' }, 'Give once'),
+      h('span', { class: 'dp-tab' }, 'Monthly'),
+    ]),
+    h('p', { class: 'dp-amount' }, money(50)),
+    h('div', { class: 'dp-chips' }, chips.map((amount, index) => h('span', { class: index === 0 ? 'dp-chip is-on' : 'dp-chip' }, money(amount)))),
+    h('p', { class: 'dp-other' }, [h('span', 'Other amount'), h('span', money(50))]),
+    h('p', { class: 'dp-total' }, [h('span', 'Total'), h('b', money(50))]),
+    h('button', { type: 'button', disabled: true }, 'Continue'),
   ])
 }
 
@@ -1014,7 +1045,7 @@ function renderEmbed(type: string, p: Record<string, unknown>, site: SiteRenderC
   const heading = p.heading ? h('h2', String(p.heading)) : p.title ? h('h2', String(p.title)) : null
   const anchor = typeof p.anchor === 'string' ? p.anchor : undefined
   if (!embed) {
-    return h('section', { class: type === 'DonationEmbed' ? 'donate' : 'embed', id: anchor }, [
+    return h('section', { class: (type === 'DonationEmbed' ? 'donate' : 'embed') + backgroundClass(p), id: anchor }, [
       h('div', { class: 'wrap' }, [heading, h('p', { class: 'embed-fallback' }, 'This form is not available.')]),
     ])
   }
@@ -1022,12 +1053,12 @@ function renderEmbed(type: string, p: Record<string, unknown>, site: SiteRenderC
     bag.needsEmbedJs = true
     bag.scriptSrcs.add(VIRTUOUS_SCRIPT)
     const formId = String(embed.config.formId ?? '')
-    return h('section', { class: 'donate', id: anchor }, [
+    return h('section', { class: 'donate' + backgroundClass(p), id: anchor }, [
       h('div', { class: 'wrap' }, [
         heading,
         h('div', { class: 'donate-box', 'data-embed': 'virtuous', 'data-src': VIRTUOUS_SCRIPT, 'data-vform': formId }, [
           h('p', { class: 'donate-prefill-hint', hidden: true, 'data-donate-hint': 'true' }),
-          h('p', { class: 'embed-fallback' }, 'The donation form loads here when the page is live.'),
+          donatePreview(donateSymbol(embed.config)),
         ]),
       ]),
     ])
@@ -1037,7 +1068,7 @@ function renderEmbed(type: string, p: Record<string, unknown>, site: SiteRenderC
     const url = new URL(src)
     bag.frameSrcs.add(`${url.protocol}//${url.host}`)
   }
-  return h('section', { class: 'embed', id: anchor }, [
+  return h('section', { class: 'embed' + backgroundClass(p), id: anchor }, [
     h('div', { class: 'wrap' }, [
       heading,
       src
@@ -1662,7 +1693,9 @@ export async function renderPageHtml(input: {
   const carouselCss = doc.blocks.some((block) => heroCarouselActive(block as StoredBlock)) ? HERO_CAROUSEL_CSS : ''
   const thermometerCss = doc.blocks.some((block) => block.type === 'MatchThermometer') ? THERMOMETER_CSS : ''
   const pickerCss = doc.blocks.some((block) => block.type === 'ImpactTiers' && block.props.layout === 'picker') ? PICKER_CSS : ''
-  const css = (site.themeCss ?? THEME_CSS) + shellOptionCss(site) + carouselCss + thermometerCss + pickerCss + emitSiteCss(site.brand) + doc.blocks.map((block) => emitSectionCss(block as StoredBlock)).join('')
+  const donateCss = doc.blocks.some((block) => block.type === 'DonationEmbed') ? DONATE_PREVIEW_CSS : ''
+  const rhythmCss = doc.blocks.some((block) => block.props.background === 'card' || block.props.background === 'warm') ? RHYTHM_CSS : ''
+  const css = (site.themeCss ?? THEME_CSS) + shellOptionCss(site) + carouselCss + thermometerCss + pickerCss + donateCss + rhythmCss + emitSiteCss(site.brand) + doc.blocks.map((block) => emitSectionCss(block as StoredBlock)).join('')
   if (css.toLowerCase().includes('</')) throw new CssRejected(1, 1, 'The generated CSS was rejected.')
   if (Buffer.byteLength(css, 'utf8') > STYLE_MAX_BYTES) throw new CssRejected(1, 1, `This page CSS is over the ${STYLE_MAX_BYTES.toLocaleString('en-US')} byte limit.`)
   const app = createSSRApp(

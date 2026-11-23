@@ -5,9 +5,11 @@ import {
   FOOTER_COLUMNS_CSS,
   HEART_CSS,
   HERO_CAROUSEL_CSS,
+  DONATE_PREVIEW_CSS,
   OVER_HERO_CSS,
   THEME_CSS,
   PICKER_CSS,
+  RHYTHM_CSS,
   THERMOMETER_CSS,
   TILE_CSS,
   UTILITY_CSS,
@@ -23,7 +25,7 @@ describe('theme budget', () => {
       THEME_CSS + HEART_CSS + UTILITY_CSS + BANNER_ACCENT_CSS + FOOTER_COLUMNS_CSS + OVER_HERO_CSS + TILE_CSS + HERO_CAROUSEL_CSS,
       'utf8',
     )
-    const blocks = Buffer.byteLength(THERMOMETER_CSS + PICKER_CSS, 'utf8')
+    const blocks = Buffer.byteLength(THERMOMETER_CSS + PICKER_CSS + DONATE_PREVIEW_CSS + RHYTHM_CSS, 'utf8')
     expect(shell).toBeLessThanOrEqual(SHELL_CSS_MAX_BYTES)
     expect(blocks).toBeLessThanOrEqual(BLOCK_CSS_MAX_BYTES)
     expect(shell + blocks + SITE_CSS_MAX_BYTES + SECTION_CSS_MAX_BYTES).toBeLessThanOrEqual(STYLE_MAX_BYTES)

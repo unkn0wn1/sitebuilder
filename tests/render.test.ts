@@ -33,7 +33,7 @@ import {
   type SiteRenderContext,
 } from '../server/services/render'
 import { CssRejected } from '../shared/css/sanitize'
-import { MatchThermometer } from '../shared/blocks/library'
+import { Hero, MatchThermometer, TrustStrip } from '../shared/blocks/library'
 import { emptyPageDoc } from '../shared/page'
 import { defaultBrandDoc, validateBrandDoc } from '../shared/brand'
 import { editBrand, getBrand, submitBrand } from '../server/services/brand'
@@ -500,7 +500,19 @@ http {
     expect(rendered.html).toContain('data-embed="virtuous"')
     expect(rendered.html).toContain('data-vform="example-form"')
     expect(rendered.html).toContain('data-donate-hint')
-    expect(rendered.html).toContain('The donation form loads here when the page is live.')
+    expect(rendered.html).not.toContain('loads here')
+    expect(rendered.html).toContain('Give once')
+    expect(rendered.html).toContain('>Monthly<')
+    expect(rendered.html).toContain('$50')
+    expect(rendered.html).toContain('Other amount')
+    expect(rendered.html).toContain('Total')
+    expect(rendered.html).toContain('Continue')
+    expect(rendered.html).toContain('type="button"')
+    expect(rendered.html).toContain('disabled')
+    expect(rendered.html).not.toContain('<form')
+    expect(rendered.html).not.toContain('action=')
+    expect(rendered.html).toContain('class="donate"')
+    expect(rendered.html).not.toContain('bg-warm')
     expect(rendered.html).toContain('src="/embed.js"')
     expect(rendered.csp).toContain("script-src 'self' https://cdn.virtuoussoftware.com")
     expect(rendered.csp).not.toContain('unsafe-inline')
@@ -508,6 +520,81 @@ http {
     expect(EMBED_JS).toContain('searchParams.set("amount"')
     expect(EMBED_JS).toContain('RaiseDonorsForms')
     expect(EMBED_JS).toContain('data-donate-hint')
+    expect(EMBED_JS).toContain('is-provider')
+    expect(EMBED_JS).toContain('donate-preview')
+    expect(EMBED_JS).not.toContain('fallback.hidden = false')
+
+    const rupees = await renderPageHtml({
+      doc,
+      pageId: 'pg_give',
+      versionId: 'ver_1',
+      path: '/give',
+      site: site({
+        embeds: {
+          emb_00000000000000000000000009: {
+            id: 'emb_00000000000000000000000009',
+            provider: 'virtuous',
+            name: 'Demo form',
+            config: { formId: 'example-form', currency: '₹' },
+          },
+        },
+      }),
+    })
+    expect(rupees.html).toContain('₹50')
+    expect(rupees.html).toContain('₹500')
+    const messy = await renderPageHtml({
+      doc,
+      pageId: 'pg_give',
+      versionId: 'ver_1',
+      path: '/give',
+      site: site({
+        embeds: {
+          emb_00000000000000000000000009: {
+            id: 'emb_00000000000000000000000009',
+            provider: 'virtuous',
+            name: 'Demo form',
+            config: { formId: 'example-form', currency: 'US $' },
+          },
+        },
+      }),
+    })
+    expect(messy.html).toContain('$50')
+    expect(messy.html).not.toContain('US $')
+  })
+
+  it('paints a section background only when the block asks for one, and Hero rejects the prop', async () => {
+    const doc = emptyPageDoc('Rhythm')
+    doc.blocks = [{ id: 'b_text0001', type: 'RichText', v: 1, props: { content: richTextFromParagraphs(['Hello']) } }]
+    const plain = await renderPageHtml({ doc, pageId: 'pg_rhythm', versionId: 'ver_1', path: '/rhythm', site: site() })
+    expect(plain.html).toContain('class="section"')
+    expect(plain.html).not.toContain('bg-card')
+    expect(plain.html).not.toContain('bg-warm')
+    doc.blocks[0]!.props = { content: richTextFromParagraphs(['Hello']), background: 'card' }
+    const card = await renderPageHtml({ doc, pageId: 'pg_rhythm', versionId: 'ver_1', path: '/rhythm', site: site() })
+    expect(card.html).toContain('class="section bg-card"')
+    expect(card.html).toContain('.bg-card{background:#fff}')
+    expect(card.html).toContain('.bg-warm{background:')
+    doc.blocks[0]!.props = { content: richTextFromParagraphs(['Hello']), background: 'warm' }
+    const warm = await renderPageHtml({ doc, pageId: 'pg_rhythm', versionId: 'ver_1', path: '/rhythm', site: site() })
+    expect(warm.html).toContain('class="section bg-warm"')
+    expect(Hero.props.safeParse(Hero.sample).success).toBe(true)
+    expect(Hero.props.safeParse({ ...Hero.sample, background: 'card' }).success).toBe(false)
+  })
+
+  it('renders the trust sample as names and logos, and still shows a note the editor sets', async () => {
+    const sampleDoc = emptyPageDoc('Trust sample')
+    sampleDoc.blocks = [{ id: 'b_trusts', type: 'TrustStrip', v: 1, props: TrustStrip.sample }]
+    const sample = await renderPageHtml({ doc: sampleDoc, pageId: 'pg_tsamp', versionId: 'ver_1', path: '/tsamp', site: site() })
+    expect(sample.html).toContain('Trusted by donors')
+    expect(sample.html).not.toContain('Sample layout')
+    expect(sample.html).not.toContain('class="trust-note"')
+    expect(sample.html).not.toContain('Rated by')
+
+    const noted = emptyPageDoc('Trust note')
+    noted.blocks = [{ id: 'b_trustn', type: 'TrustStrip', v: 1, props: { heading: 'Marks', items: [{ name: 'Candid', logo: IMG, note: 'Editor note' }] } }]
+    const withNote = await renderPageHtml({ doc: noted, pageId: 'pg_tnote', versionId: 'ver_1', path: '/tnote', site: site() })
+    expect(withNote.html).toContain('class="trust-note"')
+    expect(withNote.html).toContain('Editor note')
   })
 
   it('hides a match banner after its end date and renders a before-and-after story', async () => {

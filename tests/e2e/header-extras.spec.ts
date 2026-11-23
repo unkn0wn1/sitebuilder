@@ -193,6 +193,13 @@ async function heroPad(page: Page) {
 test('see-through header and mega tiles, from renderer HTML, with no sign-in', async ({ page }) => {
   await show(page, 'hero', 'run')
   expect(await headerLook(page)).toEqual({ over: true, jsOver: true, solid: false, fixed: false, sticky: true, gradient: true, paper: false })
+  const scrim = await page.evaluate(() => getComputedStyle(document.querySelector('header')!).backgroundImage)
+  expect(scrim).toContain('linear-gradient')
+  expect(scrim).toMatch(/0\.72|72%/)
+  await page.locator('header nav details').first().locator('summary').click()
+  await expect.poll(async () => page.evaluate(() => getComputedStyle(document.querySelector('header')!).backgroundColor)).toBe(PAPER)
+  await page.locator('header nav details').first().locator('summary').click()
+  await expect.poll(() => headerLook(page)).toEqual({ over: true, jsOver: true, solid: false, fixed: false, sticky: true, gradient: true, paper: false })
   await expect(page.locator('header > .site-header-inner > nav a').first()).toHaveCSS('font-weight', '700')
   expect(await heroFit(page)).toEqual(HERO_FIT)
 

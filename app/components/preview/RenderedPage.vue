@@ -7,7 +7,7 @@ import { api, ApiError } from '../../utils/api'
 import { canvasScale } from '../../utils/format'
 import { mediaVersion } from '../../utils/media'
 import { shouldInjectLiveCss } from '#shared/css/live'
-import { scopedHeroCarouselCss, scopedPickerCss, scopedThermometerCss } from '../../utils/theme-css'
+import { scopedDonatePreviewCss, scopedHeroCarouselCss, scopedPickerCss, scopedRhythmCss, scopedThermometerCss } from '../../utils/theme-css'
 import { DEVICE_WIDTHS, type Device } from '../../utils/page-editor'
 
 export type BlockMark = 'added' | 'changed' | 'issue'
@@ -171,7 +171,7 @@ function applySeeThroughHeader(doc: Document) {
   doc.documentElement.style.setProperty('--sb-header-h', `${Math.round(over.getBoundingClientRect().height)}px`)
 }
 
-/** Optional block sheets, scoped to this frame. The class stays on when either sheet is needed. */
+/** Optional block sheets, scoped to this frame. The class stays on when a sheet is needed. */
 function injectScopedSheet(doc: Document, attr: string, on: boolean, css: string) {
   const existing = doc.querySelector(`style[${attr}]`)
   if (!on) {
@@ -188,10 +188,14 @@ function applyCanvasBlockCss(doc: Document) {
   const hasCarousel = !!doc.querySelector('.hero-carousel')
   const hasThermometer = !!doc.querySelector('.th')
   const hasPicker = !!doc.querySelector('.ga')
-  doc.documentElement.classList.toggle('sb-canvas', hasCarousel || hasThermometer || hasPicker)
+  const hasDonate = !!doc.querySelector('.donate-preview')
+  const hasRhythm = !!doc.querySelector('.bg-card, .bg-warm')
+  doc.documentElement.classList.toggle('sb-canvas', hasCarousel || hasThermometer || hasPicker || hasDonate || hasRhythm)
   injectScopedSheet(doc, 'data-sb-hero-carousel', hasCarousel, scopedHeroCarouselCss())
   injectScopedSheet(doc, 'data-sb-thermometer', hasThermometer, scopedThermometerCss())
   injectScopedSheet(doc, 'data-sb-picker', hasPicker, scopedPickerCss())
+  injectScopedSheet(doc, 'data-sb-donate-preview', hasDonate, scopedDonatePreviewCss())
+  injectScopedSheet(doc, 'data-sb-rhythm', hasRhythm, scopedRhythmCss())
 }
 
 function onLoad(i: number) {

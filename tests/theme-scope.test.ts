@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { scopeThemeCss, scopedHeroCarouselCss, scopedPickerCss, scopedThermometerCss } from '../app/utils/theme-css'
-import { DEFAULT_THEME_TOKENS, HERO_CAROUSEL_CSS, PICKER_CSS, THEME_CSS, THERMOMETER_CSS, themeCssFromTokens } from '../shared/theme-css'
+import { scopeThemeCss, scopedDonatePreviewCss, scopedHeroCarouselCss, scopedPickerCss, scopedRhythmCss, scopedThermometerCss } from '../app/utils/theme-css'
+import { DEFAULT_THEME_TOKENS, DONATE_PREVIEW_CSS, HERO_CAROUSEL_CSS, PICKER_CSS, RHYTHM_CSS, THEME_CSS, THERMOMETER_CSS, themeCssFromTokens } from '../shared/theme-css'
 
 /** Every rule line is scoped. Blank lines and at-rules are left alone. */
 function unscopedRuleLines(css: string): string[] {
@@ -47,5 +47,19 @@ describe('theme canvas scope', () => {
     expect(scoped).toBe(scopeThemeCss(PICKER_CSS))
     expect(unscopedRuleLines(scoped)).toEqual([])
     expect(scoped).toContain('.sb-canvas .ga')
+  })
+
+  it('scopes the donate preview and section rhythm sheets, with no keyframes', () => {
+    expect(DONATE_PREVIEW_CSS).not.toContain('@keyframes')
+    expect(RHYTHM_CSS).not.toContain('@keyframes')
+    const donate = scopedDonatePreviewCss()
+    const rhythm = scopedRhythmCss()
+    expect(donate).toBe(scopeThemeCss(DONATE_PREVIEW_CSS))
+    expect(rhythm).toBe(scopeThemeCss(RHYTHM_CSS))
+    expect(unscopedRuleLines(donate)).toEqual([])
+    expect(unscopedRuleLines(rhythm)).toEqual([])
+    expect(donate).toContain('.sb-canvas .donate-preview')
+    expect(rhythm).toContain('.sb-canvas .bg-card')
+    expect(rhythm).toContain('.sb-canvas .bg-warm')
   })
 })

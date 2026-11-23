@@ -58,7 +58,7 @@ function rootBlock(tokens: ThemeTokens): string {
 export const THEME_CSS = `${rootBlock(DEFAULT_THEME_TOKENS)}
 *, *::before, *::after { box-sizing:border-box;}
 html { color-scheme:light;}
-body { margin: 0; font-family: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink); background: var(--paper); }
+body{margin:0;font-family: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;font-size:var(--fs-body);line-height:var(--lh-body);color:var(--ink);background:var(--paper);}
 h1, h2, h3, h4 { font-weight:800;letter-spacing:-.02em;}
 img, video { max-width:100%;height:auto;}
 a { color:var(--accent);}
@@ -98,7 +98,7 @@ a { color:var(--accent);}
 .site-logo { display:block;width:auto;height:2.5rem;max-height:2.75rem;max-width:14rem;}
 .site-header-dark { background:var(--ink);color:var(--paper);border-bottom-color:color-mix(in srgb, var(--paper) 20%, transparent);}
 .site-header-dark .nav summary, .site-header-dark .site-title { color:var(--paper);}
-.site-header-dark .site-title { background: transparent; padding: 0; border-radius: 0; box-shadow: none; }
+.site-header-dark .site-title{background:transparent;padding:0;border-radius:0;box-shadow:none;}
 .site-header-dark .nav > a, .site-header-dark .nav > details > summary { color:color-mix(in srgb, var(--paper) 82%, transparent);}
 .site-header-dark .nav:not(.nav-mega):not(.nav-hamburger) details > ul { background:var(--ink);color:var(--paper);border-color:color-mix(in srgb, var(--paper) 20%, transparent);}
 .site-header-dark .nav-hamburger > summary { background:color-mix(in srgb, var(--paper) 22%, transparent);}
@@ -268,9 +268,9 @@ details[open] > summary .nav-chev { transform:rotate(180deg);}
 .before-after figure { margin:0;}
 .trust-groups { display:grid;gap:2rem;}
 .trust-group-label { font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 .75rem;}
-.trust-strip { list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:1.25rem 1.75rem;align-items:flex-start;}
-.trust-item, .trust-link { display:flex;flex-direction:column;align-items:center;gap:.4rem;text-align:center;text-decoration:none;color:inherit;max-width:10rem;}
-.trust-logo, .trust-item picture, .trust-item img { max-height:3.5rem;}
+.trust-strip{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center;}
+.trust-item, .trust-link { display:flex;flex-direction:column;align-items:center;gap:.35rem;text-align:center;text-decoration:none;color:inherit;max-width:9rem;}
+.trust-logo, .trust-item picture, .trust-item img { max-height:2rem;}
 .trust-logo, .trust-item img { filter:grayscale(1);}
 .trust-item:hover .trust-logo, .trust-item:hover img, .trust-item:focus-within .trust-logo, .trust-item:focus-within img { filter:none;}
 .trust-name { font-size:.9rem;font-weight:600;}
@@ -333,22 +333,22 @@ export const FOOTER_COLUMNS_CSS = `
  *  copy stays at the end of a min(70vh, 36rem) row. No leading hero: the header stays solid and in flow.
  *  Layout does not read --sb-header-h or --strip. /header.js may still set them. */
 export const OVER_HERO_CSS = `
-header.site-header-over.js-over { position:sticky;top:0;z-index:50;align-self:start;background:linear-gradient(to bottom, color-mix(in srgb, var(--ink) 60%, transparent), color-mix(in srgb, var(--ink) 0%, transparent));border-bottom:0;transition:background-color .25s, box-shadow .25s;}
-.site-header-over.js-over.is-solid { background:var(--paper);box-shadow:0 .25rem 1rem color-mix(in srgb, var(--ink) 18%, transparent);}
-.site-header-dark.site-header-over.js-over.is-solid { background:var(--ink);}
+header.site-header-over.js-over { position:sticky;top:0;z-index:50;align-self:start;background:linear-gradient(to bottom, color-mix(in srgb, var(--ink) 72%, transparent), color-mix(in srgb, var(--ink) 0%, transparent));border-bottom:0;transition:background-color .25s, box-shadow .25s;}
+.site-header-over.js-over.is-solid{background:var(--paper);box-shadow:0 .25rem 1rem color-mix(in srgb, var(--ink) 18%, transparent);}
+.site-header-dark.site-header-over.js-over.is-solid{background:var(--ink);}
 .site-header-over.js-over:not(.is-solid) .nav a,
 .site-header-over.js-over:not(.is-solid) .nav summary,
 .site-header-over.js-over:not(.is-solid) .util,
-.site-header-over.js-over:not(.is-solid) .nav-hamburger > summary { color: var(--paper); text-shadow: 0 1px 3px color-mix(in srgb, var(--ink) 50%, transparent); }
-.site-header-over.js-over:not(.is-solid) .site-title { background:var(--surface);padding:.3rem .9rem;border-radius:var(--radius-pill);box-shadow:var(--shadow-card);}
-.site-header-dark.site-header-over.js-over:not(.is-solid) .site-title { background: transparent;padding:0;border-radius:0;box-shadow:none;color:var(--paper);text-shadow:0 1px 3px color-mix(in srgb, var(--ink) 50%, transparent);}
-.site-header-over.js-over:not(.is-solid) .cta-btn { border:2px solid color-mix(in srgb, var(--paper) 90%, transparent);box-shadow:0 4px 14px color-mix(in srgb, var(--ink) 20%, transparent);}
-.site-header-over.js-over:has(details[open]) { position:relative;background:var(--paper);box-shadow:0 6px 20px color-mix(in srgb, var(--ink) 12%, transparent);}
-.site-header-dark.site-header-over.js-over:has(details[open]) { background:var(--ink);}
-.site-header-over.js-over:has(details[open]) .nav > a, .site-header-over.js-over:has(details[open]) .nav > details > summary, .site-header-over.js-over:has(details[open]) .nav-panel a, .site-header-over.js-over:has(details[open]) .nav-panel summary { color:var(--ink);text-shadow:none;}
-.site-header-dark.site-header-over.js-over:has(details[open]) .nav > a, .site-header-dark.site-header-over.js-over:has(details[open]) .nav > details > summary { color:var(--paper);}
-.site-header-over.js-over:has(details[open]) .nav details[open] > summary, .site-header-over.js-over:has(details[open]) .nav-panel > a.nav-report { color:var(--accent);}
-.site-header-over.js-over:has(details[open]) .cta-btn { border-color:transparent;box-shadow:none;}
+.site-header-over.js-over:not(.is-solid) .nav-hamburger > summary{color:var(--paper);text-shadow:0 1px 2px color-mix(in srgb,var(--ink) 62%,transparent),0 0 12px #0006;}
+.site-header-over.js-over:not(.is-solid) .site-title{background:var(--surface);padding:.3rem .9rem;border-radius:var(--radius-pill);box-shadow:var(--shadow-card);}
+.site-header-dark.site-header-over.js-over:not(.is-solid) .site-title { background: transparent;padding:0;border-radius:0;box-shadow:none;color:var(--paper);text-shadow:0 1px 2px color-mix(in srgb,var(--ink) 50%,transparent);}
+.site-header-over.js-over:not(.is-solid) .cta-btn{border:2px solid color-mix(in srgb, var(--paper) 90%, transparent);box-shadow:0 4px 14px color-mix(in srgb, var(--ink) 20%, transparent);text-shadow:0 1px 2px #0007;}
+.site-header-over.js-over:has(details[open]){position:relative;background:var(--paper);box-shadow:0 6px 20px color-mix(in srgb, var(--ink) 12%, transparent);}
+.site-header-dark.site-header-over.js-over:has(details[open]){background:var(--ink);}
+.site-header-over.js-over:has(details[open]) .nav > a, .site-header-over.js-over:has(details[open]) .nav > details > summary, .site-header-over.js-over:has(details[open]) .nav-panel a, .site-header-over.js-over:has(details[open]) .nav-panel summary{color:var(--ink);text-shadow:none;}
+.site-header-dark.site-header-over.js-over:has(details[open]) .nav > a, .site-header-dark.site-header-over.js-over:has(details[open]) .nav > details > summary{color:var(--paper);}
+.site-header-over.js-over:has(details[open]) .nav details[open] > summary, .site-header-over.js-over:has(details[open]) .nav-panel > a.nav-report{color:var(--accent);}
+.site-header-over.js-over:has(details[open]) .cta-btn{border-color:transparent;box-shadow:none;text-shadow:none;}
 @media (prefers-reduced-motion: reduce){.site-header-over.js-over{transition:none}}
 .over-frame { display:grid;}
 .over-frame > header.site-header-over.js-over,.over-frame > main { grid-area:1/1;min-width:0;}
@@ -507,6 +507,30 @@ ${pickerWhen('focus-visible', '.ga-list .ga-l:nth-of-type')} { outline:3px solid
 `
 
 
+
+/** White or warm section fill. Appended only when a block sets background to card or warm, after the theme so it wins over .donate. */
+export const RHYTHM_CSS = `
+.bg-card{background:#fff}
+.bg-warm{background:linear-gradient(180deg, var(--paper), var(--band) 46%, color-mix(in srgb, var(--highlight) 32%, var(--band)))}
+`
+
+/** Static donation form picture. Appended only when a page has a DonationEmbed. Hidden once the provider script loads. */
+export const DONATE_PREVIEW_CSS = `
+.is-provider .donate-preview{display:none}
+.donate:has(.donate-preview){text-align:center;padding-block:5rem}
+.donate h2{font-size:2.4rem}
+.donate-box:has(.donate-preview){max-width:26rem;margin:0 auto;background:#fff}
+.donate-preview{display:grid;gap:12px}
+.dp-tabs,.dp-chips{display:grid;gap:8px}
+.dp-tabs{grid-template-columns:1fr 1fr}
+.dp-chips{grid-template-columns:repeat(4,1fr)}
+.dp-tab,.dp-chip,.dp-amount,.dp-other{border:2px solid var(--line);border-radius:10px;font-weight:800;padding:.5rem .2rem}
+.dp-tab,.dp-chip.is-on,.dp-amount{color:var(--accent);border-color:var(--accent)}
+.dp-amount{margin:0;border-color:var(--highlight);font-size:3rem;line-height:1}
+.dp-tab.is-on,.donate-preview button{background:var(--accent);color:var(--accent-ink)}
+.dp-other,.dp-total{display:flex;justify-content:space-between;margin:0}
+.donate-preview button{width:100%;min-height:52px;border:0;border-radius:99px;font-weight:800;opacity:1}
+`
 
 /** Build public CSS from a brand pack, keeping the default rules and swapping tokens and fonts.
  *  Replaces the whole :root block, including --highlight and the derived variables. */

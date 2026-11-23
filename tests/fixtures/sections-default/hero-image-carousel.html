@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'sha256-/2cizcMyMh/pP1RDjD4LyP40nut198Eoq/J3lMl0Xb8='; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'sha256-2+IR2PeXOkDPpWbqcRWdC3m5GcKY5/HYOVdken3KcHo='; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none';">
   <title>Sections | Example charity</title>
   
   
@@ -45,7 +45,7 @@
 }
 *, *::before, *::after { box-sizing:border-box;}
 html { color-scheme:light;}
-body { margin: 0; font-family: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink); background: var(--paper); }
+body{margin:0;font-family: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;font-size:var(--fs-body);line-height:var(--lh-body);color:var(--ink);background:var(--paper);}
 h1, h2, h3, h4 { font-weight:800;letter-spacing:-.02em;}
 img, video { max-width:100%;height:auto;}
 a { color:var(--accent);}
@@ -85,7 +85,7 @@ a { color:var(--accent);}
 .site-logo { display:block;width:auto;height:2.5rem;max-height:2.75rem;max-width:14rem;}
 .site-header-dark { background:var(--ink);color:var(--paper);border-bottom-color:color-mix(in srgb, var(--paper) 20%, transparent);}
 .site-header-dark .nav summary, .site-header-dark .site-title { color:var(--paper);}
-.site-header-dark .site-title { background: transparent; padding: 0; border-radius: 0; box-shadow: none; }
+.site-header-dark .site-title{background:transparent;padding:0;border-radius:0;box-shadow:none;}
 .site-header-dark .nav > a, .site-header-dark .nav > details > summary { color:color-mix(in srgb, var(--paper) 82%, transparent);}
 .site-header-dark .nav:not(.nav-mega):not(.nav-hamburger) details > ul { background:var(--ink);color:var(--paper);border-color:color-mix(in srgb, var(--paper) 20%, transparent);}
 .site-header-dark .nav-hamburger > summary { background:color-mix(in srgb, var(--paper) 22%, transparent);}
@@ -255,9 +255,9 @@ details[open] > summary .nav-chev { transform:rotate(180deg);}
 .before-after figure { margin:0;}
 .trust-groups { display:grid;gap:2rem;}
 .trust-group-label { font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 .75rem;}
-.trust-strip { list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:1.25rem 1.75rem;align-items:flex-start;}
-.trust-item, .trust-link { display:flex;flex-direction:column;align-items:center;gap:.4rem;text-align:center;text-decoration:none;color:inherit;max-width:10rem;}
-.trust-logo, .trust-item picture, .trust-item img { max-height:3.5rem;}
+.trust-strip{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center;}
+.trust-item, .trust-link { display:flex;flex-direction:column;align-items:center;gap:.35rem;text-align:center;text-decoration:none;color:inherit;max-width:9rem;}
+.trust-logo, .trust-item picture, .trust-item img { max-height:2rem;}
 .trust-logo, .trust-item img { filter:grayscale(1);}
 .trust-item:hover .trust-logo, .trust-item:hover img, .trust-item:focus-within .trust-logo, .trust-item:focus-within img { filter:none;}
 .trust-name { font-size:.9rem;font-weight:600;}

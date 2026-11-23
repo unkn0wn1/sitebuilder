@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { SAMPLE_MEDIA_ID } from '../shared/blocks/library'
 import { BUNDLE_ID, THEME_CSS, renderPageHtml } from '../server/services/render'
-import { THERMOMETER_CSS } from '../shared/theme-css'
+import { DONATE_PREVIEW_CSS, THERMOMETER_CSS } from '../shared/theme-css'
 import { HERO_MODE_CASES, SECTION_CASES, SECTION_NOW, SECTION_RENDER } from './fixtures/sections-default/cases'
 import type { PageDoc } from '../shared/page'
 
@@ -31,7 +31,7 @@ describe('starter sections match the golden HTML', () => {
     const custom = SECTION_CASES.find((c) => c.name === 'all-blocks-custom-accent')!
     const stockHtml = await renderPageHtml({ ...SECTION_RENDER, doc: stock.doc, site: stock.site, now: SECTION_NOW })
     const customHtml = await renderPageHtml({ ...SECTION_RENDER, doc: custom.doc, site: custom.site, now: SECTION_NOW })
-    expect(stockHtml.html).toContain('<style>' + THEME_CSS + THERMOMETER_CSS + '</style>')
+    expect(stockHtml.html).toContain('<style>' + THEME_CSS + THERMOMETER_CSS + DONATE_PREVIEW_CSS + '</style>')
     expect(customHtml.html).toContain('--accent: #113399;')
     expect(customHtml.html).not.toContain('--accent: #b5471d;')
     expect(bodyOf(customHtml.html)).toBe(bodyOf(stockHtml.html))

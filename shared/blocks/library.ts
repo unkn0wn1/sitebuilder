@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { richTextDoc, richTextFromParagraphs } from '../richtext'
 import { safeHref } from '../richtext'
 import { sanitizeBadgeHtml } from '../badge-html'
-import { defineBlock, embedId, imageRef, linkRef, mediaId, text, tone } from './define'
+import { defineBlock, embedId, imageRef, linkRef, mediaId, sectionBackground, text, tone } from './define'
 import { INSTANT_PATTERN } from '../thermometer'
 
 export const SAMPLE_MEDIA_ID = 'med_00000000000000000000000001'
@@ -160,7 +160,7 @@ export const RichText = defineBlock({
       props: { content: richTextFromParagraphs(['Give £10, £25 or £50. We have already raised £1 million this month.']) },
     },
   },
-  props: z.object({ content: richTextDoc }).strict(),
+  props: z.object({ content: richTextDoc, background: sectionBackground }).strict(),
   sample: { content: richTextFromParagraphs(['Every night this winter, injured street animals need a warm, safe place to recover.']) },
 })
 
@@ -190,6 +190,7 @@ export const TextAndImage = defineBlock({
       content: richTextDoc,
       image: imageRef,
       layout: z.enum(['image-left', 'image-right']).default('image-right'),
+      background: sectionBackground,
     })
     .strict(),
   imageSlots: { image: { width: 960, height: 720 } },
@@ -217,7 +218,7 @@ export const Image = defineBlock({
       props: { image: { media: SAMPLE_MEDIA_ID }, caption: '' },
     },
   },
-  props: z.object({ image: imageRef, caption: text({ max: 200 }) }).strict(),
+  props: z.object({ image: imageRef, caption: text({ max: 200 }), background: sectionBackground }).strict(),
   imageSlots: { image: { width: 1280, height: 853 } },
   sample: { image: sampleImage, caption: 'Recovering in the hospital.' },
 })
@@ -242,7 +243,7 @@ export const Gallery = defineBlock({
       props: { heading: 'Before and after', images: [sampleImage] },
     },
   },
-  props: z.object({ heading: text({ max: 80 }), images: z.array(imageRef).min(2, { message: 'Add at least 2 photos.' }).max(24) }).strict(),
+  props: z.object({ heading: text({ max: 80 }), images: z.array(imageRef).min(2, { message: 'Add at least 2 photos.' }).max(24), background: sectionBackground }).strict(),
   imageSlots: { images: { width: 800, height: 800 } },
   headingProps: ['heading'],
   sample: { heading: 'Rescued this month', images: [sampleImage, sampleImage] },
@@ -268,7 +269,7 @@ export const Quote = defineBlock({
       props: { text: 'This charity is the best I have ever supported.', attribution: 'A grateful donor' },
     },
   },
-  props: z.object({ text: text({ max: 400, required: true }), attribution: text({ max: 80 }) }).strict(),
+  props: z.object({ text: text({ max: 400, required: true }), attribution: text({ max: 80 }), background: sectionBackground }).strict(),
   sample: { text: 'They gave him a second chance.', attribution: 'A volunteer' },
 })
 
@@ -299,6 +300,7 @@ export const Stats = defineBlock({
         .array(z.object({ value: text({ max: 12, required: true }), label: text({ max: 60, required: true }) }).strict())
         .min(1)
         .max(4, { message: 'Show at most 4 numbers.' }),
+      background: sectionBackground,
     })
     .strict(),
   headingProps: ['heading'],
@@ -332,6 +334,7 @@ export const CardGrid = defineBlock({
         .array(z.object({ title: text({ max: 80, required: true }), text: text({ max: 240 }), image: imageRef.optional(), link: linkRef.optional() }).strict())
         .min(1)
         .max(12),
+      background: sectionBackground,
     })
     .strict(),
   imageSlots: { 'cards.image': { width: 640, height: 480 } },
@@ -388,6 +391,7 @@ export const FAQ = defineBlock({
     .object({
       heading: text({ max: 80 }),
       items: z.array(z.object({ question: text({ max: 160, required: true }), answer: richTextDoc }).strict()).min(1).max(20),
+      background: sectionBackground,
     })
     .strict(),
   headingProps: ['heading'],
@@ -419,6 +423,7 @@ export const DonationEmbed = defineBlock({
       embed: embedId,
       heading: text({ max: 80 }),
       anchor: z.string().regex(/^[a-z][a-z0-9-]{0,40}$/, { message: 'Use lower-case letters, numbers and dashes.' }).default('donate'),
+      background: sectionBackground,
     })
     .strict(),
   headingProps: ['heading'],
@@ -446,7 +451,7 @@ export const Embed = defineBlock({
       props: { title: 'Donation form' },
     },
   },
-  props: z.object({ embed: embedId, title: text({ max: 120, required: true }) }).strict(),
+  props: z.object({ embed: embedId, title: text({ max: 120, required: true }), background: sectionBackground }).strict(),
   clientJs: true,
   sample: { embed: SAMPLE_EMBED_ID, title: 'Volunteer sign-up form' },
 })
@@ -504,6 +509,7 @@ export const ImpactTiers = defineBlock({
         .max(8, { message: 'Show at most 8 amounts.' }),
       otherAmount: text({ max: 80 }),
       cta: linkRef.optional(),
+      background: sectionBackground,
     })
     .strict(),
   imageSlots: { 'items.image': { width: 640, height: 480 } },
@@ -560,6 +566,7 @@ export const DonationProgress = defineBlock({
       endDate: isoDate.optional(),
       matchLine: text({ max: 160 }),
       cta: linkRef.optional(),
+      background: sectionBackground,
     })
     .strict(),
   headingProps: ['heading'],
@@ -666,6 +673,7 @@ export const StoryBeforeAfter = defineBlock({
       after: imageRef,
       afterCaption: text({ max: 200 }),
       cta: linkRef.optional(),
+      background: sectionBackground,
     })
     .strict(),
   imageSlots: { before: { width: 960, height: 720 }, after: { width: 960, height: 720 } },
@@ -740,15 +748,15 @@ export const TrustStrip = defineBlock({
         )
         .min(1, { message: 'Add at least one mark.' })
         .max(8, { message: 'Show at most 8 marks.' }),
+      background: sectionBackground,
     })
     .strict(),
   headingProps: ['heading'],
   sample: {
-    heading: 'Give with confidence',
-    intro: 'Quiet marks, grouped so regulator ratings stay separate from travel recommendations.',
+    heading: 'Trusted by donors',
     items: [
-      { name: 'Candid Platinum', logo: sampleImage, note: 'Sample layout — use the organisation’s real seal.', group: 'Rated by' },
-      { name: 'Charity Navigator', logo: sampleImage, note: 'Sample layout — use the organisation’s real rating.', group: 'Rated by' },
+      { name: 'Candid Platinum', logo: sampleImage },
+      { name: 'Charity Navigator', logo: sampleImage },
     ],
   },
 })
@@ -816,6 +824,7 @@ export const MatchThermometer = defineBlock({
       countdownHeading: text({ max: 80 }),
       cta: linkRef.optional(),
       note: text({ max: 160 }),
+      background: sectionBackground,
     })
     .strict(),
   headingProps: ['heading'],

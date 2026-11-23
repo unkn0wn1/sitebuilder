@@ -57,9 +57,8 @@ function loadVirtuous(root) {
   if (root.dataset.orgId) script.dataset.orgId = root.dataset.orgId;
   script.dataset.isGiving = "true";
   script.dataset.dependencies = "[]";
-  script.onerror = function () {
-    var fallback = root.querySelector(".embed-fallback");
-    if (fallback instanceof HTMLElement) fallback.hidden = false;
+  script.onload = function () {
+    root.classList.add("is-provider");
   };
   root.append(script);
 }
@@ -67,9 +66,10 @@ function loadVirtuous(root) {
 function remountVirtuous(root) {
   if (!(root instanceof HTMLElement)) return;
   delete root.dataset.loaded;
+  root.classList.remove("is-provider");
   for (var node of Array.from(root.children)) {
     if (!(node instanceof HTMLElement)) continue;
-    if (node.classList.contains("embed-fallback") || node.hasAttribute("data-donate-hint")) continue;
+    if (node.classList.contains("embed-fallback") || node.classList.contains("donate-preview") || node.hasAttribute("data-donate-hint")) continue;
     node.remove();
   }
   loadVirtuous(root);
