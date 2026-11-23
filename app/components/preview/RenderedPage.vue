@@ -7,7 +7,7 @@ import { api, ApiError } from '../../utils/api'
 import { canvasScale } from '../../utils/format'
 import { mediaVersion } from '../../utils/media'
 import { shouldInjectLiveCss } from '#shared/css/live'
-import { scopedHeroCarouselCss } from '../../utils/theme-css'
+import { scopedHeroCarouselCss, scopedThermometerCss } from '../../utils/theme-css'
 import { DEVICE_WIDTHS, type Device } from '../../utils/page-editor'
 
 export type BlockMark = 'added' | 'changed' | 'issue'
@@ -171,19 +171,25 @@ function applySeeThroughHeader(doc: Document) {
   doc.documentElement.style.setProperty('--sb-header-h', `${Math.round(over.getBoundingClientRect().height)}px`)
 }
 
-/** Slides sit in the stage only when the carousel sheet is present. Scope it to this frame. */
-function applyCanvasCarouselCss(doc: Document) {
-  const hasCarousel = !!doc.querySelector('.hero-carousel')
-  doc.documentElement.classList.toggle('sb-canvas', hasCarousel)
-  const existing = doc.querySelector('style[data-sb-hero-carousel]')
-  if (!hasCarousel) {
+/** Optional block sheets, scoped to this frame. The class stays on when either sheet is needed. */
+function injectScopedSheet(doc: Document, attr: string, on: boolean, css: string) {
+  const existing = doc.querySelector(`style[${attr}]`)
+  if (!on) {
     existing?.remove()
     return
   }
   const style = (existing as HTMLStyleElement | null) ?? doc.createElement('style')
-  style.setAttribute('data-sb-hero-carousel', '')
-  style.textContent = scopedHeroCarouselCss()
+  style.setAttribute(attr, '')
+  style.textContent = css
   if (!style.parentNode) doc.head.appendChild(style)
+}
+
+function applyCanvasBlockCss(doc: Document) {
+  const hasCarousel = !!doc.querySelector('.hero-carousel')
+  const hasThermometer = !!doc.querySelector('.th')
+  doc.documentElement.classList.toggle('sb-canvas', hasCarousel || hasThermometer)
+  injectScopedSheet(doc, 'data-sb-hero-carousel', hasCarousel, scopedHeroCarouselCss())
+  injectScopedSheet(doc, 'data-sb-thermometer', hasThermometer, scopedThermometerCss())
 }
 
 function onLoad(i: number) {
@@ -191,7 +197,7 @@ function onLoad(i: number) {
   const doc = docOf(i)
   if (!frame?.srcdoc || !doc?.body) return
   applySeeThroughHeader(doc)
-  applyCanvasCarouselCss(doc)
+  applyCanvasBlockCss(doc)
   const style = doc.createElement('style')
   style.textContent = STYLE
   doc.head.appendChild(style)

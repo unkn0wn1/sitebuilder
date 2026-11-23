@@ -104,7 +104,7 @@ describe('template library updates', () => {
       requiredBlocks: [],
       startingBlocks: [],
     })
-    expect(broad.allowedBlocks).toEqual(expect.arrayContaining(['ImpactTiers', 'DonationProgress', 'MatchBanner', 'StoryBeforeAfter', 'TrustStrip']))
+    expect(broad.allowedBlocks).toEqual(expect.arrayContaining(['ImpactTiers', 'DonationProgress', 'MatchBanner', 'MatchThermometer', 'StoryBeforeAfter', 'TrustStrip']))
     const story = withLibraryBlockUpdates({
       schemaVersion: 1,
       label: 'Story',
@@ -114,5 +114,6 @@ describe('template library updates', () => {
     })
     expect(story.allowedBlocks).toEqual(expect.arrayContaining(['StoryBeforeAfter', 'TrustStrip']))
     expect(story.allowedBlocks).not.toContain('ImpactTiers')
+    expect(story.allowedBlocks).not.toContain('MatchThermometer')
   })
 })

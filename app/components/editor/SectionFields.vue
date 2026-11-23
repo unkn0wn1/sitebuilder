@@ -90,6 +90,20 @@ function textValue(path: string): string {
   return typeof value === 'string' ? value : ''
 }
 
+function numberValue(path: string): string {
+  const value = get(path)
+  return typeof value === 'number' && Number.isFinite(value) ? String(value) : ''
+}
+
+function setNumber(path: string, raw: string) {
+  if (raw.trim() === '') {
+    set(path, undefined)
+    return
+  }
+  const n = Number(raw)
+  set(path, Number.isFinite(n) ? n : undefined)
+}
+
 function richValue(path: string): string {
   const value = get(path)
   if (value && typeof value === 'object' && 'content' in (value as object)) return richTextToPlain(value as RichTextDoc)
@@ -289,6 +303,21 @@ function openCrop(field: FieldSpec) {
         {{ field.label }}
       </label>
       <FieldErrors v-if="field.kind === 'boolean'" :issues="issues" :path="issuePath(field.path)" />
+
+      <label v-else-if="field.kind === 'number'" class="block text-sm text-gray-800 dark:text-gray-200">
+        <span class="mb-1 block font-medium">{{ field.label }}</span>
+        <input
+          class="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+          type="number"
+          inputmode="decimal"
+          min="0"
+          :step="field.integer ? 1 : 'any'"
+          :required="!field.optional"
+          :value="numberValue(field.path)"
+          @input="setNumber(field.path, ($event.target as HTMLInputElement).value)"
+        >
+      </label>
+      <FieldErrors v-if="field.kind === 'number'" :issues="issues" :path="issuePath(field.path)" />
 
       <div v-else-if="field.kind === 'link'" class="rounded-md border border-gray-200 dark:border-gray-700 p-3">
         <p class="mb-2 text-sm font-medium text-gray-800 dark:text-gray-200">{{ field.label }}</p>

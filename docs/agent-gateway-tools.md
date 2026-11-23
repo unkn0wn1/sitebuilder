@@ -532,7 +532,7 @@ Change props of one section, for example a heading, button or list of cards. Set
 Use when: edit_text cannot do it (not a plain replacement): changing a card list, a button, an image alt text, a layout.
 Not when: A simple wording change: edit_text. A link: remove_link or replace_link. Custom CSS: use set_block_css. A css key in props or unset is refused. Anything about donation forms: never allowed.
 First: get_page for the block_id and current props. list_components for the props_schema if the shape is unclear.
-Effect: Changes the section. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish). Sections that show money (ImpactTiers, DonationProgress, MatchBanner) can be drafted but always need a person to approve.
+Effect: Changes the section. It is saved as a DRAFT inside a change. Nothing on the live site changes until the change is published (publish_change) or approved by a person (request_publish). Sections that show money (ImpactTiers, DonationProgress, MatchBanner, MatchThermometer) can be drafted but always need a person to approve.
 Who: Draft tokens. Rule action: "edit_sections".
 Returns: The change reply (see REPLIES in the server instructions) plus `result` (what this call did).
 Errors: never_list: This section or prop is protected. Tell the person it must be done by hand. validation_failed: The new props are not valid for this section. `error.fields` says which. Fix and call again.

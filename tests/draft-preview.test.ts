@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { previewAssetBody, previewCsp, previewHtml, renderDraftPreview } from '../server/services/draft-preview'
-import { HERO_JS } from '../server/theme/default'
+import { HERO_JS, THERMOMETER_JS } from '../server/theme/default'
 import { emptyPageDoc } from '../shared/page'
 import { richTextFromParagraphs } from '../shared/richtext'
 import { setup } from './helpers'
@@ -53,16 +53,19 @@ describe('editor and approval previews use the publish renderer', () => {
 
   it('points header, embed and hero scripts at the builder asset route', () => {
     const html = previewHtml(
-      '<script src="/header.js" defer></script>\n<script type="module" src="/embed.js"></script>\n<script src="/hero.js" defer></script>',
+      '<script src="/header.js" defer></script>\n<script type="module" src="/embed.js"></script>\n<script src="/hero.js" defer></script>\n<script src="/thermometer.js" defer></script>',
       "default-src 'self'; script-src 'self';",
     )
     expect(html).toContain('src="/api/v1/preview/assets/header.js"')
     expect(html).toContain('src="/api/v1/preview/assets/embed.js"')
     expect(html).toContain('src="/api/v1/preview/assets/hero.js"')
+    expect(html).toContain('src="/api/v1/preview/assets/thermometer.js"')
     expect(html).not.toContain('src="/header.js"')
     expect(html).not.toContain('src="/embed.js"')
     expect(html).not.toContain('src="/hero.js"')
+    expect(html).not.toContain('src="/thermometer.js"')
     expect(previewAssetBody('hero.js')).toBe(HERO_JS)
+    expect(previewAssetBody('thermometer.js')).toBe(THERMOMETER_JS)
     expect(previewAssetBody('missing.js')).toBeUndefined()
   })
 

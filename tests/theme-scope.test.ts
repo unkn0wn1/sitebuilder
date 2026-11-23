@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { scopeThemeCss, scopedHeroCarouselCss } from '../app/utils/theme-css'
-import { DEFAULT_THEME_TOKENS, HERO_CAROUSEL_CSS, THEME_CSS, themeCssFromTokens } from '../shared/theme-css'
+import { scopeThemeCss, scopedHeroCarouselCss, scopedThermometerCss } from '../app/utils/theme-css'
+import { DEFAULT_THEME_TOKENS, HERO_CAROUSEL_CSS, THEME_CSS, THERMOMETER_CSS, themeCssFromTokens } from '../shared/theme-css'
 
 /** Every rule line is scoped. Blank lines and at-rules are left alone. */
 function unscopedRuleLines(css: string): string[] {
@@ -30,5 +30,14 @@ describe('theme canvas scope', () => {
     expect(scoped).not.toContain('@keyframes')
     expect(unscopedRuleLines(scoped)).toEqual([])
     expect(scoped).toContain('.sb-canvas')
+  })
+
+  it('scopes the thermometer sheet, with no keyframes or animation', () => {
+    expect(THERMOMETER_CSS).not.toContain('@keyframes')
+    expect(THERMOMETER_CSS).not.toContain('animation')
+    const scoped = scopedThermometerCss()
+    expect(scoped).toBe(scopeThemeCss(THERMOMETER_CSS))
+    expect(unscopedRuleLines(scoped)).toEqual([])
+    expect(scoped).toContain('.sb-canvas .th')
   })
 })

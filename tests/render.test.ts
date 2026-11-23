@@ -16,6 +16,7 @@ import { approveReview, submitPage } from '../server/services/reviews'
 import {
   EMBED_JS,
   HERO_JS,
+  THERMOMETER_JS,
   STYLE_HASH,
   THEME_CSS,
   escapeHtml,
@@ -32,6 +33,7 @@ import {
   type SiteRenderContext,
 } from '../server/services/render'
 import { CssRejected } from '../shared/css/sanitize'
+import { MatchThermometer } from '../shared/blocks/library'
 import { emptyPageDoc } from '../shared/page'
 import { defaultBrandDoc, validateBrandDoc } from '../shared/brand'
 import { editBrand, getBrand, submitBrand } from '../server/services/brand'
@@ -661,7 +663,7 @@ describe('custom CSS in rendered HTML', () => {
     expect(styleText(again.html)).toBe(styleText(bare.html))
   })
 
-  it('refuses a style sheet over 65,536 bytes', async () => {
+  it('refuses a style sheet over the page style cap', async () => {
     const doc = emptyPageDoc('Big')
     const rule = `.a{${'color:#112233;'.repeat(500)}}`
     expect(Buffer.byteLength(rule, 'utf8')).toBeLessThanOrEqual(8192)
@@ -672,7 +674,7 @@ describe('custom CSS in rendered HTML', () => {
       props: { heading: 'Big', image: IMG },
       css: rule,
     }))
-    await expect(renderPageHtml({ doc, pageId: 'pg_big', versionId: 'ver_1', path: '/big', site: site() })).rejects.toThrow('This page CSS is over the 65,536 byte limit.')
+    await expect(renderPageHtml({ doc, pageId: 'pg_big', versionId: 'ver_1', path: '/big', site: site() })).rejects.toThrow('This page CSS is over the 75,776 byte limit.')
   })
 
   it('throws on hostile stored CSS and does not return HTML', async () => {
@@ -852,6 +854,51 @@ describe('filesystem releases and Cloudflare purge', () => {
     const kept = join(root, 'releases', release3, 'hero.js')
     expect(existsSync(kept)).toBe(true)
     expect(statSync(kept).ino).toBe(statSync(heroFile).ino)
+  })
+
+  it('writes thermometer.js when a page has the block and keeps the file when a later release drops it', async () => {
+    const s = setup()
+    s.ctx.db.update(sites).set({ primaryDomain: 'example.org' }).where(eq(sites.id, s.ctx.siteId)).run()
+    const root = mkdtempSync(join(tmpdir(), 'sb-thermo-js-'))
+    const writer = createFileReleaseWriter(root, { keep: 10 })
+    const handlers = {
+      publish: createPublishHandler(writer),
+      send_email: { run: () => ({ skipped: true }) },
+      purge_cache: { run: () => ({ skipped: true }) },
+    }
+
+    await publishStandard(s, 'Home', 'Keep them warm')
+    while (await runJobsOnce(s.ctx, handlers)) {}
+    const release1 = currentRelease(s.ctx)!.id
+    expect(existsSync(join(root, 'releases', release1, 'thermometer.js'))).toBe(false)
+
+    const { page } = createPage(s.ctx, s.editor, { title: 'Match', template: 'standard' })
+    applyPageOps(s.ctx, s.editor, page.id, 0, [
+      { op: 'add_block', block: { id: 'b_thermo01', type: 'MatchThermometer', props: MatchThermometer.sample as Record<string, unknown> } },
+    ])
+    const sub = submitPage(s.ctx, s.editor, page.id)
+    approveReview(s.ctx, s.approver, sub.reviewId, { versionId: sub.versionId })
+    while (await runJobsOnce(s.ctx, handlers)) {}
+    const release2 = currentRelease(s.ctx)!.id
+    const storyPath = getPage(s.ctx, page.id).page.path
+    const storyHtml = readFileSync(join(root, 'releases', release2, htmlPathFor(storyPath)), 'utf8')
+    expect(storyHtml).toContain('src="/thermometer.js"')
+    const thermoFile = join(root, 'releases', release2, 'thermometer.js')
+    expect(readFileSync(thermoFile, 'utf8')).toBe(THERMOMETER_JS)
+
+    applyPageOps(s.ctx, s.editor, page.id, getPage(s.ctx, page.id).revision, [
+      { op: 'remove_block', blockId: 'b_thermo01' },
+      { op: 'add_block', block: { id: 'b_rich0001', type: 'RichText', props: { content: richTextFromParagraphs(['Still here']) } } },
+    ])
+    const dropped = submitPage(s.ctx, s.editor, page.id)
+    approveReview(s.ctx, s.approver, dropped.reviewId, { versionId: dropped.versionId })
+    while (await runJobsOnce(s.ctx, handlers)) {}
+    const release3 = currentRelease(s.ctx)!.id
+    const droppedHtml = readFileSync(join(root, 'releases', release3, htmlPathFor(storyPath)), 'utf8')
+    expect(droppedHtml).not.toContain('src="/thermometer.js"')
+    const kept = join(root, 'releases', release3, 'thermometer.js')
+    expect(existsSync(kept)).toBe(true)
+    expect(statSync(kept).ino).toBe(statSync(thermoFile).ino)
   })
 
   it('re-renders live pages that link to a page when its address, title or live state changes', async () => {

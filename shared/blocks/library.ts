@@ -5,6 +5,7 @@ import { richTextDoc, richTextFromParagraphs } from '../richtext'
 import { safeHref } from '../richtext'
 import { sanitizeBadgeHtml } from '../badge-html'
 import { defineBlock, embedId, imageRef, linkRef, mediaId, text, tone } from './define'
+import { INSTANT_PATTERN } from '../thermometer'
 
 export const SAMPLE_MEDIA_ID = 'med_00000000000000000000000001'
 export const SAMPLE_VIDEO_ID = 'med_00000000000000000000000002'
@@ -14,6 +15,16 @@ const sampleImage = { media: SAMPLE_MEDIA_ID, alt: 'A rescued puppy wrapped in a
 
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: 'Use a date like 2026-12-01.' })
+const isoInstant = z.string().regex(INSTANT_PATTERN, { message: 'Use a date and time like 2026-12-02T04:59:59Z.' })
+const moneyAmount = z
+  .number()
+  .nonnegative({ message: 'Use a number that is zero or more.' })
+  .max(1_000_000_000, { message: 'That amount is too large.' })
+const donorCount = z
+  .number()
+  .int({ message: 'Use a whole number of donors.' })
+  .nonnegative({ message: 'Use a number that is zero or more.' })
+  .max(100_000_000, { message: 'That number of donors is too large.' })
 
 const badgeHtml = z
   .string()
@@ -740,4 +751,88 @@ export const TrustStrip = defineBlock({
   },
 })
 
-export const STARTER_BLOCKS = [Hero, VideoHero, RichText, TextAndImage, Image, Gallery, Quote, Stats, CardGrid, CallToAction, FAQ, DonationEmbed, Embed, ImpactTiers, DonationProgress, MatchBanner, StoryBeforeAfter, TrustStrip]
+export const MatchThermometer = defineBlock({
+  type: 'MatchThermometer',
+  version: 1,
+  label: 'Match thermometer',
+  category: 'Calls to action',
+  clientJs: true,
+  ai: {
+    purpose: 'A match-fund thermometer: gifts raised, the match, a goal, and a countdown.',
+    useWhen: 'A campaign has a real goal, a match cap, and a deadline, or you can mark the figures as examples to replace.',
+    pairsWith: ['DonationEmbed', 'ImpactTiers', 'MatchBanner', 'CallToAction'],
+    avoidWhen: 'There is no match and no goal. Never present sample totals as live figures.',
+    fields: 'eyebrow, heading, intro, currency, goal, raised, matched, donors, matchCap, optional matchUsed (otherwise the smaller of matched and matchCap), endsAt as an ISO instant, endLabel, optional countdownHeading, cta, optional note.',
+    good: {
+      note: 'The appeal sample figures, with a note that they must be replaced with the real totals before review.',
+      props: {
+        eyebrow: 'Giving Tuesday 2026',
+        heading: 'Every gift doubled for street animals',
+        intro: 'Until the match fund runs out, every dollar you give is matched. Watch the thermometer fill as the community comes together.',
+        currency: '$',
+        goal: 60000,
+        raised: 14400,
+        matched: 14400,
+        donors: 412,
+        matchCap: 20000,
+        endsAt: '2026-12-02T04:59:59.000Z',
+        endLabel: 'Tuesday 1 Dec 2026, 11:59 pm US Eastern',
+        countdownHeading: 'Giving Tuesday ends in',
+        cta: { label: 'Donate: double your gift', href: '#donate' },
+        note: 'Your $50 becomes $100 for injured street animals.',
+      },
+    },
+    bad: {
+      note: 'Invented totals presented as if they were live, with no sign they are examples.',
+      props: {
+        heading: 'We have already raised this',
+        goal: 1000000,
+        raised: 999999,
+        matched: 999999,
+        donors: 50000,
+        matchCap: 1000000,
+        endsAt: '2099-01-01T00:00:00Z',
+        endLabel: 'Forever',
+        cta: { label: 'Give', href: '#donate' },
+      },
+    },
+  },
+  props: z
+    .object({
+      eyebrow: text({ max: 40 }),
+      heading: text({ max: 80 }),
+      intro: text({ max: 240 }),
+      currency: z.string().trim().max(4, { message: 'Keep this under 4 characters.' }).default('$'),
+      goal: moneyAmount,
+      raised: moneyAmount,
+      matched: moneyAmount,
+      donors: donorCount,
+      matchCap: moneyAmount,
+      matchUsed: moneyAmount.optional(),
+      endsAt: isoInstant,
+      endLabel: text({ max: 120, required: true }),
+      countdownHeading: text({ max: 80 }),
+      cta: linkRef.optional(),
+      note: text({ max: 160 }),
+    })
+    .strict(),
+  headingProps: ['heading'],
+  sample: {
+    eyebrow: 'Giving Tuesday 2026',
+    heading: 'Every gift doubled for street animals',
+    intro: 'Until the match fund runs out, every dollar you give is matched. Watch the thermometer fill as the community comes together.',
+    currency: '$',
+    goal: 60000,
+    raised: 14400,
+    matched: 14400,
+    donors: 412,
+    matchCap: 20000,
+    endsAt: '2026-12-02T04:59:59.000Z',
+    endLabel: 'Tuesday 1 Dec 2026, 11:59 pm US Eastern',
+    countdownHeading: 'Giving Tuesday ends in',
+    cta: { label: 'Donate: double your gift', href: '#donate' },
+    note: 'Your $50 becomes $100 for injured street animals.',
+  },
+})
+
+export const STARTER_BLOCKS = [Hero, VideoHero, RichText, TextAndImage, Image, Gallery, Quote, Stats, CardGrid, CallToAction, FAQ, DonationEmbed, Embed, ImpactTiers, DonationProgress, MatchBanner, MatchThermometer, StoryBeforeAfter, TrustStrip]

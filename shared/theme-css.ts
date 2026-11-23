@@ -343,6 +343,71 @@ export const HERO_CAROUSEL_CSS = `
 @media (prefers-reduced-motion: reduce) { .hero-carousel :is(.hero-prev, .hero-next, .hero-pause), .hero-carousel .hero-dot::after { transition: none; } }
 `
 
+/** Match thermometer card. Appended only when a page has a MatchThermometer block. No animation. */
+export const THERMOMETER_CSS = `
+.th { display:grid;gap:20px;padding:20px;grid-template-areas:"hd" "gauge" "info";background:#fff;border:1px solid var(--line);border-radius:var(--radius-card);box-shadow:var(--shadow-card);}
+.th-hd { grid-area:hd;}
+.th-gauge { grid-area:gauge;display:flex;flex-direction:column;align-items:center;min-width:0;}
+.th-info { grid-area:info;min-width:0;}
+.th-chip { display:inline-flex;align-items:center;gap:8px;max-width:100%;background:color-mix(in srgb, var(--highlight) 28%, white);border:1px solid color-mix(in srgb, var(--highlight) 70%, white);border-radius:var(--radius-pill);padding:5px 12px;font-size:14px;font-weight:700;line-height:1.35;}
+.th-dot { width:9px;height:9px;border-radius:50%;background:var(--accent);flex:none;}
+.th-big { margin:10px 0 0;font-size:var(--fs-big);font-weight:900;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums;}
+.th-bigl { margin:6px 0 0;color:var(--muted);font-size:15px;}
+.th-bigl b { color:var(--ink);}
+.th-tubewrap { width:100%;}
+.th-tube { display:block;width:150px;height:auto;margin-inline:auto;overflow:visible;}
+.th-tube text { font-family:system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;font-size:13px;font-weight:700;fill:var(--muted);stroke:none;}
+.th-badge-text { fill:#fff;font-size:14px;font-weight:800;}
+.th-glass { fill:#fff;stroke:var(--line);stroke-width:3;}
+.th-mercury { fill:var(--accent);}
+.th-shine { fill:#fff;opacity:.25;}
+.th-stripe-a { fill:var(--highlight);}
+.th-stripe-b { fill:color-mix(in srgb, var(--highlight) 62%, white);}
+.th-ticks { stroke:color-mix(in srgb, var(--line) 55%, var(--muted));stroke-width:2;fill:none;}
+.th-badge-bg { fill:var(--ink);}
+.th-legend { list-style:none;margin:10px 0 0;padding:0;display:flex;justify-content:center;gap:16px;font-size:14px;font-weight:600;color:var(--muted);}
+.th-swatch { display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px;}
+.th-swatch-d { background:var(--accent);}
+.th-swatch-m { background:var(--highlight);}
+.th-stats { display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:10px;margin:0 0 18px;}
+.th-stats div { background:var(--paper);border:1px solid var(--line);border-radius:var(--radius-tile);padding:10px 12px;}
+.th-stats dt { font-size:13px;font-weight:700;color:var(--muted);}
+.th-stats dd { margin:2px 0 0;font-size:var(--fs-stat);font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.02em;}
+.th-mf-h { display:flex;justify-content:space-between;gap:12px;align-items:baseline;font-size:14px;color:var(--muted);margin:0 0 6px;}
+.th-mf-h b { color:var(--ink);}
+.th-mf-bar { appearance:none;-webkit-appearance:none;display:block;width:100%;height:10px;border:0;border-radius:99px;background:var(--line);color:var(--highlight);overflow:hidden;margin:0 0 18px;}
+.th-mf-bar::-webkit-progress-bar { background:var(--line);border-radius:99px;}
+.th-mf-bar::-webkit-progress-value { background:var(--highlight);border-radius:99px;}
+.th-mf-bar::-moz-progress-bar { background:var(--highlight);border-radius:99px;}
+.th-cd-h { margin:0 0 8px;font-weight:800;}
+.th-cd { display:flex;gap:8px;}
+.th-cd div { background:var(--ink);color:#fff;border-radius:12px;min-width:62px;padding:8px 6px;text-align:center;}
+.th-cd b { display:block;font-size:26px;font-weight:900;line-height:1.1;font-variant-numeric:tabular-nums;}
+.th-cd span { display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;opacity:.8;}
+.th-ended { margin:0 0 8px;font-weight:700;}
+.th-when { font-size:13px;color:var(--muted);margin:8px 0 18px;}
+.th .btn { width:100%;min-height:60px;font-size:19px;}
+.th-note { text-align:center;font-size:14px;color:var(--muted);margin:10px 0 0;}
+.th-bar { display:none;width:100%;position:relative;}
+.th-bar-svg { display:block;width:100%;height:auto;overflow:visible;}
+.th-bar-svg text { font-family:system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;font-size:14px;font-weight:800;fill:#fff;}
+.th-scale { display:grid;grid-template-columns:repeat(4, 1fr);text-align:right;font-size:13px;font-weight:700;color:var(--muted);margin-top:6px;}
+@media (min-width:760px) {
+.th { grid-template-columns:200px 1fr;grid-template-areas:"gauge hd" "gauge info";align-items:start;padding:28px 32px;gap:8px 36px;}
+}
+@media (max-width:759px) {
+.th-tubewrap { display:none;}
+.th-bar { display:block;}
+.th-gauge { align-items:stretch;}
+.th-legend { justify-content:flex-start;}
+.th-cd div { min-width:0;flex:1;}
+.th-stats { gap:8px;}
+.th-stats div { padding:10px 6px;}
+.th-stats dd { font-size:clamp(15px, 4.4vw, 22px);white-space:nowrap;}
+}
+`
+
+
 
 /** Build public CSS from a brand pack, keeping the default rules and swapping tokens and fonts.
  *  Replaces the whole :root block, including --highlight and the derived variables. */

@@ -347,3 +347,36 @@ export const HERO_JS = `// Advances each hero carousel. Without this file the fi
 })();
 `
 
+/** Match countdown, served as /thermometer.js only when a page has a MatchThermometer. The HTML already shows the split. */
+export const THERMOMETER_JS = `// Rewrites each match countdown once a second. Without this file the server-rendered numbers stay.
+(function () {
+  var roots = document.querySelectorAll('.th-cd');
+  function tick(el) {
+    var end = Date.parse(el.getAttribute('data-end') || '');
+    var endedText = el.getAttribute('data-ended-text') || '';
+    if (!end) return;
+    function render() {
+      if (el.getAttribute('data-done') === '1') return;
+      var ms = end - Date.now();
+      if (ms <= 0) {
+        el.textContent = endedText;
+        el.setAttribute('data-done', '1');
+        return;
+      }
+      var boxes = el.querySelectorAll('b');
+      var s = Math.floor(ms / 1000);
+      var values = [
+        String(Math.floor(s / 86400)),
+        String(Math.floor((s % 86400) / 3600)).padStart(2, '0'),
+        String(Math.floor((s % 3600) / 60)).padStart(2, '0'),
+        String(s % 60).padStart(2, '0')
+      ];
+      for (var n = 0; n < boxes.length && n < values.length; n++) boxes[n].textContent = values[n];
+    }
+    render();
+    setInterval(render, 1000);
+  }
+  for (var i = 0; i < roots.length; i++) tick(roots[i]);
+})();
+`
+

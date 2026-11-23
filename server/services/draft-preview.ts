@@ -6,7 +6,7 @@
 import { CssRejected, cssIssueMessage } from '../../shared/css/sanitize'
 import { emptyPageDoc, migratePageDoc, type PageDoc } from '../../shared/page'
 import { validateSitePartDoc, type BannerDoc, type FooterDoc, type HeaderDoc, type MenuDoc } from '../../shared/site-parts'
-import { EMBED_JS, HEADER_JS, HERO_JS } from '../theme/default'
+import { EMBED_JS, HEADER_JS, HERO_JS, THERMOMETER_JS } from '../theme/default'
 import type { ServiceCtx } from './context'
 import { AppError } from './errors'
 import { EMPTY_MANIFEST, currentRelease } from './publish'
@@ -15,17 +15,18 @@ import { requireSitePart } from './site-parts'
 
 export const PREVIEW_MEDIA_PREFIX = '/api/v1/preview/media/'
 export const PREVIEW_ASSET_PREFIX = '/api/v1/preview/assets/'
-export const PREVIEW_ASSETS = ['embed.js', 'header.js', 'hero.js'] as const
+export const PREVIEW_ASSETS = ['embed.js', 'header.js', 'hero.js', 'thermometer.js'] as const
 
 const PREVIEW_ASSET_FILES: Record<(typeof PREVIEW_ASSETS)[number], string> = {
   'embed.js': EMBED_JS,
   'header.js': HEADER_JS,
   'hero.js': HERO_JS,
+  'thermometer.js': THERMOMETER_JS,
 }
 
 /** Body of a builder preview script. The asset route and the unit tests share this map. */
 export function previewAssetBody(name: string): string | undefined {
-  if (name !== 'embed.js' && name !== 'header.js' && name !== 'hero.js') return undefined
+  if (name !== 'embed.js' && name !== 'header.js' && name !== 'hero.js' && name !== 'thermometer.js') return undefined
   return PREVIEW_ASSET_FILES[name]
 }
 
@@ -109,7 +110,7 @@ export function previewHtml(html: string, csp: string): string {
   const policy = previewCsp(csp)
   return html
     .replace(/(["'(\s,])\/media\//g, `$1${PREVIEW_MEDIA_PREFIX}`)
-    .replace(/src="\/(embed|header|hero)\.js"/g, (_m, name: string) => `src="${PREVIEW_ASSET_PREFIX}${name}.js"`)
+    .replace(/src="\/(embed|header|hero|thermometer)\.js"/g, (_m, name: string) => `src="${PREVIEW_ASSET_PREFIX}${name}.js"`)
     .replace(/<script src="\/analytics\.js"[^>]*><\/script>/g, '')
     .replace(/<meta http-equiv="Content-Security-Policy" content="[^"]*">/, `<meta http-equiv="Content-Security-Policy" content="${policy.replace(/"/g, '&quot;')}">`)
 }

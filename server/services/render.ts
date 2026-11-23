@@ -9,6 +9,19 @@ import { renderToString } from 'vue/server-renderer'
 import { sanitizeBadgeHtml } from '../../shared/badge-html'
 import { CssRejected, sanitizeCss, STYLE_MAX_BYTES } from '../../shared/css/sanitize'
 import { formatMoney, hasEnded, progressPercent, endOfUtcDay } from '../../shared/amounts'
+import {
+  ENDED_TEXT,
+  barLayout,
+  chipText,
+  countdownParts,
+  gaugeLabel,
+  goalTicks,
+  groupNumber,
+  money,
+  pad2,
+  thermoFigures,
+  tubeLayout,
+} from '../../shared/thermometer'
 import { virtuousPrefill } from '../../shared/donate-prefill'
 import type { ImageRef } from '../../shared/blocks/define'
 import type { StoredBlock } from '../../shared/blocks/registry'
@@ -23,9 +36,9 @@ import {
   type MenuDoc,
   type SitePartKind,
 } from '../../shared/site-parts'
-import { BUNDLE_ID, EMBED_JS, HEADER_JS, HERO_JS, THEME_CSS } from '../theme/default'
+import { BUNDLE_ID, EMBED_JS, HEADER_JS, HERO_JS, THEME_CSS, THERMOMETER_JS } from '../theme/default'
 import { migrateBrandDoc, validateBrandDoc, type BrandDoc } from '../../shared/brand'
-import { BANNER_ACCENT_CSS, FOOTER_COLUMNS_CSS, HEART_CSS, HERO_CAROUSEL_CSS, OVER_HERO_CSS, TILE_CSS, UTILITY_CSS, brandChromeCss, themeCssFromTokens } from '../../shared/theme-css'
+import { BANNER_ACCENT_CSS, FOOTER_COLUMNS_CSS, HEART_CSS, HERO_CAROUSEL_CSS, OVER_HERO_CSS, THERMOMETER_CSS, TILE_CSS, UTILITY_CSS, brandChromeCss, themeCssFromTokens } from '../../shared/theme-css'
 import { embeds, media, mediaCrops, pages, redirects, siteParts, sites, versions, type ReleaseManifest } from '../db/schema'
 import type { ServiceCtx } from './context'
 import { widthsFor } from './media'
@@ -33,7 +46,7 @@ import { readSettings, type SiteSettings } from '../../shared/settings'
 import { renderRobotsTxt } from '../../shared/robots'
 import { aliasesFromRedirects, pageIdByPath, pageIdForHref, pathForPageId } from '../../shared/internal-links'
 
-export { BUNDLE_ID, EMBED_JS, HEADER_JS, HERO_JS, THEME_CSS }
+export { BUNDLE_ID, EMBED_JS, HEADER_JS, HERO_JS, THEME_CSS, THERMOMETER_JS }
 
 export function styleHash(css: string = THEME_CSS): string {
   return `'sha256-${createHash('sha256').update(css).digest('base64')}'`
@@ -127,13 +140,16 @@ interface Collector {
   needsEmbedJs: boolean
   needsHeaderJs: boolean
   needsHeroJs: boolean
+  needsThermometerJs: boolean
+  /** Clock for server-rendered countdowns. Publish uses the real time. Goldens pass a fixed instant. */
+  now: Date
   pageIdByPath: Map<string, string>
   origin: string | null
   aliases: Map<string, string>
 }
 
-function newCollector(site: SiteRenderContext): Collector {
-  return { media: new Set(), links: new Set(), linkedPageIds: new Set(), siteParts: new Set(), scriptSrcs: new Set(), frameSrcs: new Set(), imgSrcs: new Set(), connectSrcs: new Set(), needsEmbedJs: false, needsHeaderJs: false, needsHeroJs: false, pageIdByPath: pageIdByPath(site.pagesById), origin: site.origin, aliases: site.pathAliases ?? new Map() }
+function newCollector(site: SiteRenderContext, now = new Date()): Collector {
+  return { media: new Set(), links: new Set(), linkedPageIds: new Set(), siteParts: new Set(), scriptSrcs: new Set(), frameSrcs: new Set(), imgSrcs: new Set(), connectSrcs: new Set(), needsEmbedJs: false, needsHeaderJs: false, needsHeroJs: false, needsThermometerJs: false, now, pageIdByPath: pageIdByPath(site.pagesById), origin: site.origin, aliases: site.pathAliases ?? new Map() }
 }
 
 /** Record an internal target and return the href that should be written (the live path, if known). */
@@ -604,6 +620,8 @@ function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector
       return renderDonationProgress(p, bag)
     case 'MatchBanner':
       return renderMatchBanner(p, bag)
+    case 'MatchThermometer':
+      return renderMatchThermometer(block.id, p, bag)
     case 'StoryBeforeAfter':
       return renderStoryBeforeAfter(p, site, bag)
     case 'TrustStrip':
@@ -718,6 +736,153 @@ function renderMatchBanner(p: Record<string, unknown>, bag: Collector): VNode {
       linkButton(asLink(p.cta), bag),
     ]),
   ])
+}
+
+function num(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+function swatch(kind: 'd' | 'm'): VNode {
+  return h('span', { class: `th-swatch th-swatch-${kind}`, 'aria-hidden': 'true' })
+}
+
+function renderMatchThermometer(blockId: string, p: Record<string, unknown>, bag: Collector): VNode {
+  bag.needsThermometerJs = true
+  const currency = typeof p.currency === 'string' && p.currency.trim() ? p.currency : '$'
+  const figures = thermoFigures({
+    goal: num(p.goal),
+    raised: num(p.raised),
+    matched: num(p.matched),
+    donors: num(p.donors),
+    matchCap: num(p.matchCap),
+    matchUsed: typeof p.matchUsed === 'number' ? p.matchUsed : null,
+  })
+  const label = gaugeLabel(currency, figures.total, figures.goal, figures.percent)
+  const ticks = goalTicks(currency, figures.goal)
+  const tube = tubeLayout(figures.percent, figures.raisedShare, figures.totalShare, ticks)
+  const bar = barLayout(figures.percent, figures.raisedShare, figures.totalShare)
+  const stripeId = `th-stripe-${blockId}`
+  const clipId = `th-clip-${blockId}`
+  const barStripeId = `th-bar-stripe-${blockId}`
+  const barClipId = `th-bar-clip-${blockId}`
+  const clock = countdownParts(bag.now, typeof p.endsAt === 'string' ? p.endsAt : '')
+  const countdownHeading = typeof p.countdownHeading === 'string' && p.countdownHeading.trim() ? p.countdownHeading : 'Time left'
+  const endLabel = typeof p.endLabel === 'string' ? p.endLabel : ''
+  const matchMax = figures.matchCap > 0 ? figures.matchCap : 1
+  const matchValue = figures.matchCap > 0 ? figures.matchUsed : 0
+
+  const stripeDefs = (id: string) =>
+    h('pattern', { id, width: 12, height: 12, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' }, [
+      h('rect', { width: 12, height: 12, class: 'th-stripe-a' }),
+      h('rect', { width: 6, height: 12, class: 'th-stripe-b' }),
+    ])
+
+  const tubeSvg = h('svg', { class: 'th-tube', viewBox: '0 0 150 420', role: 'img', 'aria-label': label }, [
+    h('defs', [
+      stripeDefs(stripeId),
+      h('clipPath', { id: clipId }, [h('rect', { x: 40, y: 10, width: 40, height: 345, rx: 20 })]),
+    ]),
+    h('rect', { class: 'th-glass', x: 36, y: 6, width: 48, height: 350, rx: 24 }),
+    h('g', { 'clip-path': `url(#${clipId})` }, [
+      tube.donationsHeight > 0 ? h('rect', { class: 'th-mercury', x: 40, y: tube.yRaised, width: 40, height: tube.donationsHeight }) : null,
+      tube.matchHeight > 0 ? h('rect', { x: 40, y: tube.yTotal, width: 40, height: tube.matchHeight, fill: `url(#${stripeId})` }) : null,
+    ]),
+    h('circle', { class: 'th-glass', cx: 60, cy: 370, r: 44 }),
+    tube.donationsHeight > 0 ? h('circle', { class: 'th-mercury', cx: 60, cy: 370, r: 36 }) : null,
+    tube.donationsHeight > 0 ? h('rect', { class: 'th-mercury', x: 40, y: 320, width: 40, height: 40 }) : null,
+    tube.donationsHeight > 0 ? h('ellipse', { class: 'th-shine', cx: 50, cy: 356, rx: 7, ry: 11 }) : null,
+    h(
+      'g',
+      { class: 'th-ticks' },
+      tube.ticks.flatMap((tick) => [
+        h('line', { x1: 84, x2: 94, y1: tick.y, y2: tick.y }),
+        tick.showLabel ? h('text', { x: 100, y: r1Text(tick.y + 5) }, tick.label) : null,
+      ]),
+    ),
+    h('g', { class: 'th-badge' }, [
+      h('rect', { class: 'th-badge-bg', x: tube.badgeX, y: tube.badgeY, width: tube.badgeW, height: tube.badgeH, rx: 14 }),
+      h('text', { class: 'th-badge-text', x: tube.badgeTextX, y: tube.badgeTextY, 'text-anchor': 'middle' }, `${figures.percent}%`),
+    ]),
+  ])
+
+  const barSvg = h('svg', { class: 'th-bar-svg', viewBox: '0 0 320 78', 'aria-hidden': 'true', focusable: 'false' }, [
+    h('defs', [
+      stripeDefs(barStripeId),
+      h('clipPath', { id: barClipId }, [h('rect', { x: bar.innerX, y: bar.innerY, width: bar.innerW, height: bar.innerH, rx: 19 })]),
+    ]),
+    h('rect', { class: 'th-glass', x: bar.trackX, y: bar.trackY, width: bar.trackW, height: bar.trackH, rx: 23 }),
+    h('g', { 'clip-path': `url(#${barClipId})` }, [
+      bar.raisedW > 0 ? h('rect', { class: 'th-mercury', x: bar.innerX, y: bar.innerY, width: bar.raisedW, height: bar.innerH }) : null,
+      bar.matchW > 0 ? h('rect', { x: bar.innerX + bar.raisedW, y: bar.innerY, width: bar.matchW, height: bar.innerH, fill: `url(#${barStripeId})` }) : null,
+    ]),
+    h('g', { class: 'th-badge' }, [
+      h('rect', { class: 'th-badge-bg', x: bar.badgeX, y: bar.badgeY, width: bar.badgeW, height: bar.badgeH, rx: 13 }),
+      h('text', { class: 'th-badge-text', x: bar.badgeTextX, y: bar.badgeTextY, 'text-anchor': 'middle' }, `${figures.percent}%`),
+    ]),
+  ])
+
+  const countdown = clock.ended
+    ? h('p', { class: 'th-ended' }, ENDED_TEXT)
+    : h('div', { class: 'th-cd', 'data-end': String(p.endsAt ?? ''), 'data-ended-text': ENDED_TEXT }, [
+        h('div', [h('b', String(clock.days)), h('span', 'days')]),
+        h('div', [h('b', pad2(clock.hours)), h('span', 'hrs')]),
+        h('div', [h('b', pad2(clock.minutes)), h('span', 'min')]),
+        h('div', [h('b', pad2(clock.seconds)), h('span', 'sec')]),
+      ])
+
+  return wrapSection([
+    p.eyebrow ? h('p', { class: 'eyebrow' }, String(p.eyebrow)) : null,
+    p.heading ? h('h2', String(p.heading)) : null,
+    p.intro ? h('p', { class: 'lede' }, String(p.intro)) : null,
+    h('article', { class: 'th' }, [
+      h('div', { class: 'th-hd' }, [
+        h('span', { class: 'th-chip' }, [h('span', { class: 'th-dot', 'aria-hidden': 'true' }), chipText(currency, figures.matchCap)]),
+        h('p', { class: 'th-big' }, money(currency, figures.total)),
+        h('p', { class: 'th-bigl' }, [
+          'total impact (gifts + match) of ',
+          h('b', money(currency, figures.goal)),
+          ' goal · ',
+          h('b', `${figures.percent}%`),
+          ' funded',
+        ]),
+      ]),
+      h('div', { class: 'th-gauge' }, [
+        h('div', { class: 'th-tubewrap' }, [tubeSvg]),
+        h('div', { class: 'th-bar', role: 'img', 'aria-label': label }, [
+          barSvg,
+          h(
+            'div',
+            { class: 'th-scale' },
+            ticks.map((tick) => h('span', tick.label)),
+          ),
+        ]),
+        h('ul', { class: 'th-legend' }, [h('li', [swatch('d'), 'Donations']), h('li', [swatch('m'), 'Matched'])]),
+      ]),
+      h('div', { class: 'th-info' }, [
+        h('dl', { class: 'th-stats' }, [
+          h('div', [h('dt', [swatch('d'), 'Raised']), h('dd', money(currency, figures.raised))]),
+          h('div', [h('dt', [swatch('m'), 'Matched']), h('dd', money(currency, figures.matched))]),
+          h('div', [h('dt', 'Donors'), h('dd', groupNumber(figures.donors))]),
+        ]),
+        h('div', { class: 'th-mf' }, [
+          h('div', { class: 'th-mf-h' }, [
+            h('span', 'Match fund used'),
+            h('span', [h('b', money(currency, figures.matchUsed)), ` of ${money(currency, figures.matchCap)}`]),
+          ]),
+          h('progress', { class: 'th-mf-bar', max: matchMax, value: matchValue }, `${figures.matchCap > 0 ? Math.round((figures.matchUsed / figures.matchCap) * 100) : 0}%`),
+        ]),
+        h('p', { class: 'th-cd-h' }, countdownHeading),
+        countdown,
+        endLabel ? h('p', { class: 'th-when' }, endLabel) : null,
+        linkButton(asLink(p.cta), bag, 'btn'),
+        p.note ? h('p', { class: 'th-note' }, String(p.note)) : null,
+      ]),
+    ]),
+  ])
+}
+
+function r1Text(n: number): number {
+  return Math.round(n * 10) / 10
 }
 
 function renderStoryBeforeAfter(p: Record<string, unknown>, site: SiteRenderContext, bag: Collector): VNode {
@@ -1372,13 +1537,16 @@ export async function renderPageHtml(input: {
   versionId: string
   path: string
   site: SiteRenderContext
+  /** Clock for a server-rendered countdown. Defaults to the real time. Goldens pass a fixed instant. */
+  now?: Date
 }): Promise<RenderedPage> {
-  const bag = newCollector(input.site)
+  const bag = newCollector(input.site, input.now ?? new Date())
   const { doc, site } = input
   const carouselCss = doc.blocks.some((block) => heroCarouselActive(block as StoredBlock)) ? HERO_CAROUSEL_CSS : ''
-  const css = (site.themeCss ?? THEME_CSS) + shellOptionCss(site) + carouselCss + emitSiteCss(site.brand) + doc.blocks.map((block) => emitSectionCss(block as StoredBlock)).join('')
+  const thermometerCss = doc.blocks.some((block) => block.type === 'MatchThermometer') ? THERMOMETER_CSS : ''
+  const css = (site.themeCss ?? THEME_CSS) + shellOptionCss(site) + carouselCss + thermometerCss + emitSiteCss(site.brand) + doc.blocks.map((block) => emitSectionCss(block as StoredBlock)).join('')
   if (css.toLowerCase().includes('</')) throw new CssRejected(1, 1, 'The generated CSS was rejected.')
-  if (Buffer.byteLength(css, 'utf8') > STYLE_MAX_BYTES) throw new CssRejected(1, 1, 'This page CSS is over the 65,536 byte limit.')
+  if (Buffer.byteLength(css, 'utf8') > STYLE_MAX_BYTES) throw new CssRejected(1, 1, `This page CSS is over the ${STYLE_MAX_BYTES.toLocaleString('en-US')} byte limit.`)
   const app = createSSRApp(
     defineComponent({
       name: 'PublishedPage',
@@ -1420,7 +1588,7 @@ export async function renderPageHtml(input: {
 <body>
   ${body}
   ${bag.needsEmbedJs ? '<script type="module" src="/embed.js"></script>' : ''}
-  ${analytics ? '<script src="/analytics.js" defer></script>' : ''}${bag.needsHeaderJs ? '\n  <script src="/header.js" defer></script>' : ''}${bag.needsHeroJs ? '\n  <script src="/hero.js" defer></script>' : ''}
+  ${analytics ? '<script src="/analytics.js" defer></script>' : ''}${bag.needsHeaderJs ? '\n  <script src="/header.js" defer></script>' : ''}${bag.needsHeroJs ? '\n  <script src="/hero.js" defer></script>' : ''}${bag.needsThermometerJs ? '\n  <script src="/thermometer.js" defer></script>' : ''}
 </body>
 </html>
 `
