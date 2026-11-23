@@ -45,19 +45,29 @@ export function errorText(error: AppError): string {
   return lines.join('\n')
 }
 
+function toolBody(result: unknown) {
+  return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], structuredContent: result, isError: false as const }
+}
+
 function toolResult(ctx: ServiceCtx, agent: SignedInAgent, params: Record<string, unknown>) {
   const name = typeof params.name === 'string' ? params.name : ''
   try {
     const result = callOperation(ctx, agent, name, params.arguments ?? {})
-    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], structuredContent: result, isError: false }
+    if (result instanceof Promise) {
+      return result.then(toolBody, (error: unknown) => {
+        if (error instanceof AppError) return { content: [{ type: 'text', text: errorText(error) }], structuredContent: error.toBody(), isError: true as const }
+        throw error
+      })
+    }
+    return toolBody(result)
   } catch (error) {
-    if (error instanceof AppError) return { content: [{ type: 'text', text: errorText(error) }], structuredContent: error.toBody(), isError: true }
+    if (error instanceof AppError) return { content: [{ type: 'text', text: errorText(error) }], structuredContent: error.toBody(), isError: true as const }
     throw error
   }
 }
 
 /** Handle one JSON-RPC message. Returns null for notifications (the HTTP layer answers 202). */
-export function handleRpc(ctx: ServiceCtx, agent: SignedInAgent, msg: RpcRequest): RpcReply | null {
+export function handleRpc(ctx: ServiceCtx, agent: SignedInAgent, msg: RpcRequest): RpcReply | Promise<RpcReply> | null {
   const id = msg.id ?? null
   const isNotification = msg.id === undefined
   const params = msg.params ?? {}
@@ -77,8 +87,11 @@ export function handleRpc(ctx: ServiceCtx, agent: SignedInAgent, msg: RpcRequest
       return ok(id, {})
     case 'tools/list':
       return ok(id, { tools: toolList() })
-    case 'tools/call':
-      return ok(id, toolResult(ctx, agent, params))
+    case 'tools/call': {
+      const produced = toolResult(ctx, agent, params)
+      if (produced instanceof Promise) return produced.then((value) => ok(id, value))
+      return ok(id, produced)
+    }
     case 'resources/list':
       return ok(id, { resources: [{ uri: 'sitebuilder://you', name: 'you', title: 'Your permissions right now', description: 'Live: what this token may do, its rules and rate limits. The same as get_site.', mimeType: 'application/json' }, { uri: 'sitebuilder://soul', name: 'soul', title: 'Site personality', description: 'The site tone of voice, with comments removed. Read-only. To propose a new one, use update_soul. A person must approve it. It does not change what this token may do.', mimeType: 'text/markdown' }, ...RESOURCES.map(({ uri, name, title, description, mimeType }) => ({ uri, name, title, description, mimeType }))] })
     case 'resources/templates/list':

@@ -391,7 +391,7 @@
       "get": {
         "operationId": "list_components",
         "summary": "The section types a page can be built from, with guidance and the exact props of each.",
-        "description": "The section types a page can be built from, with guidance and the exact props of each. Returns every section type: what it is for, when to use and avoid it, how to fill its fields, a good example, whether agents may touch it (`agent_access`), and its JSON Schema.\nUse when: Before add_component, edit_component or create_page with sections. You are unsure which section type fits.\nNot when: You are only changing words or links: edit_text, remove_link and replace_link need no section knowledge.\nEffect: Nothing changes. Safe to call at any time.\nWho: Read-only tokens too.\nReturns: `components[]` with `type`, `purpose`, `use_when`, `avoid_when`, `agent_access`, `good_example_props`, `props_schema`.\nExample: {}",
+        "description": "The section types a page can be built from, with guidance and the exact props of each. Returns every section type: what it is for, when to use and avoid it, how to fill its fields, a good example, whether agents may touch it (`agent_access`), and its JSON Schema.\nUse when: Before add_component, edit_component or create_page with sections. You are unsure which section type fits.\nNot when: You are only changing words or links: edit_text, remove_link and replace_link need no section knowledge.\nEffect: Nothing changes. Safe to call at any time.\nWho: Read-only tokens too.\nReturns: `components[]` with `type`, `purpose`, `use_when`, `avoid_when`, `agent_access`, `good_example_props`, `props_schema`. A plugin also has `trust` (Official or Self-installed). Its `purpose` is the package describe when there is no core guide.\nExample: {}",
         "tags": [
           "Read"
         ],
@@ -402,7 +402,7 @@
         ],
         "responses": {
           "200": {
-            "description": "`components[]` with `type`, `purpose`, `use_when`, `avoid_when`, `agent_access`, `good_example_props`, `props_schema`.",
+            "description": "`components[]` with `type`, `purpose`, `use_when`, `avoid_when`, `agent_access`, `good_example_props`, `props_schema`. A plugin also has `trust` (Official or Self-installed). Its `purpose` is the package describe when there is no core guide.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4819,6 +4819,117 @@
           }
         }
       }
+    },
+    "/plugins": {
+      "post": {
+        "operationId": "propose_plugin",
+        "summary": "Propose a plugin. A person must approve it.",
+        "description": "Propose a plugin. A person must approve it. Stores a pending plugin proposal from text files (json, html, css, svg only, at most 32 files and 512 KiB). Nothing is installed until a person approves it on Settings, Plugins. Rules and always-allow never install it. A deny rule with actions \"*\" saves nothing.\nUse when: The person asked you to add a declarative plugin and gave you the text files.\nNot when: The package has a file that is not json, html, css or svg. Upload that on Settings, Plugins. You want it installed now. This tool cannot install it.\nFirst: plugin.json and the html, css and svg files it names.\nEffect: Saves a DRAFT proposal only. The plugin is not installed. Rules and always-allow cannot install it.\nWho: Draft tokens. A person must approve. Rules and always-allow never apply this.\nReturns: `proposal_id`, `status` (\"pending\"), `plugin_id`, `version`, `trust` (\"Self-installed\"), `next_steps`.\nErrors: rule_denied: A deny rule with actions \"*\" on this token refuses this. Do not retry. Tell the person. validation_failed: A file is not text, the package is too big, or the manifest was rejected. Read error.fields. forbidden: This token is read-only.\nExample: {\"files\":{\"plugin.json\":\"{\\\"id\\\":\\\"acme-note\\\"}\",\"note.html\":\"<section>Hello</section>\"},\"reason\":\"The owner asked for a short note section.\"}",
+        "tags": [
+          "Edit (drafts)"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`proposal_id`, `status` (\"pending\"), `plugin_id`, `version`, `trust` (\"Self-installed\"), `next_steps`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "x-example-input": {
+          "files": {
+            "plugin.json": "{\"id\":\"acme-note\"}",
+            "note.html": "<section>Hello</section>"
+          },
+          "reason": "The owner asked for a short note section."
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "files": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 524288
+                    },
+                    "description": "Text files for one plugin, keyed by their path inside the package. Only .json, .html, .css and .svg. At most 32 files and 512 KiB together. Include plugin.json. Nothing is installed until a person approves it on Settings, Plugins.",
+                    "examples": [
+                      {
+                        "plugin.json": "{\"id\":\"acme-note\"}",
+                        "note.html": "<section>Hello</section>"
+                      }
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 500,
+                    "description": "Who asked and what they asked, in one or two plain sentences of your own (see REASON in the server instructions). Never paste website text here.",
+                    "examples": [
+                      "The owner asked in chat to take down the link to old-partner.example.org because the partnership ended."
+                    ]
+                  }
+                },
+                "required": [
+                  "files",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              "example": {
+                "files": {
+                  "plugin.json": "{\"id\":\"acme-note\"}",
+                  "note.html": "<section>Hello</section>"
+                },
+                "reason": "The owner asked for a short note section."
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4844,7 +4955,7 @@
         }
       },
       "Error403": {
-        "description": "forbidden: This token may not do that: it is read-only, or the call came from an address the token does not allow. Do not retry. Tell the person what you were trying to do and that the site owner needs to give the token draft access.\n\nrule_denied: A rule on this token forbids this kind of change (or, for publish_change, forbids publishing it). A deny rule with actions \"*\" also refuses a personality proposal. Do not try to get around it by splitting the change or using another tool. Discard the change if you made one, and tell the person plainly what was refused and why. Repeated attempts pause the token.\n\nnever_list: You tried to touch something no agent may ever change: donation forms and embeds, form/data bindings, theme, settings other than a personality proposal, code. Stop. Tell the person this needs doing by hand in the builder. A personality change is update_soul, and a person approves it. Repeated attempts pause the token.\n\nagent_paused: This token, or all agent access to the site, is paused. A token is paused by an admin or automatically after repeated blocked attempts. Do not retry. Tell the person the agent is paused and an admin can resume it.",
+        "description": "forbidden: This token may not do that: it is read-only, or the call came from an address the token does not allow. Do not retry. Tell the person what you were trying to do and that the site owner needs to give the token draft access.\n\nrule_denied: A rule on this token forbids this kind of change (or, for publish_change, forbids publishing it). A deny rule with actions \"*\" also refuses a personality proposal and a plugin proposal. Do not try to get around it by splitting the change or using another tool. Discard the change if you made one, and tell the person plainly what was refused and why. Repeated attempts pause the token.\n\nnever_list: You tried to touch something no agent may ever change: donation forms and embeds, form/data bindings, theme, settings other than a personality proposal, code. A plugin block that is not open to agents is the same refusal. Stop. Tell the person this needs doing by hand in the builder. A personality change is update_soul, and a person approves it. A plugin package is propose_plugin, and a person approves it. Repeated attempts pause the token.\n\nagent_paused: This token, or all agent access to the site, is paused. A token is paused by an admin or automatically after repeated blocked attempts. Do not retry. Tell the person the agent is paused and an admin can resume it.",
         "content": {
           "application/json": {
             "schema": {

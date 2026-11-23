@@ -4,7 +4,7 @@ import { and, eq } from 'drizzle-orm'
 import { newId } from '../../../shared/ids'
 import type { FieldIssue } from '../../../shared/issues'
 import { ArchiveError, readTarGz } from '../../../shared/plugins/archive'
-import { contentHash } from '../../../shared/plugins/hash'
+import { contentHash, type ContentHash } from '../../../shared/plugins/hash'
 import { OFFICIAL_KEYS } from '../../../shared/plugins/keys'
 import { parseManifest, type PluginManifest, type PluginOrigin } from '../../../shared/plugins/manifest'
 import { compileObjectSchema } from '../../../shared/plugins/schema-subset'
@@ -87,8 +87,16 @@ function reconcileSettings(previous: unknown, manifest: PluginManifest): Record<
   return next
 }
 
-export async function installPluginArchive(ctx: ServiceCtx, actor: ActingAs, archive: Buffer, signature: Buffer | null): Promise<InstallResult> {
-  if (!can(actor, 'settings.manage')) throw forbidden()
+export interface PreparedPlugin {
+  files: { path: string; bytes: Buffer }[]
+  hashed: ContentHash
+  manifest: PluginManifest
+  origins: PluginOrigin[]
+  verdict: { trust: PluginTrust; keyId: string | null }
+}
+
+/** Read, hash, parse, check trust, and test-render. Does not write a plugin row. */
+export async function preparePluginArchive(archive: Buffer, signature: Buffer | null): Promise<PreparedPlugin> {
   let files: { path: string; bytes: Buffer }[]
   try {
     files = readTarGz(archive).files
@@ -113,6 +121,13 @@ export async function installPluginArchive(ctx: ServiceCtx, actor: ActingAs, arc
   if (!verdict.ok) reject([{ path: 'signature', message: verdict.message || SIGNATURE_UNREADABLE }])
   const rendered = await testRenderPlugin({ manifest, files })
   if (!rendered.ok) reject([{ path: rendered.path, message: rendered.message }])
+  return { files, hashed, manifest, origins, verdict: { trust: verdict.trust, keyId: verdict.keyId } }
+}
+
+export async function installPluginArchive(ctx: ServiceCtx, actor: ActingAs, archive: Buffer, signature: Buffer | null): Promise<InstallResult> {
+  if (!can(actor, 'settings.manage')) throw forbidden()
+  const prepared = await preparePluginArchive(archive, signature)
+  const { files, hashed, manifest, origins, verdict } = prepared
 
   const needsOwner = origins.length > 0 && !actor.isOperator
   const status: 'pending_owner' | 'enabled' = needsOwner ? 'pending_owner' : 'enabled'

@@ -272,6 +272,10 @@ function textDiff(before: unknown, after: unknown, limit = 25): TextChange[] {
   return out
 }
 
+function sectionIsMoney(ctx: ServiceCtx, type: string): boolean {
+  return isMoneyBlockType(type) || ctx.registry.get(type)?.plugin?.money === true
+}
+
 function siteOrigin(ctx: ServiceCtx): string | null {
   const domain = ctx.db.select({ d: sites.primaryDomain }).from(sites).where(eq(sites.id, ctx.siteId)).get()?.d
   return domain ? `https://${domain}` : null
@@ -291,8 +295,8 @@ export function evaluateTargets(ctx: ServiceCtx, token: AgentTokenRow, targets: 
       const live = page.publishedVersionId ? readDoc(ctx, page.publishedVersionId) : null
       const diff = diffPages(live, draft)
       const checks = checksFor(ctx, page.template, draft)
-      const holdsMoney = draft.blocks.some((b) => isMoneyBlockType(b.type)) || !!live?.blocks.some((b) => isMoneyBlockType(b.type))
-      if (diff.blocks.some((c) => isMoneyBlockType(c.type))) floor.push('money_section_touched')
+      const holdsMoney = draft.blocks.some((b) => sectionIsMoney(ctx, b.type)) || !!live?.blocks.some((b) => sectionIsMoney(ctx, b.type))
+      if (diff.blocks.some((c) => sectionIsMoney(ctx, c.type))) floor.push('money_section_touched')
       if (t.foreignDraft || page.draftRevision !== t.revision) floor.push('foreign_draft')
       if (checks.blocking.length) floor.push('checks_failing')
       // Documents, not the action name: a removed section whose live CSS is non-empty counts too.
@@ -589,7 +593,7 @@ export function undoChange(ctx: ServiceCtx, agent: SignedInAgent, changeId: stri
         created.map((t) => {
           const page = requirePage(ctx, t.id)
           const live = readDoc(ctx, page.publishedVersionId!)
-          const holdsMoney = live.blocks.some((b) => isMoneyBlockType(b.type))
+          const holdsMoney = live.blocks.some((b) => sectionIsMoney(ctx, b.type))
           return {
             target: { type: 'page' as const, id: page.id, path: page.path, template: page.template, label: page.title, holdsMoney },
             actions: ['undo_change' as const],

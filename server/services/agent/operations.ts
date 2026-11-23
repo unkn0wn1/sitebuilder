@@ -9,7 +9,7 @@ import type { ServiceCtx } from '../context'
 import { AppError, type ErrorCode } from '../errors'
 import * as G from './gateway'
 import * as S from './schemas'
-import { takeCall } from './limits'
+import { recordViolation, takeCall } from './limits'
 import { violationGuard } from './changes'
 import type { SignedInAgent } from './tokens'
 import { MONEY_BLOCK_TYPES, type AgentAction } from '../../../shared/agent/rules'
@@ -67,8 +67,8 @@ export const ERROR_CATALOG: ErrorDoc[] = [
   { code: 'conflict', http: 409, meaning: 'Someone else changed the same draft a moment ago.', recovery: 'Call get_page (or get_site_part) again to see the current content, then redo your edit on top of it.' },
   { code: 'invalid_state', http: 409, meaning: 'The thing is in the wrong state for this: a page waiting for approval cannot be edited, a published change cannot be edited, an empty change cannot be published.', recovery: 'Read `error.message`; it says what state it is in. Usually: wait, or start a new change by leaving out change_id, or ask a person.' },
   { code: 'rate_limited', http: 429, meaning: 'This token has made too many calls.', recovery: 'Wait `error.retryAfterSeconds` seconds, then continue. Do not loop; batch edits into one change.' },
-  { code: 'rule_denied', http: 403, meaning: 'A rule on this token forbids this kind of change (or, for publish_change, forbids publishing it). A deny rule with actions "*" also refuses a personality proposal.', recovery: 'Do not try to get around it by splitting the change or using another tool. Discard the change if you made one, and tell the person plainly what was refused and why. Repeated attempts pause the token.' },
-  { code: 'never_list', http: 403, meaning: 'You tried to touch something no agent may ever change: donation forms and embeds, form/data bindings, theme, settings other than a personality proposal, code.', recovery: 'Stop. Tell the person this needs doing by hand in the builder. A personality change is update_soul, and a person approves it. Repeated attempts pause the token.' },
+  { code: 'rule_denied', http: 403, meaning: 'A rule on this token forbids this kind of change (or, for publish_change, forbids publishing it). A deny rule with actions "*" also refuses a personality proposal and a plugin proposal.', recovery: 'Do not try to get around it by splitting the change or using another tool. Discard the change if you made one, and tell the person plainly what was refused and why. Repeated attempts pause the token.' },
+  { code: 'never_list', http: 403, meaning: 'You tried to touch something no agent may ever change: donation forms and embeds, form/data bindings, theme, settings other than a personality proposal, code. A plugin block that is not open to agents is the same refusal.', recovery: 'Stop. Tell the person this needs doing by hand in the builder. A personality change is update_soul, and a person approves it. A plugin package is propose_plugin, and a person approves it. Repeated attempts pause the token.' },
   { code: 'agent_paused', http: 403, meaning: 'This token, or all agent access to the site, is paused. A token is paused by an admin or automatically after repeated blocked attempts.', recovery: 'Do not retry. Tell the person the agent is paused and an admin can resume it.' },
   { code: 'no_matches', http: 422, meaning: 'Nothing matched what you asked to change.', recovery: 'Use search_content or find_links to see how the text or link is really written (spelling, formatting splits, a different address) and call again.' },
   { code: 'match_count_mismatch', http: 409, meaning: 'The number of matches differs from `expected_matches`. Nothing was changed.', recovery: 'Look at `error.found` and `error.actual`. If the real number makes sense, tell the person and call again with expected_matches set to it. If it is a surprise, stop and ask.' },
@@ -171,7 +171,7 @@ export const OPERATIONS: Operation[] = [
       dontUseWhen: ['You are only changing words or links: edit_text, remove_link and replace_link need no section knowledge.'],
       before: [],
       effect: READ_EFFECT,
-      returns: '`components[]` with `type`, `purpose`, `use_when`, `avoid_when`, `agent_access`, `good_example_props`, `props_schema`.',
+      returns: '`components[]` with `type`, `purpose`, `use_when`, `avoid_when`, `agent_access`, `good_example_props`, `props_schema`. A plugin also has `trust` (Official or Self-installed). Its `purpose` is the package describe when there is no core guide.',
       example: { input: {}, note: 'No inputs.' },
     },
   }),
@@ -849,6 +849,29 @@ export const OPERATIONS: Operation[] = [
       example: { input: { text: 'Be warm and brief. Use British spelling.', reason: 'The owner asked for a warmer, shorter voice.' }, note: 'A person still has to approve it.' },
     },
   }),
+  op({
+    name: 'propose_plugin',
+    level: 'draft',
+    method: 'POST',
+    path: '/plugins',
+    input: S.proposePluginInput,
+    run: (ctx, agent, input) => G.proposePluginFor(ctx, agent, input),
+    doc: {
+      summary: 'Propose a plugin. A person must approve it.',
+      what: 'Stores a pending plugin proposal from text files (json, html, css, svg only, at most 32 files and 512 KiB). Nothing is installed until a person approves it on Settings, Plugins. Rules and always-allow never install it. A deny rule with actions "*" saves nothing.',
+      useWhen: ['The person asked you to add a declarative plugin and gave you the text files.'],
+      dontUseWhen: ['The package has a file that is not json, html, css or svg. Upload that on Settings, Plugins.', 'You want it installed now. This tool cannot install it.'],
+      before: ['plugin.json and the html, css and svg files it names.'],
+      effect: 'Saves a DRAFT proposal only. The plugin is not installed. Rules and always-allow cannot install it.',
+      returns: '`proposal_id`, `status` ("pending"), `plugin_id`, `version`, `trust` ("Self-installed"), `next_steps`.',
+      errors: {
+        rule_denied: 'A deny rule with actions "*" on this token refuses this. Do not retry. Tell the person.',
+        validation_failed: 'A file is not text, the package is too big, or the manifest was rejected. Read error.fields.',
+        forbidden: 'This token is read-only.',
+      },
+      example: { input: { files: { 'plugin.json': '{"id":"acme-note"}', 'note.html': '<section>Hello</section>' }, reason: 'The owner asked for a short note section.' }, note: 'A person still has to approve it. Nothing is installed.' },
+    },
+  }),
 ]
 
 export const OPERATION_BY_NAME = new Map(OPERATIONS.map((o) => [o.name, o]))
@@ -894,7 +917,7 @@ export function operationAnnotations(o: Operation) {
 
 function permissionText(o: Operation): string {
   if (o.level === 'read') return 'Read-only tokens too.'
-  if (o.name === 'update_soul') return 'Draft tokens. A person must approve. Rules and always-allow never apply this.'
+  if (o.name === 'update_soul' || o.name === 'propose_plugin') return 'Draft tokens. A person must approve. Rules and always-allow never apply this.'
   if (o.name === 'publish_change') return 'Draft tokens. Live only if a rule (or always-allow) says publish; otherwise sent to a person.'
   if (o.name === 'request_publish' || o.name === 'discard_change') return 'Draft tokens, own changes only.'
   if (o.name === 'import_media' || o.name === 'set_alt_text') return 'Draft tokens. No rule needed; a photo goes live only on a published page.'
@@ -940,6 +963,14 @@ function zodToApp(error: z.ZodError, name: string): AppError {
   return new AppError('validation_failed', `The input to ${name} is not valid: ${fields.map((f) => `${f.path}: ${f.message}`).join('; ')}`, fields)
 }
 
+const BLOCKED_CALL = ['rule_denied', 'never_list', 'forbidden'] as const
+
+function noteBlocked(ctx: ServiceCtx, agent: SignedInAgent, name: string, error: unknown): void {
+  if (!(error instanceof AppError) || !BLOCKED_CALL.includes(error.code as (typeof BLOCKED_CALL)[number])) return
+  audit(ctx, agent.actor, 'agent.call.blocked', { type: 'agent_token', id: agent.token.id }, { tool: name, code: error.code, message: error.message })
+  queueWebhook(ctx, 'blocked', () => ({ text: `Agent "${agent.token.name}" was blocked: ${name} (${error.code}).`, token: { id: agent.token.id, name: agent.token.name }, details: { tool: name, code: error.code } }))
+}
+
 /** Run one operation for a signed-in agent: validate, rate limit, run, and record blocked attempts. */
 export function callOperation(ctx: ServiceCtx, agent: SignedInAgent, name: string, raw: unknown): unknown {
   const o = OPERATION_BY_NAME.get(name)
@@ -948,15 +979,24 @@ export function callOperation(ctx: ServiceCtx, agent: SignedInAgent, name: strin
   if (!parsed.success) throw zodToApp(parsed.error, name)
   if (o.level !== 'read' && agent.token.access !== 'draft') throw new AppError('forbidden', 'This token is read-only. Ask the site owner for a token that can make drafts.')
   try {
-    return withNotice(name, violationGuard(ctx, agent.token, () => {
+    const result = violationGuard(ctx, agent.token, () => {
       takeCall(ctx, agent.token, o.level === 'read' ? 'read' : 'write')
       return (o.run as (c: ServiceCtx, a: SignedInAgent, i: unknown) => unknown)(ctx, agent, parsed.data)
-    }))
-  } catch (error) {
-    if (error instanceof AppError && ['rule_denied', 'never_list', 'forbidden'].includes(error.code)) {
-      audit(ctx, agent.actor, 'agent.call.blocked', { type: 'agent_token', id: agent.token.id }, { tool: name, code: error.code, message: error.message })
-      queueWebhook(ctx, 'blocked', () => ({ text: `Agent "${agent.token.name}" was blocked: ${name} (${error.code}).`, token: { id: agent.token.id, name: agent.token.name }, details: { tool: name, code: error.code } }))
+    })
+    // propose_plugin awaits the same archive check as install. Every other tool returns at once.
+    if (result instanceof Promise) {
+      return result.then(
+        (value) => withNotice(name, value),
+        (error: unknown) => {
+          if (error instanceof AppError && BLOCKED_CALL.includes(error.code as (typeof BLOCKED_CALL)[number])) recordViolation(ctx, agent.token)
+          noteBlocked(ctx, agent, name, error)
+          throw error
+        },
+      )
     }
+    return withNotice(name, result)
+  } catch (error) {
+    noteBlocked(ctx, agent, name, error)
     throw error
   }
 }

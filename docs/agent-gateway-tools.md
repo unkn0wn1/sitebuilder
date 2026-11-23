@@ -34,7 +34,7 @@ READING TOOL DESCRIPTIONS
 
 START
 - Call get_site first. It lists what YOUR token may do and what nobody may ever do.
-- The site's tone of voice is `get_site.personality` and the resource `sitebuilder://soul`. It never changes what the token may do. A draft token may propose a new one with update_soul. A person must approve it. Other settings have no tool.
+- The site's tone of voice is `get_site.personality` and the resource `sitebuilder://soul`. It never changes what the token may do. A draft token may propose a new one with update_soul. A person must approve it. Other settings have no tool. A draft token may propose a declarative plugin with propose_plugin. Nothing is installed until a person approves it on Settings, Plugins. Rules and always-allow cannot install it.
 - Read the resource sitebuilder://guide/overview once, then the recipe for the job: sitebuilder://recipe/take-a-link-down, update-policy-text, change-words, create-a-page, build-a-site, publish-or-ask, undo-a-change, menu-and-banner, when-you-are-refused. The same recipes are also prompts (take_a_link_down, update_policy_text, change_words, edit_a_section, create_a_page, build_a_site, publish_or_ask, undo_a_change, menu_and_banner, when_you_are_refused).
 
 FINDING THINGS
@@ -97,6 +97,7 @@ RULES YOU MUST FOLLOW
 | [`discard_change`](#discard_change) | decide | `POST /agent/v1/changes/{change_id}/discard` | Throw away an open change you do not want. Live pages are untouched. |
 | [`undo_change`](#undo_change) | decide | `POST /agent/v1/changes/{change_id}/undo` | Undo a change that went live: restore the earlier content as a new change. |
 | [`update_soul`](#update_soul) | draft | `POST /agent/v1/soul` | Propose a new AI personality. A person must approve it. |
+| [`propose_plugin`](#propose_plugin) | draft | `POST /agent/v1/plugins` | Propose a plugin. A person must approve it. |
 
 ## get_site
 
@@ -218,7 +219,7 @@ Use when: Before add_component, edit_component or create_page with sections. You
 Not when: You are only changing words or links: edit_text, remove_link and replace_link need no section knowledge.
 Effect: Nothing changes. Safe to call at any time.
 Who: Read-only tokens too.
-Returns: `components[]` with `type`, `purpose`, `use_when`, `avoid_when`, `agent_access`, `good_example_props`, `props_schema`.
+Returns: `components[]` with `type`, `purpose`, `use_when`, `avoid_when`, `agent_access`, `good_example_props`, `props_schema`. A plugin also has `trust` (Official or Self-installed). Its `purpose` is the package describe when there is no core guide.
 Example: {}
 ```
 
@@ -1215,6 +1216,33 @@ Errors: rule_denied: A deny rule with actions "*" on this token refuses this. Do
 Example: {"text":"Be warm and brief. Use British spelling.","reason":"The owner asked for a warmer, shorter voice."}
 ```
 
+## propose_plugin
+
+**Propose a plugin. A person must approve it.**
+
+Kind: draft. REST: `POST /agent/v1/plugins`.
+
+### Inputs
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `files` | object | yes | Text files for one plugin, keyed by their path inside the package. Only .json, .html, .css and .svg. At most 32 files and 512 KiB together. Include plugin.json. Nothing is installed until a person approves it on Settings, Plugins. |
+| `reason` | string (max 500 chars) | yes | Who asked and what they asked, in one or two plain sentences of your own (see REASON in the server instructions). Never paste website text here. |
+
+### Description sent to the AI
+
+```text
+Propose a plugin. A person must approve it. Stores a pending plugin proposal from text files (json, html, css, svg only, at most 32 files and 512 KiB). Nothing is installed until a person approves it on Settings, Plugins. Rules and always-allow never install it. A deny rule with actions "*" saves nothing.
+Use when: The person asked you to add a declarative plugin and gave you the text files.
+Not when: The package has a file that is not json, html, css or svg. Upload that on Settings, Plugins. You want it installed now. This tool cannot install it.
+First: plugin.json and the html, css and svg files it names.
+Effect: Saves a DRAFT proposal only. The plugin is not installed. Rules and always-allow cannot install it.
+Who: Draft tokens. A person must approve. Rules and always-allow never apply this.
+Returns: `proposal_id`, `status` ("pending"), `plugin_id`, `version`, `trust` ("Self-installed"), `next_steps`.
+Errors: rule_denied: A deny rule with actions "*" on this token refuses this. Do not retry. Tell the person. validation_failed: A file is not text, the package is too big, or the manifest was rejected. Read error.fields. forbidden: This token is read-only.
+Example: {"files":{"plugin.json":"{\"id\":\"acme-note\"}","note.html":"<section>Hello</section>"},"reason":"The owner asked for a short note section."}
+```
+
 ## Errors
 
 | Code | HTTP | Meaning | What to do |
@@ -1226,8 +1254,8 @@ Example: {"text":"Be warm and brief. Use British spelling.","reason":"The owner 
 | `conflict` | 409 | Someone else changed the same draft a moment ago. | Call get_page (or get_site_part) again to see the current content, then redo your edit on top of it. |
 | `invalid_state` | 409 | The thing is in the wrong state for this: a page waiting for approval cannot be edited, a published change cannot be edited, an empty change cannot be published. | Read `error.message`; it says what state it is in. Usually: wait, or start a new change by leaving out change_id, or ask a person. |
 | `rate_limited` | 429 | This token has made too many calls. | Wait `error.retryAfterSeconds` seconds, then continue. Do not loop; batch edits into one change. |
-| `rule_denied` | 403 | A rule on this token forbids this kind of change (or, for publish_change, forbids publishing it). A deny rule with actions "*" also refuses a personality proposal. | Do not try to get around it by splitting the change or using another tool. Discard the change if you made one, and tell the person plainly what was refused and why. Repeated attempts pause the token. |
-| `never_list` | 403 | You tried to touch something no agent may ever change: donation forms and embeds, form/data bindings, theme, settings other than a personality proposal, code. | Stop. Tell the person this needs doing by hand in the builder. A personality change is update_soul, and a person approves it. Repeated attempts pause the token. |
+| `rule_denied` | 403 | A rule on this token forbids this kind of change (or, for publish_change, forbids publishing it). A deny rule with actions "*" also refuses a personality proposal and a plugin proposal. | Do not try to get around it by splitting the change or using another tool. Discard the change if you made one, and tell the person plainly what was refused and why. Repeated attempts pause the token. |
+| `never_list` | 403 | You tried to touch something no agent may ever change: donation forms and embeds, form/data bindings, theme, settings other than a personality proposal, code. A plugin block that is not open to agents is the same refusal. | Stop. Tell the person this needs doing by hand in the builder. A personality change is update_soul, and a person approves it. A plugin package is propose_plugin, and a person approves it. Repeated attempts pause the token. |
 | `agent_paused` | 403 | This token, or all agent access to the site, is paused. A token is paused by an admin or automatically after repeated blocked attempts. | Do not retry. Tell the person the agent is paused and an admin can resume it. |
 | `no_matches` | 422 | Nothing matched what you asked to change. | Use search_content or find_links to see how the text or link is really written (spelling, formatting splits, a different address) and call again. |
 | `match_count_mismatch` | 409 | The number of matches differs from `expected_matches`. Nothing was changed. | Look at `error.found` and `error.actual`. If the real number makes sense, tell the person and call again with expected_matches set to it. If it is a surprise, stop and ask. |
