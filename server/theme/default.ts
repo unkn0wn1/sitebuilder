@@ -58,9 +58,32 @@ function loadVirtuous(root) {
   script.dataset.isGiving = "true";
   script.dataset.dependencies = "[]";
   script.onload = function () {
-    root.classList.add("is-provider");
+    watchProvider(root);
   };
   root.append(script);
+}
+
+// Hide the static preview only once the provider has drawn a real form
+// in the box. A loaded script with a bad or demo form id draws nothing,
+// so the preview stays instead of leaving an empty white box.
+function providerDrawn(root) {
+  for (var node of Array.from(root.children)) {
+    if (!(node instanceof HTMLElement) || node.tagName === "SCRIPT") continue;
+    if (node.classList.contains("embed-fallback") || node.classList.contains("donate-preview") || node.hasAttribute("data-donate-hint")) continue;
+    if (node.offsetHeight > 40) return true;
+  }
+  return false;
+}
+
+function watchProvider(root) {
+  if (providerDrawn(root)) { root.classList.add("is-provider"); return; }
+  if (!("MutationObserver" in window)) return;
+  var mo = new MutationObserver(function () {
+    if (!providerDrawn(root)) return;
+    mo.disconnect();
+    root.classList.add("is-provider");
+  });
+  mo.observe(root, { childList: true, subtree: true, attributes: true });
 }
 
 function remountVirtuous(root) {

@@ -2,7 +2,7 @@ import { expect, test, type Page } from 'playwright/test'
 import { mkdirSync, readFileSync } from 'node:fs'
 import { Hero, MatchThermometer, SAMPLE_EMBED_ID, SAMPLE_MEDIA_ID, TrustStrip } from '../../shared/blocks/library'
 import { emptyPageDoc } from '../../shared/page'
-import { renderPageHtml } from '../../server/services/render'
+import { EMBED_JS, renderPageHtml } from '../../server/services/render'
 import { SECTION_CASES, SECTION_NOW, SECTION_RENDER } from '../fixtures/sections-default/cases'
 
 // Drawn with setContent. No app server. Photos are swapped in after render.
@@ -157,4 +157,32 @@ test('section rhythm and a static donate preview', async ({ page }) => {
   console.log('T5 phone donate section', phone)
   await expect(page.locator('.donate-preview button')).toBeDisabled()
   await page.screenshot({ path: `${shots}/T5-phone-375.png`, fullPage: true })
+})
+
+// The preview must stay until the provider has drawn a form. A script that
+// loads but draws nothing (a demo or wrong form id) must not leave an empty box.
+test('donate preview stays until the provider draws a form', async ({ page }) => {
+  let draw = false
+  await page.route('https://cdn.virtuoussoftware.com/**', (route) => route.fulfill({
+    contentType: 'text/javascript',
+    body: draw
+      ? `setTimeout(function(){var d=document.createElement('div');d.className='vform';d.style.height='420px';document.querySelector('.donate-box').append(d)},150)`
+      : '/* loads, draws nothing */',
+  }))
+  for (const drawn of [false, true]) {
+    draw = drawn
+    await show(page, 1280)
+    await page.addScriptTag({ content: EMBED_JS })
+    await page.locator('section.donate').scrollIntoViewIfNeeded()
+    const box = page.locator('.donate-box')
+    await expect(box.locator('script')).toHaveCount(1)
+    if (drawn) {
+      await expect(box).toHaveClass(/is-provider/)
+      await expect(page.locator('.donate-preview')).toBeHidden()
+    } else {
+      await page.waitForTimeout(800)
+      await expect(box).not.toHaveClass(/is-provider/)
+      await expect(page.locator('.donate-preview')).toBeVisible()
+    }
+  }
 })
