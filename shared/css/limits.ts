@@ -1,7 +1,7 @@
 /** Byte caps for custom CSS. Checked as UTF-8, not JavaScript string length.
  *  STYLE_MAX_BYTES was 65536. The extra 10240 (BLOCK_CSS_MAX_BYTES) is the inline
- *  block-sheet allowance for sheets such as the match thermometer (and, later, the
- *  gift picker). Those sheets are appended only on pages that use the block.
+ *  block-sheet allowance for sheets such as the match thermometer and the gift
+ *  picker. Those sheets are appended only on pages that use the block.
  *  This is not a shell increase. Do not derive the shell cap from
  *  STYLE_MAX_BYTES - SITE_CSS_MAX_BYTES - SECTION_CSS_MAX_BYTES, or the shell
  *  can grow into the block allowance. The shell cap stays SHELL_CSS_MAX_BYTES

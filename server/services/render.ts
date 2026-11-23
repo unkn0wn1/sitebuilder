@@ -38,7 +38,7 @@ import {
 } from '../../shared/site-parts'
 import { BUNDLE_ID, EMBED_JS, HEADER_JS, HERO_JS, THEME_CSS, THERMOMETER_JS } from '../theme/default'
 import { migrateBrandDoc, validateBrandDoc, type BrandDoc } from '../../shared/brand'
-import { BANNER_ACCENT_CSS, FOOTER_COLUMNS_CSS, HEART_CSS, HERO_CAROUSEL_CSS, OVER_HERO_CSS, THERMOMETER_CSS, TILE_CSS, UTILITY_CSS, brandChromeCss, themeCssFromTokens } from '../../shared/theme-css'
+import { BANNER_ACCENT_CSS, FOOTER_COLUMNS_CSS, HEART_CSS, HERO_CAROUSEL_CSS, OVER_HERO_CSS, PICKER_CSS, THERMOMETER_CSS, TILE_CSS, UTILITY_CSS, brandChromeCss, themeCssFromTokens } from '../../shared/theme-css'
 import { embeds, media, mediaCrops, pages, redirects, siteParts, sites, versions, type ReleaseManifest } from '../db/schema'
 import type { ServiceCtx } from './context'
 import { widthsFor } from './media'
@@ -615,7 +615,7 @@ function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector
     case 'Embed':
       return renderEmbed(block.type, p, site, bag)
     case 'ImpactTiers':
-      return renderImpactTiers(p, site, bag)
+      return renderImpactTiers(block.id, p, site, bag)
     case 'DonationProgress':
       return renderDonationProgress(p, bag)
     case 'MatchBanner':
@@ -666,35 +666,92 @@ function frequencyLabel(value: string | undefined): string | undefined {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
-function renderImpactTiers(p: Record<string, unknown>, site: SiteRenderContext, bag: Collector): VNode {
-  const items = (p.items as { amount: string; title?: string; explanation?: string; frequency?: string; image?: ImageRef }[] | undefined) ?? []
+interface TierItem {
+  amount: string
+  title?: string
+  explanation?: string
+  frequency?: string
+  image?: ImageRef
+}
+
+function tierGiveAttrs(item: TierItem, className: string): Record<string, string> {
+  const prefill = virtuousPrefill({ amount: item.amount, frequency: item.frequency, label: item.amount })
+  const attrs: Record<string, string> = { class: className, href: '#donate' }
+  if (prefill.amount) attrs['data-donate-amount'] = prefill.amount
+  if (prefill.frequency) attrs['data-donate-frequency'] = prefill.frequency
+  if (prefill.label) attrs['data-donate-label'] = prefill.label
+  return attrs
+}
+
+function renderImpactTiers(blockId: string, p: Record<string, unknown>, site: SiteRenderContext, bag: Collector): VNode {
+  if (p.layout === 'picker') return renderImpactPicker(blockId, p, site, bag)
+  const items = (p.items as TierItem[] | undefined) ?? []
   bag.needsEmbedJs = true
   return wrapSection([
+    ...(typeof p.eyebrow === 'string' && p.eyebrow.trim() ? [h('p', { class: 'eyebrow' }, p.eyebrow)] : []),
     p.heading ? h('h2', String(p.heading)) : null,
     p.intro ? h('p', { class: 'lede' }, String(p.intro)) : null,
     h(
       'div',
       { class: 'tiers' },
       items.map((item) => {
-        const prefill = virtuousPrefill({ amount: item.amount, frequency: item.frequency, label: item.amount })
-        const attrs: Record<string, string> = { class: 'tier-give', href: '#donate' }
-        if (prefill.amount) attrs['data-donate-amount'] = prefill.amount
-        if (prefill.frequency) attrs['data-donate-frequency'] = prefill.frequency
-        if (prefill.label) attrs['data-donate-label'] = prefill.label
+        const frequency = virtuousPrefill({ amount: item.amount, frequency: item.frequency, label: item.amount }).frequency
         return h('article', { class: 'tier' }, [
-          h('a', attrs, [
+          h('a', tierGiveAttrs(item, 'tier-give'), [
             pictureVNode(item.image, site, bag, { slot: { width: 640, height: 480 }, sizes: GRID_SIZES }),
             h('div', { class: 'tier-body' }, [
               h('p', { class: 'tier-amount' }, item.amount),
               item.title ? h('h3', item.title) : null,
               item.explanation ? h('p', item.explanation) : null,
-              prefill.frequency ? h('p', { class: 'tier-frequency' }, frequencyLabel(prefill.frequency) ?? prefill.frequency) : null,
+              frequency ? h('p', { class: 'tier-frequency' }, frequencyLabel(frequency) ?? frequency) : null,
             ]),
           ]),
         ])
       }),
     ),
     p.otherAmount ? h('p', { class: 'tier-other' }, [h('a', { class: 'tier-give', href: '#donate' }, String(p.otherAmount))]) : null,
+    linkButton(asLink(p.cta), bag),
+  ])
+}
+
+const PICKER_SIZES = '(max-width: 759px) 100vw, 560px'
+
+function renderImpactPicker(blockId: string, p: Record<string, unknown>, site: SiteRenderContext, bag: Collector): VNode {
+  const items = (p.items as TierItem[] | undefined) ?? []
+  bag.needsEmbedJs = true
+  const group = `it-${blockId}`
+  const radios = items.map((item, index) =>
+    h('input', {
+      class: 'ga-sr',
+      type: 'radio',
+      name: group,
+      id: `${group}-${index + 1}`,
+      checked: index === 0 ? true : undefined,
+    }),
+  )
+  const figures = items.map((item, index) =>
+    h('figure', { class: 'ga-f', hidden: index === 0 ? undefined : true }, [
+      pictureVNode(item.image, site, bag, { slot: { width: 640, height: 480 }, sizes: PICKER_SIZES, eager: index === 0 }),
+      h('figcaption', [h('b', item.amount), item.explanation ? h('span', item.explanation) : null]),
+    ]),
+  )
+  const labels = items.map((item, index) =>
+    h('label', { class: 'ga-l', for: `${group}-${index + 1}` }, [h('b', item.amount), item.title ? h('span', item.title) : null]),
+  )
+  const gives = items.map((item, index) =>
+    h('a', { ...tierGiveAttrs(item, 'btn tier-give ga-give'), hidden: index === 0 ? undefined : true }, `Give ${item.amount}`),
+  )
+  const other = typeof p.otherAmount === 'string' && p.otherAmount.trim() ? h('a', { class: 'tier-other', href: '#donate' }, p.otherAmount) : null
+  return wrapSection([
+    ...(typeof p.eyebrow === 'string' && p.eyebrow.trim() ? [h('p', { class: 'eyebrow' }, p.eyebrow)] : []),
+    p.heading ? h('h2', String(p.heading)) : null,
+    p.intro ? h('p', { class: 'lede' }, String(p.intro)) : null,
+    h('div', { class: 'ga' }, [
+      ...radios,
+      h('div', { class: 'ga-stage' }, figures),
+      h('div', { class: 'ga-list' }, labels),
+      h('div', { class: 'ga-foot' }, [...gives, other]),
+    ]),
     linkButton(asLink(p.cta), bag),
   ])
 }
@@ -1544,7 +1601,8 @@ export async function renderPageHtml(input: {
   const { doc, site } = input
   const carouselCss = doc.blocks.some((block) => heroCarouselActive(block as StoredBlock)) ? HERO_CAROUSEL_CSS : ''
   const thermometerCss = doc.blocks.some((block) => block.type === 'MatchThermometer') ? THERMOMETER_CSS : ''
-  const css = (site.themeCss ?? THEME_CSS) + shellOptionCss(site) + carouselCss + thermometerCss + emitSiteCss(site.brand) + doc.blocks.map((block) => emitSectionCss(block as StoredBlock)).join('')
+  const pickerCss = doc.blocks.some((block) => block.type === 'ImpactTiers' && block.props.layout === 'picker') ? PICKER_CSS : ''
+  const css = (site.themeCss ?? THEME_CSS) + shellOptionCss(site) + carouselCss + thermometerCss + pickerCss + emitSiteCss(site.brand) + doc.blocks.map((block) => emitSectionCss(block as StoredBlock)).join('')
   if (css.toLowerCase().includes('</')) throw new CssRejected(1, 1, 'The generated CSS was rejected.')
   if (Buffer.byteLength(css, 'utf8') > STYLE_MAX_BYTES) throw new CssRejected(1, 1, `This page CSS is over the ${STYLE_MAX_BYTES.toLocaleString('en-US')} byte limit.`)
   const app = createSSRApp(

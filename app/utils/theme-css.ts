@@ -1,5 +1,5 @@
 // Scope the public theme so it only paints the canvas, not the builder chrome.
-import { HERO_CAROUSEL_CSS, THEME_CSS, THERMOMETER_CSS } from '#shared/theme-css'
+import { HERO_CAROUSEL_CSS, PICKER_CSS, THEME_CSS, THERMOMETER_CSS } from '#shared/theme-css'
 
 export const CANVAS_SCOPE = 'sb-canvas'
 
@@ -42,4 +42,9 @@ export function scopedHeroCarouselCss(): string {
 /** Thermometer rules for the editor frame, scoped so they paint only inside .sb-canvas. */
 export function scopedThermometerCss(): string {
   return scopeThemeCss(THERMOMETER_CSS)
+}
+
+/** Gift picker rules for the editor frame, scoped so they paint only inside .sb-canvas. */
+export function scopedPickerCss(): string {
+  return scopeThemeCss(PICKER_CSS)
 }

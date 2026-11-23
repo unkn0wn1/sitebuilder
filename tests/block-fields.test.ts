@@ -67,6 +67,9 @@ describe('block fields', () => {
 
   it('describes the new campaign blocks, including grouped trust marks and badge snippets', () => {
     expect(blockLabel('ImpactTiers')).toBe('Impact tiers')
+    const tiers = fieldsForBlock('ImpactTiers')
+    expect(tiers.find((f) => f.name === 'eyebrow')).toMatchObject({ kind: 'text', optional: true, max: 40 })
+    expect(tiers.find((f) => f.name === 'layout')).toMatchObject({ kind: 'enum', options: ['grid', 'picker'] })
     expect(blockLabel('DonationProgress')).toBe('Donation progress')
     expect(blockLabel('MatchBanner')).toBe('Match or countdown')
     expect(blockLabel('StoryBeforeAfter')).toBe('Story with before and after')

@@ -407,6 +407,42 @@ export const THERMOMETER_CSS = `
 }
 `
 
+/** Gift picker card. Appended only when an ImpactTiers block uses layout picker. No script. */
+const PICKER_SLOTS = [1, 2, 3, 4, 5, 6, 7, 8]
+function pickerWhen(pseudo: string, tail: string): string {
+  return PICKER_SLOTS.map((n) => `.ga input:nth-of-type(${n}):${pseudo}~${tail}(${n})`).join(', ')
+}
+
+export const PICKER_CSS = `
+.ga { position:relative;display:grid;gap:18px;padding:16px;grid-template-columns:1fr;grid-template-areas:"stage" "list" "foot";background:#fff;border:1px solid var(--line);border-radius:var(--radius-card);box-shadow:var(--shadow-card);}
+.ga-stage { grid-area:stage;min-width:0;}
+.ga-list { grid-area:list;display:grid;gap:10px;min-width:0;}
+.ga-foot { grid-area:foot;display:flex;flex-direction:column;align-items:flex-start;gap:10px;min-width:0;}
+.ga-sr { position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}
+.ga-f { display:none;margin:0;position:relative;border-radius:var(--radius-tile);overflow:hidden;background:var(--paper);}
+.ga-f img { display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover;}
+.ga-f figcaption { position:absolute;left:0;right:0;bottom:0;margin:0;padding:48px 18px 16px;background:linear-gradient(to top, color-mix(in srgb, var(--ink) 82%, transparent), transparent);color:#fff;font-weight:600;font-size:16px;line-height:1.35;}
+.ga-f figcaption b { display:block;font-size:34px;font-weight:900;line-height:1;margin:0 0 4px;}
+.ga-l { display:flex;align-items:center;gap:14px;min-height:64px;padding:10px 16px;border:2px solid var(--line);border-radius:var(--radius-tile);cursor:pointer;background:#fff;transition:border-color .15s, background-color .15s;}
+.ga-l b { font-size:22px;font-weight:900;min-width:58px;flex:none;font-variant-numeric:tabular-nums;}
+.ga-l span { font-weight:600;font-size:15px;line-height:1.3;}
+.ga-l:hover { border-color:var(--decor);}
+.ga .ga-give { display:none;height:auto;flex-direction:row;color:var(--accent-ink);text-decoration:none;min-height:52px;padding:0 26px;}
+.ga .ga-give:hover { box-shadow:none;}
+.ga .tier-other { margin:0;color:var(--muted);font-size:15px;text-underline-offset:3px;}
+${pickerWhen('checked', '.ga-stage .ga-f:nth-of-type')} { display:block;}
+${pickerWhen('checked', '.ga-foot .ga-give:nth-of-type')} { display:inline-flex;}
+${pickerWhen('checked', '.ga-list .ga-l:nth-of-type')} { border-color:var(--accent);background:color-mix(in srgb, var(--highlight) 55%, #fff);box-shadow:var(--shadow-selected);}
+${pickerWhen('focus-visible', '.ga-list .ga-l:nth-of-type')} { outline:3px solid var(--ink);outline-offset:2px;}
+@media (min-width:760px) {
+.ga { grid-template-columns:minmax(0, 1fr) minmax(0, 1.15fr);grid-template-areas:"list stage" "foot stage";padding:22px;gap:22px;align-items:start;}
+.ga-foot { flex-direction:row;align-items:center;flex-wrap:wrap;gap:12px 16px;}
+}
+@media (prefers-reduced-motion: reduce) {
+.ga-l { transition:none;}
+}
+`
+
 
 
 /** Build public CSS from a brand pack, keeping the default rules and swapping tokens and fonts.

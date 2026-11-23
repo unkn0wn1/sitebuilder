@@ -462,7 +462,7 @@ export const ImpactTiers = defineBlock({
     useWhen: 'Campaigns and evergreen donation pages that suggest amounts.',
     pairsWith: ['DonationEmbed', 'DonationProgress', 'CallToAction'],
     avoidWhen: 'You would present invented impact claims as fact. Use placeholders until the real amounts are known.',
-    fields: 'heading, intro, items (amount, title, explanation, optional frequency once/monthly/quarterly/annually, optional image), optional other-amount line and cta.',
+    fields: 'heading, intro, optional eyebrow, layout (grid or picker; grid is the default card row), items (amount, title, explanation, optional frequency once/monthly/quarterly/annually, optional image), optional other-amount line and cta.',
     good: {
       note: 'Each amount has a title and a concrete outcome. Unknown figures are marked as examples, not live claims.',
       props: {
@@ -484,8 +484,10 @@ export const ImpactTiers = defineBlock({
   },
   props: z
     .object({
+      eyebrow: text({ max: 40 }),
       heading: text({ max: 80 }),
       intro: text({ max: 240 }),
+      layout: z.enum(['grid', 'picker']).default('grid'),
       items: z
         .array(
           z

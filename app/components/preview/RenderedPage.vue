@@ -7,7 +7,7 @@ import { api, ApiError } from '../../utils/api'
 import { canvasScale } from '../../utils/format'
 import { mediaVersion } from '../../utils/media'
 import { shouldInjectLiveCss } from '#shared/css/live'
-import { scopedHeroCarouselCss, scopedThermometerCss } from '../../utils/theme-css'
+import { scopedHeroCarouselCss, scopedPickerCss, scopedThermometerCss } from '../../utils/theme-css'
 import { DEVICE_WIDTHS, type Device } from '../../utils/page-editor'
 
 export type BlockMark = 'added' | 'changed' | 'issue'
@@ -187,9 +187,11 @@ function injectScopedSheet(doc: Document, attr: string, on: boolean, css: string
 function applyCanvasBlockCss(doc: Document) {
   const hasCarousel = !!doc.querySelector('.hero-carousel')
   const hasThermometer = !!doc.querySelector('.th')
-  doc.documentElement.classList.toggle('sb-canvas', hasCarousel || hasThermometer)
+  const hasPicker = !!doc.querySelector('.ga')
+  doc.documentElement.classList.toggle('sb-canvas', hasCarousel || hasThermometer || hasPicker)
   injectScopedSheet(doc, 'data-sb-hero-carousel', hasCarousel, scopedHeroCarouselCss())
   injectScopedSheet(doc, 'data-sb-thermometer', hasThermometer, scopedThermometerCss())
+  injectScopedSheet(doc, 'data-sb-picker', hasPicker, scopedPickerCss())
 }
 
 function onLoad(i: number) {
