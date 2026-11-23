@@ -15,6 +15,7 @@ import { pluginFiles, pluginSettings, plugins, versions } from '../../db/schema'
 import { audit } from '../audit'
 import { inTx, iso, type ActingAs, type ServiceCtx } from '../context'
 import { AppError, forbidden } from '../errors'
+import { queuePluginRebuild } from '../publish'
 import { applyPluginRegistry } from './load'
 import { testRenderPlugin } from './render-check'
 
@@ -198,5 +199,6 @@ export async function installPluginArchive(ctx: ServiceCtx, actor: ActingAs, arc
   if (status === 'pending_owner') {
     return { status: 'needs_owner', id: rowId, pluginId: manifest.id, version: manifest.version, trust: verdict.trust, origins, permissions: manifest.permissions }
   }
+  queuePluginRebuild(ctx, actor)
   return { status: 'enabled', id: rowId, pluginId: manifest.id, version: manifest.version, trust: verdict.trust }
 }
