@@ -5,7 +5,6 @@ import { hasPrefix } from '../../../shared/ids'
 import { zodIssues, type FieldIssue } from '../../../shared/issues'
 import type { PluginManifest, PluginOrigin } from '../../../shared/plugins/manifest'
 import { compileObjectSchema } from '../../../shared/plugins/schema-subset'
-import { OFFICIAL_KEYS } from '../../../shared/plugins/keys'
 import { decideTrust } from '../../../shared/plugins/signature'
 import { can } from '../../../shared/roles'
 import { pluginFiles, pluginProposals, pluginSettings, plugins } from '../../db/schema'
@@ -14,6 +13,7 @@ import { inTx, iso, type ActingAs, type ServiceCtx } from '../context'
 import { AppError, forbidden, notFound } from '../errors'
 import { queuePluginRebuild } from '../publish'
 import { installPluginArchive, type InstallResult } from './install'
+import { officialKeys } from './official-keys'
 import { applyPluginRegistry } from './load'
 
 const SCRIPT_MESSAGE = 'This plugin asks to load scripts. Version 1 plugins cannot add scripts.'
@@ -146,7 +146,7 @@ function proposalTrust(row: typeof pluginProposals.$inferSelect): TrustLabel {
     contentHash: Buffer.from(row.contentHash, 'hex'),
     pluginId: row.pluginId,
     version: row.version,
-    keys: OFFICIAL_KEYS,
+    keys: officialKeys(),
   })
   return verdict.ok ? trustLabel(verdict.trust) : 'Self-installed'
 }

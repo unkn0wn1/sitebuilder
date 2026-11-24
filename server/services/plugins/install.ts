@@ -5,7 +5,6 @@ import { newId } from '../../../shared/ids'
 import type { FieldIssue } from '../../../shared/issues'
 import { ArchiveError, readTarGz } from '../../../shared/plugins/archive'
 import { contentHash, type ContentHash } from '../../../shared/plugins/hash'
-import { OFFICIAL_KEYS } from '../../../shared/plugins/keys'
 import { parseManifest, type PluginManifest, type PluginOrigin } from '../../../shared/plugins/manifest'
 import { compileObjectSchema } from '../../../shared/plugins/schema-subset'
 import { compareSemver } from '../../../shared/plugins/semver'
@@ -17,6 +16,7 @@ import { inTx, iso, type ActingAs, type ServiceCtx } from '../context'
 import { AppError, forbidden } from '../errors'
 import { queuePluginRebuild } from '../publish'
 import { applyPluginRegistry } from './load'
+import { officialKeys } from './official-keys'
 import { testRenderPlugin } from './render-check'
 
 export type PluginTrust = 'official' | 'self'
@@ -116,7 +116,7 @@ export async function preparePluginArchive(archive: Buffer, signature: Buffer | 
     contentHash: hashed.raw,
     pluginId: manifest.id,
     version: manifest.version,
-    keys: OFFICIAL_KEYS,
+    keys: officialKeys(),
   })
   if (!verdict.ok) reject([{ path: 'signature', message: verdict.message || SIGNATURE_UNREADABLE }])
   const rendered = await testRenderPlugin({ manifest, files })

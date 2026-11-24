@@ -1,0 +1,49 @@
+{
+  "id": "gift-tiers",
+  "name": "Gift tiers",
+  "version": "1.0.0",
+  "sitebuilder": ">=0.1.0 <0.2.0",
+  "permissions": ["blocks"],
+  "csp": { "img": [], "frame": [], "script": [], "connect": [], "font": [] },
+  "blocks": [
+    {
+      "type": "Tiers",
+      "v": 1,
+      "label": "Gift tiers",
+      "category": "Calls to action",
+      "props": {
+        "type": "object",
+        "fields": {
+          "heading": { "type": "string", "max": 80, "required": true },
+          "currency": { "type": "string", "max": 8, "required": true },
+          "tiers": {
+            "type": "list",
+            "max": 8,
+            "required": true,
+            "item": {
+              "type": "object",
+              "fields": {
+                "name": { "type": "string", "max": 40, "required": true },
+                "amount": { "type": "string", "max": 40, "required": true },
+                "detail": { "type": "string", "max": 120, "required": true }
+              }
+            }
+          }
+        }
+      },
+      "template": "tiers.html",
+      "css": "tiers.css",
+      "example": {
+        "heading": "Ways to give",
+        "currency": "£",
+        "tiers": [
+          { "name": "Blanket", "amount": "25", "detail": "A warm blanket" },
+          { "name": "Treatment", "amount": "80", "detail": "A vet visit" }
+        ]
+      },
+      "agent": { "writable": true, "describe": "Named gift amounts. This is not the core Gift picker." },
+      "money": true
+    }
+  ],
+  "head": []
+}

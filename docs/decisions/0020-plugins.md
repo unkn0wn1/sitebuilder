@@ -21,7 +21,7 @@ Admins still need a checked section they can add without a rebuild. An agent may
 - Official public keys live in `shared/plugins/keys.ts` as `{ id, publicKey }`, where `publicKey` is the raw 32 bytes in standard base64. The list starts empty. The first official plugins add one public key. No private key is stored in this repository. The keygen script writes a PKCS8 PEM with mode `0o600`. The path is `SITEBUILDER_PLUGIN_SIGNING_KEY`, or `~/.config/sitebuilder/official-signing.key` when that is unset. The script refuses a path inside the repo and refuses to overwrite an existing file. It prints the public key and the key id. It never prints the private key.
 - Packages are stored in SQLite, not on a volume. A database backup then includes the files, and the stored bytes are what the content hash checks. The tables are `plugins`, `plugin_files`, `plugin_settings` and `plugin_proposals`.
 - An agent may propose a package. Installing or enabling it always needs a person. Rules and always-allow cannot install a plugin. `plugin_proposals` holds that review. A proposal is not a plugin row.
-- A later repository can publish an index without changing the package format. The index is JSON. `schema` is `1`, and `plugins` is a list of objects with `id`, `version`, `contentHash`, `archive`, `signature`, `keyId` and `core`. This record does not build a client for that index. The index itself is not signed. Trusting it needs a signature story: sign the index with an official key, or trust it only over HTTPS together with each package signature.
+- A repository publishes an index without changing the package format. The index is JSON. `schema` is `1`, and `plugins` is a list of objects with `id`, `version`, `contentHash`, `archive`, `signature`, `keyId` and `core`. Archive and signature paths are `packages/<id>/<version>/<id>-<version>.tar.gz` and the same path with `.sig`. The index is signed with the same four-line signature as a package. The signed bytes are the canonical index: UTF-8, LF, two-space JSON, plugins sorted by id then version, and one trailing newline. The trusted comment names `plugin=repository-index` and `version=1.0.0`. A client refuses an Official install when the index signature is missing, unreadable, or not from a built-in public key. An unknown key on the index is a refusal, not Self-installed.
 
 ```json
 {
@@ -31,8 +31,8 @@ Admins still need a checked section they can add without a rebuild. An agent may
       "id": "match-thermometer",
       "version": "1.0.0",
       "contentHash": "<64 hex>",
-      "archive": "match-thermometer-1.0.0.tar.gz",
-      "signature": "match-thermometer-1.0.0.tar.gz.sig",
+      "archive": "packages/match-thermometer/1.0.0/match-thermometer-1.0.0.tar.gz",
+      "signature": "packages/match-thermometer/1.0.0/match-thermometer-1.0.0.tar.gz.sig",
       "keyId": "<16 hex>",
       "core": ">=0.1.0 <0.2.0"
     }
@@ -44,10 +44,10 @@ Admins still need a checked section they can add without a rebuild. An agent may
 
 ## Not in v1
 
-Phase 6 is design only. It is not built on this branch.
+These are still not built:
 
 - A public sitebuilder home site and a full docs library (the Part 4 VitePress site, still unbuilt).
-- A plugin repository: signed `.tar.gz` packages plus the index JSON above. Clients verify each package. The index itself needs a signature story before it is trusted.
+- The public host `https://plugins.skewstone.com` is not deployed by this record. The signed index, the official packages and the in-app catalogue are built. See the note below.
 - A public admin demo. An in-app "Reset demo" button anyone can press. It restores the demo database and the media folder from a saved snapshot. It does not rebuild a VM.
 - An hourly job repeats that restore, in case nobody presses the button.
 - One visitor's reset must not wipe another visitor mid-edit. Prefer a per-visitor sandbox site (a copy of the snapshot keyed by a demo session) or, if that is too heavy, a cooldown and a warning that reset replaces the shared demo. Record the choice when Phase 6 is built. The plan for now is: design the sandbox first, and keep the hourly restore as the backstop for the shared snapshot.
@@ -59,3 +59,7 @@ Phase 6 is design only. It is not built on this branch.
 - Code blocks stay on the `site/` layer in [ADR 0006](0006-site-layer.md). That layer is not replaced, and those code blocks are still not built.
 - A package that fails the check is not installed. A stored plugin that no longer checks out is disabled on boot with a short message. The rest of the app still starts.
 - Origins from a plugin are added to a page only when that page uses the plugin's block. Pages that use no plugin block stay as they were.
+
+## Note, 24 Nov 2026 (Phase 6)
+
+The index is signed. Clients refuse Official installs from an unsigned or badly signed index. Settings, Plugins has an in-app Official catalogue, "Add from the Skewstone repository". The gift package is a new declarative plugin (`gift-tiers`), not a repackaging of the core Gift picker.
