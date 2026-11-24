@@ -31,3 +31,7 @@ Cloudflare Access cannot sign in an AI connector. When the agent gateway is swit
 
 The rest of the builder stays behind Access. Everything under `/agent/` needs a bearer token; it never reads the session cookie. Bypass turns off Cloudflare's Access logging for that path, so the audit log in the builder is the record.
 
+## Amendment, 2026-11-24
+
+The public demo at demo-admin.skewstone.com runs with `SITEBUILDER_DEMO_MODE=1`. That install does not use Cloudflare Access. Visitors sign in with the published account `demo@skewstone.com` / `skewstone-demo`. That password is published on purpose and is not a secret. Each visitor gets their own database, media, and published files. The demo refuses plugin installs, user changes, backups, secrets, mail, AI calls, the agent gateway, hostname changes, and indexing changes. Marketing, docs, and the plugins host stay public and indexable. Every other production builder still requires Cloudflare Access.
+
