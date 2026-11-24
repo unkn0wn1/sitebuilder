@@ -19,6 +19,11 @@ function section(name: string): string {
 }
 
 describe('skewstone nginx', () => {
+  it('quotes every regex that contains braces, which nginx otherwise reads as a block', () => {
+    const bad = nginx.split('\n').filter((line) => /^\s*~\S*\{/.test(line))
+    expect(bad).toEqual([])
+  })
+
   it('names the five hosts on five ports and does not mention a cache daemon', () => {
     expect(nginx).not.toContain('varnish')
     expect(section('marketing')).toContain('listen 8081 default_server;')
