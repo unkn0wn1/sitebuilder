@@ -2,8 +2,8 @@
 Description=Hourly Skewstone demo sandbox sweep
 
 [Timer]
+OnBootSec=10min
 OnUnitActiveSec=1h
-Persistent=true
 Unit=skewstone-demo-sweep.service
 
 [Install]

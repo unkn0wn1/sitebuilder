@@ -92,6 +92,8 @@ describe('skewstone nginx', () => {
     expect(service).toContain('WorkingDirectory=/srv/skewstone')
     expect(service).toContain('docker compose exec -T builder npm run demo:sweep')
     expect(timer).toContain('OnUnitActiveSec=1h')
+    // OnUnitActiveSec alone never fires until the service has run once
+    expect(timer).toMatch(/^On(Boot|Active)Sec=/m)
     expect(ingress).toContain('http://localhost:8081')
     expect(ingress).toContain('http://localhost:8085')
     expect(ingress).toContain('http_status:404')
