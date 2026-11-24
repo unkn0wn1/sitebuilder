@@ -67,7 +67,7 @@ Brand tokens on the Experience: primary and buttons `#E90000`, hover `#BA0000`, 
 - **Gift amounts have no impact line.** $25 / $50 / $100 / $250 are bare numbers. Battersea and IFAW almost always attach “£25 could…” copy. That is the biggest miss on an otherwise careful page.
 - **The $250,000 goal and “twice the impact” chip are disconnected.** The campaign has a goal and dates, but the match label is empty, so the hero stat is not tied to a visible thermometer or a named match.
 - **Generic meta description** (“Support our cause by making a donation today…”) rather than the page’s own headline.
-- **Hosting this as a Raise Experience** takes people off AAU’s site, typography and header. The good sections (story, split, urgency) can live on a sitebuilder campaign page with a Virtuous *form* embedded, which is what Spencer prefers.
+- **Hosting this as a Raise Experience** takes people off AAU’s site, typography and header. The good sections (story, split, urgency) can live on a Skewstone campaign page with a Virtuous *form* embedded, which is what Spencer prefers.
 
 Spencer’s instinct is right: keep the story, the clear ask and the confidence signals; drop the red badge wall and the unedited template chrome; put the form on AAU’s own pages.
 

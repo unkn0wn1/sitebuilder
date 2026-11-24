@@ -12,6 +12,7 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
   app: {
     head: {
+      title: 'Skewstone',
       script: [{ innerHTML: THEME_BOOTSTRAP_SCRIPT, tagPosition: 'head' }],
     },
   },

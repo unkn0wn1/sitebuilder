@@ -192,7 +192,7 @@ export function encryptBytes(key: Buffer, plaintext: Buffer): Buffer {
 
 export function decryptBytes(key: Buffer, stored: Buffer): Buffer {
   if (stored.length < 4 + 12 + 16 || !stored.subarray(0, 4).equals(BACKUP_MAGIC)) {
-    throw new AppError('validation_failed', 'That file is not a sitebuilder backup.')
+    throw new AppError('validation_failed', 'That file is not a Skewstone backup.')
   }
   const iv = stored.subarray(4, 16)
   const tag = stored.subarray(16, 32)
