@@ -54,7 +54,10 @@ function issuesForBlock(blockId: string): FieldIssue[] {
 
 function onSectionProps(value: Record<string, unknown>) {
   const id = props.editor.selectedId
-  if (id) props.editor.updateProps(id, value)
+  const block = props.editor.selected
+  if (!id || !block) return
+  const unset = Object.keys(block.props).filter((key) => !Object.prototype.hasOwnProperty.call(value, key))
+  props.editor.updateProps(id, value, unset)
 }
 
 function focusIssue(issue: FieldIssue) {
@@ -203,6 +206,7 @@ async function submit() {
         :issues="issuesForBlock(editor.selected.id)"
         :base-path="`${issuePathFor(editor.selected.id)}.props`"
         @update:model-value="onSectionProps"
+        @remove="editor.removeSection(editor.selected.id)"
       />
       <details v-if="canCss" class="mt-6 border-t border-gray-200 pt-4 dark:border-gray-700" data-testid="custom-css">
         <summary class="cursor-pointer text-sm font-medium text-gray-900 dark:text-gray-100">Custom CSS</summary>

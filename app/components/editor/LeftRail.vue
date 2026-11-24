@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { blockCatalog, blockLabel } from '../../utils/block-fields'
+import { blockCatalog, blockLabel, pluginTrust } from '../../utils/block-fields'
 import AssistantPanel from './AssistantPanel.vue'
 import type { LeftTab, PageEditor } from '../../utils/page-editor'
 import type { useAssistant } from '../../composables/useAssistant'
@@ -77,7 +77,11 @@ function onOutlineKey(event: KeyboardEvent, id: string, index: number) {
             class="mb-1 block w-full rounded-md px-3 py-2 text-left text-sm text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
             @click="editor.addSection(item.type, editor.selectedId)"
           >
-            {{ item.label }}
+            <span class="flex flex-wrap items-center gap-2">
+              <span>{{ item.label }}</span>
+              <span v-if="item.plugin" class="rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">Plugin</span>
+              <span v-if="item.trust" class="text-xs text-gray-500 dark:text-gray-400">{{ item.trust }}</span>
+            </span>
           </button>
         </div>
       </div>
@@ -93,10 +97,16 @@ function onOutlineKey(event: KeyboardEvent, id: string, index: number) {
               @click="editor.select(block.id); if (overlay) emit('close')"
               @keydown="onOutlineKey($event, block.id, index)"
             >
-              <span class="min-w-0 truncate">{{ index + 1 }}. {{ blockLabel(block.type) }}</span>
-              <span v-if="block.css?.trim()" class="shrink-0 font-mono text-xs text-gray-500 dark:text-gray-400">
+              <span class="flex min-w-0 items-center gap-2">
+                <span class="min-w-0 truncate">{{ index + 1 }}. {{ blockLabel(block.type) }}</span>
+                <span v-if="block.type.includes('/')" class="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">Plugin</span>
+              </span>
+              <span class="flex shrink-0 items-center gap-2">
+                <span v-if="pluginTrust(block.type)" class="text-xs text-gray-500 dark:text-gray-400">{{ pluginTrust(block.type) }}</span>
+                <span v-if="block.css?.trim()" class="font-mono text-xs text-gray-500 dark:text-gray-400">
                 <span aria-hidden="true">{ }</span>
-                <span class="sr-only">Has custom CSS</span>
+                  <span class="sr-only">Has custom CSS</span>
+                </span>
               </span>
             </button>
             <div v-if="editor.selectedId === block.id" class="mb-1 flex justify-end gap-1 px-2">

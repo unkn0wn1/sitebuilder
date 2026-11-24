@@ -55,6 +55,9 @@ export function runChecks(doc: PageDoc, registry: BlockRegistry, rules: Template
   doc.blocks.forEach((block, i) => {
     const base = `blocks.${i}.props`
     const def = registry.get(block.type)
+    if (!def && block.type.includes('/')) {
+      warnings.push({ path: `blocks.${i}.type`, message: 'Plugin missing. This section is left out of the published page.' })
+    }
 
     for (const prop of def?.headingProps ?? []) {
       const value = block.props[prop]

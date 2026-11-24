@@ -3,7 +3,8 @@
 import { and, desc, eq, isNotNull, ne } from 'drizzle-orm'
 import { newId } from '../../shared/ids'
 import { can } from '../../shared/roles'
-import { brandPacks, pages, redirects, releases, reviews, siteParts, sites, templates, versions, type ReleaseManifest } from '../db/schema'
+import { brandPacks, pages, plugins, redirects, releases, reviews, siteParts, sites, templates, versions, type ReleaseManifest } from '../db/schema'
+import { effectiveBundleId } from './plugins/load'
 import { aliasesFromRedirects, collectLinkedPageIds, pageIdByPath, pathAliases } from '../../shared/internal-links'
 import { migratePageDoc } from '../../shared/page'
 import { migrateSitePartDoc } from '../../shared/site-parts'
@@ -62,7 +63,10 @@ interface PublishPayload {
   reviewId?: string
   unpublishPageId?: string
   redirectTo?: string | null
-  rebuild?: 'settings'
+  /** settings: a settings save. plugins: enable, disable, upgrade, uninstall, owner approval, or plugin settings. */
+  rebuild?: 'settings' | 'plugins'
+  /** Live page ids recorded when a plugin rebuild was queued. The worker re-reads live pages when it runs. */
+  pageIds?: string[]
 }
 
 /** The publish job. One at a time (publish lane). */
@@ -70,11 +74,11 @@ export function createPublishHandler(writer: ReleaseWriter = noopReleaseWriter):
   return {
     async run(ctx, job) {
       const payload = job.payload as PublishPayload
-      // A settings save re-renders the live site. It is not a review or an unpublish.
-      if (payload.rebuild === 'settings') {
+      // A settings save or a plugin change re-renders the live site. It is not a review or an unpublish.
+      if (payload.rebuild === 'settings' || payload.rebuild === 'plugins') {
         if (!currentRelease(ctx)) return {}
         const result = await rebuildPublishedSite(ctx, writer)
-        audit(ctx, 'system', 'site.rebuilt', { type: 'site', id: ctx.siteId }, { reason: 'settings' })
+        audit(ctx, 'system', 'site.rebuilt', { type: 'site', id: ctx.siteId }, { reason: payload.rebuild })
         return { releaseId: result.releaseId }
       }
       const prev = currentRelease(ctx)
@@ -154,6 +158,11 @@ export function createPublishHandler(writer: ReleaseWriter = noopReleaseWriter):
 
       stampTemplates(ctx, manifest, review?.targetType === 'template' ? { id: review.targetId, versionId: review.versionId } : undefined)
       stampLinkedPageIds(ctx, manifest, previousManifest)
+      // Compare only pluginBundleId. Absence means no plugins. Do not compare bundleId (historical value 'dev').
+      if (syncPluginBundleId(ctx, manifest)) {
+        changedPageIds = uniqueIds([...changedPageIds, ...Object.keys(manifest.pages)])
+        purgeTags = ['shell']
+      }
 
       ctx.db
         .insert(releases)
@@ -186,6 +195,7 @@ export function createPublishHandler(writer: ReleaseWriter = noopReleaseWriter):
           ctx.db.update(reviews).set({ state: 'published' }).where(eq(reviews.id, review.id)).run()
           audit(ctx, 'system', 'template.published', { type: 'template', id: pack.id }, { releaseId, versionId: review.versionId, reviewId: review.id, selfApproved: review.selfApproved })
           notify(ctx, [review.submittedBy], 'published', `The ${doc.label} page type is live.`, { type: 'template', id: pack.id })
+          if (purgeTags?.includes('shell')) enqueueJob(ctx, 'purge_cache', { tags: ['shell'] })
           return
         }
         if (review?.targetType === 'site_part') {
@@ -235,7 +245,7 @@ export function createPublishHandler(writer: ReleaseWriter = noopReleaseWriter):
       const payload = job.payload as PublishPayload
       const message = error instanceof Error ? error.message : String(error)
       inTx(ctx, () => {
-        if (payload.rebuild === 'settings') {
+        if (payload.rebuild === 'settings' || payload.rebuild === 'plugins') {
           notify(ctx, usersWithRoles(ctx, ['admin']), 'publish_failed', `Publishing failed: ${message}`, { type: 'site', id: ctx.siteId })
         } else if (payload.reviewId) {
           const review = requireReview(ctx, payload.reviewId)
@@ -369,6 +379,31 @@ export function livePages(ctx: ServiceCtx) {
     .all()
 }
 
+/** Queue a full re-render of every live page. Does not run the publish worker. Purge happens when that job runs. */
+export function queuePluginRebuild(ctx: ServiceCtx, actor: ActingAs | 'system'): string[] {
+  const pageIds = livePages(ctx).map((page) => page.id)
+  enqueueJob(ctx, 'publish', { rebuild: 'plugins', pageIds }, { createdBy: actor === 'system' ? 'system' : actor.id })
+  return pageIds
+}
+
+/**
+ * Stamp pluginBundleId when at least one plugin is enabled. Missing means no plugins.
+ * Returns true when the value changed. Callers then re-render every page and purge shell.
+ * Never compare the historical bundleId field.
+ */
+export function syncPluginBundleId(ctx: ServiceCtx, manifest: ReleaseManifest): boolean {
+  const rows = ctx.db
+    .select({ pluginId: plugins.pluginId, version: plugins.version, contentHash: plugins.contentHash })
+    .from(plugins)
+    .where(and(eq(plugins.siteId, ctx.siteId), eq(plugins.status, 'enabled')))
+    .all()
+  const next = rows.length ? effectiveBundleId(rows) : ''
+  const prev = manifest.pluginBundleId ?? ''
+  if (next) manifest.pluginBundleId = next
+  else delete manifest.pluginBundleId
+  return prev !== next
+}
+
 /** Rebuild every live page into a new release. Used after restore, and later for "re-render the whole site". */
 export async function rebuildPublishedSite(ctx: ServiceCtx, writer: ReleaseWriter, actor: ActingAs | 'system' = 'system') {
   const prev = currentRelease(ctx)
@@ -388,6 +423,7 @@ export async function rebuildPublishedSite(ctx: ServiceCtx, writer: ReleaseWrite
   manifest.brandVersionId = pack?.publishedVersionId ?? null
   stampTemplates(ctx, manifest)
   stampLinkedPageIds(ctx, manifest, prev?.manifest)
+  syncPluginBundleId(ctx, manifest)
   const releaseId = newId('release', ctx.now().getTime())
   const changedPageIds = Object.keys(manifest.pages)
   const createdBy = actor === 'system' ? 'system' : actor.id

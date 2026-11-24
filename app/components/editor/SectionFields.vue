@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { imageSlotFor, visibleFieldsForBlock, visibleListItemFields, type FieldSpec } from '../../utils/block-fields'
+import { imageSlotFor, isMissingPlugin, visibleFieldsForBlock, visibleListItemFields, type FieldSpec } from '../../utils/block-fields'
 import { richTextFromParagraphs, richTextToPlain, type RichTextDoc } from '#shared/richtext'
 import { parseRatio } from '#shared/crop'
 import { api } from '../../utils/api'
@@ -21,9 +21,12 @@ const props = withDefaults(
   { issues: () => [], basePath: '' },
 )
 
-const emit = defineEmits<{ 'update:modelValue': [Record<string, unknown>] }>()
+const emit = defineEmits<{ 'update:modelValue': [Record<string, unknown>]; remove: [] }>()
 
 const fields = computed(() => visibleFieldsForBlock(props.type, props.modelValue))
+const missing = computed(() => isMissingPlugin(props.type))
+
+const MISSING_PLUGIN_NOTE = 'This section belongs to a plugin that is turned off or was removed. You can remove it. Turning the plugin back on brings it back.'
 
 const HERO_LAYOUT_NAMES: Record<string, string> = {
   image: 'Single photo',
@@ -81,8 +84,22 @@ function set(path: string, value: unknown) {
     if (!existing || typeof existing !== 'object') cur[key] = {}
     cur = cur[key] as Record<string, unknown>
   }
-  cur[parts.at(-1)!] = value
+  const key = parts.at(-1)!
+  if (value === undefined) delete cur[key]
+  else cur[key] = value
   emit('update:modelValue', next)
+}
+
+function numberText(value: unknown): string {
+  return typeof value === 'number' && Number.isFinite(value) ? String(value) : ''
+}
+
+function parseNumber(raw: unknown): number | undefined {
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : undefined
+  const text = String(raw ?? '').trim()
+  if (!text) return undefined
+  const n = Number(text)
+  return Number.isFinite(n) ? n : undefined
 }
 
 function textValue(path: string): string {
@@ -129,6 +146,7 @@ function addItem(field: FieldSpec) {
   for (const sub of field.item ?? []) {
     if (sub.kind === 'richtext') blank[sub.name] = richTextFromParagraphs([''])
     else if (sub.kind === 'boolean') blank[sub.name] = false
+    else if (sub.kind === 'number') blank[sub.name] = 0
     else if (!sub.optional) blank[sub.name] = ''
   }
   set(field.path, [...listItems(field), blank])
@@ -266,7 +284,11 @@ function openCrop(field: FieldSpec) {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4">
+  <div v-if="missing" class="rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950">
+    <p class="m-0 text-sm text-amber-950 dark:text-amber-50">{{ MISSING_PLUGIN_NOTE }}</p>
+    <FwbButton class="mt-3" color="red" size="sm" type="button" @click="emit('remove')">Remove</FwbButton>
+  </div>
+  <div v-else class="flex flex-col gap-4">
     <div v-for="field in fields" :key="field.path">
       <FwbInput
         v-if="field.kind === 'text'"
@@ -402,6 +424,13 @@ function openCrop(field: FieldSpec) {
               <FieldErrors :issues="issues" :path="issuePath(`${field.path}.${index}.${sub.name}.alt`)" />
               <FieldErrors :issues="issues" :path="issuePath(`${field.path}.${index}.${sub.name}`)" />
             </div>
+            <FwbInput
+              v-else-if="sub.kind === 'number'"
+              type="number"
+              :model-value="numberText(item[sub.name])"
+              :label="sub.label"
+              @update:model-value="updateItem(field, index, sub.name, parseNumber($event))"
+            />
             <FwbInput
               v-else
               :model-value="String(item[sub.name] ?? '')"

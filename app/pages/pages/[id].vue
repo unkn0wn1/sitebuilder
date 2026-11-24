@@ -5,6 +5,7 @@ import type { PageDoc } from '#shared/page'
 import type { WorkflowState } from '#shared/workflow'
 import type { TemplateRules } from '#shared/templates'
 import type { PageMeta } from '#shared/ops'
+import { setPluginCatalog, type PluginCatalogBlock } from '../../utils/block-fields'
 
 definePageMeta({ layout: 'builder' })
 
@@ -28,6 +29,7 @@ interface PagePayload {
 const route = useRoute()
 const editor = shallowRef<PageEditor | null>(null)
 const error = ref('')
+const catalogWarning = ref('')
 const loading = ref(true)
 
 const editorApi = {
@@ -58,7 +60,14 @@ async function load() {
   editor.value?.dispose()
   editor.value = null
   try {
-    const data = await api<PagePayload>(`/pages/${route.params.id}`)
+    const [data, catalog] = await Promise.all([
+      api<PagePayload>(`/pages/${route.params.id}`),
+      api<{ blocks: PluginCatalogBlock[] }>('/plugins/catalog').catch(() => null),
+    ])
+    if (catalog) {
+      setPluginCatalog(catalog.blocks)
+      catalogWarning.value = ''
+    } else catalogWarning.value = 'Plugin sections could not be loaded.'
     const instance = new PageEditor(editorApi, snapshotOf(data), { storage: window.localStorage })
     // On a phone, show the page as a phone sees it rather than a desktop page scaled to a quarter.
     if (window.innerWidth < 768) instance.setDevice('mobile')
@@ -81,6 +90,9 @@ onBeforeUnmount(() => {
   <div>
     <p v-if="loading" class="p-8 text-gray-500 dark:text-gray-400">Opening the page…</p>
     <FwbAlert v-else-if="error" type="danger" class="m-6">{{ error }}</FwbAlert>
-    <EditorWorkspace v-else-if="editor" :editor="editor" @submitted="load" />
+    <template v-else-if="editor">
+      <FwbAlert v-if="catalogWarning" type="danger" class="m-6">{{ catalogWarning }}</FwbAlert>
+      <EditorWorkspace :editor="editor" @submitted="load" />
+    </template>
   </div>
 </template>

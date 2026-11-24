@@ -1,0 +1,41 @@
+{
+  "id": "match-thermometer",
+  "name": "Match thermometer",
+  "version": "1.0.0",
+  "sitebuilder": ">=0.1.0 <0.2.0",
+  "permissions": ["blocks"],
+  "csp": { "img": [], "frame": [], "script": [], "connect": [], "font": [] },
+  "blocks": [
+    {
+      "type": "Thermometer",
+      "v": 1,
+      "label": "Match thermometer",
+      "category": "Calls to action",
+      "props": {
+        "type": "object",
+        "fields": {
+          "heading": { "type": "string", "max": 80, "required": true },
+          "currency": { "type": "string", "max": 8, "required": true },
+          "raised": { "type": "string", "max": 40, "required": true },
+          "matched": { "type": "string", "max": 40, "required": true },
+          "goal": { "type": "string", "max": 40, "required": true }
+        }
+      },
+      "template": "thermometer.html",
+      "css": "thermometer.css",
+      "example": {
+        "heading": "Match so far",
+        "currency": "£",
+        "raised": "5000",
+        "matched": "2500",
+        "goal": "10000"
+      },
+      "computed": [
+        { "name": "fill", "op": "match-fill", "args": ["raised", "matched", "goal", 14, 304] }
+      ],
+      "agent": { "writable": true, "describe": "A match thermometer with raised, matched and the goal." },
+      "money": true
+    }
+  ],
+  "head": []
+}

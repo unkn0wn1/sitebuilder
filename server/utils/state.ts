@@ -2,7 +2,7 @@
 // In demo mode the handle and paths come from the visitor's sandbox (AsyncLocalStorage).
 import { dirname, join } from 'node:path'
 import type { DbHandle } from '../db/client'
-import { createDefaultRegistry } from '../../shared/blocks/registry'
+import { createDefaultRegistry, type BlockRegistry } from '../../shared/blocks/registry'
 import type { ServiceCtx } from '../services/context'
 import { demoMode } from '../services/demo-mode'
 import { currentSandbox } from '../services/demo-sandbox'
@@ -11,7 +11,7 @@ import { getOnlySite } from '../services/site'
 
 let handle: DbHandle | null = null
 let siteId: string | null = null
-const registry = createDefaultRegistry()
+let registry: BlockRegistry = createDefaultRegistry()
 
 let path = ':memory:'
 
@@ -48,6 +48,14 @@ export function siteRoot(): string {
   return process.env.SITEBUILDER_SITE_ROOT ?? dataRoot()
 }
 
+export function setBlockRegistry(next: BlockRegistry) {
+  registry = next
+}
+
+export function getBlockRegistry(): BlockRegistry {
+  return registry
+}
+
 export function getDbHandle(): DbHandle {
   const sandbox = currentSandbox()
   if (sandbox) return sandbox.handle
@@ -67,5 +75,5 @@ export function useServiceCtx(): ServiceCtx {
     if (!site) throw new AppError('not_set_up', 'This builder has not been set up yet. Run the seed or setup script.')
     siteId = site.id
   }
-  return { db, siteId, registry, now: () => new Date() }
+  return { db, siteId, registry: getBlockRegistry(), now: () => new Date() }
 }

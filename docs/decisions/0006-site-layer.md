@@ -25,3 +25,7 @@ There is no plugin marketplace (see [00-vision.md](../00-vision.md#non-goals)), 
 - Organisations own their customisations outright.
 - Core has to treat the block API as a public contract and version it carefully.
 - Good site blocks can be offered upstream later, by normal contribution.
+
+## See also
+
+[ADR 0020](0020-plugins.md) extends this record for declarative packages an admin can install. It does not replace the `site/` layer. Code blocks are still reviewed code, compiled with the app, and they are still not built.

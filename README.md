@@ -18,13 +18,13 @@ The repo is private for now. The intention is to open source it once the design 
 
 Skewstone does one job: build and update fast, beautiful websites. WordPress and friends try to do everything (plugins, shops, forums, memberships) and pay for it in speed, security and complexity. We deliberately do not.
 
-Not in scope: a plugin marketplace, payments, ecommerce, memberships or user accounts for visitors, forums or comments, a built-in CRM or email marketing. Those are better done by dedicated tools and embedded where needed. See [docs/00-vision.md](docs/00-vision.md#non-goals).
+Not in scope: a public plugin marketplace, payments, ecommerce, memberships or user accounts for visitors, forums or comments, a built-in CRM or email marketing. Admins can install a declarative plugin (a checked manifest, templates and CSS, no server code and no visitor JavaScript), while new code blocks still go through review and the agent cannot install a plugin. See [docs/00-vision.md](docs/00-vision.md#non-goals).
 
 ## Core ideas
 
 - **Simple as possible.** Fewest moving parts that do the job well.
 - **Speed first.** Static output, tiny pages, images resized automatically, a built-in speed advisor.
-- **Guardrails by design.** The AI never writes HTML or JavaScript. It may draft section CSS through the same sanitiser and scope as a person, and a person must approve it. It does not write site-wide CSS. It can only assemble approved blocks inside a locked brand, and nothing goes live without human approval.
+- **Guardrails by design.** The AI never writes HTML or JavaScript. It may draft section CSS through the same sanitiser and scope as a person, and a person must approve it. It does not write site-wide CSS. It can only assemble approved blocks inside a locked brand, and nothing goes live without human approval. It may propose a declarative plugin, which a person approves before it exists. The agent cannot install a plugin.
 - **Own your site.** Self-hostable on one small server, with no platform lock-in.
 - **No payments built in.** Donation and payment providers are embedded (for example Virtuous forms).
 

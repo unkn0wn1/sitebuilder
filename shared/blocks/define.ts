@@ -47,6 +47,15 @@ export interface BlockDefinition<TProps extends z.ZodObject = z.ZodObject> {
   sample: z.input<TProps>
   /** How the assistant should use this section. */
   ai?: BlockAiGuide
+  /** Set when this block comes from an installed plugin. Core blocks omit it. */
+  plugin?: {
+    id: string
+    trust: 'official' | 'self'
+    money: boolean
+    writable: boolean
+    describe: string
+    agentNever: string[]
+  }
 }
 
 export function defineBlock<TProps extends z.ZodObject>(def: BlockDefinition<TProps>): BlockDefinition<TProps> {

@@ -3,7 +3,7 @@ import { api, ApiError } from '../../utils/api'
 import { canSubmit, statusLabel, type WorkflowState } from '#shared/workflow'
 import { can } from '#shared/roles'
 import type { TemplateRules } from '#shared/templates'
-import { blockCatalog, blockLabel } from '../../utils/block-fields'
+import { blockCatalog, blockLabel, setPluginCatalog, type CatalogItem, type PluginCatalogBlock } from '../../utils/block-fields'
 import { cloneDraft } from '#shared/clone'
 
 definePageMeta({ layout: 'builder' })
@@ -21,10 +21,10 @@ const route = useRoute()
 const id = computed(() => String(route.params.id))
 const { user } = useSession()
 const canEdit = computed(() => user.value && can(user.value, 'template.edit'))
-const catalog = blockCatalog()
+const catalog = computed(() => blockCatalog())
 const grouped = computed(() => {
-  const map = new Map<string, typeof catalog>()
-  for (const block of catalog) {
+  const map = new Map<string, CatalogItem[]>()
+  for (const block of catalog.value) {
     const list = map.get(block.category) ?? []
     list.push(block)
     map.set(block.category, list)
@@ -51,7 +51,7 @@ const hasChanges = computed(() => edited.value || (!!pack.value && pack.value.dr
 const canSubmitNow = computed(() => canEdit.value && pack.value && canSubmit(pack.value.workflowState) && hasChanges.value && saveStatus.value !== 'saving')
 
 function sampleProps(type: string): Record<string, unknown> {
-  return { ...(catalog.find((block) => block.type === type)?.sample ?? {}) }
+  return { ...(catalog.value.find((block) => block.type === type)?.sample ?? {}) }
 }
 
 function queueSave() {
@@ -83,7 +83,7 @@ function toggleAllowed(type: string, on: boolean) {
     }
     doc.value.startingBlocks = doc.value.startingBlocks.filter((item) => item.type !== type)
   }
-  doc.value.allowedBlocks = catalog.map((block) => block.type).filter((item) => allowed.has(item))
+  doc.value.allowedBlocks = catalog.value.map((block) => block.type).filter((item) => allowed.has(item))
   if (!doc.value.allowedBlocks.length && !on) {
     // keep at least the last one if they uncheck everything — the API will also reject it
   }
@@ -128,14 +128,19 @@ function removeStarting(index: number) {
 const addStartingType = ref('__add__')
 const startingOptions = computed(() => {
   const allowed = doc.value?.allowedBlocks ?? []
-  return [{ name: 'Add a starting section', value: '__add__' }, ...catalog.filter((block) => allowed.includes(block.type)).map((block) => ({ name: block.label, value: block.type }))]
+  return [{ name: 'Add a starting section', value: '__add__' }, ...catalog.value.filter((block) => allowed.includes(block.type)).map((block) => ({ name: block.label, value: block.type }))]
 })
 
 async function load() {
   loading.value = true
   error.value = ''
   try {
-    const data = await api<{ template: TemplateRow; doc: TemplateRules; revision: number; review: { id: string } | null }>(`/templates/${id.value}`)
+    const [data, catalogRes] = await Promise.all([
+      api<{ template: TemplateRow; doc: TemplateRules; revision: number; review: { id: string } | null }>(`/templates/${id.value}`),
+      api<{ blocks: PluginCatalogBlock[] }>('/plugins/catalog').catch(() => null),
+    ])
+    if (catalogRes) setPluginCatalog(catalogRes.blocks)
+    else error.value = 'Plugin sections could not be loaded.'
     pack.value = data.template
     doc.value = data.doc
     revision.value = data.revision
@@ -225,7 +230,11 @@ onBeforeUnmount(() => {
           <h3 class="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ category }}</h3>
           <div class="divide-y divide-gray-100 dark:divide-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
             <div v-for="block in blocks" :key="block.type" class="flex flex-wrap items-center justify-between gap-3 px-3 py-2">
-              <span class="text-sm text-gray-900 dark:text-gray-100">{{ block.label }}</span>
+              <span class="flex flex-wrap items-center gap-2 text-sm text-gray-900 dark:text-gray-100">
+                <span>{{ block.label }}</span>
+                <span v-if="block.plugin" class="rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">Plugin</span>
+                <span v-if="block.trust" class="text-xs font-normal text-gray-500 dark:text-gray-400">{{ block.trust }}</span>
+              </span>
               <div class="flex items-center gap-4 text-sm text-gray-700 dark:text-gray-300">
                 <label class="flex items-center gap-1.5">
                   <input type="checkbox" class="rounded border-gray-300 dark:border-gray-600" :checked="isAllowed(block.type)" :disabled="!canEdit" @change="toggleAllowed(block.type, ($event.target as HTMLInputElement).checked)" />
