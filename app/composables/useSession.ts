@@ -33,8 +33,11 @@ export function useSession() {
     }
   }
 
-  async function login(email: string, password: string) {
-    const data = await api<{ user: SessionUser; site?: SessionSite }>('/auth/login', { method: 'POST', body: { email, password } })
+  async function login(email: string, password: string, turnstileToken?: string) {
+    const data = await api<{ user: SessionUser; site?: SessionSite }>('/auth/login', {
+      method: 'POST',
+      body: { email, password, ...(turnstileToken ? { turnstileToken } : {}) },
+    })
     user.value = data.user
     if (data.site) site.value = data.site
     else await load()

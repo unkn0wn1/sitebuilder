@@ -11,6 +11,55 @@ const error = ref('')
 const busy = ref(false)
 const route = useRoute()
 const demo = ref(false)
+const config = useRuntimeConfig()
+// A leftover {{...}} placeholder means the process had no site key. Do not load the widget.
+const turnstileSiteKey = computed(() => {
+  const key = String(config.public.turnstileSiteKey ?? '').trim()
+  return key.includes('{{') ? '' : key
+})
+const turnstileToken = ref('')
+const turnstileWidget = ref('')
+
+type TurnstileApi = {
+  render: (el: HTMLElement, opts: { sitekey: string; callback: (token: string) => void; 'expired-callback'?: () => void; 'error-callback'?: () => void }) => string
+  reset: (id?: string) => void
+}
+
+function turnstileApi(): TurnstileApi | undefined {
+  return (window as Window & { turnstile?: TurnstileApi }).turnstile
+}
+
+function renderTurnstile() {
+  const api = turnstileApi()
+  const el = document.getElementById('turnstile-widget')
+  if (!api || !el || !turnstileSiteKey.value || turnstileWidget.value) return
+  turnstileWidget.value = api.render(el, {
+    sitekey: turnstileSiteKey.value,
+    callback: (token) => {
+      turnstileToken.value = token
+    },
+    'expired-callback': () => {
+      turnstileToken.value = ''
+    },
+    'error-callback': () => {
+      turnstileToken.value = ''
+    },
+  })
+}
+
+function loadTurnstile() {
+  if (!demo.value || !turnstileSiteKey.value) return
+  if (turnstileApi()) {
+    renderTurnstile()
+    return
+  }
+  const script = document.createElement('script')
+  script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
+  script.async = true
+  script.defer = true
+  script.onload = () => renderTurnstile()
+  document.head.appendChild(script)
+}
 
 onMounted(async () => {
   try {
@@ -19,6 +68,8 @@ onMounted(async () => {
     if (status.demo) {
       email.value = DEMO_EMAIL
       password.value = DEMO_PASSWORD
+      await nextTick()
+      loadTurnstile()
     }
   } catch {
     demo.value = false
@@ -30,9 +81,11 @@ async function submit() {
   error.value = ''
   busy.value = true
   try {
-    await login(email.value.trim(), password.value)
+    await login(email.value.trim(), password.value, turnstileToken.value || undefined)
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : "That email and password don't match."
+    turnstileToken.value = ''
+    if (turnstileWidget.value) turnstileApi()?.reset(turnstileWidget.value)
     busy.value = false
     return
   }
@@ -65,8 +118,9 @@ async function submit() {
       <form class="flex flex-col gap-4" @submit.prevent="submit">
         <FwbInput v-model="email" type="email" autocomplete="username" label="Email" required />
         <FwbInput v-model="password" type="password" autocomplete="current-password" label="Password" required />
+        <div v-if="demo && turnstileSiteKey" id="turnstile-widget"></div>
         <FwbAlert v-if="error" type="danger">{{ error }}</FwbAlert>
-        <FwbButton type="submit" class="w-full" :disabled="busy">{{ busy ? 'Signing in…' : 'Sign in' }}</FwbButton>
+        <FwbButton type="submit" class="w-full" :disabled="busy || (demo && !!turnstileSiteKey && !turnstileToken)">{{ busy ? 'Signing in…' : 'Sign in' }}</FwbButton>
       </form>
     </div>
   </div>

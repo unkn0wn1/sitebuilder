@@ -292,11 +292,18 @@ function freshMeta(id: string, now: number, createdAt: string, lastReset: string
 
 export type MintResult = { ok: true; sandbox: Sandbox; minted: boolean } | { ok: false; full: true }
 
+/** Open the sandbox a cookie already names. Does not copy the golden tree or mint. */
+export function openExisting(cookieId: string | null): Sandbox | null {
+  if (!cookieId || !ID_RE.test(cookieId)) return null
+  const root = join(sandboxesPath(), cookieId)
+  if (!existsSync(join(root, 'sitebuilder.db'))) return null
+  return openSandbox(cookieId, root)
+}
+
 export function openOrMint(cookieId: string | null, now = Date.now()): MintResult {
+  const existing = openExisting(cookieId)
+  if (existing) return { ok: true, sandbox: existing, minted: false }
   assertGoldenReady()
-  if (cookieId && ID_RE.test(cookieId) && existsSync(join(sandboxesPath(), cookieId, 'sitebuilder.db'))) {
-    return { ok: true, sandbox: openSandbox(cookieId, join(sandboxesPath(), cookieId)), minted: false }
-  }
   evictIdle(now)
   while (listIds().length >= maxSandboxes()) {
     if (!evictLru(now)) return { ok: false, full: true }

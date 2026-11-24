@@ -9,7 +9,12 @@ import { defineApi, parseBody, secureCookies, SESSION_COOKIE } from '../../../ut
 import { clientIp } from '../../../utils/client-ip'
 import { hit } from '../../../utils/rate-limit'
 
-const schema = z.object({ email: z.string().trim().email().max(254), password: z.string().min(1).max(200) })
+const schema = z.object({
+  email: z.string().trim().email().max(254),
+  password: z.string().min(1).max(200),
+  // Demo mode checks this in the request plugin, before a sandbox is minted. Normal mode ignores it.
+  turnstileToken: z.string().max(2048).optional(),
+})
 
 export default defineApi(async (event, ctx) => {
   const { email, password } = await parseBody(event, schema)

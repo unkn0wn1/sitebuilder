@@ -25,7 +25,7 @@ Static files land in `/srv/skewstone/marketing`, `/srv/skewstone/docs`, and `/sr
 
 ## Demo builder
 
-The compose file runs only the builder, with demo mode on, the agent gateway off, and no mail, AI key, Access audience, or production Cloudflare token. It publishes `127.0.0.1:3000:3000` and mounts `/var/lib/skewstone/demo` at the same path in the container, which is the tree nginx reads.
+The compose file runs only the builder, with demo mode on, the agent gateway off, and no mail, AI key, Access audience, or production Cloudflare token. Turnstile keys are not in the compose file. Put `SITEBUILDER_TURNSTILE_SITE_KEY` and `SITEBUILDER_TURNSTILE_SECRET_KEY` in the host `.env` (mode 600). The secret is not committed. Without the secret the demo process refuses to start. `SITEBUILDER_TURNSTILE_DISABLED=1` skips that check for local development only. Do not set it on the public demo. Compose publishes `127.0.0.1:3000:3000` and mounts `/var/lib/skewstone/demo` at the same path in the container, which is the tree nginx reads.
 
 ```sh
 openssl rand -base64 32

@@ -15,5 +15,10 @@ describe('builder CSP', () => {
     expect(csp).toBe(
       `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob:; font-src 'self' data:; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self' https://accounts.google.com`,
     )
+    const demo = builderCsp(nonce, { turnstile: true })
+    expect(demo).toContain("script-src 'self' 'nonce-abc+/=de' https://challenges.cloudflare.com")
+    expect(demo).toContain('frame-src \'self\' https://challenges.cloudflare.com')
+    expect(demo).toContain('connect-src \'self\' https://challenges.cloudflare.com')
+    expect(demo).not.toBe(csp)
   })
 })
