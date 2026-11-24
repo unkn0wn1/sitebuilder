@@ -17,8 +17,12 @@ export default defineEventHandler((event) => {
       return new AppError('csrf', 'This request did not come from the builder. Reload the page and try again.').toBody()
     }
   }
+  // No cookie means no actor. Skip the database so liveness routes stay up in demo mode,
+  // where a sandbox is deliberately not opened for /api/v1/health.
+  const token = getCookie(event, SESSION_COOKIE)
+  if (!token) return
   try {
-    const user = getSessionUser(useServiceCtx(), getCookie(event, SESSION_COOKIE))
+    const user = getSessionUser(useServiceCtx(), token)
     if (user) event.context.actor = { id: user.id, role: user.role, isOperator: user.isOperator }
   } catch (error) {
     if (error instanceof AppError) {

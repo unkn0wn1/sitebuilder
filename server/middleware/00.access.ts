@@ -12,6 +12,7 @@ const AGENT_BYPASS = process.env.SITEBUILDER_AGENT_ACCESS === 'bypass' && proces
 const isAgentPath = (path: string) => path === '/agent' || path.startsWith('/agent/')
 
 export default defineEventHandler(async (event) => {
+  if (process.env.SITEBUILDER_DEMO_MODE === '1') return
   const path = event.path.split('?')[0]!
   if (!verify || EXEMPT.has(path) || (AGENT_BYPASS && isAgentPath(path))) return
   const result = await verify(getRequestHeader(event, 'cf-access-jwt-assertion'))

@@ -53,6 +53,7 @@ onMounted(async () => {
         <h1 class="m-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">Agents</h1>
       </template>
     </SettingsNav>
+    <SettingsDemoNotice />
     <p class="mb-4 max-w-2xl text-gray-600 dark:text-gray-400">Let an AI assistant read this site and make changes, within limits you set. Everything it drafts waits for a person unless a rule says it may go live. Donation forms and embeds can never be touched.</p>
     <nav class="mb-6 flex flex-wrap gap-1 border-b border-gray-200 dark:border-gray-700" aria-label="Agents sections">
       <button

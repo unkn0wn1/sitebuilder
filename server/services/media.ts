@@ -13,6 +13,7 @@ import { can } from '../../shared/roles'
 import { brandPacks, media, mediaCrops, pages, versions } from '../db/schema'
 import { audit } from './audit'
 import { inTx, iso, type ActingAs, type ServiceCtx } from './context'
+import { demoMode } from './demo-mode'
 import { AppError, forbidden, notFound } from './errors'
 import { enqueueJob, type JobHandler } from './jobs'
 import { SVG_MAX_BYTES, looksLikeSvg, sanitizeSvg, SvgSanitiseError, svgPublicName } from '../../shared/svg-sanitize'
@@ -103,6 +104,12 @@ export async function uploadMedia(ctx: ServiceCtx, actor: ActingAs, input: { fil
     if (input.data.length > VIDEO_MAX_BYTES) throw new AppError('validation_failed', 'That video is too big. Prepare it to under 8 MB before uploading.', [{ path: 'file', message: 'Too big.' }])
   } else if (input.data.length > MEDIA_MAX_BYTES) {
     throw new AppError('validation_failed', 'That file is too big. The limit is 25 MB.', [{ path: 'file', message: 'Too big.' }])
+  }
+  if (demoMode()) {
+    const configured = Number(process.env.SITEBUILDER_DEMO_UPLOAD_QUOTA_BYTES ?? 20 * 1024 * 1024)
+    const limit = Number.isFinite(configured) && configured > 0 ? configured : 20 * 1024 * 1024
+    const row = ctx.db.select({ total: sql<number>`coalesce(sum(${media.bytes}), 0)` }).from(media).where(and(eq(media.siteId, ctx.siteId), isNull(media.deletedAt))).get()
+    if (Number(row?.total ?? 0) + input.data.length > limit) throw new AppError('forbidden', 'This demo has reached its upload limit.')
   }
   if (looksLikeSvg(input.data)) return uploadSanitisedSvg(ctx, actor, input)
 

@@ -5,6 +5,7 @@ import SettingsNav from '../../components/settings/SettingsNav.vue'
 
 definePageMeta({ layout: 'builder' })
 
+const { status: demoStatus, load: loadDemo } = useDemoStatus()
 const loading = ref(true)
 const saving = ref(false)
 const error = ref('')
@@ -35,7 +36,11 @@ async function save() {
   try {
     const data = await api<SettingsPayload>('/settings', {
       method: 'PATCH',
-      body: { name: name.value.trim(), primaryDomain: emptyToNull(primaryDomain.value)?.toLowerCase() ?? null, titlePattern: titlePattern.value.trim() || '{page} | {site}' },
+      body: {
+        name: name.value.trim(),
+        ...(demoStatus.value?.demo ? {} : { primaryDomain: emptyToNull(primaryDomain.value)?.toLowerCase() ?? null }),
+        titlePattern: titlePattern.value.trim() || '{page} | {site}',
+      },
     })
     saved.value = data.rebuilding ? 'Saved. Updating the live site now.' : 'Saved.'
   } catch (err) {
@@ -45,7 +50,10 @@ async function save() {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  void loadDemo()
+  void load()
+})
 </script>
 
 <template>
@@ -64,8 +72,8 @@ onMounted(load)
         <FwbInput v-model="name" label="Site name" />
       </div>
       <div class="mb-4">
-        <FwbInput v-model="primaryDomain" label="Primary domain" placeholder="example.org" />
-        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Just the domain, without https://. Leave blank if it isn't set yet.</p>
+        <FwbInput v-model="primaryDomain" label="Primary domain" placeholder="example.org" :disabled="!!demoStatus?.demo" />
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ demoStatus?.demo ? 'The public demo cannot change its hostname.' : "Just the domain, without https://. Leave blank if it isn't set yet." }}</p>
       </div>
       <div class="mb-6">
         <FwbInput v-model="titlePattern" label="Page title pattern" />

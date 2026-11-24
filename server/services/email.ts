@@ -10,6 +10,7 @@ import { can } from '../../shared/roles'
 import { users } from '../db/schema'
 import { createAuthToken } from './auth'
 import type { ActingAs, ServiceCtx } from './context'
+import { demoMode } from './demo-mode'
 import { AppError, forbidden } from './errors'
 import { gmailMailer } from './gmail'
 import type { JobHandler } from './jobs'
@@ -51,6 +52,7 @@ export function defaultOutboxDir(): string {
  * In development, a file outbox is the fallback when Google is not connected.
  */
 export function resolveMailer(ctx: ServiceCtx): Mailer | null {
+  if (demoMode()) return { send() {} }
   if (process.env.SITEBUILDER_MAIL_OUTBOX) return outboxMailer(process.env.SITEBUILDER_MAIL_OUTBOX)
   const gmail = gmailMailer(ctx)
   if (gmail) return gmail
@@ -102,6 +104,7 @@ export function buildEmail(ctx: ServiceCtx, payload: EmailPayload, baseUrl: stri
 export function createEmailHandler(opts: { mailer?: Mailer | null; getMailer?: (ctx: ServiceCtx) => Mailer | null; baseUrl: string }): JobHandler {
   return {
     async run(ctx, job) {
+      if (demoMode()) return { skipped: 'Demo mode does not send mail.' }
       const mailer = opts.getMailer ? opts.getMailer(ctx) : (opts.mailer ?? null)
       if (!mailer) return { skipped: 'Email sending is not set up yet.' }
       const message = buildEmail(ctx, job.payload as unknown as EmailPayload, opts.baseUrl)
@@ -114,6 +117,7 @@ export function createEmailHandler(opts: { mailer?: Mailer | null; getMailer?: (
 
 /** Send a test message now, through the same transport the jobs use, so Settings can confirm it works. */
 export async function sendTestEmail(ctx: ServiceCtx, actor: ActingAs, to?: string) {
+  if (demoMode()) throw new AppError('forbidden', 'The demo does not send mail.')
   if (actor.aiSessionId || !can(actor, 'settings.manage')) throw forbidden()
   const mailer = resolveMailer(ctx)
   if (!mailer) throw new AppError('not_set_up', 'Connect Google Workspace in Settings before sending a test email.')

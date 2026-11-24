@@ -7,6 +7,8 @@ import { createEmailHandler, resolveMailer } from '../services/email'
 import { createMediaRenditionsHandler } from '../services/media'
 import { createPublishHandler } from '../services/publish'
 import { createFileReleaseWriter } from '../services/release'
+import { demoMode } from '../services/demo-mode'
+import { applyEvictRequest, evictIdle, openSandboxes, reopenSandboxes, runInSandbox, writeHeartbeat } from '../services/demo-sandbox'
 import { runJobsOnce, type JobHandlers } from '../services/jobs'
 import { mediaDir, siteRoot, useServiceCtx } from '../utils/state'
 
@@ -33,6 +35,32 @@ function buildHandlers(): JobHandlers {
 
 export default defineNitroPlugin((nitro) => {
   if (process.env.SITEBUILDER_WORKER === '0' || import.meta.prerender) return
+  if (demoMode()) {
+    let busy = false
+    const timer = setInterval(async () => {
+      if (busy) return
+      busy = true
+      try {
+        writeHeartbeat()
+        applyEvictRequest()
+        evictIdle()
+        reopenSandboxes()
+        for (const sandbox of openSandboxes()) {
+          await runInSandbox(sandbox, async () => {
+            const handlers = buildHandlers()
+            const ctx = useServiceCtx()
+            while (await runJobsOnce(ctx, handlers)) {}
+          })
+        }
+      } catch (error) {
+        if (!(error instanceof Error && error.message.includes('not been set up'))) console.error(JSON.stringify({ level: 'error', msg: 'worker', error: String(error) }))
+      } finally {
+        busy = false
+      }
+    }, 1000)
+    nitro.hooks.hook('close', () => clearInterval(timer))
+    return
+  }
   // Built on the first tick, after the database plugin has opened the database (plugins are not awaited).
   let handlers: JobHandlers | null = null
   let busy = false

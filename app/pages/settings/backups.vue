@@ -65,6 +65,7 @@ onMounted(load)
         <h1 class="m-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">Backups</h1>
       </template>
     </SettingsNav>
+    <SettingsDemoNotice />
     <p class="mb-6 max-w-2xl text-gray-600 dark:text-gray-400">Nightly backups are stored where the site was set up to keep them. You can also start one now. This is a database backup, not a portable export of pages.</p>
     <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
     <FwbAlert v-else-if="saved" type="success" class="mb-4">{{ saved }}</FwbAlert>
