@@ -103,7 +103,7 @@ flowchart TD
 
 ```
 +------------------+--------------------------------------------------------+
-| sitebuilder      | Site name [View live] [Search  Ctrl K] (bell)  [User v]|
+| Skewstone        | Site name [View live] [Search  Ctrl K] (bell)  [User v]|
 +------------------+--------------------------------------------------------+
 | > Pages          |  Pages           [Bin]  [New page with the assistant] [+ New page] |
 |   Site parts     |  [Search...........]  Status [All v]  Type [All v]     |

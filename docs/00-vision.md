@@ -29,7 +29,7 @@ Underneath, it is an ordinary, very fast static website that the organisation ow
 
 WordPress does far too much. It is a blog engine, a shop, a forum, a membership system and a plugin marketplace all at once, and most sites pay for that in speed, security updates and complexity while using a fraction of it.
 
-sitebuilder does one thing: lets people build and update fast, beautiful websites easily. Every feature request is judged against that. If something is better done by a dedicated tool, we embed that tool rather than rebuild it.
+Skewstone does one thing: lets people build and update fast, beautiful websites easily. Every feature request is judged against that. If something is better done by a dedicated tool, we embed that tool rather than rebuild it.
 
 ## Non-goals
 

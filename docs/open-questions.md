@@ -5,16 +5,16 @@ Decisions still to make. v1 decisions made on 17 Nov 2026 are recorded as ADRs 0
 ## Still open
 
 1. **Licence:** MIT everywhere, or AGPL for the builder app (with MIT for the block library and renderer)? To decide before the first public release. Also: font and starter image licences must allow redistribution.
-2. **Name:** working name "sitebuilder". The repo stays private under unkn0wn1 for now.
-3. **Pilot coexistence:** does the pilot site need to run alongside the existing WordPress site (some pages on a subpath or subdomain), or is a full switch the goal? Affects redirects and import.
-4. **AI costs:** who pays model costs during the pilot, and the default monthly cap.
-5. **Languages:** which languages beyond English for the pilot, and when? Also whether the builder UI itself needs translating for staff.
-6. **Developer reviewer** for code changes to a site's `site/` layer (reference URL feature, custom blocks): project maintainers, a hosting partner, or the organisation's own technical admin?
-7. **Must list length:** is the v1 must list in [10-essentials.md](10-essentials.md) still too long?
-8. **News or posts** in v1, or soon after?
+2. **Pilot coexistence:** does the pilot site need to run alongside the existing WordPress site (some pages on a subpath or subdomain), or is a full switch the goal? Affects redirects and import.
+3. **AI costs:** who pays model costs during the pilot, and the default monthly cap.
+4. **Languages:** which languages beyond English for the pilot, and when? Also whether the builder UI itself needs translating for staff.
+5. **Developer reviewer** for code changes to a site's `site/` layer (reference URL feature, custom blocks): project maintainers, a hosting partner, or the organisation's own technical admin?
+6. **Must list length:** is the v1 must list in [10-essentials.md](10-essentials.md) still too long?
+7. **News or posts** in v1, or soon after?
 
 ## Answered
 
+- **Name:** the product is Skewstone. The repository remains `sitebuilder` and stays private under unkn0wn1 for now.
 - **TLS and CDN:** Cloudflare in front is mandatory, no Varnish ([ADR 0002](decisions/0002-no-varnish-cloudflare-mandatory.md)).
 - **Where the repo lives:** private repo under unkn0wn1.
 - **AI provider default:** Grok for the pilot, any OpenAI-compatible provider by config ([12-ai-harness.md](12-ai-harness.md#bring-your-own-model)).

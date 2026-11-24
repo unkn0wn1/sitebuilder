@@ -99,7 +99,7 @@ const rail = computed(() => !!props.editor)
       aria-label="Sidebar"
     >
       <div class="flex items-center gap-3 px-4 pt-4 pb-3" :class="rail ? 'lg:justify-center lg:px-2' : ''">
-        <NuxtLink to="/pages" class="grid size-9 shrink-0 place-items-center rounded-lg bg-gray-900 text-sm font-bold text-white no-underline dark:bg-white dark:text-gray-900" :title="site?.name ?? 'sitebuilder'">
+        <NuxtLink to="/pages" class="grid size-9 shrink-0 place-items-center rounded-lg bg-gray-900 text-sm font-bold text-white no-underline dark:bg-white dark:text-gray-900" :title="site?.name ?? 'Skewstone'">
           {{ (site?.name ?? 'S').slice(0, 1) }}
         </NuxtLink>
         <div class="min-w-0 flex-1" :class="rail ? 'lg:hidden' : ''">
