@@ -28,6 +28,10 @@ logs
 !.vscode/extensions.json
 *.local
 
+# VitePress
+docs-site/.vitepress/cache
+docs-site/.vitepress/dist
+
 # Spike generated output
 spikes/**/out/
 spikes/**/dist/
