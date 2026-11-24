@@ -1,6 +1,6 @@
 // HTTP checks for the public demo. The shared API server stays in normal mode.
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, rmSync } from 'node:fs'
+import { mkdirSync, rmSync } from 'node:fs'
 import http from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -49,7 +49,9 @@ class Jar {
 
 function copyGolden(from: string, to: string) {
   mkdirSync(to, { recursive: true })
-  cpSync(join(from, 'golden'), join(to, 'golden'), { recursive: true })
+  // Node's cpSync rewrites a relative symlink as an absolute path. cp -a keeps site/current inside the golden tree.
+  const result = spawnSync('cp', ['-a', join(from, 'golden'), join(to, 'golden')], { encoding: 'utf8' })
+  if (result.status !== 0) throw new Error(`copy golden failed: ${result.stderr}`)
 }
 
 function rmTree(dir: string) {

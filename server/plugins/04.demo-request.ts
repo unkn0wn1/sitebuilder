@@ -1,6 +1,6 @@
 // Wrap every request in the visitor's sandbox. Nitro does not keep AsyncLocalStorage
 // across middleware, so this replaces the h3 handler after startup. Normal installs skip it.
-import { getCookie, getRequestHeader, setCookie, setResponseHeader, setResponseStatus, type H3Event } from 'h3'
+import { getCookie, getRequestHeader, send, setCookie, setResponseHeader, setResponseStatus, type H3Event } from 'h3'
 import type { MigrationFile } from '../db/migrate'
 import { loadMigrationsFromDir } from '../db/migrations-fs'
 import { AppError } from '../services/errors'
@@ -58,7 +58,9 @@ export default defineNitroPlugin((nitro) => {
     const path = event.path.split('?')[0] ?? '/'
     if (path === '/robots.txt') {
       setResponseHeader(event, 'content-type', 'text/plain; charset=utf-8')
-      return 'User-agent: *\nDisallow: /\n'
+      // toNodeListener ignores this handler's return value. A returned string never reaches the socket.
+      await send(event, 'User-agent: *\nDisallow: /\n')
+      return
     }
     if (skipSandbox(path)) return previous(event)
     try {
@@ -69,7 +71,8 @@ export default defineNitroPlugin((nitro) => {
         setResponseStatus(event, 503)
         setResponseHeader(event, 'retry-after', 60)
         setResponseHeader(event, 'content-type', 'text/html; charset=utf-8')
-        return '<!doctype html><title>Demo is full</title><p>The demo is full. Try again shortly.</p>'
+        await send(event, '<!doctype html><title>Demo is full</title><p>The demo is full. Try again shortly.</p>')
+        return
       }
       touchSandbox(result.sandbox)
       const domain = cookieDomain(getRequestHeader(event, 'host'))
@@ -86,7 +89,8 @@ export default defineNitroPlugin((nitro) => {
       if (error instanceof AppError && error.code === 'not_set_up') {
         setResponseStatus(event, 503)
         setResponseHeader(event, 'content-type', 'text/plain; charset=utf-8')
-        return error.message
+        await send(event, error.message)
+        return
       }
       throw error
     }

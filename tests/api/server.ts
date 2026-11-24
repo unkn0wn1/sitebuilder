@@ -64,7 +64,10 @@ export async function startServer(extraEnv: Record<string, string> = {}, opts: {
   for (let i = 0; i < 100; i++) {
     if (child.exitCode !== null) throw new Error(`Server exited: ${output}`)
     try {
-      if ((await fetch(`${baseUrl}/api/health`)).ok) break
+      const health = await fetch(`${baseUrl}/api/health`)
+      // Read the body. Leaving it unread keeps the socket busy and the next request waits.
+      await health.arrayBuffer().catch(() => {})
+      if (health.ok) break
     } catch {}
     await new Promise((r) => setTimeout(r, 100))
     if (i === 99) throw new Error(`Server did not start: ${output}`)
