@@ -96,6 +96,7 @@ onMounted(load)
         <h1 class="m-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">Users</h1>
       </template>
     </SettingsNav>
+    <SettingsDemoNotice />
     <p class="mb-6 max-w-2xl text-gray-600 dark:text-gray-400">Editors can work on pages. Approvers can publish. Admins can also change settings, brand and page types.</p>
     <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
     <FwbAlert v-else-if="saved" type="success" class="mb-4">{{ saved }}</FwbAlert>

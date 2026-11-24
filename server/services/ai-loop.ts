@@ -11,6 +11,7 @@ import { extraHeadersFor, mockProvider, openAiCompatibleProvider, ProviderError,
 import { chatToolsFor } from './ai-tools-schema'
 import { getSecret, hasSecret, secretKeyFromEnv } from './auth'
 import type { ActingAs, ServiceCtx } from './context'
+import { demoMode } from './demo-mode'
 import { AppError } from './errors'
 import { isXaiOauthConnected, xaiOauthAccessToken, xaiOauthDeniedMessage } from './xai-oauth'
 
@@ -378,6 +379,7 @@ export async function testAiConnection(ctx: ServiceCtx, opts: { provider?: Model
   tokensIn: number
   tokensOut: number
 }> {
+  if (demoMode()) throw new AppError('forbidden', 'AI calls are turned off on the public demo.')
   const resolved = resolveAi(ctx)
   const injected = opts.provider ?? ctx.aiProvider
   if (resolved.settings.provider === 'custom' && !resolved.baseUrl && !injected) {

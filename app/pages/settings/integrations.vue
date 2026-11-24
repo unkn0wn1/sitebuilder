@@ -124,6 +124,7 @@ onMounted(load)
         <h1 class="m-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">Integrations</h1>
       </template>
     </SettingsNav>
+    <SettingsDemoNotice />
     <p class="mb-6 max-w-2xl text-gray-600 dark:text-gray-400">Tokens and secrets are stored encrypted and are never shown again after you save them. The assistant key is under <NuxtLink to="/settings/ai">AI</NuxtLink>.</p>
     <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading settings…</p>
     <div v-else class="max-w-xl space-y-10">

@@ -1,0 +1,7 @@
+[Unit]
+Description=Sweep expired Skewstone demo sandboxes
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/skewstone
+ExecStart=/usr/bin/docker compose exec -T builder npm run demo:sweep

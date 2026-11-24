@@ -9,8 +9,12 @@ const props = defineProps<{ editor?: boolean }>()
 
 const route = useRoute()
 const { user, site, logout } = useSession()
+const { status: demoStatus, load: loadDemo } = useDemoStatus()
 const pendingCount = ref(0)
 const sheetOpen = ref(false)
+const resetOpen = ref(false)
+const resetError = ref('')
+const resetting = ref(false)
 
 async function loadPendingCount() {
   const actor = user.value
@@ -23,7 +27,27 @@ async function loadPendingCount() {
   }
 }
 
-onMounted(loadPendingCount)
+onMounted(() => {
+  void loadPendingCount()
+  void loadDemo()
+})
+
+async function confirmReset() {
+  resetError.value = ''
+  resetting.value = true
+  try {
+    await api('/demo/reset', { method: 'POST' })
+    window.location.reload()
+  } catch (err) {
+    resetError.value = err instanceof Error ? err.message : 'Could not reset the demo.'
+    resetting.value = false
+  }
+}
+
+const lastResetLabel = computed(() => {
+  const at = demoStatus.value?.lastReset
+  return at ? `Last reset ${at}` : 'Not reset yet'
+})
 watch(
   () => route.path,
   (path) => {
@@ -142,6 +166,14 @@ const rail = computed(() => !!props.editor)
       </nav>
 
       <div class="border-t border-gray-100 p-3 dark:border-gray-800">
+        <div v-if="demoStatus?.demo" class="mb-3" :class="rail ? 'lg:hidden' : ''">
+          <p class="m-0 mb-2 text-xs text-gray-500 dark:text-gray-400">{{ lastResetLabel }}</p>
+          <a v-if="demoStatus.docsUrl" :href="demoStatus.docsUrl" target="_blank" rel="noreferrer" class="mb-2 inline-flex text-sm text-blue-700 no-underline hover:underline dark:text-blue-300">Docs</a>
+          <button type="button" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-left text-sm font-medium text-gray-800 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800" aria-label="Reset demo" @click="resetOpen = true">Reset demo</button>
+        </div>
+        <div v-else-if="demoStatus?.docsUrl" class="mb-3" :class="rail ? 'lg:hidden' : ''">
+          <a :href="demoStatus.docsUrl" target="_blank" rel="noreferrer" class="inline-flex text-sm text-blue-700 no-underline hover:underline dark:text-blue-300">Docs</a>
+        </div>
         <div class="flex items-center gap-3" :class="rail ? 'lg:flex-col lg:gap-2' : ''">
           <span class="grid size-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-xs font-semibold text-white" :title="user?.name">{{ initials }}</span>
           <div class="min-w-0 flex-1" :class="rail ? 'lg:hidden' : ''">
@@ -159,5 +191,12 @@ const rail = computed(() => !!props.editor)
     <main class="min-w-0">
       <slot />
     </main>
+    <BuilderSimpleModal v-if="resetOpen" title="Reset this demo" @close="resetOpen = false">
+      <p class="m-0 text-gray-700 dark:text-gray-200">This restores your copy of the demo. Other visitors are not affected.</p>
+      <p v-if="resetError" class="mt-3 text-sm text-red-700 dark:text-red-300">{{ resetError }}</p>
+      <template #footer>
+        <button type="button" class="rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-60 dark:bg-white dark:text-gray-900" :disabled="resetting" @click="confirmReset">Reset this demo</button>
+      </template>
+    </BuilderSimpleModal>
   </div>
 </template>

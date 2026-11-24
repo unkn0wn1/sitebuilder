@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { DEMO_EMAIL, DEMO_PASSWORD } from '#shared/demo'
 import { ApiError } from '../utils/api'
 
 definePageMeta({ layout: 'default' })
@@ -9,8 +10,19 @@ const password = ref('')
 const error = ref('')
 const busy = ref(false)
 const route = useRoute()
+const demo = ref(false)
 
 onMounted(async () => {
+  try {
+    const status = await $fetch<{ demo: boolean }>('/api/v1/demo/status')
+    demo.value = status.demo
+    if (status.demo) {
+      email.value = DEMO_EMAIL
+      password.value = DEMO_PASSWORD
+    }
+  } catch {
+    demo.value = false
+  }
   if (user.value) await navigateTo('/pages')
 })
 
@@ -46,6 +58,7 @@ async function submit() {
         <div>
           <h1 class="mb-1 text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">Sign in</h1>
           <p class="m-0 text-gray-600 dark:text-gray-400">Use your Skewstone account.</p>
+          <p v-if="demo" class="m-0 mt-3 text-sm text-gray-600 dark:text-gray-400">Public demo login: <span class="font-medium text-gray-900 dark:text-white">{{ email }}</span> / <span class="font-medium text-gray-900 dark:text-white">skewstone-demo</span>. This password is published on purpose. Each visitor has their own copy, and the demo resets.</p>
         </div>
         <BuilderThemeToggle />
       </div>

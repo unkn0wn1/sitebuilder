@@ -3,15 +3,22 @@ import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { openDb } from '../db/client'
 import type { MigrationFile } from '../db/migrate'
+import { demoMode } from '../services/demo-mode'
+import { setDemoMigrations } from '../services/demo-sandbox'
 import { setDbHandle } from '../utils/state'
 
 export default defineNitroPlugin(async () => {
-  const path = process.env.SITEBUILDER_DB_PATH ?? '.data/sitebuilder.db'
-  if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true })
   const storage = useStorage('assets:migrations')
   const keys = (await storage.getKeys()).filter((k) => k.endsWith('.sql'))
   const files: MigrationFile[] = []
   for (const key of keys) files.push({ name: key, sql: String(await storage.getItem(key)) })
+  if (demoMode()) {
+    setDemoMigrations(files)
+    console.info(JSON.stringify({ level: 'info', msg: 'demo mode: migrations loaded', migrations: files.length }))
+    return
+  }
+  const path = process.env.SITEBUILDER_DB_PATH ?? '.data/sitebuilder.db'
+  if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true })
   setDbHandle(openDb(path, files), path)
   console.info(JSON.stringify({ level: 'info', msg: 'database ready', path, migrations: files.length }))
 })

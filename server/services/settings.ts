@@ -5,6 +5,7 @@ import { can } from '../../shared/roles'
 import { jobs, secrets, sites } from '../db/schema'
 import { audit } from './audit'
 import { inTx, type ActingAs, type ServiceCtx } from './context'
+import { demoMode } from './demo-mode'
 import { AppError, forbidden } from './errors'
 import { sanitizeRobotsTxt } from '../../shared/robots'
 import { USER_SECRET_NAMES } from './auth'
@@ -41,6 +42,12 @@ export function getSettings(ctx: ServiceCtx): {
 
 export function updateSettings(ctx: ServiceCtx, actor: ActingAs, patch: SettingsPatch) {
   if (actor.aiSessionId || !can(actor, 'settings.manage')) throw forbidden()
+  if (demoMode()) {
+    if (patch.primaryDomain !== undefined) throw new AppError('forbidden', 'The demo cannot change the public hostname.')
+    if (patch.seo && ('allowIndexing' in patch.seo || 'robotsTxt' in patch.seo)) throw new AppError('forbidden', 'The demo cannot change indexing.')
+    if (patch.mail) throw new AppError('forbidden', 'The demo cannot change mail settings.')
+    if (patch.ai) throw new AppError('forbidden', 'The demo cannot change AI settings.')
+  }
   return inTx(ctx, () => {
     const site = ctx.db.select().from(sites).where(eq(sites.id, ctx.siteId)).get()!
     const { name, primaryDomain, ...rest } = patch

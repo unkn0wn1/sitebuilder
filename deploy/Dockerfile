@@ -21,6 +21,9 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/.output ./.output
 COPY --from=build /app/package.json ./
 COPY --from=build /app/scripts ./scripts
+# demo:golden and demo:sweep import the TypeScript sources. The product seed still runs on the host.
+COPY --from=build /app/server ./server
+COPY --from=build /app/shared ./shared
 USER node
 ENV NODE_ENV=production
 ENV NITRO_HOST=0.0.0.0

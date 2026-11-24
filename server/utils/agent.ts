@@ -8,7 +8,7 @@ import { authenticateAgent, type SignedInAgent } from '../services/agent/tokens'
 import { OPERATIONS, callOperation, type Operation } from '../services/agent/operations'
 import { hit } from './rate-limit'
 
-export const agentGatewayEnabled = () => process.env.SITEBUILDER_AGENT_GATEWAY === '1'
+export const agentGatewayEnabled = () => process.env.SITEBUILDER_AGENT_GATEWAY === '1' && process.env.SITEBUILDER_DEMO_MODE !== '1'
 
 export function bearerToken(event: H3Event): string | null {
   const h = getRequestHeader(event, 'authorization')

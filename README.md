@@ -12,7 +12,7 @@ Staff describe the page they want to a chat agent. The agent asks a few question
 
 **Pre-alpha.** The v1 design is written up in [`docs/`](docs/README.md), with decisions in [`docs/decisions/`](docs/decisions/README.md). Milestone 1 is in, and milestone 2 has Google Workspace mail, the publish renderer, a Docker Compose install and backup/restore. There is no production editor GUI yet and no AI model calls. See the [roadmap](docs/09-roadmap.md).
 
-The repo is private for now. The intention is to open source it once the design settles. The licence is still to be decided (see [open questions](docs/open-questions.md)), so there is no LICENSE file yet.
+The repo is private for now. The intention is to open source it once the design settles. The licence is [MIT](LICENSE) (decided 24 Nov 2026). See [CONTRIBUTING.md](CONTRIBUTING.md) and the docs licence page at `https://docs.skewstone.com/licence.html`.
 
 ## One thing, done well
 

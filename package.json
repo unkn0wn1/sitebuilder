@@ -2,6 +2,7 @@
   "name": "sitebuilder",
   "version": "0.1.0",
   "description": "Skewstone is an AI-assisted site builder for organisations that want a fast website they own.",
+  "license": "MIT",
   "type": "module",
   "private": true,
   "scripts": {
@@ -27,6 +28,8 @@
     "test:e2e": "playwright test",
     "check": "npm run typecheck && npm test && npm run test:api",
     "restore": "tsx scripts/restore.ts",
+    "demo:golden": "tsx scripts/demo-golden.ts",
+    "demo:sweep": "tsx scripts/demo-sweep.ts",
     "install-site": "tsx scripts/install.ts"
   },
   "dependencies": {

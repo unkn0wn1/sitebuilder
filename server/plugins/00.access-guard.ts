@@ -3,6 +3,8 @@
 import { accessConfigFromEnv } from '../services/access'
 
 export default defineNitroPlugin(() => {
+  // Public demo (ADR 0007 amendment, 2026-11-24): this process does not use Cloudflare Access.
+  if (process.env.SITEBUILDER_DEMO_MODE === '1') return
   if (process.env.NODE_ENV !== 'production') return
   if (process.env.SITEBUILDER_ALLOW_NO_ACCESS === '1') {
     console.warn(JSON.stringify({ level: 'warn', msg: 'Running without Cloudflare Access (SITEBUILDER_ALLOW_NO_ACCESS=1). Do not expose this builder publicly.' }))

@@ -3,6 +3,7 @@
 // zone or API token is not configured, so local development does not fail a publish.
 import { getSecret, secretKeyFromEnv } from './auth'
 import type { ServiceCtx } from './context'
+import { demoMode } from './demo-mode'
 import type { JobHandler } from './jobs'
 
 const PURGE_URL = (zoneId: string) => `https://api.cloudflare.com/client/v4/zones/${zoneId}/purge_cache`
@@ -50,10 +51,7 @@ async function sleep(ms: number) {
   await new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-export async function purgeTags(ctx: ServiceCtx, tags: string[]): Promise<PurgeResult> {
-  const zone = zoneId()
-  const token = apiToken(ctx)
-  if (!zone || !token) return { skipped: 'Cloudflare zone or token is not configured.' }
+async function purgeWith(zone: string, token: string, tags: string[]): Promise<PurgeResult> {
   const purged: string[] = []
   for (const batch of batches(tags)) {
     let attempt = 0
@@ -78,6 +76,19 @@ export async function purgeTags(ctx: ServiceCtx, tags: string[]): Promise<PurgeR
     }
   }
   return { purged }
+}
+
+export async function purgeTags(ctx: ServiceCtx, tags: string[]): Promise<PurgeResult> {
+  if (demoMode()) {
+    const zone = process.env.SITEBUILDER_DEMO_CF_ZONE_ID?.trim() || ''
+    const token = process.env.SITEBUILDER_DEMO_CF_TOKEN?.trim() || ''
+    if (!zone || !token) return { skipped: 'Demo mode does not purge Cloudflare.' }
+    return purgeWith(zone, token, tags)
+  }
+  const zone = zoneId()
+  const token = apiToken(ctx)
+  if (!zone || !token) return { skipped: 'Cloudflare zone or token is not configured.' }
+  return purgeWith(zone, token, tags)
 }
 
 export function createPurgeCacheHandler(): JobHandler {

@@ -6,6 +6,7 @@ import { newId } from '../../shared/ids'
 import type { Role } from '../../shared/roles'
 import { authTokens, secrets, sessions, users } from '../db/schema'
 import { enqueueJob } from './jobs'
+import { demoMode } from './demo-mode'
 import { AppError } from './errors'
 import { inTx, iso, type ServiceCtx } from './context'
 
@@ -210,6 +211,7 @@ export const SECRET_NAMES = [...USER_SECRET_NAMES, ...INTERNAL_SECRET_NAMES] as 
 export type SecretName = (typeof SECRET_NAMES)[number]
 
 export function setSecret(ctx: ServiceCtx, key: Buffer, name: SecretName, value: string, userId: string) {
+  if (demoMode()) throw new AppError('forbidden', 'The demo cannot change secrets.')
   const ciphertext = encryptSecret(key, value)
   const existing = ctx.db.select().from(secrets).where(and(eq(secrets.siteId, ctx.siteId), eq(secrets.name, name))).get()
   if (existing) ctx.db.update(secrets).set({ ciphertext, updatedBy: userId, updatedAt: iso(ctx) }).where(eq(secrets.id, existing.id)).run()

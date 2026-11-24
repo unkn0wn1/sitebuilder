@@ -59,6 +59,7 @@ onMounted(load)
         <h1 class="m-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">System</h1>
       </template>
     </SettingsNav>
+    <SettingsDemoNotice />
     <p class="mb-6 max-w-2xl text-gray-600 dark:text-gray-400">This screen is for operators. It shows whether the server and job queue are healthy.</p>
     <FwbAlert v-if="error" type="danger" class="mb-4">{{ error }}</FwbAlert>
     <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading…</p>

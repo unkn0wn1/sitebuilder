@@ -23,3 +23,4 @@ Short records of decisions that are locked in. Each has a status, the context, t
 | [0018](0018-agent-gateway.md) | Agent gateway: one REST API and one MCP server, drafts first, rules decide what goes live | Accepted |
 | [0019](0019-custom-css.md) | Custom CSS: author text, a sanitiser, prefix at render, and a person must approve agent drafts | Accepted |
 | [0020](0020-plugins.md) | Declarative plugins an admin installs, with no public marketplace | Accepted |
+| [0020 addendum](0020-addendum-public-demo.md) | Public demo: one sandbox per visitor, reset of the caller only | Accepted |

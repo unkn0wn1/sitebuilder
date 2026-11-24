@@ -320,6 +320,7 @@ onBeforeUnmount(() => {
         <h1 class="m-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">AI</h1>
       </template>
     </SettingsNav>
+    <SettingsDemoNotice />
 
     <p class="mb-6 max-w-2xl text-gray-600 dark:text-gray-400">
       The assistant uses the model you choose and either an API key or, when this install allows it, a sign-in with xAI.
