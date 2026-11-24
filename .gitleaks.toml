@@ -1,0 +1,9 @@
+title = "Skewstone"
+
+[extend]
+useDefault = true
+
+# Nitro writes this tree on build. It is gitignored, and gitleaks dir still reads it.
+[allowlist]
+description = "Generated Nitro output"
+paths = ['''(?:^|/)\.output(?:/|$)''']
