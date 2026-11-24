@@ -18,7 +18,7 @@ The repo is private for now. The intention is to open source it once the design 
 
 Skewstone does one job: build and update fast, beautiful websites. WordPress and friends try to do everything (plugins, shops, forums, memberships) and pay for it in speed, security and complexity. We deliberately do not.
 
-Not in scope: a public plugin marketplace, payments, ecommerce, memberships or user accounts for visitors, forums or comments, a built-in CRM or email marketing. Admins can install a declarative plugin (a checked manifest, templates and CSS, no server code and no visitor JavaScript), while new code blocks still go through review and the agent cannot install a plugin. See [docs/00-vision.md](docs/00-vision.md#non-goals).
+Not in scope: an open plugin marketplace, payments, ecommerce, memberships or user accounts for visitors, forums or comments, a built-in CRM or email marketing. Plugins come from a small curated catalogue, each one signed by the Skewstone maintainers. Nothing third-party, and nothing is installed unless an admin chooses it. A plugin is declarative (a checked manifest, templates and CSS, no server code and no visitor JavaScript). New code blocks still go through review, and the agent cannot install a plugin. See [docs/00-vision.md](docs/00-vision.md#non-goals).
 
 ## Core ideas
 

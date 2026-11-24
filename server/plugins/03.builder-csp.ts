@@ -1,6 +1,7 @@
 // Production builder pages get a per-request script nonce and a Content-Security-Policy.
 // nuxt dev leaves NODE_ENV unset as production, so the dev server does not send this.
 import { randomBytes } from 'node:crypto'
+import { demoMode } from '../services/demo-mode'
 import { builderCsp, stampScriptNonces } from '../utils/builder-csp'
 
 function headerValue(headers: Record<string, unknown>, name: string): string {
@@ -47,7 +48,7 @@ export default defineNitroPlugin((nitro) => {
       }
       const nonce = randomBytes(16).toString('base64')
       response.body = stampScriptNonces(html, nonce)
-      headers['content-security-policy'] = builderCsp(nonce)
+      headers['content-security-policy'] = builderCsp(nonce, { turnstile: demoMode() })
       headers['x-content-type-options'] = 'nosniff'
       headers['referrer-policy'] = 'strict-origin-when-cross-origin'
     } catch (error) {

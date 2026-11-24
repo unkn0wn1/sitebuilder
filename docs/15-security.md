@@ -20,7 +20,7 @@
 - **CSRF:** `SameSite=Strict` cookies plus an `Origin` check on every request that changes something.
 - **Rate limits:** sign-in and password reset by IP and by email; AI messages per user. The IP is the last address in `X-Forwarded-For`. The shipped nginx sets that header to `$remote_addr` after Cloudflare real-ip, and does not append to a header the visitor sent.
 - **Permissions** are checked in the API for every route and every AI tool call. Hidden buttons are never the protection.
-- **Builder Content Security Policy:** production admin HTML pages get a per-request nonce and `default-src 'self'; script-src 'self' 'nonce-...'`, `connect-src 'self'`, `frame-src 'self'`, `frame-ancestors 'none'`, `object-src 'none'` (server/utils/builder-csp.ts). Preview frames are `sandbox="allow-same-origin"` with no `allow-scripts`, so nothing inside a preview runs or can call the admin API.
+- **Builder Content Security Policy:** production admin HTML pages get a per-request nonce and `default-src 'self'; script-src 'self' 'nonce-...'`, `connect-src 'self'`, `frame-src 'self'`, `frame-ancestors 'none'`, `object-src 'none'` (server/utils/builder-csp.ts). Demo mode also allows `https://challenges.cloudflare.com` on `script-src`, `frame-src`, and `connect-src` for the Turnstile widget on the login page. Preview frames are `sandbox="allow-same-origin"` with no `allow-scripts`, so nothing inside a preview runs or can call the admin API.
 - **Audit log** of sign-ins, role changes, approvals, publishes, rollbacks, settings and secret changes, and every AI tool call.
 
 ## The public site

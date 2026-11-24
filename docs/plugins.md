@@ -1,5 +1,7 @@
 # Plugins
 
+There is no open plugin marketplace. The in-app catalogue is a small set of official packages, each signed by the Skewstone maintainers. Nothing third-party, and nothing is installed unless an admin chooses it.
+
 A plugin is a declarative package: a manifest, logic-less templates, CSS and static assets. The server does not run package code. Version 1 does not add visitor JavaScript. [ADR 0020](decisions/0020-plugins.md) is the decision. This page is how to write, pack and sign one.
 
 The product name is Skewstone. The repository, the package format and the signature comment stay `sitebuilder`.

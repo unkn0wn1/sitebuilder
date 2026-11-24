@@ -61,9 +61,9 @@ title: Plugins
 
 # Plugins
 
-Plugin packages and the in-app catalogue are coming with the plugins release. This page is a stub until \`docs/plugins.md\` is in the repository. The generator copies that file here when it exists.
+There is no open plugin marketplace. Official packages are a small curated catalogue, each one signed by the Skewstone maintainers. Nothing third-party is installed unless an admin chooses it. The public demo refuses plugin archive uploads.
 
-Skewstone does not run a plugin marketplace. Official packages are signed by maintainers. The public demo refuses plugin archive uploads.
+This page is a stub until \`docs/plugins.md\` is in the repository. The generator copies that file here when it exists.
 `
 
 const REPO_DOCS = 'https://github.com/unkn0wn1/sitebuilder/blob/main/docs'

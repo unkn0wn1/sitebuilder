@@ -162,7 +162,7 @@ In the spirit of doing one thing well, the list is deliberately lean. Anything t
 
 Explicitly out of scope, to keep the project focused (see also [00-vision.md](00-vision.md#non-goals)):
 
-- Plugin marketplace or runtime plugin installs
+- An open plugin marketplace. Plugins come from a small curated catalogue, each one signed by the Skewstone maintainers. Nothing third-party is installed unless an admin chooses it.
 - Payments, donations processing, ecommerce, shops, carts
 - Visitor accounts, memberships, paywalls, member areas
 - Comments, forums, community features

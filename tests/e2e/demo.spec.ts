@@ -15,6 +15,23 @@ test.afterAll(async () => {
 })
 
 async function signIn(page: Page, baseUrl: string) {
+  await page.route('**/challenges.cloudflare.com/turnstile/v0/api.js*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      body: `window.turnstile = {
+        render(_el, opts) {
+          this._opts = opts
+          opts.callback('XXXX.DUMMY.TOKEN.XXXX')
+          return 'widget'
+        },
+        reset() {
+          if (this._opts) this._opts.callback('XXXX.DUMMY.TOKEN.XXXX')
+        },
+        remove() {},
+      }`,
+    })
+  })
   await page.goto(`${baseUrl}/login`)
   await expect(page.getByText('skewstone-demo')).toBeVisible()
   await expect(page.getByText('Each visitor has their own copy')).toBeVisible()

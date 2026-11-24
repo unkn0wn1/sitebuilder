@@ -5,7 +5,7 @@
 
 ## Context
 
-There is no plugin marketplace (see [00-vision.md](../00-vision.md#non-goals)), but sites will still need some code of their own: a full theme, an organisation-specific block, or a block variant made with the reference URL feature ([07-ai-agent.md](../07-ai-agent.md)). If that code lives inside core, every site becomes a fork, and every upgrade becomes a merge.
+There is no open plugin marketplace. Official plugins are a small signed catalogue an admin installs (see [ADR 0020](0020-plugins.md) and [00-vision.md](../00-vision.md#non-goals)). Sites still need some code of their own: a full theme, an organisation-specific block, or a block variant made with the reference URL feature ([07-ai-agent.md](../07-ai-agent.md)). If that code lives inside core, every site becomes a fork, and every upgrade becomes a merge.
 
 ## Decision
 
@@ -14,7 +14,7 @@ There is no plugin marketplace (see [00-vision.md](../00-vision.md#non-goals)), 
   - `site/themes/` extra themes (tokens and block renderer overrides),
   - `site/migrations/` block migrations for its own blocks.
 - `site/` is its own git repository (or folder) owned by the organisation. Core upgrades never touch it.
-- Code in `site/` is **reviewed code, not runtime plugins**. Nothing is installed from the builder UI. Adding to `site/` means a code change and a recompile (ADR 0004).
+- Code in `site/` is **reviewed code, not a runtime plugin**. Nothing in `site/` is installed from the builder UI. Adding to `site/` means a code change and a recompile (ADR 0004). A declarative plugin from the signed catalogue is a separate path ([ADR 0020](0020-plugins.md)).
 - Site blocks use the same `defineBlock` API, and must pass the same schema, accessibility and speed checks in CI as core blocks.
 - Core keeps a **stable, versioned block API** (`defineBlock`, prop helpers, theme token names). Breaking changes to it are announced in release notes with a migration note.
 - The reference URL feature writes its output as a change to `site/`, never to core.
