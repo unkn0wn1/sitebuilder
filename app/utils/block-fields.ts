@@ -3,10 +3,40 @@ import type { z } from 'zod'
 import { ref } from 'vue'
 import { STARTER_BLOCKS } from '#shared/blocks/library'
 import type { BlockDefinition } from '#shared/blocks/define'
-import { createDefaultRegistry } from '#shared/blocks/registry'
+import { createDefaultRegistry, type BlockRegistry } from '#shared/blocks/registry'
 import { ratioFromSize } from '#shared/crop'
 
 export const blockRegistry = createDefaultRegistry()
+
+/**
+ * Registry the page editor uses for local ops. Core types come from the built-in registry.
+ * An enabled plugin is not registered there; the catalog supplies a stub so add_block can
+ * store the block version. Schema checks stay on the server, which has the real definition.
+ */
+export const editorRegistry: BlockRegistry = {
+  get(type) {
+    return blockRegistry.get(type) ?? pluginStub(type)
+  },
+  has(type) {
+    return blockRegistry.has(type) || pluginByType(type) !== undefined
+  },
+  list: () => blockRegistry.list(),
+  migrate: (block) => blockRegistry.migrate(block),
+  validate: (block, prefix) => blockRegistry.validate(block, prefix),
+  jsonSchema: (type) => blockRegistry.jsonSchema(type),
+}
+
+function pluginStub(type: string): BlockDefinition | undefined {
+  const plugin = pluginByType(type)
+  if (!plugin) return undefined
+  return {
+    type: plugin.type,
+    version: plugin.version,
+    label: plugin.label,
+    category: plugin.category,
+    sample: plugin.sample,
+  } as BlockDefinition
+}
 
 export type FieldKind = 'text' | 'textarea' | 'enum' | 'boolean' | 'number' | 'image' | 'link' | 'media' | 'embed' | 'richtext' | 'list' | 'object' | 'unknown'
 
@@ -30,6 +60,8 @@ export interface PluginCatalogBlock {
   label: string
   category: BlockDefinition['category']
   trust: 'Official' | 'Self-installed'
+  /** Props version stored on the block when the editor adds it. The server checks the real schema. */
+  version: number
   sample: Record<string, unknown>
   imageSlots: Record<string, { width: number; height: number }>
   fields: FieldSpec[]

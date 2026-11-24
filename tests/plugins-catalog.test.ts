@@ -47,6 +47,7 @@ describe('plugin catalog', () => {
       label: 'Note',
       category: 'Text',
       trust: 'Official',
+      version: 1,
       sample: { heading: 'Hello', raised: 12 },
       imageSlots: { photo: { width: 800, height: 600 } },
     })

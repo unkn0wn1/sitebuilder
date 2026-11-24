@@ -8,7 +8,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { packSource } from '../shared/plugins/repo'
 
-const fail = (message: string): never => {
+function fail(message: string): never {
   process.stderr.write(`${message}\n`)
   process.exit(2)
 }

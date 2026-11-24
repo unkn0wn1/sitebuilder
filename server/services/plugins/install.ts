@@ -124,7 +124,13 @@ export async function preparePluginArchive(archive: Buffer, signature: Buffer | 
   return { files, hashed, manifest, origins, verdict: { trust: verdict.trust, keyId: verdict.keyId } }
 }
 
-export async function installPluginArchive(ctx: ServiceCtx, actor: ActingAs, archive: Buffer, signature: Buffer | null): Promise<InstallResult> {
+export async function installPluginArchive(
+  ctx: ServiceCtx,
+  actor: ActingAs,
+  archive: Buffer,
+  signature: Buffer | null,
+  repository?: { via: 'repository'; repo: string },
+): Promise<InstallResult> {
   if (!can(actor, 'settings.manage')) throw forbidden()
   const prepared = await preparePluginArchive(archive, signature)
   const { files, hashed, manifest, origins, verdict } = prepared
@@ -206,6 +212,7 @@ export async function installPluginArchive(ctx: ServiceCtx, actor: ActingAs, arc
       trust: verdict.trust,
       status,
       contentHash: hashed.hex,
+      ...(repository ? { via: repository.via, repo: repository.repo } : {}),
     })
   })
   const registry = await applyPluginRegistry(ctx)

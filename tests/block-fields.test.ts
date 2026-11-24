@@ -108,6 +108,7 @@ describe('block fields', () => {
       label: 'Note',
       category: 'Text',
       trust: 'Self-installed',
+      version: 1,
       sample: { raised: 1 },
       imageSlots: { photo: { width: 640, height: 480 } },
       fields: [{ name: 'raised', path: 'raised', label: 'Raised so far', kind: 'number', optional: false }],

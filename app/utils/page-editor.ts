@@ -6,7 +6,7 @@ import type { TemplateRules } from '#shared/templates'
 import { canSubmit, type WorkflowState } from '#shared/workflow'
 import { ApiError } from './api'
 import type { FieldIssue } from '#shared/issues'
-import { blockRegistry, pluginSample } from './block-fields'
+import { blockRegistry, editorRegistry, pluginSample } from './block-fields'
 import { cloneDraft } from '#shared/clone'
 
 export const DEVICE_WIDTHS = { desktop: 1280, tablet: 768, mobile: 390 } as const
@@ -416,7 +416,7 @@ export class PageEditor {
     // The whole document is checked after the ops: map "blocks.N.props.key" back to the ops that wrote it.
     let after: PageDoc | null = null
     try {
-      after = applyOps(this.saved, ops, { registry: blockRegistry, newBlockId: () => newId('block') }).state.doc
+      after = applyOps(this.saved, ops, { registry: editorRegistry, newBlockId: () => newId('block') }).state.doc
     } catch {
       after = null
     }
@@ -457,7 +457,7 @@ export class PageEditor {
   }
 
   private applyLocal(ops: Op[]) {
-    const result = applyOps({ doc: this.doc, meta: this.meta }, ops, { registry: blockRegistry, newBlockId: () => newId('block') })
+    const result = applyOps({ doc: this.doc, meta: this.meta }, ops, { registry: editorRegistry, newBlockId: () => newId('block') })
     this.doc = result.state.doc
     this.meta = result.state.meta
     this.title = result.state.doc.title
@@ -476,7 +476,7 @@ export class PageEditor {
     // Ops queued while this save was in flight still apply on top of what the server sent back.
     if (this.pending.length) {
       try {
-        const replay = applyOps({ doc: this.doc, meta: this.meta }, this.pending, { registry: blockRegistry, newBlockId: () => newId('block') })
+        const replay = applyOps({ doc: this.doc, meta: this.meta }, this.pending, { registry: editorRegistry, newBlockId: () => newId('block') })
         this.doc = replay.state.doc
         this.meta = replay.state.meta
         this.title = this.doc.title
@@ -550,7 +550,7 @@ export class PageEditor {
     const keep = ops.filter((_, i) => !drop.has(i))
     let after: PageDoc | null = null
     try {
-      after = applyOps(this.saved, ops, { registry: blockRegistry, newBlockId: () => newId('block') }).state.doc
+      after = applyOps(this.saved, ops, { registry: editorRegistry, newBlockId: () => newId('block') }).state.doc
     } catch {
       after = null
     }

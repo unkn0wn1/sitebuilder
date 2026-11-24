@@ -37,6 +37,15 @@ interface ProposalRow {
   reason: string
 }
 
+interface CataloguePlugin {
+  id: string
+  version: string
+  contentHash: string
+  core: string
+  compatible: boolean
+  keyId: string
+}
+
 interface Issue {
   path: string
   message: string
@@ -62,6 +71,10 @@ const cardErrors = ref<Record<string, Issue[]>>({})
 const plugins = ref<PluginRow[]>([])
 const proposals = ref<ProposalRow[]>([])
 const leftovers = ref<{ pluginId: string }[]>([])
+const catalogue = ref<CataloguePlugin[]>([])
+const catalogueLoading = ref(false)
+const catalogueErrors = ref<Issue[]>([])
+const installErrors = ref<Issue[]>([])
 const drafts = reactive<Record<string, Record<string, string | boolean>>>({})
 const confirmPhrase = reactive<Record<string, string>>({})
 const archiveFile = ref<File | null>(null)
@@ -115,6 +128,35 @@ async function load() {
     loadError.value = err instanceof ApiError ? err.message : 'Could not load plugins.'
   } finally {
     loading.value = false
+  }
+}
+
+async function loadCatalogue() {
+  catalogueLoading.value = true
+  catalogueErrors.value = []
+  try {
+    const data = await api<{ repo: string; plugins: CataloguePlugin[] }>('/plugins/repository')
+    catalogue.value = data.plugins
+  } catch (err) {
+    catalogue.value = []
+    catalogueErrors.value = issuesFrom(err)
+  } finally {
+    catalogueLoading.value = false
+  }
+}
+
+async function installFromRepo(item: CataloguePlugin) {
+  installErrors.value = []
+  notice.value = ''
+  busy.value = true
+  try {
+    const res = await api<{ status: string }>('/plugins/repository/install', { method: 'POST', body: { id: item.id, version: item.version } })
+    notice.value = res.status === 'needs_owner' ? 'Installed. An owner has to approve this plugin before it can load those addresses.' : 'Installed and turned on.'
+    await load()
+  } catch (err) {
+    installErrors.value = issuesFrom(err)
+  } finally {
+    busy.value = false
   }
 }
 
@@ -239,7 +281,10 @@ async function removeData(pluginId: string, errorKey: string) {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  void load()
+  void loadCatalogue()
+})
 </script>
 
 <template>
@@ -254,6 +299,28 @@ onMounted(load)
     <FwbAlert v-else-if="notice" type="success" class="mb-4">{{ notice }}</FwbAlert>
     <p v-if="loading" class="text-gray-500 dark:text-gray-400">Loading plugins...</p>
     <div v-else class="space-y-8">
+      <section class="max-w-xl space-y-4">
+        <h2 class="m-0 text-lg font-semibold text-gray-900 dark:text-gray-100">Add from the Skewstone repository</h2>
+        <p v-if="catalogueLoading" class="m-0 text-sm text-gray-500 dark:text-gray-400">Loading the repository...</p>
+        <ul v-if="catalogueErrors.length" class="m-0 list-none space-y-1 p-0">
+          <li v-for="issue in catalogueErrors" :key="`${issue.path}-${issue.message}`" class="text-sm text-red-700 dark:text-red-400">{{ issue.path }}: {{ issue.message }}</li>
+        </ul>
+        <ul v-if="installErrors.length" class="m-0 list-none space-y-1 p-0">
+          <li v-for="issue in installErrors" :key="`${issue.path}-${issue.message}`" class="text-sm text-red-700 dark:text-red-400">{{ issue.path }}: {{ issue.message }}</li>
+        </ul>
+        <p v-if="!catalogueLoading && !catalogueErrors.length && !catalogue.length" class="m-0 text-sm text-gray-500 dark:text-gray-400">The repository has no plugins.</p>
+        <article v-for="item in catalogue" :key="`${item.id}@${item.version}`" class="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+          <h3 class="m-0 text-base font-semibold text-gray-900 dark:text-gray-100">{{ item.id }}</h3>
+          <p class="mt-1 mb-0 text-sm text-gray-600 dark:text-gray-400">version {{ item.version }}, Official</p>
+          <p class="mt-2 mb-0 text-sm text-gray-700 dark:text-gray-300">Core {{ item.core }}</p>
+          <p class="mt-2 mb-0 break-all text-sm text-gray-700 dark:text-gray-300">Content hash {{ item.contentHash }}</p>
+          <p v-if="!item.compatible" class="mt-2 mb-0 text-sm text-gray-700 dark:text-gray-300">This plugin needs a different Skewstone version.</p>
+          <div class="mt-4">
+            <FwbButton type="button" :disabled="busy || !item.compatible" @click="installFromRepo(item)">Install</FwbButton>
+          </div>
+        </article>
+      </section>
+
       <form class="max-w-xl space-y-3" @submit.prevent="addPlugin">
         <h2 class="m-0 text-lg font-semibold text-gray-900 dark:text-gray-100">Add a plugin</h2>
         <div :key="formKey" class="space-y-3">

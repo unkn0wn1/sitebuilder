@@ -6,7 +6,7 @@ import { newId } from '../shared/ids'
 import { applyOps, OpError, opsRequestSchema, type Op, type PageMeta } from '../shared/ops'
 import { assessCssBuffer, shouldInjectLiveCss } from '../shared/css/buffer'
 import { emptyPageDoc, type PageDoc } from '../shared/page'
-import { blockRegistry } from '../app/utils/block-fields'
+import { blockRegistry, setPluginCatalog } from '../app/utils/block-fields'
 import { richTextFromParagraphs } from '../shared/richtext'
 
 const rules = { schemaVersion: 1 as const, label: 'Campaign', allowedBlocks: ['Hero', 'RichText', 'Quote', 'CallToAction'], requiredBlocks: ['Hero'], startingBlocks: [] }
@@ -115,6 +115,33 @@ describe('PageEditor', () => {
     expect(ed.revision).toBeGreaterThan(1)
     expect(ed.undoStack).toHaveLength(1)
     ed.dispose()
+  })
+
+  it('adds an enabled plugin section at the catalog version', () => {
+    setPluginCatalog([{
+      type: 'match-thermometer/Thermometer',
+      label: 'Match thermometer',
+      category: 'Text',
+      trust: 'Official',
+      version: 3,
+      sample: { raised: 5000 },
+      imageSlots: {},
+      fields: [],
+    }])
+    const api = new MemoryApi()
+    const ed = editor(api, {
+      rules: { ...rules, allowedBlocks: [...rules.allowedBlocks, 'match-thermometer/Thermometer'] },
+    }, { debounceMs: 60_000 })
+    try {
+      ed.addSection('match-thermometer/Thermometer')
+      expect(ed.doc.blocks).toHaveLength(1)
+      expect(ed.doc.blocks[0]).toMatchObject({ type: 'match-thermometer/Thermometer', v: 3, props: { raised: 5000 } })
+      expect(ed.saveStatus).toBe('saving')
+      expect(ed.error).toBeNull()
+    } finally {
+      ed.dispose()
+      setPluginCatalog([])
+    }
   })
 
   it('updates a heading through update_props', async () => {

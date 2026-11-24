@@ -11,6 +11,7 @@ export function pluginCatalog(registry: BlockRegistry): PluginCatalogBlock[] {
       label: def.label,
       category: def.category,
       trust: def.plugin.trust === 'official' ? 'Official' : 'Self-installed',
+      version: def.version,
       sample: def.sample as Record<string, unknown>,
       imageSlots: def.imageSlots ?? {},
       fields: describeProps(def.props),

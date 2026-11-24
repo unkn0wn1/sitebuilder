@@ -14,7 +14,7 @@ import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { officialKeyId, rawEd25519PublicKey } from '../shared/plugins/signature'
 
-const fail = (message: string): never => {
+function fail(message: string): never {
   process.stderr.write(`${message}\n`)
   process.exit(2)
 }

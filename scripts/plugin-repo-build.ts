@@ -11,7 +11,7 @@ import { readTarGz } from '../shared/plugins/archive'
 import { buildRepositoryFiles, packSource, type BuiltPackage } from '../shared/plugins/repo'
 import { officialKeyId, rawEd25519PublicKey, signPluginSignature } from '../shared/plugins/signature'
 
-const fail = (message: string): never => {
+function fail(message: string): never {
   process.stderr.write(`${message}\n`)
   process.exit(2)
 }
