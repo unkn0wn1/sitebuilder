@@ -2,6 +2,7 @@
   "name": "sitebuilder",
   "version": "0.1.0",
   "description": "Skewstone is an AI-assisted site builder for organisations that want a fast website they own.",
+  "license": "MIT",
   "type": "module",
   "private": true,
   "scripts": {
