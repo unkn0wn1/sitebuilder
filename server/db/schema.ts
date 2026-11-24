@@ -1,7 +1,7 @@
 // Database schema (SQLite via Drizzle). Portable on purpose: text ids, ISO 8601 text timestamps,
 // JSON as text, so a Postgres schema can follow later. See docs/13-data-model.md and ADR 0009.
 import { sql } from 'drizzle-orm'
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { blob, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 const id = () => text('id').primaryKey()
 const siteId = () => text('site_id').notNull().references(() => sites.id)
@@ -271,6 +271,8 @@ export interface ReleaseManifest {
   templates?: Record<string, string>
   theme: string
   bundleId: string
+  /** Set when plugins are enabled. Missing means no plugins, not a mismatch with older manifests. */
+  pluginBundleId?: string
 }
 
 export const releases = sqliteTable('releases', {
@@ -524,4 +526,88 @@ export const agentCalls = sqliteTable(
     at: text('at').notNull(),
   },
   (t) => [index('agent_calls_token_kind_at').on(t.tokenId, t.kind, t.at)],
+)
+
+export const PLUGIN_TRUST = ['official', 'self'] as const
+export type PluginTrust = (typeof PLUGIN_TRUST)[number]
+export const PLUGIN_STATUSES = ['enabled', 'disabled', 'pending_owner'] as const
+export type PluginStatus = (typeof PLUGIN_STATUSES)[number]
+export const PLUGIN_PROPOSAL_STATUSES = ['pending', 'approved', 'rejected'] as const
+export type PluginProposalStatus = (typeof PLUGIN_PROPOSAL_STATUSES)[number]
+
+/** One installed plugin per site. pending_owner keeps the files but is not in the block registry. */
+export const plugins = sqliteTable(
+  'plugins',
+  {
+    id: id(),
+    siteId: siteId(),
+    pluginId: text('plugin_id').notNull(),
+    name: text('name').notNull(),
+    version: text('version').notNull(),
+    coreRange: text('core_range').notNull(),
+    contentHash: text('content_hash').notNull(),
+    trust: text('trust', { enum: PLUGIN_TRUST }).notNull(),
+    signingKeyId: text('signing_key_id'),
+    status: text('status', { enum: PLUGIN_STATUSES }).notNull(),
+    statusMessage: text('status_message'),
+    manifestJson: json<Record<string, unknown>>('manifest_json').notNull(),
+    permissionsJson: json<string[]>('permissions_json').notNull(),
+    cspJson: json<Record<string, string[]>>('csp_json').notNull(),
+    installedBy: text('installed_by').notNull().references(() => users.id),
+    installedAt: text('installed_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [uniqueIndex('plugins_site_plugin').on(t.siteId, t.pluginId), index('plugins_site_status').on(t.siteId, t.status)],
+)
+
+export const pluginFiles = sqliteTable(
+  'plugin_files',
+  {
+    id: id(),
+    siteId: siteId(),
+    pluginId: text('plugin_id').notNull(),
+    path: text('path').notNull(),
+    sha256: text('sha256').notNull(),
+    size: integer('size').notNull(),
+    bytes: blob('bytes', { mode: 'buffer' }).notNull(),
+  },
+  (t) => [uniqueIndex('plugin_files_site_plugin_path').on(t.siteId, t.pluginId, t.path)],
+)
+
+export const pluginSettings = sqliteTable(
+  'plugin_settings',
+  {
+    siteId: text('site_id').notNull().references(() => sites.id),
+    pluginId: text('plugin_id').notNull(),
+    doc: json<Record<string, unknown>>('doc').notNull(),
+    updatedAt: text('updated_at').notNull(),
+    updatedBy: text('updated_by').notNull().references(() => users.id),
+  },
+  (t) => [primaryKey({ columns: [t.siteId, t.pluginId] })],
+)
+
+/** An agent proposal is not a plugin row until a person approves it. At most one pending row per plugin id. */
+export const pluginProposals = sqliteTable(
+  'plugin_proposals',
+  {
+    id: id(),
+    siteId: siteId(),
+    tokenId: text('token_id').notNull().references(() => agentTokens.id),
+    agentLabel: text('agent_label').notNull(),
+    status: text('status', { enum: PLUGIN_PROPOSAL_STATUSES }).notNull(),
+    archive: blob('archive', { mode: 'buffer' }).notNull(),
+    signature: blob('signature', { mode: 'buffer' }),
+    contentHash: text('content_hash').notNull(),
+    pluginId: text('plugin_id').notNull(),
+    version: text('version').notNull(),
+    reason: text('reason').notNull(),
+    createdAt: createdAt(),
+    decidedBy: text('decided_by').references(() => users.id),
+    decidedAt: text('decided_at'),
+    decisionNote: text('decision_note'),
+  },
+  (t) => [
+    index('plugin_proposals_site_created').on(t.siteId, t.createdAt),
+    uniqueIndex('plugin_proposals_one_pending').on(t.siteId, t.pluginId).where(sql`${t.status} = 'pending'`),
+  ],
 )

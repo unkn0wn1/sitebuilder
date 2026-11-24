@@ -83,7 +83,8 @@ watch(
 function onProps(next: Record<string, unknown>) {
   const block = props.editor.selected
   if (!block) return
-  props.editor.updateProps(block.id, next)
+  const unset = Object.keys(block.props).filter((key) => !Object.prototype.hasOwnProperty.call(next, key))
+  props.editor.updateProps(block.id, next, unset)
 }
 
 async function saveVersion() {
@@ -141,6 +142,7 @@ async function restore(id: string) {
           :issues="issues"
           :base-path="`blocks.${editor.doc.blocks.findIndex((b) => b.id === editor.selected!.id)}.props`"
           @update:model-value="onProps"
+          @remove="editor.removeSection(editor.selected.id)"
         />
         <details v-if="canCss" class="mt-6 border-t border-gray-200 pt-4 dark:border-gray-700" data-testid="custom-css">
           <summary class="cursor-pointer text-sm font-medium text-gray-900 dark:text-gray-100">Custom CSS</summary>

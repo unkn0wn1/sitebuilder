@@ -31,6 +31,7 @@ import { validateSitePartDoc, type MenuDoc, type SitePartDoc, type SitePartKind,
 import { agentChanges, pages, sites, siteParts } from '../../db/schema'
 import { strippedSoul } from '../soul'
 import { soulProposalSummaryForToken, proposeSoul } from '../soul-proposals'
+import { proposePlugin } from '../plugins/propose'
 import type { ServiceCtx } from '../context'
 import { AppError, notFound } from '../errors'
 import { createPage, getPage, listPages, readDoc, requirePage } from '../pages'
@@ -62,19 +63,33 @@ const GATEWAY_VERSION = '1'
 // Shared helpers
 
 const NEVER_PROP_SET = new Set<string>(NEVER_PROP_KEYS)
+const PLUGIN_CLOSED = 'This plugin block is not open to agents.'
 
 function neverList(message: string): AppError {
   return new AppError('never_list', `${message} Agents can never do this. Tell the person it needs doing by hand in the builder.`)
 }
 
-function checkBlockType(type: string) {
+function pluginClosed(): AppError {
+  return neverList(PLUGIN_CLOSED)
+}
+
+/** A slash type that is missing or not marked writable. Core blocks are never this. */
+function closedToAgents(ctx: ServiceCtx, type: string): boolean {
+  if (!type.includes('/')) return false
+  const plugin = ctx.registry.get(type)?.plugin
+  return !plugin?.writable
+}
+
+function checkBlockType(ctx: ServiceCtx, type: string) {
   if (isNeverBlockType(type)) throw neverList(`"${type}" sections hold donation forms and embeds.`)
+  if (closedToAgents(ctx, type)) throw pluginClosed()
 }
 
 /** embed, source and campaignId are refused on sight. badgeHtml is compared before and after an edit. */
 const STRICT_PROP_KEYS = new Set<string>(NEVER_PROP_KEYS.filter((key) => key !== 'badgeHtml'))
 
-function refuseProp(key: string): never {
+function refuseProp(key: string, pluginOnly = false): never {
+  if (pluginOnly) throw neverList(`The prop "${key}" is closed on this plugin.`)
   if (key === 'badgeHtml') throw neverList('The prop "badgeHtml" is badge HTML.')
   throw neverList(`The prop "${key}" binds a section to a form, an embed or a data source.`)
 }
@@ -112,9 +127,17 @@ function badgeHtmlValues(value: unknown, out: unknown[] = []): unknown[] {
 }
 
 /** New sections have nothing to preserve: any never-prop key, at any depth, is refused. */
-function checkProps(props: Record<string, unknown>, unset: string[] = []) {
-  const hit = findPropKey(props, NEVER_PROP_SET) ?? unset.find((key) => NEVER_PROP_SET.has(key))
-  if (hit) refuseProp(hit)
+function extraNeverKeys(ctx: ServiceCtx, type: string): Set<string> {
+  const names = ctx.registry.get(type)?.plugin?.agentNever ?? []
+  return new Set(names)
+}
+
+function checkProps(ctx: ServiceCtx, type: string, props: Record<string, unknown>, unset: string[] = []) {
+  const extra = extraNeverKeys(ctx, type)
+  const globalHit = findPropKey(props, NEVER_PROP_SET) ?? unset.find((key) => NEVER_PROP_SET.has(key))
+  if (globalHit) refuseProp(globalHit)
+  const pluginHit = findPropKey(props, extra) ?? unset.find((key) => extra.has(key))
+  if (pluginHit) refuseProp(pluginHit, !NEVER_PROP_SET.has(pluginHit))
 }
 
 /**
@@ -122,22 +145,43 @@ function checkProps(props: Record<string, unknown>, unset: string[] = []) {
  * embed, source and campaignId are refused wherever the patch sets or unsets them, even when the value is unchanged.
  * badgeHtml may be sent again only when every badge value is still there, in the same order.
  */
-function checkEditProps(current: Record<string, unknown>, patch: Record<string, unknown>, unset: string[] = []) {
-  const inPatch = findPropKey(patch, STRICT_PROP_KEYS)
-  if (inPatch) refuseProp(inPatch)
-  const inUnset = unset.find((key) => STRICT_PROP_KEYS.has(key))
-  if (inUnset) refuseProp(inUnset)
+function checkEditProps(ctx: ServiceCtx, type: string, current: Record<string, unknown>, patch: Record<string, unknown>, unset: string[] = []) {
+  const extra = extraNeverKeys(ctx, type)
+  const strict = new Set<string>([...STRICT_PROP_KEYS, ...extra])
+  const pluginOnly = (key: string) => extra.has(key) && !STRICT_PROP_KEYS.has(key) && key !== 'badgeHtml'
+  const inPatch = findPropKey(patch, strict)
+  if (inPatch) refuseProp(inPatch, pluginOnly(inPatch))
+  const inUnset = unset.find((key) => strict.has(key))
+  if (inUnset) refuseProp(inUnset, pluginOnly(inUnset))
   for (const key of unset) {
     if (!(key in current)) continue
-    const nested = findPropKey(current[key], STRICT_PROP_KEYS)
-    if (nested) refuseProp(nested)
+    const nested = findPropKey(current[key], strict)
+    if (nested) refuseProp(nested, pluginOnly(nested))
   }
   const next: Record<string, unknown> = { ...current, ...patch }
   for (const key of unset) delete next[key]
   if (JSON.stringify(badgeHtmlValues(current)) !== JSON.stringify(badgeHtmlValues(next))) refuseProp('badgeHtml')
 }
 
-const accessOf = (type: string) => (isNeverBlockType(type) ? 'never' : isMoneyBlockType(type) ? 'draft_only' : 'ok')
+type AgentAccess = 'ok' | 'draft_only' | 'never' | 'not_for_agents'
+
+function accessOf(ctx: ServiceCtx, type: string): AgentAccess {
+  if (isNeverBlockType(type)) return 'never'
+  if (type.includes('/')) {
+    const plugin = ctx.registry.get(type)?.plugin
+    if (!plugin?.writable) return 'not_for_agents'
+    if (plugin.money) return 'draft_only'
+    return 'ok'
+  }
+  return isMoneyBlockType(type) ? 'draft_only' : 'ok'
+}
+
+const ACCESS_MEANING: Record<AgentAccess, string> = {
+  ok: 'You may add, edit, move and remove it.',
+  draft_only: 'You may draft changes, but a person must approve them: it shows or asks for money.',
+  never: 'You cannot add, change, move or remove it: it holds a donation form or embed.',
+  not_for_agents: 'You cannot add, change, move or remove it. This plugin block is not open to agents.',
+}
 
 function origin(ctx: ServiceCtx): string | null {
   const domain = ctx.db.select({ d: sites.primaryDomain }).from(sites).where(eq(sites.id, ctx.siteId)).get()?.d
@@ -341,6 +385,10 @@ export function updateSoul(ctx: ServiceCtx, agent: SignedInAgent, input: In<type
   return proposeSoul(ctx, agent, input)
 }
 
+export function proposePluginFor(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.proposePluginInput>) {
+  return proposePlugin(ctx, agent, input)
+}
+
 export function listPagesFor(ctx: ServiceCtx, input: In<typeof S.listPagesInput>) {
   const r = listPages(ctx, { search: input.query, state: input.state, template: input.page_type, page: input.page, pageSize: input.page_size })
   return {
@@ -366,7 +414,7 @@ export function getPageFor(ctx: ServiceCtx, input: In<typeof S.getPageInput>) {
       index: i,
       type: b.type,
       label: ctx.registry.get(b.type)?.label ?? b.type,
-      agent_access: accessOf(b.type),
+      agent_access: accessOf(ctx, b.type),
       preview: previewProps(b.props),
       props: b.props,
       rich_text: richText,
@@ -414,9 +462,10 @@ export function listComponents(ctx: ServiceCtx) {
         type: def.type,
         label: def.label,
         category: def.category,
-        agent_access: accessOf(def.type),
-        agent_access_meaning: { ok: 'You may add, edit, move and remove it.', draft_only: 'You may draft changes, but a person must approve them: it shows or asks for money.', never: 'You cannot add, change, move or remove it: it holds a donation form or embed.' }[accessOf(def.type)],
-        purpose: g?.purpose ?? null,
+        agent_access: accessOf(ctx, def.type),
+        agent_access_meaning: ACCESS_MEANING[accessOf(ctx, def.type)],
+        purpose: g?.purpose ?? (def.plugin?.describe || null),
+        ...(def.plugin ? { trust: def.plugin.trust === 'official' ? 'Official' : 'Self-installed' } : {}),
         use_when: g?.useWhen ?? null,
         avoid_when: g?.avoidWhen ?? null,
         pairs_with: g?.pairsWith ?? [],
@@ -633,7 +682,7 @@ export function editText(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof
       const matches = r.replacements.reduce((s, x) => s + x.count, 0)
       if (!matches) return b
       found += matches
-      if (isNeverBlockType(b.type)) {
+      if (isNeverBlockType(b.type) || closedToAgents(ctx, b.type)) {
         skippedNever.push({ page: p.title, block_type: b.type, matches })
         return b
       }
@@ -657,7 +706,11 @@ export function editText(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof
   if (found === 0) throw new AppError('no_matches', `"${input.find}" was not found in ${input.everywhere ? 'the draft of any page or site part' : `"${c.pages[0]!.title}"`}. Use search_content to see how the text is actually written. Text split by bold or a link must be edited run by run, or use insert_rich_text or edit_component.`)
   checkExpected(found, input.expected_matches, detail)
   const replaceable = pagePlans.reduce((s, p) => s + p.count, 0) + partPlans.reduce((s, p) => s + p.count, 0)
-  if (replaceable === 0) throw neverList(`The only matches are inside protected sections (${skippedNever.map((s) => s.block_type).join(', ')}).`)
+  if (replaceable === 0) {
+    const types = skippedNever.map((s) => s.block_type)
+    if (types.length && types.every((type) => closedToAgents(ctx, type))) throw pluginClosed()
+    throw neverList(`The only matches are inside protected sections (${types.join(', ')}).`)
+  }
 
   const done = runInChange(ctx, agent, { changeId: input.change_id, title: `Change text: "${input.find.slice(0, 40)}" to "${input.replace.slice(0, 40)}"`, reason: input.reason }, (h) => {
     for (const p of pagePlans) h.editPage(p.page.id, 'edit_text', p.ops)
@@ -703,8 +756,16 @@ function linkPlan(ctx: ServiceCtx, input: { url: string; match: 'exact' | 'prefi
 
 const blockPath = (hit: LinkHit, blocks: PageDoc['blocks']) => `${blocks[hit.path[0] as number]?.id ?? '?'}.${pathString(hit.path.slice(2))}`
 
+function assertLinksOpen(ctx: ServiceCtx, blocks: PageDoc['blocks'], hits: LinkHit[]) {
+  for (const hit of hits) {
+    const block = blocks[hit.path[0] as number]
+    if (block && closedToAgents(ctx, block.type)) throw pluginClosed()
+  }
+}
+
 export function removeLink(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.removeLinkInput>) {
   const plan = linkPlan(ctx, input)
+  for (const pp of plan.pagePlans) assertLinksOpen(ctx, pp.doc.blocks, pp.hits)
   const couldNot: { where: string; label: string | null; href: string; why: string }[] = []
   let removedCount = 0
   const pageOps = plan.pagePlans.map((pp) => {
@@ -758,6 +819,7 @@ export function removeLink(ctx: ServiceCtx, agent: SignedInAgent, input: In<type
 export function replaceLink(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.replaceLinkInput>) {
   if (!isSafeHref(input.new_url)) throw new AppError('validation_failed', 'new_url must start with https://, http://, mailto:, tel:, / or #.', [{ path: 'new_url', message: 'Not a safe link.' }])
   const plan = linkPlan(ctx, input)
+  for (const pp of plan.pagePlans) assertLinksOpen(ctx, pp.doc.blocks, pp.hits)
   const pageOps = plan.pagePlans.map((pp) => {
     const r = replaceLinks(pp.doc.blocks, pp.hits, input.new_url)
     return { pp, ops: updateOps(pp.doc.blocks, r.value), changed: r.changed.length }
@@ -789,8 +851,8 @@ export function insertRichTextInto(ctx: ServiceCtx, agent: SignedInAgent, input:
   const doc = readDoc(ctx, page.draftVersionId!)
   const block = doc.blocks.find((b) => b.id === input.block_id)
   if (!block) throw new AppError('not_found', `The page "${page.title}" has no section ${input.block_id}. Use get_page to see the section ids.`)
-  checkBlockType(block.type)
-  checkProps({ [input.prop]: 1 })
+  checkBlockType(ctx, block.type)
+  checkProps(ctx, block.type, { [input.prop]: 1 })
   const current = block.props[input.prop]
   if (!isRichTextValue(current)) throw new AppError('validation_failed', `The "${input.prop}" prop of this ${block.type} section is not rich text. get_page lists rich-text props under rich_text. For other props use edit_component.`, [{ path: 'prop', message: 'Not a rich-text prop.' }])
   const md = markdownToRichText(input.markdown)
@@ -822,12 +884,12 @@ function requireBlock(ctx: ServiceCtx, pageId: string, blockId: string) {
 export function editComponent(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.editComponentInput>) {
   const page = pageOf(ctx, input)
   const { block } = requireBlock(ctx, page.id, input.block_id)
-  checkBlockType(block.type)
+  checkBlockType(ctx, block.type)
   if (Object.prototype.hasOwnProperty.call(input.props, 'css') || input.unset?.includes('css')) {
     const path = Object.prototype.hasOwnProperty.call(input.props, 'css') ? 'props.css' : 'unset'
     throw new AppError('validation_failed', 'Custom CSS is set with set_block_css, not as a section field.', [{ path, message: 'Use set_block_css.' }])
   }
-  checkEditProps(block.props, input.props, input.unset)
+  checkEditProps(ctx, block.type, block.props, input.props, input.unset)
   if (!Object.keys(input.props).length && !input.unset?.length) throw new AppError('validation_failed', 'Give props to set or unset.', [{ path: 'props', message: 'Nothing to change.' }])
   const done = runInChange(ctx, agent, { changeId: input.change_id, title: `Edit ${block.type} on ${page.title}`, reason: input.reason }, (h) => {
     h.editPage(page.id, 'edit_sections', [{ op: 'update_props', blockId: block.id, props: input.props, ...(input.unset?.length ? { unset: input.unset } : {}) }])
@@ -838,7 +900,7 @@ export function editComponent(ctx: ServiceCtx, agent: SignedInAgent, input: In<t
 export function setBlockCss(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.setBlockCssInput>) {
   const page = pageOf(ctx, input)
   const { block } = requireBlock(ctx, page.id, input.block_id)
-  checkBlockType(block.type)
+  checkBlockType(ctx, block.type)
   const done = runInChange(ctx, agent, { changeId: input.change_id, title: `Custom CSS on ${block.type} on ${page.title}`, reason: input.reason }, (h) => {
     return h.editPage(page.id, 'edit_css', [{ op: 'set_block_css', blockId: block.id, css: input.css }])
   })
@@ -848,8 +910,8 @@ export function setBlockCss(ctx: ServiceCtx, agent: SignedInAgent, input: In<typ
 
 export function addComponent(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.addComponentInput>) {
   const page = pageOf(ctx, input)
-  checkBlockType(input.type)
-  checkProps(input.props)
+  checkBlockType(ctx, input.type)
+  checkProps(ctx, input.type, input.props)
   if (!ctx.registry.has(input.type)) throw new AppError('validation_failed', `"${input.type}" is not a section type. Use list_components for the types.`, [{ path: 'type', message: 'Unknown section type.' }])
   const done = runInChange(ctx, agent, { changeId: input.change_id, title: `Add ${input.type} to ${page.title}`, reason: input.reason }, (h) => {
     return h.editPage(page.id, 'edit_sections', [{ op: 'add_block', block: { type: input.type, props: input.props }, ...(input.after_block_id ? { afterBlockId: input.after_block_id } : {}), ...(input.index !== undefined ? { index: input.index } : {}) }])
@@ -860,7 +922,7 @@ export function addComponent(ctx: ServiceCtx, agent: SignedInAgent, input: In<ty
 export function removeComponent(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.removeComponentInput>) {
   const page = pageOf(ctx, input)
   const { block } = requireBlock(ctx, page.id, input.block_id)
-  checkBlockType(block.type)
+  checkBlockType(ctx, block.type)
   const done = runInChange(ctx, agent, { changeId: input.change_id, title: `Remove ${block.type} from ${page.title}`, reason: input.reason }, (h) => h.editPage(page.id, 'edit_sections', [{ op: 'remove_block', blockId: block.id }]))
   return { ...editView(ctx, agent, done.change), result: { page_id: page.id, removed_block_id: block.id, sections_now: done.result.doc.blocks.map((b) => ({ block_id: b.id, type: b.type })) } }
 }
@@ -868,7 +930,7 @@ export function removeComponent(ctx: ServiceCtx, agent: SignedInAgent, input: In
 export function moveComponent(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.moveComponentInput>) {
   const page = pageOf(ctx, input)
   const { block } = requireBlock(ctx, page.id, input.block_id)
-  checkBlockType(block.type)
+  checkBlockType(ctx, block.type)
   const done = runInChange(ctx, agent, { changeId: input.change_id, title: `Move ${block.type} on ${page.title}`, reason: input.reason }, (h) => h.editPage(page.id, 'edit_sections', [{ op: 'move_block', blockId: block.id, toIndex: input.to_index }]))
   return { ...editView(ctx, agent, done.change), result: { page_id: page.id, sections_now: done.result.doc.blocks.map((b) => ({ block_id: b.id, type: b.type })) } }
 }
@@ -886,8 +948,8 @@ export function setPageDetails(ctx: ServiceCtx, agent: SignedInAgent, input: In<
 
 export function createPageFor(ctx: ServiceCtx, agent: SignedInAgent, input: In<typeof S.createPageInput>) {
   for (const s of input.sections) {
-    checkBlockType(s.type)
-    checkProps(s.props)
+    checkBlockType(ctx, s.type)
+    checkProps(ctx, s.type, s.props)
   }
   const parent = input.parent_path ? resolvePage(ctx, { path: input.parent_path }) : null
   const done = runInChange(ctx, agent, { changeId: input.change_id, title: `Create page: ${input.title}`, reason: input.reason }, (h) => {
@@ -928,8 +990,8 @@ export function createPagesFor(ctx: ServiceCtx, agent: SignedInAgent, input: In<
       refs.add(p.ref)
     }
     for (const sec of p.sections) {
-      checkBlockType(sec.type)
-      checkProps(sec.props)
+      checkBlockType(ctx, sec.type)
+      checkProps(ctx, sec.type, sec.props)
     }
   })
   const done = runInChange(ctx, agent, { changeId: input.change_id, title: input.pages.length === 1 ? `Create page: ${input.pages[0]!.title}` : `Build ${input.pages.length} pages: ${input.pages.map((p) => p.title).join(', ').slice(0, 80)}`, reason: input.reason }, (h) => {

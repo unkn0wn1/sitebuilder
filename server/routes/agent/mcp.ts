@@ -32,7 +32,7 @@ export default defineEventHandler(async (event) => {
     const replies: RpcReply[] = []
     for (const m of parsed.messages) {
       try {
-        const r = handleRpc(ctx, agent, m)
+        const r = await handleRpc(ctx, agent, m)
         if (r) replies.push(r)
       } catch (error) {
         const ref = randomBytes(4).toString('hex')

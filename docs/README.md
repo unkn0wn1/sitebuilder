@@ -20,6 +20,7 @@ The design is written here first, then built. Everything in this folder is a dra
 | [13-data-model.md](13-data-model.md) | Entities, states, versions, autosave, concurrent edits, releases |
 | [14-api.md](14-api.md) | The HTTP API contract, errors and operations |
 | [agent-gateway.md](agent-gateway.md) | Letting an AI read and change the site: setup, tokens, rules, undo, MCP and REST (reference: [tools](agent-gateway-tools.md), [OpenAPI](agent-gateway-openapi.json), [plan](agent-gateway-plan.md)) |
+| [plugins.md](plugins.md) | Declarative plugins: manifest, templates, pack and sign, trust, and the signed repository index |
 | [15-security.md](15-security.md) | Builder, public site, origin, secrets and AI security |
 | [16-operations.md](16-operations.md) | Install, jobs, email, backups, monitoring, upgrades, AI outages |
 | [17-testing-and-budgets.md](17-testing-and-budgets.md) | Test layers, performance budgets, checks before review, AI evals |

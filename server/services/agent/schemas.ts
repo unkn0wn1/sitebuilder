@@ -501,3 +501,14 @@ export const setAltTextInput = z
     reason,
   })
   .strict()
+
+export const proposePluginInput = z
+  .object({
+    files: z.record(z.string().trim().min(1).max(120), z.string().max(512 * 1024)).meta({
+      description: 'Text files for one plugin, keyed by their path inside the package. Only .json, .html, .css and .svg. At most 32 files and 512 KiB together. Include plugin.json. Nothing is installed until a person approves it on Settings, Plugins.',
+      examples: [{ 'plugin.json': '{"id":"acme-note"}', 'note.html': '<section>Hello</section>' }],
+    }),
+    reason,
+  })
+  .strict()
+

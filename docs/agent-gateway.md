@@ -199,7 +199,7 @@ curl -s -X POST https://builder.example.org/agent/v1/edits/remove-link -H "Autho
 
 On connect the MCP server sends instructions, and offers:
 
-- **Tools**: 39 of them, each with a long description (what, when, when not, before, effect, permission, returns, errors, example) and a full input schema with a description and example on every field.
+- **Tools**: 40 of them, each with a long description (what, when, when not, before, effect, permission, returns, errors, example) and a full input schema with a description and example on every field.
 - **Resources**: guides at `sitebuilder://guide/overview`, `tools`, `rules`, `content-model`, `markdown`, `errors`, and `sitebuilder://you` (its own live permissions).
 - `get_site.personality` and `sitebuilder://soul` are the tone of voice. `update_soul` proposes a new one. A person approves it on Settings, AI personality. It does not change what the token may do. Other settings stay closed.
 - **Prompts and recipes**, with the same text as resources at `sitebuilder://recipe/<name>`: `take_a_link_down`, `update_policy_text`, `change_words`, `edit_a_section`, `create_a_page`, `publish_or_ask`, `undo_a_change`, `menu_and_banner`, `when_you_are_refused`.
@@ -217,6 +217,10 @@ An admin approves or rejects on Settings, AI personality, or with `POST /api/v1/
 `get_site.soul_proposal` (and `sitebuilder://you`) shows this token's pending proposal, or its newest one if none is pending. The fields are the id, status, stripped length, limit, whether it is stale, and when it was created. The proposed text is not included. One pending proposal per token: a new one from that token marks the earlier pending one superseded. Other tokens keep their own.
 
 A proposal is audited as `agent.soul.proposed`. The decision is `agent.soul.approved` or `agent.soul.rejected`, with the admin as the actor. Applying it also writes `settings.soul.updated` with `source` `agent_proposal` and the proposal id.
+
+## Plugins
+
+A draft token can propose a declarative plugin with `propose_plugin` (`POST /agent/v1/plugins`). Send text files only (json, html, css, svg), at most 32 files and 512 KiB, plus a reason. The gateway checks the package and stores a pending proposal. It does not install the plugin. Nothing is installed until a person approves it on Settings, Plugins. Rules and always-allow cannot install it. A deny rule with actions `*` and no page or site-part targets refuses the proposal and saves nothing. Plugin blocks are closed to agents unless the package marks them writable. A writable block that shows money can be drafted, and a person always has to approve it. Props named in `agentNever` are refused on that block only.
 
 ## The 3am takedown, as it looks
 

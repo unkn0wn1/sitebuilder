@@ -1,8 +1,11 @@
-import { describe, expect, it } from 'vitest'
-import { fieldsForBlock, blockLabel, headingProp, blockCatalog, imageSlotFor, visibleFieldsForBlock, visibleListItemFields } from '../app/utils/block-fields'
+import { afterEach, describe, expect, it } from 'vitest'
+import { z } from 'zod'
+import { fieldsForBlock, blockLabel, headingProp, blockCatalog, imageSlotFor, visibleFieldsForBlock, visibleListItemFields, describeProps, isMissingPlugin, pluginTrust, setPluginCatalog } from '../app/utils/block-fields'
 import { scopeThemeCss } from '../app/utils/theme-css'
 
 describe('block fields', () => {
+  afterEach(() => setPluginCatalog([]))
+
   it('describes a Hero for the inspector', () => {
     const fields = fieldsForBlock('Hero')
     const byName = Object.fromEntries(fields.map((f) => [f.name, f]))
@@ -89,6 +92,34 @@ describe('block fields', () => {
     expect(trustItems?.item?.find((f) => f.name === 'group')?.label).toBe('Group label')
     expect(imageSlotFor('StoryBeforeAfter', 'before')).toEqual({ width: 960, height: 720, ratio: '4:3' })
     expect(imageSlotFor('ImpactTiers', 'items.0.image')).toEqual({ width: 640, height: 480, ratio: '4:3' })
+  })
+
+  it('describes a number field and reads plugin fields from the catalog', () => {
+    const described = describeProps(z.object({ raised: z.number().min(0), donors: z.number().int().optional() }))
+    expect(described.find((field) => field.name === 'raised')).toMatchObject({ kind: 'number', optional: false, label: 'Raised so far' })
+    expect(described.find((field) => field.name === 'donors')).toMatchObject({ kind: 'number', optional: true })
+    expect(described.find((field) => field.name === 'donors')?.max).toBeUndefined()
+    expect(fieldsForBlock('missing/Widget')).toEqual([])
+    expect(isMissingPlugin('missing/Widget')).toBe(true)
+    expect(isMissingPlugin('Hero')).toBe(false)
+
+    setPluginCatalog([{
+      type: 'hello-note/Note',
+      label: 'Note',
+      category: 'Text',
+      trust: 'Self-installed',
+      version: 1,
+      sample: { raised: 1 },
+      imageSlots: { photo: { width: 640, height: 480 } },
+      fields: [{ name: 'raised', path: 'raised', label: 'Raised so far', kind: 'number', optional: false }],
+    }])
+    expect(fieldsForBlock('hello-note/Note')[0]).toMatchObject({ kind: 'number', label: 'Raised so far' })
+    expect(isMissingPlugin('hello-note/Note')).toBe(false)
+    expect(blockLabel('hello-note/Note')).toBe('Note')
+    expect(pluginTrust('hello-note/Note')).toBe('Self-installed')
+    expect(blockCatalog().some((block) => block.type === 'hello-note/Note' && block.plugin && block.trust === 'Self-installed')).toBe(true)
+    expect(imageSlotFor('hello-note/Note', 'photo')).toEqual({ width: 640, height: 480, ratio: '4:3' })
+    expect(blockCatalog().some((block) => block.type === 'Hero')).toBe(true)
   })
 })
 

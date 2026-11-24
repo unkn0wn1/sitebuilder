@@ -764,7 +764,7 @@ describe('custom CSS in rendered HTML', () => {
       props: { heading: 'Big', image: IMG },
       css: rule,
     }))
-    await expect(renderPageHtml({ doc, pageId: 'pg_big', versionId: 'ver_1', path: '/big', site: site() })).rejects.toThrow('This page CSS is over the 80,951 byte limit.')
+    await expect(renderPageHtml({ doc, pageId: 'pg_big', versionId: 'ver_1', path: '/big', site: site() })).rejects.toThrow('This page CSS is over the 89,143 byte limit.')
   })
 
   it('throws on hostile stored CSS and does not return HTML', async () => {
