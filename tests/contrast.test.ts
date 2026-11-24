@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { contrastRatio, contrastWarning } from '../shared/contrast'
 import { brandContrastChecks, defaultBrandDoc, validateBrandDoc } from '../shared/brand'
 import { brandCustomCss } from '../shared/css/changed'
-import { themeCssFromTokens, BUNDLE_ID, DEFAULT_THEME_TOKENS, THEME_CSS } from '../shared/theme-css'
+import { themeCssFromTokens, BUNDLE_ID, DEFAULT_THEME_TOKENS, HERO_CAROUSEL_CSS, THEME_CSS } from '../shared/theme-css'
 
 describe('contrast', () => {
   it('gives black on white 21:1 and warns when a pair is too faint', () => {
@@ -10,7 +10,53 @@ describe('contrast', () => {
     expect(contrastWarning('Body text', 2.1, 4.5)).toMatch(/2\.1:1/)
     expect(contrastWarning('Body text', 7, 4.5)).toBeNull()
   })
+
+  it('rings buttons, hero controls, and tier amounts with ink and a paper halo', () => {
+    const button = rule(THEME_CSS, '.btn:focus-visible, .cta-btn:focus-visible, .btn-secondary:focus-visible')
+    const tier = rule(THEME_CSS, '.tier-give:focus-visible')
+    const hero = rule(HERO_CAROUSEL_CSS, '.hero-carousel .hero-controls button:focus-visible')
+    for (const text of [button, tier, hero]) {
+      expect(text).toMatch(/outline:[^;]*var\(--ink\)/)
+      expect(text).toMatch(/box-shadow:[^;]*var\(--paper\)/)
+      expect(text).not.toMatch(/outline:[^;]*var\(--highlight\)/)
+    }
+    expect(rule(THEME_CSS, '.tier-give:hover')).toBe('.tier-give:hover { box-shadow:inset 0 0 0 2px var(--accent), var(--shadow-selected);}')
+    expect(THEME_CSS).toContain('var(--highlight)')
+    expect(HERO_CAROUSEL_CSS).toContain(':is(:hover, :focus-visible) { background:color-mix(in srgb, var(--paper) 20%, transparent);}')
+
+    const brands = [
+      DEFAULT_THEME_TOKENS,
+      { ...DEFAULT_THEME_TOKENS, accent: '#113399' },
+    ]
+    for (const tokens of brands) {
+      const surface = mixSrgb(tokens.paper, '#ffffff', 0.25)
+      for (const bg of [tokens.paper, surface, tokens.accent]) {
+        const ratio = Math.max(contrastRatio(tokens.ink, bg), contrastRatio(tokens.paper, bg))
+        expect(ratio).toBeGreaterThanOrEqual(3)
+      }
+    }
+  })
 })
+
+function rule(css: string, selector: string): string {
+  const start = css.indexOf(`${selector} {`)
+  if (start < 0) throw new Error(`missing rule ${selector}`)
+  return css.slice(start, css.indexOf('}', start) + 1)
+}
+
+/** color-mix(in srgb, paper weight, white): 25% paper and 75% white, in sRGB. */
+function mixSrgb(paper: string, white: string, paperWeight: number): string {
+  const parse = (hex: string): [number, number, number] => {
+    const raw = hex.replace('#', '')
+    const n = Number.parseInt(raw.length === 3 ? raw.split('').map((c) => c + c).join('') : raw, 16)
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+  }
+  const [pr, pg, pb] = parse(paper)
+  const [wr, wg, wb] = parse(white)
+  const channel = (fromPaper: number, fromWhite: number) => Math.round(fromPaper * paperWeight + fromWhite * (1 - paperWeight))
+  const hex = (n: number) => n.toString(16).padStart(2, '0')
+  return `#${hex(channel(pr, wr))}${hex(channel(pg, wg))}${hex(channel(pb, wb))}`
+}
 
 describe('brand pack', () => {
   it('starts from the default theme tokens and warns about a faint body colour', () => {

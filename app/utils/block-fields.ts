@@ -17,6 +17,8 @@ export interface FieldSpec {
   kind: FieldKind
   optional: boolean
   max?: number
+  /** Whole numbers use step 1 in the inspector. */
+  integer?: boolean
   options?: string[]
   item?: FieldSpec[]
   fields?: FieldSpec[]
@@ -118,6 +120,13 @@ function labelize(name: string): string {
     afterCaption: 'After caption',
     logo: 'Logo',
     note: 'Note',
+    matched: 'Matched',
+    donors: 'Donors',
+    matchCap: 'Match fund cap',
+    matchUsed: 'Match fund used',
+    endsAt: 'Ends at',
+    endLabel: 'End line',
+    countdownHeading: 'Countdown heading',
     badgeHtml: 'Badge script or HTML',
     group: 'Group label',
   }
@@ -130,7 +139,7 @@ interface Zodish {
     innerType?: Zodish
     element?: Zodish
     entries?: Record<string, string>
-    checks?: Array<{ _zod?: { def?: { check?: string; maximum?: number } } }>
+    checks?: Array<{ _zod?: { def?: { check?: string; maximum?: number; format?: string } } }>
   }
   shape?: Record<string, Zodish>
 }
@@ -151,6 +160,14 @@ function maxOf(schema: Zodish): number | undefined {
     if (check._zod?.def?.check === 'max_length' && typeof check._zod.def.maximum === 'number') return check._zod.def.maximum
   }
   return undefined
+}
+
+function isIntNumber(schema: Zodish): boolean {
+  for (const check of schema.def.checks ?? []) {
+    const def = check._zod?.def
+    if (def?.check === 'number_format' && def.format === 'safeint') return true
+  }
+  return false
 }
 
 function isRichText(schema: Zodish): boolean {
@@ -183,7 +200,7 @@ function describe(schema: Zodish, name: string, path: string): FieldSpec {
   }
   if (type === 'enum') return { ...base, kind: 'enum', options: Object.keys(inner.def.entries ?? {}) }
   if (type === 'boolean') return { ...base, kind: 'boolean' }
-  if (type === 'number') return { ...base, kind: 'number' }
+  if (type === 'number') return { ...base, kind: 'number', integer: isIntNumber(inner) }
   if (type === 'array' && inner.def.element) {
     const el = unwrap(inner.def.element).schema
     return { ...base, kind: 'list', item: el.def.type === 'object' ? describeObject(el, `${path}[]`) : [describe(inner.def.element, 'item', `${path}[]`)] }

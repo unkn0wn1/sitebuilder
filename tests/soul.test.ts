@@ -123,7 +123,7 @@ describe('injection', () => {
     const { page } = createPage(s.ctx, s.admin, { title: 'About', template: 'standard' })
     const session = startAiSession(s.ctx, s.admin, { taskType: 'page_edit', targetId: page.id })
     const system = buildTurnMessages(s.ctx, s.admin, session, [], 'Hello')[0]!.content!
-    expect(system.startsWith('You are the sitebuilder assistant.')).toBe(true)
+    expect(system.startsWith('You are the Skewstone assistant.')).toBe(true)
     expect(system).toContain(ANCHOR)
     expect(system).toContain('Site personality')
     expect(system).not.toContain('<!--')

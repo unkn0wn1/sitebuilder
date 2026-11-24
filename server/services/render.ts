@@ -9,6 +9,19 @@ import { renderToString } from 'vue/server-renderer'
 import { sanitizeBadgeHtml } from '../../shared/badge-html'
 import { CssRejected, PLUGIN_CSS_PAGE_MAX_BYTES, sanitizeCss, STYLE_MAX_BYTES } from '../../shared/css/sanitize'
 import { formatMoney, hasEnded, progressPercent, endOfUtcDay } from '../../shared/amounts'
+import {
+  ENDED_TEXT,
+  barLayout,
+  chipText,
+  countdownParts,
+  gaugeLabel,
+  goalTicks,
+  groupNumber,
+  money,
+  pad2,
+  thermoFigures,
+  tubeLayout,
+} from '../../shared/thermometer'
 import { virtuousPrefill } from '../../shared/donate-prefill'
 import type { ImageRef } from '../../shared/blocks/define'
 import type { StoredBlock } from '../../shared/blocks/registry'
@@ -27,9 +40,9 @@ import {
   type MenuDoc,
   type SitePartKind,
 } from '../../shared/site-parts'
-import { BUNDLE_ID, EMBED_JS, HEADER_JS, HERO_JS, THEME_CSS } from '../theme/default'
+import { BUNDLE_ID, EMBED_JS, HEADER_JS, HERO_JS, THEME_CSS, THERMOMETER_JS } from '../theme/default'
 import { migrateBrandDoc, validateBrandDoc, type BrandDoc } from '../../shared/brand'
-import { BANNER_ACCENT_CSS, FOOTER_COLUMNS_CSS, HEART_CSS, HERO_CAROUSEL_CSS, OVER_HERO_CSS, TILE_CSS, UTILITY_CSS, brandChromeCss, themeCssFromTokens } from '../../shared/theme-css'
+import { BANNER_ACCENT_CSS, DONATE_PREVIEW_CSS, FOOTER_COLUMNS_CSS, HEART_CSS, HERO_CAROUSEL_CSS, OVER_HERO_CSS, PICKER_CSS, RHYTHM_CSS, THERMOMETER_CSS, TILE_CSS, UTILITY_CSS, brandChromeCss, themeCssFromTokens } from '../../shared/theme-css'
 import { embeds, media, mediaCrops, pages, redirects, siteParts, sites, versions, type ReleaseManifest } from '../db/schema'
 import type { ServiceCtx } from './context'
 import { widthsFor } from './media'
@@ -37,7 +50,7 @@ import { readSettings, type SiteSettings } from '../../shared/settings'
 import { renderRobotsTxt } from '../../shared/robots'
 import { aliasesFromRedirects, pageIdByPath, pageIdForHref, pathForPageId } from '../../shared/internal-links'
 
-export { BUNDLE_ID, EMBED_JS, HEADER_JS, HERO_JS, THEME_CSS }
+export { BUNDLE_ID, EMBED_JS, HEADER_JS, HERO_JS, THEME_CSS, THERMOMETER_JS }
 
 export function styleHash(css: string = THEME_CSS): string {
   return `'sha256-${createHash('sha256').update(css).digest('base64')}'`
@@ -134,13 +147,16 @@ interface Collector {
   needsEmbedJs: boolean
   needsHeaderJs: boolean
   needsHeroJs: boolean
+  needsThermometerJs: boolean
+  /** Clock for server-rendered countdowns. Publish uses the real time. Goldens pass a fixed instant. */
+  now: Date
   pageIdByPath: Map<string, string>
   origin: string | null
   aliases: Map<string, string>
 }
 
-function newCollector(site: SiteRenderContext): Collector {
-  return { media: new Set(), links: new Set(), linkedPageIds: new Set(), siteParts: new Set(), scriptSrcs: new Set(), frameSrcs: new Set(), imgSrcs: new Set(), fontSrcs: new Set(), connectSrcs: new Set(), needsEmbedJs: false, needsHeaderJs: false, needsHeroJs: false, pageIdByPath: pageIdByPath(site.pagesById), origin: site.origin, aliases: site.pathAliases ?? new Map() }
+function newCollector(site: SiteRenderContext, now = new Date()): Collector {
+  return { media: new Set(), links: new Set(), linkedPageIds: new Set(), siteParts: new Set(), scriptSrcs: new Set(), frameSrcs: new Set(), imgSrcs: new Set(), fontSrcs: new Set(), connectSrcs: new Set(), needsEmbedJs: false, needsHeaderJs: false, needsHeroJs: false, needsThermometerJs: false, now, pageIdByPath: pageIdByPath(site.pagesById), origin: site.origin, aliases: site.pathAliases ?? new Map() }
 }
 
 /** Record an internal target and return the href that should be written (the live path, if known). */
@@ -217,11 +233,18 @@ function widthsForMedia(entry: MediaCatalogEntry | undefined, cropRatio?: string
   return [...DEFAULT_WIDTHS]
 }
 
+// 1160px is the viewport where the 70rem wrap, plus two 1.25rem gutters, stops growing.
+const HERO_SIZES = '100vw'
+const GRID_SIZES = '(min-width: 1160px) 364px, (min-width: 1024px) 33vw, (min-width: 700px) 50vw, 100vw'
+const HALF_SIZES = '(min-width: 1160px) 560px, (min-width: 700px) 50vw, 100vw'
+const FIGURE_SIZES = '(min-width: 1160px) 70rem, calc(100vw - 2.5rem)'
+const TRUST_SIZES = '10rem'
+
 export function pictureVNode(
   image: ImageRef | undefined,
   site: SiteRenderContext,
   bag: Collector,
-  opts: { slot?: { width: number; height: number }; eager?: boolean; class?: string },
+  opts: { slot?: { width: number; height: number }; eager?: boolean; class?: string; sizes: string },
 ): VNode | null {
   if (!image) return null
   const entry = site.media[image.media]
@@ -254,8 +277,8 @@ export function pictureVNode(
   const width = opts.slot?.width ?? entry?.width ?? fallbackW
   const height = opts.slot?.height ?? entry?.height ?? undefined
   return h('picture', { class: opts.class }, [
-    h('source', { type: 'image/avif', srcset: avif, sizes: '100vw' }),
-    h('source', { type: 'image/webp', srcset: webp, sizes: '100vw' }),
+    h('source', { type: 'image/avif', srcset: avif, sizes: opts.sizes }),
+    h('source', { type: 'image/webp', srcset: webp, sizes: opts.sizes }),
     h('img', {
       src: `/media/${base}-${fallbackW}.webp`,
       alt,
@@ -330,8 +353,14 @@ function previewBlock(block: StoredBlock, draw: () => VNode): VNode {
   return h('div', { 'data-block-id': block.id }, [vnode])
 }
 
-function wrapSection(children: VNode | null | Array<VNode | null>, className = 'section'): VNode {
-  return h('section', { class: className }, [h('div', { class: 'wrap' }, Array.isArray(children) ? children : [children])])
+function backgroundClass(props?: Record<string, unknown>): string {
+  if (props?.background === 'card') return ' bg-card'
+  if (props?.background === 'warm') return ' bg-warm'
+  return ''
+}
+
+function wrapSection(children: VNode | null | Array<VNode | null>, props?: Record<string, unknown>): VNode {
+  return h('section', { class: 'section' + backgroundClass(props) }, [h('div', { class: 'wrap' }, Array.isArray(children) ? children : [children])])
 }
 
 function heroSlides(props: Record<string, unknown>): Array<Record<string, unknown>> {
@@ -356,14 +385,16 @@ function renderVideoHeroSection(
   site: SiteRenderContext,
   bag: Collector,
   firstHero: boolean,
+  reserve: VNode | null = null,
 ): VNode {
   if (videoId && (site.media[videoId] || !site.mediaComplete)) bag.media.add(videoId)
   const clip = videoId ? site.media[videoId] : undefined
   const playVideo = !!videoId && (!!clip || !site.mediaComplete)
   const ext = clip?.mime === 'video/webm' ? 'webm' : 'mp4'
   const mime = clip?.mime === 'video/webm' ? 'video/webm' : 'video/mp4'
-  return h('section', { class: 'hero', 'aria-label': String(heading ?? '') }, [
-    pictureVNode(poster, site, bag, { slot: { width: 1280, height: 720 }, eager: firstHero, class: 'hero-media' }),
+  return h('section', { class: reserve ? 'hero hero-lead' : 'hero', 'aria-label': String(heading ?? '') }, [
+    ...(reserve ? [reserve] : []),
+    pictureVNode(poster, site, bag, { slot: { width: 1280, height: 720 }, eager: firstHero, class: 'hero-media', sizes: HERO_SIZES }),
     playVideo
       ? h('video', { class: 'hero-video', autoplay: true, muted: true, loop: true, playsinline: true, preload: 'none', 'aria-hidden': 'true' }, [
           h('source', { src: `/media/${videoId}.${ext}`, type: mime, media: '(min-width: 641px)' }),
@@ -417,7 +448,7 @@ function renderHeroCarousel(block: StoredBlock, site: SiteRenderContext, bag: Co
         const slideSubheading = slideText(slide.subheading)
         const image = (slide.image as ImageRef | undefined) ?? (p.poster as ImageRef | undefined) ?? (p.image as ImageRef | undefined)
         const children: VNode[] = []
-        const picture = pictureVNode(image, site, bag, { slot: { width: 1280, height: 720 }, eager: firstHero && index === 0, class: 'hero-media' })
+        const picture = pictureVNode(image, site, bag, { slot: { width: 1280, height: 720 }, eager: firstHero && index === 0, class: 'hero-media', sizes: HERO_SIZES })
         if (picture) children.push(picture)
         if (videoMode) {
           const video = carouselVideo(slide, site, bag)
@@ -518,7 +549,7 @@ function renderPluginBlock(block: StoredBlock, site: SiteRenderContext, bag: Col
     },
     image: (value, slot) => {
       if (!value || typeof value !== 'object' || typeof (value as { media?: unknown }).media !== 'string') return null
-      return pictureVNode(value as ImageRef, site, bag, { slot })
+      return pictureVNode(value as ImageRef, site, bag, { slot, sizes: `(min-width: 1160px) ${slot.width}px, 100vw` })
     },
     link: (value) => pluginLinkNode(value, bag),
   }
@@ -537,7 +568,7 @@ function renderPluginBlock(block: StoredBlock, site: SiteRenderContext, bag: Col
   return h('div', { 'data-sb-plugin': block.type }, [vnode])
 }
 
-function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector, firstHero: boolean): VNode | null {
+function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector, firstHero: boolean, reserve: VNode | null = null): VNode | null {
   if (block.type.includes('/')) return renderPluginBlock(block, site, bag)
   const p = block.props as Record<string, unknown>
   switch (block.type) {
@@ -552,14 +583,16 @@ function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector
           site,
           bag,
           firstHero,
+          reserve,
         )
       }
       if (heroCarouselActive(block)) {
         bag.needsHeroJs = true
         return renderHeroCarousel(block, site, bag, firstHero)
       }
-      return h('section', { class: 'hero', 'aria-label': String(p.heading ?? '') }, [
-        pictureVNode(p.image as ImageRef | undefined, site, bag, { slot: { width: 1280, height: 720 }, eager: firstHero, class: 'hero-media' }),
+      return h('section', { class: reserve ? 'hero hero-lead' : 'hero', 'aria-label': String(p.heading ?? '') }, [
+        ...(reserve ? [reserve] : []),
+        pictureVNode(p.image as ImageRef | undefined, site, bag, { slot: { width: 1280, height: 720 }, eager: firstHero, class: 'hero-media', sizes: HERO_SIZES }),
         h('div', { class: 'hero-inner' }, [
           h('h1', String(p.heading ?? '')),
           p.subheading ? h('p', String(p.subheading)) : null,
@@ -568,9 +601,9 @@ function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector
       ])
     }
     case 'VideoHero':
-      return renderVideoHeroSection(p.heading, p.subheading, p.poster as ImageRef | undefined, typeof p.video === 'string' ? p.video : '', p.cta, site, bag, firstHero)
+      return renderVideoHeroSection(p.heading, p.subheading, p.poster as ImageRef | undefined, typeof p.video === 'string' ? p.video : '', p.cta, site, bag, firstHero, reserve)
     case 'RichText':
-      return wrapSection([h('div', { class: 'prose' }, renderRichText(p.content as RichTextDoc, bag))])
+      return wrapSection([h('div', { class: 'prose' }, renderRichText(p.content as RichTextDoc, bag))], p)
     case 'TextAndImage': {
       const layout = p.layout === 'image-left' ? 'split split-image-left' : 'split'
       return wrapSection(
@@ -579,34 +612,37 @@ function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector
             p.heading ? h('h2', String(p.heading)) : null,
             ...renderRichText(p.content as RichTextDoc, bag),
           ]),
-          pictureVNode(p.image as ImageRef | undefined, site, bag, { slot: { width: 960, height: 720 } }),
+          pictureVNode(p.image as ImageRef | undefined, site, bag, { slot: { width: 960, height: 720 }, sizes: HALF_SIZES }),
         ]),
+        p,
       )
     }
     case 'Image':
       return wrapSection(
         h('figure', { class: 'figure' }, [
-          pictureVNode(p.image as ImageRef | undefined, site, bag, { slot: { width: 1280, height: 853 } }),
+          pictureVNode(p.image as ImageRef | undefined, site, bag, { slot: { width: 1280, height: 853 }, sizes: FIGURE_SIZES }),
           p.caption ? h('figcaption', String(p.caption)) : null,
         ]),
+        p,
       )
     case 'Gallery': {
       const images = (p.images as ImageRef[] | undefined) ?? []
       return wrapSection([
         p.heading ? h('h2', String(p.heading)) : null,
-        h('div', { class: 'gallery' }, images.map((img) => pictureVNode(img, site, bag, { slot: { width: 800, height: 800 } }))),
-      ])
+        h('div', { class: 'gallery' }, images.map((img) => pictureVNode(img, site, bag, { slot: { width: 800, height: 800 }, sizes: GRID_SIZES }))),
+      ], p)
     }
     case 'Quote':
       return wrapSection(
         h('blockquote', { class: 'quote' }, [h('p', String(p.text ?? '')), p.attribution ? h('footer', String(p.attribution)) : null]),
+        p,
       )
     case 'Stats': {
       const items = (p.items as { value: string; label: string }[] | undefined) ?? []
       return wrapSection([
         p.heading ? h('h2', String(p.heading)) : null,
         h('div', { class: 'stats' }, items.map((item) => h('div', [h('span', { class: 'stat-value' }, item.value), h('span', { class: 'stat-label' }, item.label)]))),
-      ])
+      ], p)
     }
     case 'CardGrid': {
       const cards = (p.cards as { title: string; text?: string; image?: ImageRef; link?: { label: string; href: string } }[] | undefined) ?? []
@@ -617,7 +653,7 @@ function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector
           { class: 'cards' },
           cards.map((card) =>
             h('article', { class: 'card' }, [
-              pictureVNode(card.image, site, bag, { slot: { width: 640, height: 480 } }),
+              pictureVNode(card.image, site, bag, { slot: { width: 640, height: 480 }, sizes: GRID_SIZES }),
               h('div', { class: 'card-body' }, [
                 h('h3', card.title),
                 card.text ? h('p', card.text) : null,
@@ -626,7 +662,7 @@ function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector
             ]),
           ),
         ),
-      ])
+      ], p)
     }
     case 'CallToAction':
       return h('section', { class: `cta-band tone-${String(p.tone ?? 'accent')}` }, [
@@ -645,17 +681,19 @@ function renderBlock(block: StoredBlock, site: SiteRenderContext, bag: Collector
           { class: 'faq' },
           items.map((item) => h('details', [h('summary', item.question), h('div', { class: 'prose' }, renderRichText(item.answer, bag))])),
         ),
-      ])
+      ], p)
     }
     case 'DonationEmbed':
     case 'Embed':
       return renderEmbed(block.type, p, site, bag)
     case 'ImpactTiers':
-      return renderImpactTiers(p, site, bag)
+      return renderImpactTiers(block.id, p, site, bag)
     case 'DonationProgress':
       return renderDonationProgress(p, bag)
     case 'MatchBanner':
       return renderMatchBanner(p, bag)
+    case 'MatchThermometer':
+      return renderMatchThermometer(block.id, p, bag)
     case 'StoryBeforeAfter':
       return renderStoryBeforeAfter(p, site, bag)
     case 'TrustStrip':
@@ -700,29 +738,44 @@ function frequencyLabel(value: string | undefined): string | undefined {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
-function renderImpactTiers(p: Record<string, unknown>, site: SiteRenderContext, bag: Collector): VNode {
-  const items = (p.items as { amount: string; title?: string; explanation?: string; frequency?: string; image?: ImageRef }[] | undefined) ?? []
+interface TierItem {
+  amount: string
+  title?: string
+  explanation?: string
+  frequency?: string
+  image?: ImageRef
+}
+
+function tierGiveAttrs(item: TierItem, className: string): Record<string, string> {
+  const prefill = virtuousPrefill({ amount: item.amount, frequency: item.frequency, label: item.amount })
+  const attrs: Record<string, string> = { class: className, href: '#donate' }
+  if (prefill.amount) attrs['data-donate-amount'] = prefill.amount
+  if (prefill.frequency) attrs['data-donate-frequency'] = prefill.frequency
+  if (prefill.label) attrs['data-donate-label'] = prefill.label
+  return attrs
+}
+
+function renderImpactTiers(blockId: string, p: Record<string, unknown>, site: SiteRenderContext, bag: Collector): VNode {
+  if (p.layout === 'picker') return renderImpactPicker(blockId, p, site, bag)
+  const items = (p.items as TierItem[] | undefined) ?? []
   bag.needsEmbedJs = true
   return wrapSection([
+    ...(typeof p.eyebrow === 'string' && p.eyebrow.trim() ? [h('p', { class: 'eyebrow' }, p.eyebrow)] : []),
     p.heading ? h('h2', String(p.heading)) : null,
     p.intro ? h('p', { class: 'lede' }, String(p.intro)) : null,
     h(
       'div',
       { class: 'tiers' },
       items.map((item) => {
-        const prefill = virtuousPrefill({ amount: item.amount, frequency: item.frequency, label: item.amount })
-        const attrs: Record<string, string> = { class: 'tier-give', href: '#donate' }
-        if (prefill.amount) attrs['data-donate-amount'] = prefill.amount
-        if (prefill.frequency) attrs['data-donate-frequency'] = prefill.frequency
-        if (prefill.label) attrs['data-donate-label'] = prefill.label
+        const frequency = virtuousPrefill({ amount: item.amount, frequency: item.frequency, label: item.amount }).frequency
         return h('article', { class: 'tier' }, [
-          h('a', attrs, [
-            pictureVNode(item.image, site, bag, { slot: { width: 640, height: 480 } }),
+          h('a', tierGiveAttrs(item, 'tier-give'), [
+            pictureVNode(item.image, site, bag, { slot: { width: 640, height: 480 }, sizes: GRID_SIZES }),
             h('div', { class: 'tier-body' }, [
               h('p', { class: 'tier-amount' }, item.amount),
               item.title ? h('h3', item.title) : null,
               item.explanation ? h('p', item.explanation) : null,
-              prefill.frequency ? h('p', { class: 'tier-frequency' }, frequencyLabel(prefill.frequency) ?? prefill.frequency) : null,
+              frequency ? h('p', { class: 'tier-frequency' }, frequencyLabel(frequency) ?? frequency) : null,
             ]),
           ]),
         ])
@@ -730,7 +783,49 @@ function renderImpactTiers(p: Record<string, unknown>, site: SiteRenderContext, 
     ),
     p.otherAmount ? h('p', { class: 'tier-other' }, [h('a', { class: 'tier-give', href: '#donate' }, String(p.otherAmount))]) : null,
     linkButton(asLink(p.cta), bag),
-  ])
+  ], p)
+}
+
+const PICKER_SIZES = '(max-width: 759px) 100vw, 560px'
+
+function renderImpactPicker(blockId: string, p: Record<string, unknown>, site: SiteRenderContext, bag: Collector): VNode {
+  const items = (p.items as TierItem[] | undefined) ?? []
+  bag.needsEmbedJs = true
+  const group = `it-${blockId}`
+  const radios = items.map((item, index) =>
+    h('input', {
+      class: 'ga-sr',
+      type: 'radio',
+      name: group,
+      id: `${group}-${index + 1}`,
+      checked: index === 0 ? true : undefined,
+    }),
+  )
+  const figures = items.map((item, index) =>
+    h('figure', { class: 'ga-f', hidden: index === 0 ? undefined : true }, [
+      pictureVNode(item.image, site, bag, { slot: { width: 640, height: 480 }, sizes: PICKER_SIZES, eager: index === 0 }),
+      h('figcaption', [h('b', item.amount), item.explanation ? h('span', item.explanation) : null]),
+    ]),
+  )
+  const labels = items.map((item, index) =>
+    h('label', { class: 'ga-l', for: `${group}-${index + 1}` }, [h('b', item.amount), item.title ? h('span', item.title) : null]),
+  )
+  const gives = items.map((item, index) =>
+    h('a', { ...tierGiveAttrs(item, 'btn tier-give ga-give'), hidden: index === 0 ? undefined : true }, `Give ${item.amount}`),
+  )
+  const other = typeof p.otherAmount === 'string' && p.otherAmount.trim() ? h('a', { class: 'tier-other', href: '#donate' }, p.otherAmount) : null
+  return wrapSection([
+    ...(typeof p.eyebrow === 'string' && p.eyebrow.trim() ? [h('p', { class: 'eyebrow' }, p.eyebrow)] : []),
+    p.heading ? h('h2', String(p.heading)) : null,
+    p.intro ? h('p', { class: 'lede' }, String(p.intro)) : null,
+    h('div', { class: 'ga' }, [
+      ...radios,
+      h('div', { class: 'ga-stage' }, figures),
+      h('div', { class: 'ga-list' }, labels),
+      h('div', { class: 'ga-foot' }, [...gives, other]),
+    ]),
+    // No section button under the picker: the card's own "Give $X" is the ask.
+  ], p)
 }
 
 function renderDonationProgress(p: Record<string, unknown>, bag: Collector): VNode {
@@ -750,7 +845,7 @@ function renderDonationProgress(p: Record<string, unknown>, bag: Collector): VNo
     p.matchLine ? h('p', { class: 'progress-match' }, String(p.matchLine)) : null,
     p.endDate ? h('p', { class: 'progress-date' }, `Until ${String(p.endDate)}`) : null,
     linkButton(asLink(p.cta), bag),
-  ])
+  ], p)
 }
 
 function renderMatchBanner(p: Record<string, unknown>, bag: Collector): VNode {
@@ -772,18 +867,165 @@ function renderMatchBanner(p: Record<string, unknown>, bag: Collector): VNode {
   ])
 }
 
+function num(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+function swatch(kind: 'd' | 'm'): VNode {
+  return h('span', { class: `th-swatch th-swatch-${kind}`, 'aria-hidden': 'true' })
+}
+
+function renderMatchThermometer(blockId: string, p: Record<string, unknown>, bag: Collector): VNode {
+  bag.needsThermometerJs = true
+  const currency = typeof p.currency === 'string' && p.currency.trim() ? p.currency : '$'
+  const figures = thermoFigures({
+    goal: num(p.goal),
+    raised: num(p.raised),
+    matched: num(p.matched),
+    donors: num(p.donors),
+    matchCap: num(p.matchCap),
+    matchUsed: typeof p.matchUsed === 'number' ? p.matchUsed : null,
+  })
+  const label = gaugeLabel(currency, figures.total, figures.goal, figures.percent)
+  const ticks = goalTicks(currency, figures.goal)
+  const tube = tubeLayout(figures.percent, figures.raisedShare, figures.totalShare, ticks)
+  const bar = barLayout(figures.percent, figures.raisedShare, figures.totalShare)
+  const stripeId = `th-stripe-${blockId}`
+  const clipId = `th-clip-${blockId}`
+  const barStripeId = `th-bar-stripe-${blockId}`
+  const barClipId = `th-bar-clip-${blockId}`
+  const clock = countdownParts(bag.now, typeof p.endsAt === 'string' ? p.endsAt : '')
+  const countdownHeading = typeof p.countdownHeading === 'string' && p.countdownHeading.trim() ? p.countdownHeading : 'Time left'
+  const endLabel = typeof p.endLabel === 'string' ? p.endLabel : ''
+  const matchMax = figures.matchCap > 0 ? figures.matchCap : 1
+  const matchValue = figures.matchCap > 0 ? figures.matchUsed : 0
+
+  const stripeDefs = (id: string) =>
+    h('pattern', { id, width: 12, height: 12, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' }, [
+      h('rect', { width: 12, height: 12, class: 'th-stripe-a' }),
+      h('rect', { width: 6, height: 12, class: 'th-stripe-b' }),
+    ])
+
+  const tubeSvg = h('svg', { class: 'th-tube', viewBox: '0 0 150 420', role: 'img', 'aria-label': label }, [
+    h('defs', [
+      stripeDefs(stripeId),
+      h('clipPath', { id: clipId }, [h('rect', { x: 40, y: 10, width: 40, height: 345, rx: 20 })]),
+    ]),
+    h('rect', { class: 'th-glass', x: 36, y: 6, width: 48, height: 350, rx: 24 }),
+    h('g', { 'clip-path': `url(#${clipId})` }, [
+      tube.donationsHeight > 0 ? h('rect', { class: 'th-mercury', x: 40, y: tube.yRaised, width: 40, height: tube.donationsHeight }) : null,
+      tube.matchHeight > 0 ? h('rect', { x: 40, y: tube.yTotal, width: 40, height: tube.matchHeight, fill: `url(#${stripeId})` }) : null,
+    ]),
+    h('circle', { class: 'th-glass', cx: 60, cy: 370, r: 44 }),
+    tube.donationsHeight > 0 ? h('circle', { class: 'th-mercury', cx: 60, cy: 370, r: 36 }) : null,
+    tube.donationsHeight > 0 ? h('rect', { class: 'th-mercury', x: 40, y: 320, width: 40, height: 40 }) : null,
+    tube.donationsHeight > 0 ? h('ellipse', { class: 'th-shine', cx: 50, cy: 356, rx: 7, ry: 11 }) : null,
+    h(
+      'g',
+      { class: 'th-ticks' },
+      tube.ticks.flatMap((tick) => [
+        h('line', { x1: 84, x2: 94, y1: tick.y, y2: tick.y }),
+        tick.showLabel ? h('text', { x: 100, y: r1Text(tick.y + 5) }, tick.label) : null,
+      ]),
+    ),
+    h('g', { class: 'th-badge' }, [
+      h('rect', { class: 'th-badge-bg', x: tube.badgeX, y: tube.badgeY, width: tube.badgeW, height: tube.badgeH, rx: 14 }),
+      h('text', { class: 'th-badge-text', x: tube.badgeTextX, y: tube.badgeTextY, 'text-anchor': 'middle' }, `${figures.percent}%`),
+    ]),
+  ])
+
+  const barSvg = h('svg', { class: 'th-bar-svg', viewBox: '0 0 320 78', 'aria-hidden': 'true', focusable: 'false' }, [
+    h('defs', [
+      stripeDefs(barStripeId),
+      h('clipPath', { id: barClipId }, [h('rect', { x: bar.innerX, y: bar.innerY, width: bar.innerW, height: bar.innerH, rx: 19 })]),
+    ]),
+    h('rect', { class: 'th-glass', x: bar.trackX, y: bar.trackY, width: bar.trackW, height: bar.trackH, rx: 23 }),
+    h('g', { 'clip-path': `url(#${barClipId})` }, [
+      bar.raisedW > 0 ? h('rect', { class: 'th-mercury', x: bar.innerX, y: bar.innerY, width: bar.raisedW, height: bar.innerH }) : null,
+      bar.matchW > 0 ? h('rect', { x: bar.innerX + bar.raisedW, y: bar.innerY, width: bar.matchW, height: bar.innerH, fill: `url(#${barStripeId})` }) : null,
+    ]),
+    h('g', { class: 'th-badge' }, [
+      h('rect', { class: 'th-badge-bg', x: bar.badgeX, y: bar.badgeY, width: bar.badgeW, height: bar.badgeH, rx: 13 }),
+      h('text', { class: 'th-badge-text', x: bar.badgeTextX, y: bar.badgeTextY, 'text-anchor': 'middle' }, `${figures.percent}%`),
+    ]),
+  ])
+
+  const countdown = clock.ended
+    ? h('p', { class: 'th-ended' }, ENDED_TEXT)
+    : h('div', { class: 'th-cd', 'data-end': String(p.endsAt ?? ''), 'data-ended-text': ENDED_TEXT }, [
+        h('div', [h('b', String(clock.days)), h('span', 'days')]),
+        h('div', [h('b', pad2(clock.hours)), h('span', 'hrs')]),
+        h('div', [h('b', pad2(clock.minutes)), h('span', 'min')]),
+        h('div', [h('b', pad2(clock.seconds)), h('span', 'sec')]),
+      ])
+
+  return wrapSection([
+    p.eyebrow ? h('p', { class: 'eyebrow' }, String(p.eyebrow)) : null,
+    p.heading ? h('h2', String(p.heading)) : null,
+    p.intro ? h('p', { class: 'lede' }, String(p.intro)) : null,
+    h('article', { class: 'th' }, [
+      h('div', { class: 'th-hd' }, [
+        h('span', { class: 'th-chip' }, [h('span', { class: 'th-dot', 'aria-hidden': 'true' }), chipText(currency, figures.matchCap)]),
+        h('p', { class: 'th-big' }, money(currency, figures.total)),
+        h('p', { class: 'th-bigl' }, [
+          'total impact (gifts + match) of ',
+          h('b', money(currency, figures.goal)),
+          ' goal · ',
+          h('b', `${figures.percent}%`),
+          ' funded',
+        ]),
+      ]),
+      h('div', { class: 'th-gauge' }, [
+        h('div', { class: 'th-tubewrap' }, [tubeSvg]),
+        h('div', { class: 'th-bar', role: 'img', 'aria-label': label }, [
+          barSvg,
+          h(
+            'div',
+            { class: 'th-scale' },
+            ticks.map((tick) => h('span', tick.label)),
+          ),
+        ]),
+        h('ul', { class: 'th-legend' }, [h('li', [swatch('d'), 'Donations']), h('li', [swatch('m'), 'Matched'])]),
+      ]),
+      h('div', { class: 'th-info' }, [
+        h('dl', { class: 'th-stats' }, [
+          h('div', [h('dt', [swatch('d'), 'Raised']), h('dd', money(currency, figures.raised))]),
+          h('div', [h('dt', [swatch('m'), 'Matched']), h('dd', money(currency, figures.matched))]),
+          h('div', [h('dt', 'Donors'), h('dd', groupNumber(figures.donors))]),
+        ]),
+        h('div', { class: 'th-mf' }, [
+          h('div', { class: 'th-mf-h' }, [
+            h('span', 'Match fund used'),
+            h('span', [h('b', money(currency, figures.matchUsed)), ` of ${money(currency, figures.matchCap)}`]),
+          ]),
+          h('progress', { class: 'th-mf-bar', max: matchMax, value: matchValue }, `${figures.matchCap > 0 ? Math.round((figures.matchUsed / figures.matchCap) * 100) : 0}%`),
+        ]),
+        h('p', { class: 'th-cd-h' }, countdownHeading),
+        countdown,
+        endLabel ? h('p', { class: 'th-when' }, endLabel) : null,
+        linkButton(asLink(p.cta), bag, 'btn'),
+        p.note ? h('p', { class: 'th-note' }, String(p.note)) : null,
+      ]),
+    ]),
+  ], p)
+}
+
+function r1Text(n: number): number {
+  return Math.round(n * 10) / 10
+}
+
 function renderStoryBeforeAfter(p: Record<string, unknown>, site: SiteRenderContext, bag: Collector): VNode {
   return wrapSection([
     p.eyebrow ? h('p', { class: 'eyebrow' }, String(p.eyebrow)) : null,
     p.heading ? h('h2', String(p.heading)) : null,
     h('div', { class: 'prose' }, renderRichText(p.content as RichTextDoc, bag)),
     h('div', { class: 'before-after' }, [
-      h('figure', [pictureVNode(p.before as ImageRef | undefined, site, bag, { slot: { width: 960, height: 720 } }), h('figcaption', String(p.beforeCaption ?? 'Before'))]),
-      h('figure', [pictureVNode(p.after as ImageRef | undefined, site, bag, { slot: { width: 960, height: 720 } }), h('figcaption', String(p.afterCaption ?? 'After'))]),
+      h('figure', [pictureVNode(p.before as ImageRef | undefined, site, bag, { slot: { width: 960, height: 720 }, sizes: HALF_SIZES }), h('figcaption', String(p.beforeCaption ?? 'Before'))]),
+      h('figure', [pictureVNode(p.after as ImageRef | undefined, site, bag, { slot: { width: 960, height: 720 }, sizes: HALF_SIZES }), h('figcaption', String(p.afterCaption ?? 'After'))]),
     ]),
     p.quote ? h('blockquote', { class: 'quote' }, [h('p', String(p.quote)), p.attribution ? h('footer', String(p.attribution)) : null]) : null,
     linkButton(asLink(p.cta), bag),
-  ])
+  ], p)
 }
 
 interface TrustItem {
@@ -819,7 +1061,7 @@ function renderTrustStrip(p: Record<string, unknown>, site: SiteRenderContext, b
             { class: 'trust-strip' },
             group.items.map((item) => {
               const badge = item.badgeHtml ? applyBadgeHtml(item.badgeHtml, bag) : ''
-              const logo = pictureVNode(item.logo, site, bag, { class: 'trust-logo' })
+              const logo = pictureVNode(item.logo, site, bag, { class: 'trust-logo', sizes: TRUST_SIZES })
               const inner: Array<VNode | string | null> = [
                 badge ? h('div', { class: 'trust-badge', innerHTML: badge }) : null,
                 logo,
@@ -835,6 +1077,28 @@ function renderTrustStrip(p: Record<string, unknown>, site: SiteRenderContext, b
         ]),
       ),
     ),
+  ], p)
+}
+
+function donateSymbol(config: Record<string, unknown>): string {
+  const raw = config.currency
+  if (typeof raw !== 'string' || raw.length < 1 || raw.length > 4 || /[\s<>]/.test(raw)) return '$'
+  return raw
+}
+
+function donatePreview(symbol: string): VNode {
+  const money = (amount: number) => `${symbol}${amount}`
+  const chips = [50, 100, 250, 500]
+  return h('div', { class: 'donate-preview' }, [
+    h('div', { class: 'dp-tabs', role: 'group', 'aria-label': 'How often' }, [
+      h('span', { class: 'dp-tab is-on', 'aria-current': 'true' }, 'Give once'),
+      h('span', { class: 'dp-tab' }, 'Monthly'),
+    ]),
+    h('p', { class: 'dp-amount' }, money(50)),
+    h('div', { class: 'dp-chips' }, chips.map((amount, index) => h('span', { class: index === 0 ? 'dp-chip is-on' : 'dp-chip' }, money(amount)))),
+    h('p', { class: 'dp-other' }, [h('span', 'Other amount'), h('span', money(50))]),
+    h('p', { class: 'dp-total' }, [h('span', 'Total'), h('b', money(50))]),
+    h('button', { type: 'button', disabled: true }, 'Continue'),
   ])
 }
 
@@ -844,7 +1108,7 @@ function renderEmbed(type: string, p: Record<string, unknown>, site: SiteRenderC
   const heading = p.heading ? h('h2', String(p.heading)) : p.title ? h('h2', String(p.title)) : null
   const anchor = typeof p.anchor === 'string' ? p.anchor : undefined
   if (!embed) {
-    return h('section', { class: type === 'DonationEmbed' ? 'donate' : 'embed', id: anchor }, [
+    return h('section', { class: (type === 'DonationEmbed' ? 'donate' : 'embed') + backgroundClass(p), id: anchor }, [
       h('div', { class: 'wrap' }, [heading, h('p', { class: 'embed-fallback' }, 'This form is not available.')]),
     ])
   }
@@ -852,12 +1116,12 @@ function renderEmbed(type: string, p: Record<string, unknown>, site: SiteRenderC
     bag.needsEmbedJs = true
     bag.scriptSrcs.add(VIRTUOUS_SCRIPT)
     const formId = String(embed.config.formId ?? '')
-    return h('section', { class: 'donate', id: anchor }, [
+    return h('section', { class: 'donate' + backgroundClass(p), id: anchor }, [
       h('div', { class: 'wrap' }, [
         heading,
         h('div', { class: 'donate-box', 'data-embed': 'virtuous', 'data-src': VIRTUOUS_SCRIPT, 'data-vform': formId }, [
           h('p', { class: 'donate-prefill-hint', hidden: true, 'data-donate-hint': 'true' }),
-          h('p', { class: 'embed-fallback' }, 'The donation form loads here when the page is live.'),
+          donatePreview(donateSymbol(embed.config)),
         ]),
       ]),
     ])
@@ -867,7 +1131,7 @@ function renderEmbed(type: string, p: Record<string, unknown>, site: SiteRenderC
     const url = new URL(src)
     bag.frameSrcs.add(`${url.protocol}//${url.host}`)
   }
-  return h('section', { class: 'embed', id: anchor }, [
+  return h('section', { class: 'embed' + backgroundClass(p), id: anchor }, [
     h('div', { class: 'wrap' }, [
       heading,
       src
@@ -898,7 +1162,7 @@ function menuStyleOf(site: SiteRenderContext): HeaderDoc['style'] {
   return site.header?.doc.style ?? site.brand?.menuStyle ?? 'simple'
 }
 
-function headerClass(style: HeaderDoc['style'] | undefined, appearance?: HeaderDoc['appearance'], overHero = false): string {
+function headerClass(style: HeaderDoc['style'] | undefined, appearance?: HeaderDoc['appearance'], overHero = false, jsOver = false): string {
   const base =
     style === 'centred'
       ? 'site-header site-header-centred'
@@ -908,7 +1172,8 @@ function headerClass(style: HeaderDoc['style'] | undefined, appearance?: HeaderD
           ? 'site-header site-header-hamburger'
           : 'site-header'
   const withLook = appearance === 'dark' ? `${base} site-header-dark` : base
-  return overHero ? `${withLook} site-header-over` : withLook
+  const withOver = overHero ? `${withLook} site-header-over` : withLook
+  return jsOver ? `${withOver} js-over` : withOver
 }
 
 /** A small heart for Donate buttons. Decorative: the button text carries the meaning. */
@@ -918,15 +1183,58 @@ function heartIcon(): VNode {
   ])
 }
 
-function utilityLink(site: SiteRenderContext, bag: Collector, place?: 'bar' | 'drawer'): VNode | null {
+function utilityLink(site: SiteRenderContext, bag: Collector, place?: 'bar' | 'drawer', tabIndex?: string): VNode | null {
   const utility = site.header?.doc.utility
   if (!utility) return null
   const link = resolveLink(utility.target, utility.label, site, bag)
   const className = place === 'bar' ? 'util util-bar' : place === 'drawer' ? 'util util-drawer' : 'util'
-  return h('a', { class: className, href: link.href }, utility.label)
+  return h('a', { class: className, href: link.href, tabindex: tabIndex }, utility.label)
 }
 
-const TILE_SIZES = '(max-width: 640px) 45vw, 13rem'
+const TILE_SIZES = '(max-width: 1023px) 45vw, 28rem'
+/** Displayed logo box at a 16px root: 2.5rem tall, width capped at 14rem. Attributes stop a wide file from wrapping the bar. */
+const LOGO_DISPLAY_H = 40
+const LOGO_MAX_W = 224
+
+function logoBox(width?: number | null, height?: number | null): { width: number; height: number } {
+  if (!width || !height || width <= 0 || height <= 0) return { width: LOGO_MAX_W, height: LOGO_DISPLAY_H }
+  const scaled = Math.round((LOGO_DISPLAY_H * width) / height)
+  if (scaled <= LOGO_MAX_W) return { width: scaled, height: LOGO_DISPLAY_H }
+  return { width: LOGO_MAX_W, height: Math.max(1, Math.round((LOGO_MAX_W * height) / width)) }
+}
+
+function navChevron(): VNode {
+  return h('svg', { class: 'nav-chev', viewBox: '0 0 24 24', width: '14', height: '14', 'aria-hidden': 'true', focusable: 'false' }, [
+    h('path', { d: 'M5 9l7 7 7-7', fill: 'none', stroke: 'currentColor', 'stroke-width': '2.6', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }),
+  ])
+}
+
+function navArrow(): VNode {
+  return h('svg', { class: 'nav-arw', viewBox: '0 0 24 24', width: '16', height: '16', 'aria-hidden': 'true', focusable: 'false' }, [
+    h('path', { d: 'M9 5l7 7-7 7', fill: 'none', stroke: 'currentColor', 'stroke-width': '2.8', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }),
+  ])
+}
+
+function burgerSummary(): VNode {
+  return h('summary', { 'aria-label': 'Menu' }, [h('span'), h('span'), h('span')])
+}
+
+/** Banner message and a second Donate, phone drawer only. Desktop keeps the banner above the bar. */
+function drawerTail(site: SiteRenderContext, bag: Collector): VNode[] {
+  const nodes: VNode[] = []
+  const banner = site.banner
+  if (banner?.doc.enabled && banner.doc.message && banner.doc.link) {
+    const link = resolveLink(banner.doc.link.target, banner.doc.link.label, site, bag)
+    nodes.push(h('a', { class: 'nav-report', href: link.href }, banner.doc.message))
+  }
+  const cta = site.header?.doc.cta
+  if (cta) {
+    const headerCta = resolveLink(cta.target, cta.label, site, bag)
+    const label = cta.icon === 'heart' ? [heartIcon(), h('span', headerCta.label)] : headerCta.label
+    nodes.push(h('a', { class: 'cta-btn nav-donate-wide', href: headerCta.href }, label))
+  }
+  return nodes
+}
 
 /** One small WebP for a mega tile. Missing library photos are left out on a real publish, same as other pictures. */
 function tileImage(image: ImageRef, label: string, site: SiteRenderContext, bag: Collector): VNode | null {
@@ -979,27 +1287,41 @@ function menuItems(site: SiteRenderContext, bag: Collector): VNode[] {
       return h('li', [h('a', { href: c.href }, child.label)])
     })
     const tiles = style === 'mega' ? item.children.filter((child) => child.featured).slice(0, 5) : []
+    const summary = h('summary', [item.label, navChevron()])
     if (!tiles.length) {
+      if (style !== 'mega') return h('details', [summary, h('ul', textLinks)])
       return h('details', [
-        h('summary', item.label),
-        h('ul', { class: style === 'mega' ? 'nav-mega-panel' : undefined }, textLinks),
+        summary,
+        h('div', { class: 'nav-drop' }, [
+          h('div', { class: 'nav-drop-in' }, [
+            h('a', { class: 'nav-group-title', href: link.href }, [item.label, navArrow()]),
+            h('ul', { class: 'nav-mega-panel nav-mega-links' }, textLinks),
+          ]),
+        ]),
       ])
     }
     return h('details', [
-      h('summary', item.label),
-      h('div', { class: 'nav-mega-panel nav-mega-panel-tiles' }, [
-        h('ul', { class: 'nav-mega-links' }, textLinks),
-        h(
-          'ul',
-          { class: 'nav-mega-tiles' },
-          tiles.map((child) => {
-            const c = resolveLink(child.target, child.label, site, bag)
-            const img = child.image ? tileImage(child.image, child.label, site, bag) : null
-            return h('li', [
-              h('a', { class: img ? 'tile' : 'tile tile-text', href: c.href }, img ? [img, h('span', child.label)] : [h('span', child.label)]),
-            ])
-          }),
-        ),
+      summary,
+      h('div', { class: 'nav-drop' }, [
+        h('div', { class: 'nav-drop-in nav-drop-grid' }, [
+          h(
+            'ul',
+            { class: 'nav-mega-tiles' },
+            tiles.map((child, index) => {
+              const c = resolveLink(child.target, child.label, site, bag)
+              const img = child.image ? tileImage(child.image, child.label, site, bag) : null
+              const size = index < 2 ? 'tile-lg' : 'tile-sm'
+              const className = img ? `tile ${size}` : `tile ${size} tile-text`
+              return h('li', [
+                h('a', { class: className, href: c.href }, img ? [img, h('span', [child.label, navArrow()])] : [h('span', [child.label, navArrow()])]),
+              ])
+            }),
+          ),
+          h('div', { class: 'nav-drop-side' }, [
+            h('a', { class: 'nav-group-title', href: link.href }, [item.label, navArrow()]),
+            h('ul', { class: 'nav-mega-links' }, textLinks),
+          ]),
+        ]),
       ]),
     ])
   })
@@ -1014,9 +1336,10 @@ function renderNav(site: SiteRenderContext, bag: Collector): VNode | null {
   const items = menuItems(site, bag)
   if (style === 'hamburger') {
     const inMenu = utilityLink(site, bag, 'drawer')
+    const panel = [...items, ...(inMenu ? [inMenu] : []), ...drawerTail(site, bag)]
     return h('details', { class: 'nav nav-hamburger', 'aria-label': 'Site' }, [
-      h('summary', 'Menu'),
-      h('div', { class: 'nav-panel' }, inMenu ? [...items, inMenu] : items),
+      burgerSummary(),
+      h('div', { class: 'nav-panel' }, panel),
     ])
   }
   const utility = utilityLink(site, bag)
@@ -1033,9 +1356,10 @@ function renderMobileNav(site: SiteRenderContext, bag: Collector): VNode | null 
   const items = menuItems(site, bag)
   const utility = utilityLink(site, bag)
   const className = style === 'mega' ? 'nav nav-hamburger nav-mega' : 'nav nav-hamburger'
+  const panel = [...items, ...(utility ? [utility] : []), ...drawerTail(site, bag)]
   return h('details', { class: className, 'aria-label': 'Site' }, [
-    h('summary', 'Menu'),
-    h('div', { class: 'nav-panel' }, utility ? [...items, utility] : items),
+    burgerSummary(),
+    h('div', { class: 'nav-panel' }, panel),
   ])
 }
 
@@ -1053,13 +1377,14 @@ function logoOrName(site: SiteRenderContext, bag: Collector, opts: { dark?: bool
   const alt = entry.alt?.trim() || site.name
   const fallback = dark && !darkId
   const className = fallback ? 'site-logo site-logo-fallback-light' : 'site-logo'
+  const box = logoBox(entry.width, entry.height)
   if (entry.kind === 'svg' || entry.mime === 'image/svg+xml') {
     return h('img', {
       class: className,
       src: `/media/${id}.svg`,
       alt,
-      width: entry.width ?? undefined,
-      height: entry.height ?? undefined,
+      width: box.width,
+      height: box.height,
       decoding: 'async',
     })
   }
@@ -1069,12 +1394,67 @@ function logoOrName(site: SiteRenderContext, bag: Collector, opts: { dark?: bool
     class: className,
     src: `/media/${id}-${srcW}.webp`,
     srcset: widths.map((w) => `/media/${id}-${w}.webp ${w}w`).join(', '),
-    sizes: '(max-width: 640px) 180px, 220px',
+    sizes: '(max-width: 1023px) 134px, 224px',
     alt,
-    width: entry.width ?? undefined,
-    height: entry.height ?? undefined,
+    width: box.width,
+    height: box.height,
     decoding: 'async',
   })
+}
+
+/** Top-level labels only. Closed dropdowns are position absolute, so the panel markup is not needed for height,
+ *  and a second details/summary would be a second menu. */
+function reserveNav(site: SiteRenderContext, bag: Collector): VNode | null {
+  if (menuStyleOf(site) === 'hamburger') return null
+  const key = site.header?.doc.menuKey ?? 'main'
+  const menu = site.menus[key]
+  if (!menu) return null
+  const style = menuStyleOf(site)
+  const items = menu.doc.items.map((item) => {
+    const link = resolveLink(item.target, item.label, site, bag)
+    return h('a', { href: link.href, tabindex: '-1' }, item.label)
+  })
+  const utility = utilityLink(site, bag, undefined, '-1')
+  return h('nav', { class: style === 'mega' ? 'nav nav-mega' : 'nav' }, utility ? [...items, utility] : items)
+}
+
+/** Inert copy of the closed bar. The phone panel is omitted. A span stands in for the Menu button, because that
+ *  button is in the row on a phone and is the whole menu for a hamburger header. */
+function reserveBar(site: SiteRenderContext, bag: Collector): VNode {
+  const style = menuStyleOf(site)
+  const hamburger = style === 'hamburger'
+  const menuKey = site.header?.doc.menuKey ?? 'main'
+  const hasMenu = !!site.menus[menuKey]
+  const cta = site.header?.doc.cta
+  const headerCta = cta ? resolveLink(cta.target, cta.label, site, bag) : null
+  const ctaNode = headerCta
+    ? h('a', { class: 'cta-btn', href: headerCta.href, tabindex: '-1' }, cta?.icon === 'heart' ? [heartIcon(), h('span', headerCta.label)] : headerCta.label)
+    : null
+  const standIn = hasMenu ? h('span', { class: 'reserve-menu' }, [h('span'), h('span'), h('span')]) : null
+  const barUtility = hamburger && hasMenu ? utilityLink(site, bag, 'bar', '-1') : null
+  return h(
+    'div',
+    {
+      class: `hero-reserve ${headerClass(style, site.header?.doc.appearance, true, true)}`,
+      'aria-hidden': 'true',
+      inert: true,
+    },
+    [
+      h('div', { class: 'site-header-inner' }, [
+        h('a', { class: 'site-title', href: '/', tabindex: '-1' }, logoOrName(site, bag, { dark: site.header?.doc.appearance === 'dark' })),
+        hamburger ? standIn : reserveNav(site, bag),
+        barUtility,
+        ctaNode,
+        hamburger ? null : standIn,
+      ]),
+    ],
+  )
+}
+
+function leadingOverHero(doc: PageDoc, overHero: boolean): boolean {
+  if (!overHero) return false
+  const type = doc.blocks[0]?.type
+  return type === 'Hero' || type === 'VideoHero'
 }
 
 function faviconTags(site: SiteRenderContext): string {
@@ -1100,11 +1480,39 @@ function renderShell(doc: PageDoc, site: SiteRenderContext, bag: Collector): VNo
   const headerCta = header?.doc.cta ? resolveLink(header.doc.cta.target, header.doc.cta.label, site, bag) : null
   const overHero = !!header?.doc.overHero
   if (overHero) bag.needsHeaderJs = true
+  const seeThrough = leadingOverHero(doc, overHero)
+  const reserveForFirst = seeThrough && doc.blocks[0] && !heroCarouselActive(doc.blocks[0]) ? reserveBar(site, bag) : null
   let firstHero = true
   const menuKey = site.header?.doc.menuKey ?? 'main'
-  // Two copies, one hidden by UTILITY_CSS: the drawer on a phone, the bar from 641px up.
+  // Two copies, one hidden by UTILITY_CSS: the drawer below 1024, the bar from 1024 up.
   const barUtility = menuStyleOf(site) === 'hamburger' && site.menus[menuKey] ? utilityLink(site, bag, 'bar') : null
   const mobileNav = renderMobileNav(site, bag)
+
+  const headerNode = h('header', { class: headerClass(menuStyleOf(site), site.header?.doc.appearance, overHero, seeThrough) }, [
+    h('div', { class: 'site-header-inner' }, [
+      h('a', { class: 'site-title', href: '/' }, logoOrName(site, bag, { dark: site.header?.doc.appearance === 'dark' })),
+      renderNav(site, bag),
+      ...(barUtility ? [barUtility] : []),
+      headerCta
+        ? h('a', { class: 'cta-btn', href: headerCta.href }, header?.doc.cta?.icon === 'heart' ? [heartIcon(), h('span', headerCta.label)] : headerCta.label)
+        : null,
+      ...(mobileNav ? [mobileNav] : []),
+    ]),
+  ])
+  const mainNode = h(
+    'main',
+    { id: 'main' },
+    doc.blocks.map((block, index) => {
+      const eager = firstHero && (block.type === 'Hero' || block.type === 'VideoHero')
+      if (block.type === 'Hero' || block.type === 'VideoHero') firstHero = false
+      const reserve = index === 0 ? reserveForFirst : null
+      const drawn = () => renderBlock(block as StoredBlock, site, bag, eager, reserve)
+      const vnode = site.preview ? previewBlock(block as StoredBlock, () => drawn() ?? missingPluginNote()) : drawn()
+      if (!vnode) return null
+      return withSectionCss(block as StoredBlock, vnode)
+    }),
+  )
+  const framed = seeThrough ? h('div', { class: 'over-frame' }, [headerNode, mainNode]) : [headerNode, mainNode]
 
   return h('div', [
     h('a', { class: 'skip', href: '#main' }, 'Skip to content'),
@@ -1114,29 +1522,7 @@ function renderShell(doc: PageDoc, site: SiteRenderContext, bag: Collector): VNo
           bannerLink ? [' ', h('a', { href: bannerLink.href }, bannerLink.label)] : null,
         ])
       : null,
-    h('header', { class: headerClass(menuStyleOf(site), site.header?.doc.appearance, overHero) }, [
-      h('div', { class: 'site-header-inner' }, [
-        h('a', { class: 'site-title', href: '/' }, logoOrName(site, bag, { dark: site.header?.doc.appearance === 'dark' })),
-        renderNav(site, bag),
-        ...(barUtility ? [barUtility] : []),
-        headerCta
-          ? h('a', { class: 'cta-btn', href: headerCta.href }, header?.doc.cta?.icon === 'heart' ? [heartIcon(), h('span', headerCta.label)] : headerCta.label)
-          : null,
-        ...(mobileNav ? [mobileNav] : []),
-      ]),
-    ]),
-    h(
-      'main',
-      { id: 'main' },
-      doc.blocks.map((block) => {
-        const eager = firstHero && (block.type === 'Hero' || block.type === 'VideoHero')
-        if (block.type === 'Hero' || block.type === 'VideoHero') firstHero = false
-        const drawn = () => renderBlock(block as StoredBlock, site, bag, eager)
-        const vnode = site.preview ? previewBlock(block as StoredBlock, () => drawn() ?? missingPluginNote()) : drawn()
-        if (!vnode) return null
-        return withSectionCss(block as StoredBlock, vnode)
-      }),
-    ),
+    ...(Array.isArray(framed) ? framed : [framed]),
     renderFooter(site, bag, footer),
   ])
 }
@@ -1410,12 +1796,18 @@ export async function renderPageHtml(input: {
   versionId: string
   path: string
   site: SiteRenderContext
+  /** Clock for a server-rendered countdown. Defaults to the real time. Goldens pass a fixed instant. */
+  now?: Date
 }): Promise<RenderedPage> {
-  const bag = newCollector(input.site)
+  const bag = newCollector(input.site, input.now ?? new Date())
   const { doc, site } = input
   const carouselCss = doc.blocks.some((block) => heroCarouselActive(block as StoredBlock)) ? HERO_CAROUSEL_CSS : ''
+  const thermometerCss = doc.blocks.some((block) => block.type === 'MatchThermometer') ? THERMOMETER_CSS : ''
+  const pickerCss = doc.blocks.some((block) => block.type === 'ImpactTiers' && block.props.layout === 'picker') ? PICKER_CSS : ''
+  const donateCss = doc.blocks.some((block) => block.type === 'DonationEmbed') ? DONATE_PREVIEW_CSS : ''
+  const rhythmCss = doc.blocks.some((block) => block.props.background === 'card' || block.props.background === 'warm') ? RHYTHM_CSS : ''
   const pluginCss = emitPluginCss(doc, site)
-  const css = (site.themeCss ?? THEME_CSS) + shellOptionCss(site) + carouselCss + emitSiteCss(site.brand) + pluginCss + doc.blocks.map((block) => emitSectionCss(block as StoredBlock, site)).join('')
+  const css = (site.themeCss ?? THEME_CSS) + shellOptionCss(site) + carouselCss + thermometerCss + pickerCss + donateCss + rhythmCss + emitSiteCss(site.brand) + pluginCss + doc.blocks.map((block) => emitSectionCss(block as StoredBlock, site)).join('')
   if (css.toLowerCase().includes('</')) throw new CssRejected(1, 1, 'The generated CSS was rejected.')
   if (Buffer.byteLength(css, 'utf8') > STYLE_MAX_BYTES) throw new CssRejected(1, 1, `This page CSS is over the ${STYLE_MAX_BYTES.toLocaleString('en-GB')} byte limit.`)
   const app = createSSRApp(
@@ -1460,7 +1852,7 @@ export async function renderPageHtml(input: {
 <body>
   ${body}
   ${bag.needsEmbedJs ? '<script type="module" src="/embed.js"></script>' : ''}
-  ${analytics ? '<script src="/analytics.js" defer></script>' : ''}${bag.needsHeaderJs ? '\n  <script src="/header.js" defer></script>' : ''}${bag.needsHeroJs ? '\n  <script src="/hero.js" defer></script>' : ''}
+  ${analytics ? '<script src="/analytics.js" defer></script>' : ''}${bag.needsHeaderJs ? '\n  <script src="/header.js" defer></script>' : ''}${bag.needsHeroJs ? '\n  <script src="/hero.js" defer></script>' : ''}${bag.needsThermometerJs ? '\n  <script src="/thermometer.js" defer></script>' : ''}
 </body>
 </html>
 `
@@ -1499,7 +1891,7 @@ function firstHeroPreload(block: StoredBlock, site: SiteRenderContext): string {
   const w = widths.includes(1280) ? 1280 : widths[widths.length - 1] ?? 1280
   const small = widths.includes(640) ? 640 : widths[0] ?? w
   return `<link rel="preload" as="image" href="/media/${base}-${small}.avif" type="image/avif" media="(max-width: 640px)">
-  <link rel="preload" as="image" href="/media/${base}-${w}.webp" type="image/webp" media="(min-width: 641px)">`
+  <link rel="preload" as="image" href="/media/${base}-${w}.avif" type="image/avif" media="(min-width: 641px)">`
 }
 
 /** Public origin for sitemaps, robots and canonical URLs. Falls back to PUBLIC_HOST when the site has no primary domain yet. */

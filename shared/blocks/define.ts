@@ -98,3 +98,6 @@ export const linkRef = z
   .strict()
 
 export const tone = z.enum(['primary', 'neutral', 'accent'])
+
+/** Optional section fill. Unset keeps today's background. Not used on Hero, VideoHero, CallToAction or MatchBanner. */
+export const sectionBackground = z.enum(['card', 'warm']).optional()

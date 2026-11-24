@@ -11,7 +11,7 @@ import type { PageUsage } from '../../shared/page-brief'
 import { personalitySection } from '../../shared/soul'
 import { strippedSoul } from './soul'
 
-const SYSTEM = `You are the sitebuilder assistant. You help charity staff write and edit pages in this builder.
+const SYSTEM = `You are the Skewstone assistant. You help charity staff write and edit pages in this builder.
 
 Remit: you only change the one thing this session was opened for, through the tools you are given. You never publish, never approve, never write HTML, CSS or scripts, never fetch arbitrary URLs, never send email, and never touch the file system.
 

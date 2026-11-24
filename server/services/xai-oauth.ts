@@ -18,7 +18,7 @@ export const XAI_OAUTH_SCOPES = 'openid profile email offline_access grok-cli:ac
 // client's allowlisted redirect is a loopback URL that a hosted admin cannot
 // use. Device code does not need that redirect. Override with
 // SITEBUILDER_XAI_OAUTH_CLIENT_ID once we have our own client. Do not treat
-// this as a Sitebuilder-registered app.
+// this as a Skewstone-registered app.
 export const PUBLIC_XAI_OAUTH_CLIENT_ID = 'b1a00492-073a-47ea-816f-4c329264a828'
 
 const SUBSCRIPTION_DENIED =

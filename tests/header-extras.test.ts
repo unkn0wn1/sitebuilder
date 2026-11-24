@@ -5,7 +5,8 @@ import { defaultBrandDoc } from '../shared/brand'
 import { BUNDLE_ID, OVER_HERO_CSS, TILE_CSS, themeCssFromTokens } from '../shared/theme-css'
 import type { MediaCatalogEntry } from '../server/services/render'
 import { defaultSitePartDoc, type HeaderDoc, type MenuDoc } from '../shared/site-parts'
-import { emptyPageDoc } from '../shared/page'
+import { emptyPageDoc, type PageDoc } from '../shared/page'
+import { richTextFromParagraphs } from '../shared/richtext'
 
 const menu: MenuDoc = {
   schemaVersion: 1,
@@ -63,20 +64,31 @@ describe('see-through header', () => {
     expect(on.csp).toContain(`style-src 'self' ${styleHash(styleOf(on.html))}`)
     expect(on.csp).toContain("script-src 'self'")
     expect(on.csp).not.toMatch(/script-src 'self' https?:/)
-    expect(OVER_HERO_CSS).toContain('linear-gradient(to bottom, color-mix(in srgb, var(--ink) 60%, transparent), color-mix(in srgb, var(--ink) 0%, transparent))')
-    expect(OVER_HERO_CSS).toContain('text-shadow: 0 1px 3px color-mix(in srgb, var(--ink) 50%, transparent)')
+    expect(OVER_HERO_CSS).toContain('linear-gradient(to bottom, color-mix(in srgb, var(--ink) 72%, transparent), color-mix(in srgb, var(--ink) 0%, transparent))')
+    expect(OVER_HERO_CSS).toContain('text-shadow:0 1px 2px color-mix(in srgb,var(--ink) 62%,transparent),0 0 12px #0006')
+    expect(OVER_HERO_CSS).toContain('.site-header-over.js-over:not(.is-solid) .cta-btn{border:2px solid color-mix(in srgb, var(--paper) 90%, transparent);box-shadow:0 4px 14px color-mix(in srgb, var(--ink) 20%, transparent);text-shadow:0 1px 2px #0007;}')
+    expect(OVER_HERO_CSS).toContain('.site-header-over.js-over:has(details[open]) .cta-btn{border-color:transparent;box-shadow:none;text-shadow:none;}')
+    expect(OVER_HERO_CSS).not.toMatch(/\.cta-btn\{[^}]*color:\s*var\(--paper\)/)
+    expect(OVER_HERO_CSS).not.toContain('.hero h1')
+    expect(OVER_HERO_CSS).not.toContain('hero-prev')
+    expect(OVER_HERO_CSS).not.toContain('hero-dot')
     expect(OVER_HERO_CSS).toContain('prefers-reduced-motion: reduce')
-    expect(OVER_HERO_CSS).toContain('.site-header-over.js-over ~ main > .hero:first-child { box-sizing: content-box; padding-top: var(--sb-header-h, 0px); }')
-    expect(OVER_HERO_CSS).toContain('.site-header-over.js-over:has(.nav-hamburger[open]) { position: absolute; top: var(--strip, 0px); left: 0; right: 0; }')
-    expect(OVER_HERO_CSS).toContain('.site-header-over.js-over:not(.is-solid) .nav a, .site-header-over.js-over:not(.is-solid) .nav summary { font-weight: 600; }')
+    expect(OVER_HERO_CSS).toContain('header.site-header-over.js-over { position:sticky;top:0;')
+    expect(OVER_HERO_CSS).toContain('.over-frame { display:grid;')
+    expect(OVER_HERO_CSS).toContain('.hero-reserve { visibility:hidden;')
+    expect(OVER_HERO_CSS).not.toContain('--sb-header-h')
+    expect(OVER_HERO_CSS).not.toContain('var(--strip')
+    expect(OVER_HERO_CSS).not.toContain('content-box')
+    expect(OVER_HERO_CSS).not.toContain('font-weight: 600')
     expect(THEME_CSS).toMatch(/\.nav a, \.nav summary \{[^}]*font-weight:\s*500/)
+    expect(THEME_CSS).toContain('.nav > a, .nav > details > summary { display:flex;align-items:center;gap:5px;min-height:44px;padding:0 10px;font-weight:700;font-size:16px;white-space:nowrap;')
     expect(THEME_CSS).not.toContain('site-header-over')
     expect(THEME_CSS).not.toContain('--sb-header-h')
     expect(THEME_CSS).not.toContain('content-box')
     // No side padding on .hero, so content-box does not change the phone width. The photo is inset 0, so it still covers the bar.
     expect(THEME_CSS).toMatch(/\.hero \{\s*position: relative;\s*min-height: min\(70vh, 36rem\);/)
     expect(THEME_CSS).not.toMatch(/\.hero \{[^}]*padding/)
-    expect(THEME_CSS).toMatch(/\.hero-media, \.hero-video, \.hero img \{\s*position: absolute;\s*inset: 0;/)
+    expect(THEME_CSS).toMatch(/\.hero-media, \.hero-video, \.hero-media img \{\s*position: absolute;\s*inset: 0;/)
     expect(THEME_CSS).toMatch(/\.hero h1 \{ font-size: var\(--fs-display\); line-height: 1\.05; letter-spacing: -0\.01em; margin: 0 0 0\.5rem; max-width: 16ch; \}/)
     expect(THEME_CSS).toContain('linear-gradient(to top, color-mix(in srgb, var(--ink) 62%, transparent) 0%, color-mix(in srgb, var(--ink) 28%, transparent) 26%, color-mix(in srgb, var(--ink) 0%, transparent) 48%)')
     expect(THEME_CSS).toContain('linear-gradient(to bottom, color-mix(in srgb, var(--ink) 34%, transparent) 0%, color-mix(in srgb, var(--ink) 0%, transparent) 18%)')
@@ -87,6 +99,65 @@ describe('see-through header', () => {
     expect(off.html).not.toContain('header.js')
     expect(styleOf(off.html)).toBe(THEME_CSS)
     expect(off.csp).toContain(styleHash(THEME_CSS))
+  })
+
+  it('reserves a leading hero in the static HTML and leaves every other page solid', async () => {
+    const photo = 'med_00000000000000000000000009'
+    const image = (id: string, type: 'Hero' | 'VideoHero') => ({
+      id,
+      type,
+      v: 1,
+      props: type === 'VideoHero'
+        ? { heading: 'Watch', subheading: 'A film', poster: { media: photo, alt: 'Still' }, video: '' }
+        : { heading: 'Keep them warm', subheading: 'Blankets and food.', image: { media: photo, alt: 'A dog' } },
+    })
+    const story = { id: 'b_text0001', type: 'RichText', v: 1, props: { content: richTextFromParagraphs(['A story.']) } }
+    const onHeader = { id: 'sp_header', doc: header({ overHero: true, appearance: 'dark' }) }
+    async function draw(blocks: PageDoc['blocks']) {
+      return renderPageHtml({ doc: { ...emptyPageDoc('Home'), blocks }, pageId: 'pg_home', versionId: 'ver_1', path: '/', site: site({ header: onHeader }) })
+    }
+
+    const hero = await draw([image('b_hero0001', 'Hero'), story])
+    expect(hero.html).toMatch(/<header class="[^"]*\bjs-over\b/)
+    expect(hero.html).toContain('class="hero hero-lead"')
+    expect(hero.html).toContain('class="over-frame"')
+    expect(hero.html.indexOf('<header')).toBeLessThan(hero.html.indexOf('class="hero-reserve '))
+    const reserve = hero.html.slice(hero.html.indexOf('class="hero-reserve '), hero.html.indexOf('hero-media', hero.html.indexOf('class="hero-reserve ')))
+    expect(reserve).toContain('aria-hidden="true"')
+    expect(reserve).toContain('inert')
+    expect(reserve).toContain('reserve-menu')
+    expect(reserve).not.toMatch(/<details|<summary|nav-panel|\sid="/)
+
+    const video = await draw([image('b_video001', 'VideoHero')])
+    expect(video.html).toMatch(/<header class="[^"]*\bjs-over\b/)
+    expect(video.html).toContain('class="hero hero-lead"')
+    expect(video.html).toContain('hero-reserve')
+    const videoReserve = video.html.slice(video.html.indexOf('class="hero-reserve '), video.html.indexOf('hero-media', video.html.indexOf('class="hero-reserve ')))
+    expect(videoReserve).not.toMatch(/<details|<summary/)
+
+    const carousel = await draw([{
+      id: 'b_hero0001',
+      type: 'Hero',
+      v: 1,
+      props: {
+        mode: 'image-carousel',
+        heading: 'Keep them warm',
+        slides: [
+          { heading: 'One', image: { media: photo, alt: 'A' } },
+          { heading: 'Two', image: { media: photo, alt: 'B' } },
+        ],
+      },
+    }])
+    expect(carousel.html).toMatch(/<header class="[^"]*\bjs-over\b/)
+    expect(carousel.html).toContain('class="over-frame"')
+    expect(carousel.html).not.toContain('class="hero-reserve')
+    expect(carousel.html).not.toContain('class="hero hero-lead"')
+
+    const later = await draw([story, image('b_hero0001', 'Hero')])
+    expect(later.html).not.toMatch(/<header class="[^"]*\bjs-over\b/)
+    expect(later.html).not.toContain('class="over-frame"')
+    expect(later.html).not.toContain('class="hero-reserve')
+    expect(later.html).not.toContain('class="hero hero-lead"')
   })
 
   it('renders the same bytes when overHero is false or omitted', async () => {
@@ -111,7 +182,7 @@ describe('see-through header', () => {
     const inkPage = await render({ header: headerOn, brand: ink, themeCss: inkCss })
     expect(styleOf(inkPage.html)).toBe(inkCss + OVER_HERO_CSS)
     expect(inkCss).toContain('--ink: #102030')
-    expect(OVER_HERO_CSS).toContain('color-mix(in srgb, var(--ink) 60%, transparent)')
+    expect(OVER_HERO_CSS).toContain('color-mix(in srgb, var(--ink) 72%, transparent)')
     expect(styleOf(inkPage.html)).toContain('.site-header-dark.site-header-over.js-over:not(.is-solid) .site-title { background: transparent;')
     expect(styleOf(inkPage.html)).not.toContain('.ft-logo { background: var(--paper); }')
     expect(styleOf(inkPage.html)).not.toContain('#112233')
@@ -248,18 +319,20 @@ describe('mega menu photo tiles', () => {
       menus: { main: { id: 'sp_menu', doc: items } },
       media: { [PHOTO]: photoEntry() },
     })
-    const panel = rendered.html.match(/<div class="nav-mega-panel nav-mega-panel-tiles">([\s\S]*?)<\/div>/)?.[1] ?? ''
-    expect(panel.indexOf('nav-mega-links')).toBeLessThan(panel.indexOf('nav-mega-tiles'))
+    const panel = rendered.html.match(/<nav class="nav nav-mega"[^>]*>([\s\S]*?)<\/nav>/)?.[1] ?? ''
+    expect(panel.indexOf('nav-mega-tiles')).toBeLessThan(panel.indexOf('nav-mega-links'))
+    expect(panel).toContain('class="nav-group-title" href="/about"')
     expect(panel).toContain('>Tile 6</a>')
-    expect(panel.split('class="tile"').length - 1).toBe(4)
-    expect(panel.split('class="tile tile-text"').length - 1).toBe(1)
+    expect(panel.split('class="tile tile-lg"').length - 1).toBe(2)
+    expect(panel.split('class="tile tile-sm"').length - 1).toBe(2)
+    expect(panel.split('class="tile tile-sm tile-text"').length - 1).toBe(1)
     expect(panel).not.toContain('Alt Sixth')
     expect(panel).not.toContain('>Tile 6</span>')
-    const photo = panel.match(/<a class="tile" href="\/tile-1">([\s\S]*?)<\/a>/)?.[1] ?? ''
+    const photo = panel.match(/<a class="tile tile-lg" href="\/tile-1">([\s\S]*?)<\/a>/)?.[1] ?? ''
     expect(photo).toContain('src="/media/med_00000000000000000000000009-640.webp"')
     expect(photo).toContain('srcset="')
     expect(photo).toContain('/media/med_00000000000000000000000009-320.webp 320w')
-    expect(photo).toContain('sizes="(max-width: 640px) 45vw, 13rem"')
+    expect(photo).toContain('sizes="(max-width: 1023px) 45vw, 28rem"')
     expect(photo).not.toContain('100vw')
     expect(photo).toContain('width="1200"')
     expect(photo).toContain('height="800"')
@@ -272,7 +345,7 @@ describe('mega menu photo tiles', () => {
     expect(panel).toMatch(/\salt(?:=\"\"|(?=[\s/>]))/)
     expect(rendered.deps.media).toContain(PHOTO)
     expect(styleOf(rendered.html)).toBe(THEME_CSS + TILE_CSS)
-    expect(TILE_CSS).toContain('.tile:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }')
+    expect(TILE_CSS).toContain('.nav-mega-tiles .tile:focus-visible { outline:3px solid var(--accent);outline-offset:2px;}')
     expect(THEME_CSS).not.toContain('nav-mega-tiles')
     expect(rendered.deps.bundleId).toBe(BUNDLE_ID)
   })
@@ -292,7 +365,7 @@ describe('mega menu photo tiles', () => {
       menus: { main: { id: 'sp_menu', doc: items } },
       mediaComplete: true,
     })
-    expect(rendered.html).toContain('class="tile tile-text"')
+    expect(rendered.html).toContain('class="tile tile-lg tile-text"')
     expect(rendered.html).not.toContain('<img')
     expect(rendered.html).not.toContain(PHOTO)
     expect(rendered.deps.media).not.toContain(PHOTO)
@@ -362,7 +435,7 @@ describe('mega menu photo tiles', () => {
       },
     })
     expect(explicit.html).toBe(plain.html)
-    expect(explicit.html).toContain('<ul class="nav-mega-panel">')
+    expect(explicit.html).toContain('<ul class="nav-mega-panel nav-mega-links">')
     expect(explicit.html).not.toContain('nav-mega-tiles')
   })
 
@@ -391,10 +464,47 @@ describe('mega menu photo tiles', () => {
     expect(rendered.html).toContain('width="80"')
     expect(rendered.html).toContain('height="40"')
     expect(rendered.html).not.toContain('srcset=')
-    expect(rendered.html).toContain('class="tile tile-text"')
-    expect(rendered.html).toContain('>Tile 2</span>')
+    expect(rendered.html).toContain('class="tile tile-lg"')
+    expect(rendered.html).toContain('class="tile tile-lg tile-text"')
+    expect(rendered.html).not.toContain('class="tile tile-sm')
+    expect(rendered.html).toContain('>Tile 2<svg class="nav-arw"')
     expect(rendered.deps.media).toContain(PHOTO)
     expect(rendered.deps.media).not.toContain('med_0000000000000000000000000A')
+  })
+
+  it('puts the banner message and a second Donate in the phone drawer only', async () => {
+    const message = 'Report an ill or injured animal in Udaipur'
+    const withLink = await render({
+      header: { id: 'sp_header', doc: header({ style: 'mega', cta: { label: 'Donate', target: { type: 'url', url: 'https://example.org/donate' }, icon: 'heart' } }) },
+      banner: {
+        id: 'sp_banner',
+        doc: {
+          schemaVersion: 1,
+          enabled: true,
+          message,
+          link: { label: 'Get help', target: { type: 'url', url: 'https://example.org/help' } },
+          tone: 'urgent',
+        },
+      },
+    })
+    const body = withLink.html.slice(withLink.html.indexOf('<body'))
+    const drawerStart = body.indexOf('<details class="nav nav-hamburger')
+    const drawer = body.slice(drawerStart, body.indexOf('</header>'))
+    expect(drawer).toContain(`class="nav-report" href="https://example.org/help">${message}`)
+    expect(drawer).toContain('class="cta-btn nav-donate-wide"')
+    expect(drawer).toContain('class="ico-heart"')
+    const bar = body.slice(0, drawerStart)
+    expect(bar).not.toContain('nav-report')
+    expect(bar).not.toContain('nav-donate-wide')
+    expect(bar).toContain('class="cta-btn"')
+
+    const noLink = await render({
+      banner: {
+        id: 'sp_banner',
+        doc: { schemaVersion: 1, enabled: true, message: 'Winter appeal is open', link: null, tone: 'info' },
+      },
+    })
+    expect(noLink.html).not.toContain('class="nav-report"')
   })
 })
 

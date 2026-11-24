@@ -4,7 +4,7 @@
 
 ## The idea
 
-One agent gateway in front of the services sitebuilder already has, exposed twice: a versioned REST API and an MCP server (streamable HTTP). Both call the same operation table, so they cannot drift apart.
+One agent gateway in front of the services Skewstone already has, exposed twice: a versioned REST API and an MCP server (streamable HTTP). Both call the same operation table, so they cannot drift apart.
 
 - Every agent write lands as a **draft change**.
 - A change goes live by itself only when a rule on the token covers every part of it. Anything else waits for a person.

@@ -50,7 +50,7 @@ export function templateChecks(rules: TemplateRules): { blocking: FieldIssue[]; 
 }
 
 /** Block types added after the first starter library shipped. Existing templates that already allowed the original set gain these on read. */
-export const NEW_LIBRARY_BLOCKS = ['ImpactTiers', 'DonationProgress', 'MatchBanner', 'StoryBeforeAfter', 'TrustStrip'] as const
+export const NEW_LIBRARY_BLOCKS = ['ImpactTiers', 'DonationProgress', 'MatchBanner', 'MatchThermometer', 'StoryBeforeAfter', 'TrustStrip'] as const
 
 const PREVIOUS_ALL = ['Hero', 'VideoHero', 'RichText', 'TextAndImage', 'Image', 'Gallery', 'Quote', 'Stats', 'CardGrid', 'CallToAction', 'FAQ', 'DonationEmbed', 'Embed']
 const PREVIOUS_STORY = ['Hero', 'VideoHero', 'RichText', 'TextAndImage', 'Image', 'Gallery', 'Quote', 'CallToAction', 'DonationEmbed']

@@ -470,7 +470,7 @@ export const agentChanges = sqliteTable(
     tokenId: text('token_id').notNull().references(() => agentTokens.id),
     ownerUserId: text('owner_user_id').notNull(),
     title: text('title').notNull(),
-    /** The agent's own stated reason. Sitebuilder cannot see the chat, so this is the agent's words, not proof of what a person asked. */
+    /** The agent's own stated reason. Skewstone cannot see the chat, so this is the agent's words, not proof of what a person asked. */
     reason: text('reason').notNull(),
     status: text('status', { enum: AGENT_CHANGE_STATUSES }).notNull(),
     targets: json<unknown[]>('targets').notNull(),

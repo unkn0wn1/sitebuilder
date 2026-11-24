@@ -1,7 +1,7 @@
 // Starter templates, used by the seed script and tests.
 import type { TemplateRules } from '../../shared/templates'
 
-const ALL = ['Hero', 'VideoHero', 'RichText', 'TextAndImage', 'Image', 'Gallery', 'Quote', 'Stats', 'CardGrid', 'CallToAction', 'FAQ', 'DonationEmbed', 'Embed', 'ImpactTiers', 'DonationProgress', 'MatchBanner', 'StoryBeforeAfter', 'TrustStrip']
+const ALL = ['Hero', 'VideoHero', 'RichText', 'TextAndImage', 'Image', 'Gallery', 'Quote', 'Stats', 'CardGrid', 'CallToAction', 'FAQ', 'DonationEmbed', 'Embed', 'ImpactTiers', 'DonationProgress', 'MatchBanner', 'MatchThermometer', 'StoryBeforeAfter', 'TrustStrip']
 
 export const STARTER_TEMPLATES: Record<string, TemplateRules> = {
   home: { schemaVersion: 1, label: 'Home', allowedBlocks: ALL, requiredBlocks: ['Hero'], startingBlocks: [] },

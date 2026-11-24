@@ -47,7 +47,7 @@ export function buildOpenApi(): Record<string, unknown> {
   return {
     openapi: '3.1.0',
     info: {
-      title: 'Sitebuilder agent API',
+      title: 'Skewstone agent API',
       version: SERVER_VERSION,
       description:
         'Read and change the charity website with a scoped token. Every edit is saved as a draft inside a change; nothing goes live until publish_change (if a rule on the token allows it) or a person approves it. The same tools are available over MCP at /agent/mcp. Start with GET /site. Docs: docs/agent-gateway.md.',

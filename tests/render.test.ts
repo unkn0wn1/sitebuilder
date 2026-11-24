@@ -16,6 +16,7 @@ import { approveReview, submitPage } from '../server/services/reviews'
 import {
   EMBED_JS,
   HERO_JS,
+  THERMOMETER_JS,
   STYLE_HASH,
   THEME_CSS,
   escapeHtml,
@@ -32,6 +33,7 @@ import {
   type SiteRenderContext,
 } from '../server/services/render'
 import { CssRejected } from '../shared/css/sanitize'
+import { Hero, MatchThermometer, TrustStrip } from '../shared/blocks/library'
 import { emptyPageDoc } from '../shared/page'
 import { defaultBrandDoc, validateBrandDoc } from '../shared/brand'
 import { editBrand, getBrand, submitBrand } from '../server/services/brand'
@@ -314,6 +316,9 @@ http {
     })
     expect(rendered.html).toContain('class="site-logo"')
     expect(rendered.html).toContain('alt="Hope for Street Animals"')
+    expect(rendered.html).toContain('width="128"')
+    expect(rendered.html).toContain('height="40"')
+    expect(rendered.html).toContain('sizes="(max-width: 1023px) 134px, 224px"')
     expect(rendered.html).toContain(`/media/${logoId}-600.webp`)
     expect(rendered.html).toContain('rel="icon" href="/favicon.png"')
     expect(rendered.html).toContain('rel="apple-touch-icon" href="/apple-touch-icon.png"')
@@ -495,7 +500,19 @@ http {
     expect(rendered.html).toContain('data-embed="virtuous"')
     expect(rendered.html).toContain('data-vform="example-form"')
     expect(rendered.html).toContain('data-donate-hint')
-    expect(rendered.html).toContain('The donation form loads here when the page is live.')
+    expect(rendered.html).not.toContain('loads here')
+    expect(rendered.html).toContain('Give once')
+    expect(rendered.html).toContain('>Monthly<')
+    expect(rendered.html).toContain('$50')
+    expect(rendered.html).toContain('Other amount')
+    expect(rendered.html).toContain('Total')
+    expect(rendered.html).toContain('Continue')
+    expect(rendered.html).toContain('type="button"')
+    expect(rendered.html).toContain('disabled')
+    expect(rendered.html).not.toContain('<form')
+    expect(rendered.html).not.toContain('action=')
+    expect(rendered.html).toContain('class="donate"')
+    expect(rendered.html).not.toContain('bg-warm')
     expect(rendered.html).toContain('src="/embed.js"')
     expect(rendered.csp).toContain("script-src 'self' https://cdn.virtuoussoftware.com")
     expect(rendered.csp).not.toContain('unsafe-inline')
@@ -503,6 +520,81 @@ http {
     expect(EMBED_JS).toContain('searchParams.set("amount"')
     expect(EMBED_JS).toContain('RaiseDonorsForms')
     expect(EMBED_JS).toContain('data-donate-hint')
+    expect(EMBED_JS).toContain('is-provider')
+    expect(EMBED_JS).toContain('donate-preview')
+    expect(EMBED_JS).not.toContain('fallback.hidden = false')
+
+    const rupees = await renderPageHtml({
+      doc,
+      pageId: 'pg_give',
+      versionId: 'ver_1',
+      path: '/give',
+      site: site({
+        embeds: {
+          emb_00000000000000000000000009: {
+            id: 'emb_00000000000000000000000009',
+            provider: 'virtuous',
+            name: 'Demo form',
+            config: { formId: 'example-form', currency: '₹' },
+          },
+        },
+      }),
+    })
+    expect(rupees.html).toContain('₹50')
+    expect(rupees.html).toContain('₹500')
+    const messy = await renderPageHtml({
+      doc,
+      pageId: 'pg_give',
+      versionId: 'ver_1',
+      path: '/give',
+      site: site({
+        embeds: {
+          emb_00000000000000000000000009: {
+            id: 'emb_00000000000000000000000009',
+            provider: 'virtuous',
+            name: 'Demo form',
+            config: { formId: 'example-form', currency: 'US $' },
+          },
+        },
+      }),
+    })
+    expect(messy.html).toContain('$50')
+    expect(messy.html).not.toContain('US $')
+  })
+
+  it('paints a section background only when the block asks for one, and Hero rejects the prop', async () => {
+    const doc = emptyPageDoc('Rhythm')
+    doc.blocks = [{ id: 'b_text0001', type: 'RichText', v: 1, props: { content: richTextFromParagraphs(['Hello']) } }]
+    const plain = await renderPageHtml({ doc, pageId: 'pg_rhythm', versionId: 'ver_1', path: '/rhythm', site: site() })
+    expect(plain.html).toContain('class="section"')
+    expect(plain.html).not.toContain('bg-card')
+    expect(plain.html).not.toContain('bg-warm')
+    doc.blocks[0]!.props = { content: richTextFromParagraphs(['Hello']), background: 'card' }
+    const card = await renderPageHtml({ doc, pageId: 'pg_rhythm', versionId: 'ver_1', path: '/rhythm', site: site() })
+    expect(card.html).toContain('class="section bg-card"')
+    expect(card.html).toContain('.bg-card{background:#fff}')
+    expect(card.html).toContain('.bg-warm{background:')
+    doc.blocks[0]!.props = { content: richTextFromParagraphs(['Hello']), background: 'warm' }
+    const warm = await renderPageHtml({ doc, pageId: 'pg_rhythm', versionId: 'ver_1', path: '/rhythm', site: site() })
+    expect(warm.html).toContain('class="section bg-warm"')
+    expect(Hero.props.safeParse(Hero.sample).success).toBe(true)
+    expect(Hero.props.safeParse({ ...Hero.sample, background: 'card' }).success).toBe(false)
+  })
+
+  it('renders the trust sample as names and logos, and still shows a note the editor sets', async () => {
+    const sampleDoc = emptyPageDoc('Trust sample')
+    sampleDoc.blocks = [{ id: 'b_trusts', type: 'TrustStrip', v: 1, props: TrustStrip.sample }]
+    const sample = await renderPageHtml({ doc: sampleDoc, pageId: 'pg_tsamp', versionId: 'ver_1', path: '/tsamp', site: site() })
+    expect(sample.html).toContain('Trusted by donors')
+    expect(sample.html).not.toContain('Sample layout')
+    expect(sample.html).not.toContain('class="trust-note"')
+    expect(sample.html).not.toContain('Rated by')
+
+    const noted = emptyPageDoc('Trust note')
+    noted.blocks = [{ id: 'b_trustn', type: 'TrustStrip', v: 1, props: { heading: 'Marks', items: [{ name: 'Candid', logo: IMG, note: 'Editor note' }] } }]
+    const withNote = await renderPageHtml({ doc: noted, pageId: 'pg_tnote', versionId: 'ver_1', path: '/tnote', site: site() })
+    expect(withNote.html).toContain('class="trust-note"')
+    expect(withNote.html).toContain('Editor note')
   })
 
   it('hides a match banner after its end date and renders a before-and-after story', async () => {
@@ -661,7 +753,7 @@ describe('custom CSS in rendered HTML', () => {
     expect(styleText(again.html)).toBe(styleText(bare.html))
   })
 
-  it('refuses a style sheet over 73,728 bytes', async () => {
+  it('refuses a style sheet over the page style cap', async () => {
     const doc = emptyPageDoc('Big')
     const rule = `.a{${'color:#112233;'.repeat(500)}}`
     expect(Buffer.byteLength(rule, 'utf8')).toBeLessThanOrEqual(8192)
@@ -672,7 +764,7 @@ describe('custom CSS in rendered HTML', () => {
       props: { heading: 'Big', image: IMG },
       css: rule,
     }))
-    await expect(renderPageHtml({ doc, pageId: 'pg_big', versionId: 'ver_1', path: '/big', site: site() })).rejects.toThrow('This page CSS is over the 73,728 byte limit.')
+    await expect(renderPageHtml({ doc, pageId: 'pg_big', versionId: 'ver_1', path: '/big', site: site() })).rejects.toThrow('This page CSS is over the 89,143 byte limit.')
   })
 
   it('throws on hostile stored CSS and does not return HTML', async () => {
@@ -852,6 +944,51 @@ describe('filesystem releases and Cloudflare purge', () => {
     const kept = join(root, 'releases', release3, 'hero.js')
     expect(existsSync(kept)).toBe(true)
     expect(statSync(kept).ino).toBe(statSync(heroFile).ino)
+  })
+
+  it('writes thermometer.js when a page has the block and keeps the file when a later release drops it', async () => {
+    const s = setup()
+    s.ctx.db.update(sites).set({ primaryDomain: 'example.org' }).where(eq(sites.id, s.ctx.siteId)).run()
+    const root = mkdtempSync(join(tmpdir(), 'sb-thermo-js-'))
+    const writer = createFileReleaseWriter(root, { keep: 10 })
+    const handlers = {
+      publish: createPublishHandler(writer),
+      send_email: { run: () => ({ skipped: true }) },
+      purge_cache: { run: () => ({ skipped: true }) },
+    }
+
+    await publishStandard(s, 'Home', 'Keep them warm')
+    while (await runJobsOnce(s.ctx, handlers)) {}
+    const release1 = currentRelease(s.ctx)!.id
+    expect(existsSync(join(root, 'releases', release1, 'thermometer.js'))).toBe(false)
+
+    const { page } = createPage(s.ctx, s.editor, { title: 'Match', template: 'standard' })
+    applyPageOps(s.ctx, s.editor, page.id, 0, [
+      { op: 'add_block', block: { id: 'b_thermo01', type: 'MatchThermometer', props: MatchThermometer.sample as Record<string, unknown> } },
+    ])
+    const sub = submitPage(s.ctx, s.editor, page.id)
+    approveReview(s.ctx, s.approver, sub.reviewId, { versionId: sub.versionId })
+    while (await runJobsOnce(s.ctx, handlers)) {}
+    const release2 = currentRelease(s.ctx)!.id
+    const storyPath = getPage(s.ctx, page.id).page.path
+    const storyHtml = readFileSync(join(root, 'releases', release2, htmlPathFor(storyPath)), 'utf8')
+    expect(storyHtml).toContain('src="/thermometer.js"')
+    const thermoFile = join(root, 'releases', release2, 'thermometer.js')
+    expect(readFileSync(thermoFile, 'utf8')).toBe(THERMOMETER_JS)
+
+    applyPageOps(s.ctx, s.editor, page.id, getPage(s.ctx, page.id).revision, [
+      { op: 'remove_block', blockId: 'b_thermo01' },
+      { op: 'add_block', block: { id: 'b_rich0001', type: 'RichText', props: { content: richTextFromParagraphs(['Still here']) } } },
+    ])
+    const dropped = submitPage(s.ctx, s.editor, page.id)
+    approveReview(s.ctx, s.approver, dropped.reviewId, { versionId: dropped.versionId })
+    while (await runJobsOnce(s.ctx, handlers)) {}
+    const release3 = currentRelease(s.ctx)!.id
+    const droppedHtml = readFileSync(join(root, 'releases', release3, htmlPathFor(storyPath)), 'utf8')
+    expect(droppedHtml).not.toContain('src="/thermometer.js"')
+    const kept = join(root, 'releases', release3, 'thermometer.js')
+    expect(existsSync(kept)).toBe(true)
+    expect(statSync(kept).ino).toBe(statSync(thermoFile).ino)
   })
 
   it('re-renders live pages that link to a page when its address, title or live state changes', async () => {

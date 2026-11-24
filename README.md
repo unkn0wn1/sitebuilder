@@ -1,6 +1,6 @@
-# sitebuilder
+# Skewstone
 
-> Working name. The project will be renamed as it takes shape.
+The repository is still called `sitebuilder`.
 
 **Want a super fast, easy to update site? This is for you.**
 
@@ -16,7 +16,7 @@ The repo is private for now. The intention is to open source it once the design 
 
 ## One thing, done well
 
-sitebuilder does one job: build and update fast, beautiful websites. WordPress and friends try to do everything (plugins, shops, forums, memberships) and pay for it in speed, security and complexity. We deliberately do not.
+Skewstone does one job: build and update fast, beautiful websites. WordPress and friends try to do everything (plugins, shops, forums, memberships) and pay for it in speed, security and complexity. We deliberately do not.
 
 Not in scope: a public plugin marketplace, payments, ecommerce, memberships or user accounts for visitors, forums or comments, a built-in CRM or email marketing. Admins can install a declarative plugin (a checked manifest, templates and CSS, no server code and no visitor JavaScript), while new code blocks still go through review and the agent cannot install a plugin. See [docs/00-vision.md](docs/00-vision.md#non-goals).
 
@@ -101,7 +101,7 @@ Server settings (environment variables, none are committed):
 | `SITEBUILDER_BACKUP_S3_SECRET_ACCESS_KEY` | Backup secret key. |
 | `SITEBUILDER_BACKUP_S3_PREFIX` | Optional key prefix inside the bucket. |
 | `SITEBUILDER_ENABLE_XAI_OAUTH` | Set to `1` to offer Sign in with xAI in Settings > AI. Off by default. See [ADR 0016](docs/decisions/0016-xai-oauth.md). |
-| `SITEBUILDER_XAI_OAUTH_CLIENT_ID` | Optional. OAuth client id for Sign in with xAI. If unset, the public Grok CLI / Hermes client is used (not a Sitebuilder-registered app). |
+| `SITEBUILDER_XAI_OAUTH_CLIENT_ID` | Optional. OAuth client id for Sign in with xAI. If unset, the public Grok CLI / Hermes client is used (not a Skewstone-registered app). |
 
 ## Sign in with xAI (optional)
 
