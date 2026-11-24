@@ -1,0 +1,16 @@
+# Example ingress only. No tunnel id or token belongs in this file.
+# Point each hostname at the local nginx port. The last rule answers anything else.
+ingress:
+  - hostname: skewstone.com
+    service: http://localhost:8081
+  - hostname: www.skewstone.com
+    service: http://localhost:8081
+  - hostname: docs.skewstone.com
+    service: http://localhost:8082
+  - hostname: plugins.skewstone.com
+    service: http://localhost:8083
+  - hostname: demo.skewstone.com
+    service: http://localhost:8084
+  - hostname: demo-admin.skewstone.com
+    service: http://localhost:8085
+  - service: http_status:404

@@ -1,0 +1,24 @@
+# Public demo builder only. nginx on the host includes deploy/skewstone/nginx.conf.
+# Build from a checkout: docker compose -f deploy/skewstone/docker-compose.yml build
+# The context path is relative to this file. Copying the file alone does not move the source.
+name: skewstone-demo
+
+services:
+  builder:
+    image: ${SKEWSTONE_IMAGE:-sitebuilder:local}
+    build:
+      context: ../..
+      dockerfile: deploy/Dockerfile
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      SITEBUILDER_DEMO_MODE: "1"
+      SITEBUILDER_AGENT_GATEWAY: "0"
+      SITEBUILDER_DOCS_URL: https://docs.skewstone.com
+      SITEBUILDER_DEMO_ROOT: /var/lib/skewstone/demo
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - /var/lib/skewstone/demo:/var/lib/skewstone/demo
+    restart: unless-stopped
