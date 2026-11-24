@@ -35,7 +35,7 @@ Skewstone does one thing: lets people build and update fast, beautiful websites 
 
 These are deliberate. They keep the project small, fast and secure.
 
-- **No public plugin marketplace.** Admins can install a declarative plugin (a checked manifest, templates and CSS, no server code and no visitor JavaScript). New code blocks still go through review. Agents do not put HTML or JavaScript on a page.
+- **No open plugin marketplace.** Plugins come from a small curated catalogue, each one signed by the Skewstone maintainers. Nothing third-party, and nothing is installed unless an admin chooses it. A plugin is declarative (a checked manifest, templates and CSS, no server code and no visitor JavaScript). New code blocks still go through review. Agents do not put HTML or JavaScript on a page.
 - **No payments.** Donations and payments come from embedded forms (for example Virtuous).
 - **No ecommerce.** No shop, cart, stock or checkout. Embed a dedicated shop if needed.
 - **No visitor accounts or memberships.** No logins, paywalls or member areas on the public site.

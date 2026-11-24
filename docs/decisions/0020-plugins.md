@@ -7,7 +7,7 @@
 
 [ADR 0006](0006-site-layer.md) keeps organisation-specific code in a `site/` layer that is compiled with the app. Nothing in that layer is installed from the builder. The vision used to rule out a plugin marketplace, so every new block was a code review.
 
-Admins still need a checked section they can add without a rebuild. An agent may draft that package. A public marketplace is still out of scope.
+Admins still need a checked section they can add without a rebuild. An agent may draft that package. A public marketplace is still out of scope. The in-app catalogue is a small set of official packages, each signed by the maintainers. It is not an open marketplace, and nothing is installed unless an admin chooses it.
 
 ## Decision
 
