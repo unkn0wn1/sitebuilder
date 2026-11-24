@@ -22,9 +22,13 @@ describe('docs-site generator', () => {
     expect(api).toContain(`**${OPERATIONS.length}** operations`)
   })
 
-  it('ships a plugins stub until docs/plugins.md exists', () => {
-    expect(existsSync(join(root, 'docs/plugins.md'))).toBe(false)
+  it('publishes docs/plugins.md with links that resolve on the docs site', () => {
+    expect(existsSync(join(root, 'docs/plugins.md'))).toBe(true)
     const page = readFileSync(join(root, 'docs-site/guide/plugins.md'), 'utf8')
-    expect(page).toContain('coming with the plugins release')
+    expect(page).toContain('declarative package')
+    expect(page).toContain('https://github.com/unkn0wn1/sitebuilder/blob/main/docs/decisions/0020-plugins.md')
+    expect(page).toContain('https://github.com/unkn0wn1/sitebuilder/blob/main/docs/11-theming.md')
+    expect(page).not.toContain('](decisions/')
+    expect(page).not.toContain('](11-theming.md)')
   })
 })

@@ -4,7 +4,7 @@ title: API
 
 # Agent API
 
-Generated from `docs/agent-gateway-openapi.json`. This reference lists **39** operations. The count is produced by the generator.
+Generated from `docs/agent-gateway-openapi.json`. This reference lists **40** operations. The count is produced by the generator.
 
 | Method | Path | Summary |
 | --- | --- | --- |
@@ -47,5 +47,6 @@ Generated from `docs/agent-gateway-openapi.json`. This reference lists **39** op
 | `POST` | `/changes/{change_id}/discard` | Throw away an open change you do not want. Live pages are untouched. |
 | `POST` | `/changes/{change_id}/undo` | Undo a change that went live: restore the earlier content as a new change. |
 | `POST` | `/soul` | Propose a new AI personality. A person must approve it. |
+| `POST` | `/plugins` | Propose a plugin. A person must approve it. |
 
 The same operations are the tools in [Tools](/reference/tools). Nothing here is copied by hand.

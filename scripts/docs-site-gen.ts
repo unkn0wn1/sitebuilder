@@ -1,6 +1,6 @@
 // Generate the docs-site reference pages from the agent gateway sources.
 // Counts are read from those files. Do not hand-copy them into the pages.
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -66,6 +66,21 @@ Plugin packages and the in-app catalogue are coming with the plugins release. Th
 Skewstone does not run a plugin marketplace. Official packages are signed by maintainers. The public demo refuses plugin archive uploads.
 `
 
+const REPO_DOCS = 'https://github.com/unkn0wn1/sitebuilder/blob/main/docs'
+
+// docs/plugins.md links to other files in docs/. On the docs site those paths do not exist.
+function pluginsPageForDocs(source: string): string {
+  const body = source.replace(/\[([^\]]+)\]\((?!https?:|mailto:|#|\/)([^)\s]+)\)/g, (full, label: string, href: string) => {
+    const hashAt = href.indexOf('#')
+    const path = hashAt === -1 ? href : href.slice(0, hashAt)
+    const hash = hashAt === -1 ? '' : href.slice(hashAt)
+    if (!path.endsWith('.md')) return full
+    return `[${label}](${REPO_DOCS}/${path.replace(/^\.\//, '')}${hash})`
+  })
+  if (body.startsWith('---')) return body
+  return `---\ntitle: Plugins\n---\n\n${body}`
+}
+
 export function generateDocsSite(root = repoRoot): { tools: number; operations: number } {
   const toolsMd = readFileSync(join(root, 'docs/agent-gateway-tools.md'), 'utf8')
   const spec = JSON.parse(readFileSync(join(root, 'docs/agent-gateway-openapi.json'), 'utf8')) as {
@@ -79,7 +94,7 @@ export function generateDocsSite(root = repoRoot): { tools: number; operations: 
   mkdirSync(referenceDir, { recursive: true })
 
   const pluginsSrc = join(root, 'docs/plugins.md')
-  if (existsSync(pluginsSrc)) copyFileSync(pluginsSrc, join(guideDir, 'plugins.md'))
+  if (existsSync(pluginsSrc)) writeFileSync(join(guideDir, 'plugins.md'), pluginsPageForDocs(readFileSync(pluginsSrc, 'utf8')))
   else writeFileSync(join(guideDir, 'plugins.md'), PLUGINS_STUB)
 
   const toolRows = toolTableRows(toolsMd)
