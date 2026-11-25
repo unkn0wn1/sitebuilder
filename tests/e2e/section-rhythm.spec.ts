@@ -1,5 +1,8 @@
 import { expect, test, type Page } from 'playwright/test'
-import { mkdirSync, readFileSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import sharp from 'sharp'
 import { Hero, MatchThermometer, SAMPLE_EMBED_ID, SAMPLE_MEDIA_ID, TrustStrip } from '../../shared/blocks/library'
 import { emptyPageDoc } from '../../shared/page'
 import { EMBED_JS, renderPageHtml } from '../../server/services/render'
@@ -7,8 +10,7 @@ import { SECTION_CASES, SECTION_NOW, SECTION_RENDER } from '../fixtures/sections
 
 // Drawn with setContent. No app server. Photos are swapped in after render.
 
-const shots = '/workspace/briefs/together-redesign/grok-shots'
-const imgDir = '/workspace/briefs/together-redesign/options/img'
+const shots = process.env.E2E_SHOTS_DIR ?? join(tmpdir(), 'sitebuilder-e2e-shots')
 
 const rows = [
   ['$10', 'Feeds a recovering dog for a week', 'Warm meals and clean water while a rescued dog heals.', 'Recovering rescued dogs resting on blankets'],
@@ -83,12 +85,14 @@ async function renderHtml(): Promise<string> {
   return rendered.html
 }
 
-function dataUrl(name: string): string {
-  return `data:image/webp;base64,${readFileSync(`${imgDir}/${name}`).toString('base64')}`
+async function webpDataUrl(width: number, height: number, r: number, g: number, b: number): Promise<string> {
+  const buf = await sharp({ create: { width, height, channels: 3, background: { r, g, b } } }).webp().toBuffer()
+  return `data:image/webp;base64,${buf.toString('base64')}`
 }
 
 async function paintPhotos(page: Page) {
-  const photos = [1, 2, 3, 4, 5].map((n) => dataUrl(`g${n}-800.webp`))
+  const photos = await Promise.all([1, 2, 3, 4, 5].map((n) => webpDataUrl(800, 600, 40 * n, 110, 140)))
+  const logo = await webpDataUrl(320, 97, 181, 71, 29)
   await page.evaluate(({ hero, gifts, logo }) => {
     const paint = (img: Element | null, src: string) => {
       const picture = img?.closest('picture')
@@ -101,7 +105,7 @@ async function paintPhotos(page: Page) {
     paint(document.querySelector('.hero-media img'), hero)
     document.querySelectorAll('.ga-f img').forEach((img, index) => paint(img, gifts[index] ?? gifts[0]!))
     document.querySelectorAll('.trust-logo, .trust-item img').forEach((img) => paint(img, logo))
-  }, { hero: photos[0]!, gifts: photos, logo: dataUrl('logo.webp') })
+  }, { hero: photos[0]!, gifts: photos, logo })
 }
 
 async function show(page: Page, width: number) {

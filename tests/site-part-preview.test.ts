@@ -74,7 +74,7 @@ describe('the top strip (banner) on the header screen', () => {
       embeds: {},
     }
     const { html } = await renderPageHtml({ doc: emptyPageDoc('Home'), pageId: 'pg_home', versionId: 'ver_1', path: '/', site })
-    // The exact markup sb-demo.moejo.co serves today (21 Nov 2026).
+    // The exact banner markup expected by live sites.
     expect(html).toContain('<div class="banner banner-info" role="status">Report an ill or injured animal in Udaipur<!--[--> <a href="https://www.animalaidunlimited.org/report-an-animal/">Get help</a><!--]--></div>')
   })
 

@@ -1143,15 +1143,15 @@ function lastPurgeTags(ctx: { db: ReturnType<typeof setup>['ctx']['db'] }): stri
 
 describe('site origin', () => {
   it('prefers the primary domain, then PUBLIC_HOST, and ignores the compose placeholder', () => {
-    expect(siteOrigin('sb-demo.moejo.co', '_')).toBe('https://sb-demo.moejo.co')
-    expect(siteOrigin(null, 'sb-demo.moejo.co')).toBe('https://sb-demo.moejo.co')
+    expect(siteOrigin('demo.example.org', '_')).toBe('https://demo.example.org')
+    expect(siteOrigin(null, 'demo.example.org')).toBe('https://demo.example.org')
     expect(siteOrigin('', '_')).toBe(null)
     expect(siteOrigin(null, '_')).toBe(null)
     expect(siteOrigin(null, undefined)).toBe(null)
   })
 
   it('emits an absolute Sitemap URL once an origin is known', () => {
-    expect(robotsTxt(site({ origin: 'https://sb-demo.moejo.co' }))).toContain('Sitemap: https://sb-demo.moejo.co/sitemap.xml')
+    expect(robotsTxt(site({ origin: 'https://demo.example.org' }))).toContain('Sitemap: https://demo.example.org/sitemap.xml')
     expect(robotsTxt(site({ origin: null }))).toContain('Sitemap: /sitemap.xml')
   })
 })

@@ -1,10 +1,12 @@
 import { expect, test, type Page } from 'playwright/test'
 import { mkdirSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import sharp from 'sharp'
 
 const email = process.env.SEED_ADMIN_EMAIL ?? 'admin@example.org'
 const password = process.env.SEED_ADMIN_PASSWORD ?? 'sb-demo-pass-17'
-const screenshotDir = process.env.EDITOR_SCREENSHOT_DIR ?? '/workspace'
+const screenshotDir = process.env.EDITOR_SCREENSHOT_DIR ?? join(tmpdir(), 'sitebuilder-e2e-shots')
 
 async function signIn(page: Page) {
   await page.goto('/login')

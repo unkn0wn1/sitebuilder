@@ -10,15 +10,15 @@ Staff describe the page they want to a chat agent. The agent asks a few question
 
 ## Status
 
-**Pre-alpha.** The v1 design is written up in [`docs/`](docs/README.md), with decisions in [`docs/decisions/`](docs/decisions/README.md). Milestone 1 is in, and milestone 2 has Google Workspace mail, the publish renderer, a Docker Compose install and backup/restore. There is no production editor GUI yet and no AI model calls. See the [roadmap](docs/09-roadmap.md).
+Skewstone includes the Nuxt builder UI, AI chat assistant with model calls (OpenAI-compatible providers and optional Sign in with xAI), static publish renderer, Cloudflare cache-tag purging, Google Workspace mail, S3/local backups, signed declarative plugin catalogue, public sandbox demo mode, VitePress documentation (`docs-site/`), and Docker Compose install. See [`docs/`](docs/README.md), decisions in [`docs/decisions/`](docs/decisions/README.md), and the [roadmap](docs/09-roadmap.md).
 
-The repo is private for now. The intention is to open source it once the design settles. The licence is [MIT](LICENSE) (decided 24 Nov 2026). See [CONTRIBUTING.md](CONTRIBUTING.md) and the docs licence page at `https://docs.skewstone.com/licence.html`.
+Open source under the [MIT licence](LICENSE). See [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), the live site at [skewstone.com](https://skewstone.com), the docs at [docs.skewstone.com](https://docs.skewstone.com), and the public demo at [demo-admin.skewstone.com](https://demo-admin.skewstone.com).
 
 ## One thing, done well
 
-Skewstone does one job: build and update fast, beautiful websites. WordPress and friends try to do everything (plugins, shops, forums, memberships) and pay for it in speed, security and complexity. We deliberately do not.
+Skewstone does one job: build and update fast, beautiful websites. General-purpose CMS platforms try to do everything (third-party plugin marketplaces, shops, forums, memberships) and pay for it in speed, security and complexity. We deliberately do not.
 
-Not in scope: an open plugin marketplace, payments, ecommerce, memberships or user accounts for visitors, forums or comments, a built-in CRM or email marketing. Plugins come from a small curated catalogue, each one signed by the Skewstone maintainers. Nothing third-party, and nothing is installed unless an admin chooses it. A plugin is declarative (a checked manifest, templates and CSS, no server code and no visitor JavaScript). New code blocks still go through review, and the agent cannot install a plugin. See [docs/00-vision.md](docs/00-vision.md#non-goals).
+Not in scope: an open third-party plugin marketplace, payments, ecommerce, memberships or user accounts for visitors, forums or comments, a built-in CRM or email marketing. Official plugins come from a small curated catalogue, each one signed by the Skewstone maintainers. Nothing third-party, and nothing is installed unless an admin chooses it. A plugin is declarative (a checked manifest, templates and CSS, no server code and no visitor JavaScript). New code blocks still go through review, and the agent cannot install a plugin. See [docs/00-vision.md](docs/00-vision.md#non-goals).
 
 ## Core ideas
 
@@ -40,16 +40,19 @@ Not in scope: an open plugin marketplace, payments, ecommerce, memberships or us
 ## Repo layout
 
 ```
-app/              Builder UI (Nuxt app): editor, preview, chat panel, wizard (not built yet)
+app/              Builder UI (Nuxt app): pages, editor, preview, chat panel, approvals, settings
 server/api/v1/    HTTP API, thin routes over the services (docs/14-api.md)
-server/services/  Business logic: auth, pages and ops, reviews, publish, jobs, AI tools
+server/services/  Business logic: auth, pages and ops, reviews, publish, jobs, AI tools, plugins
 server/db/        Drizzle schema, SQL migrations, migration runner
 server/plugins/   Start-up: Access guard, database, job worker
 shared/           Code shared by app and server: block registry, page model, ops, checks, roles
-scripts/          Seed, install and restore scripts
+plugins/          Official declarative plugin manifests and assets
+site/             Marketing site for skewstone.com
+docs-site/        VitePress documentation site for docs.skewstone.com
+scripts/          Seed, install, plugin signing, demo golden/sweep, and restore scripts
 deploy/           Docker Compose install, nginx origin config
 spikes/           Phase 1 prototypes (sample render, editor base). Not the production app
-tests/            Unit tests (vitest)
+tests/            Unit, HTTP API, and Playwright end-to-end tests
 docs/             Architecture and design docs, plus decision records
 ```
 

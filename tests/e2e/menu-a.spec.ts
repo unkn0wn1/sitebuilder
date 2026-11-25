@@ -1,5 +1,8 @@
 import { expect, test, type Page } from 'playwright/test'
-import { mkdirSync, readFileSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import sharp from 'sharp'
 import { HEADER_JS, renderPageHtml, type MediaCatalogEntry, type SiteRenderContext } from '../../server/services/render'
 import { defaultBrandDoc } from '../../shared/brand'
 import { defaultSitePartDoc, type BannerDoc, type HeaderDoc, type MenuDoc } from '../../shared/site-parts'
@@ -7,8 +10,7 @@ import { emptyPageDoc, type PageDoc } from '../../shared/page'
 
 // Menu A check shots. setContent only. Photos are the option files, served in place of /media.
 
-const shots = '/workspace/briefs/together-redesign/grok-shots'
-const imgDir = '/workspace/briefs/together-redesign/options/img'
+const shots = process.env.E2E_SHOTS_DIR ?? join(tmpdir(), 'sitebuilder-e2e-shots')
 const PAPER = 'rgb(255, 250, 243)'
 const ACCENT = 'rgb(181, 71, 29)'
 const MESSAGE = 'Report an ill or injured animal in Udaipur'
@@ -146,16 +148,27 @@ function browserHtml(html: string): string {
     .replace('<script src="/header.js" defer></script>', `<script>${HEADER_JS}</script>`)
 }
 
-function dataUrl(file: string): string {
-  return `data:image/webp;base64,${readFileSync(file).toString('base64')}`
+async function webpDataUrl(width: number, height: number, r: number, g: number, b: number): Promise<string> {
+  const buf = await sharp({ create: { width, height, channels: 3, background: { r, g, b } } }).webp().toBuffer()
+  return `data:image/webp;base64,${buf.toString('base64')}`
 }
 
-const photoData: Record<string, string> = {
-  logo: dataUrl(`${imgDir}/logo.webp`),
-  hero: dataUrl(`${imgDir}/m-c1.webp`),
-}
-for (const id of ['m-c1', 'm-c2', 'm-c3', 'm-c4', 'm-c5', 'm-c6', 'm-g1', 'm-g2', 'm-g3', 'm-g4', 'm-g5']) {
-  photoData[id] = dataUrl(`${imgDir}/${id}.webp`)
+let photoDataPromise: Promise<Record<string, string>> | null = null
+function getPhotoData(): Promise<Record<string, string>> {
+  if (!photoDataPromise) {
+    photoDataPromise = (async () => {
+      const data: Record<string, string> = {
+        logo: await webpDataUrl(320, 97, 181, 71, 29),
+        hero: await webpDataUrl(1280, 720, 90, 120, 140),
+      }
+      const ids = ['m-c1', 'm-c2', 'm-c3', 'm-c4', 'm-c5', 'm-c6', 'm-g1', 'm-g2', 'm-g3', 'm-g4', 'm-g5']
+      for (const [index, id] of ids.entries()) {
+        data[id] = await webpDataUrl(640, 420, 60 + index * 12, 100, 130)
+      }
+      return data
+    })()
+  }
+  return photoDataPromise
 }
 
 async function show(page: Page, width: number, height: number, withBanner = true) {
@@ -186,7 +199,7 @@ async function show(page: Page, width: number, height: number, withBanner = true
       }))
     })
     return Promise.all(jobs)
-  }, photoData)
+  }, await getPhotoData())
   if (painted.some((item) => item.endsWith(':error') || item.endsWith(':0'))) {
     throw new Error(`photos failed: ${painted.join(' ')}`)
   }

@@ -3,7 +3,7 @@ import { defaultRobotsTxt, renderRobotsTxt, sanitizeRobotsTxt } from '../shared/
 
 describe('robots.txt', () => {
   it('offers a safe default and appends a sitemap when indexing is on', () => {
-    expect(defaultRobotsTxt('https://sb-demo.moejo.co')).toBe('User-agent: *\nAllow: /\nSitemap: https://sb-demo.moejo.co/sitemap.xml\n')
+    expect(defaultRobotsTxt('https://demo.example.org')).toBe('User-agent: *\nAllow: /\nSitemap: https://demo.example.org/sitemap.xml\n')
     expect(renderRobotsTxt({ allowIndexing: true, origin: 'https://example.org' })).toContain('Sitemap: https://example.org/sitemap.xml')
     expect(renderRobotsTxt({ allowIndexing: true, origin: null })).toContain('Sitemap: /sitemap.xml')
   })
