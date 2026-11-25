@@ -220,6 +220,21 @@ describe('demo mode over HTTP', () => {
     expect(sandboxIds(goldenRoot)).toEqual(before)
   })
 
+  it('still answers demo status when a leftover session cookie is present and no sandbox is open', async () => {
+    const before = sandboxIds(goldenRoot)
+    const status = await fetch(`${demo.baseUrl}/api/v1/demo/status`, {
+      headers: { cookie: 'sb_session=leftover-stale-token' },
+    })
+    expect(status.status).toBe(200)
+    expect(await status.json()).toMatchObject({ demo: true, lastReset: null })
+    expect(status.headers.getSetCookie().some((line) => line.startsWith('sb_demo='))).toBe(false)
+    expect(sandboxIds(goldenRoot)).toEqual(before)
+    const health = await fetch(`${demo.baseUrl}/api/v1/health`, {
+      headers: { cookie: 'sb_session=leftover-stale-token' },
+    })
+    expect(health.status).toBe(200)
+  })
+
   it('gives each visitor a sandbox, isolates edits, and resets only that visitor', async () => {
     const a = new Jar(demo.baseUrl)
     const b = new Jar(demo.baseUrl)
