@@ -1,5 +1,8 @@
 import { expect, test, type Page } from 'playwright/test'
-import { mkdirSync, readFileSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import sharp from 'sharp'
 import { SAMPLE_MEDIA_ID } from '../../shared/blocks/library'
 import { emptyPageDoc } from '../../shared/page'
 import { renderPageHtml } from '../../server/services/render'
@@ -7,7 +10,7 @@ import { SECTION_CASES, SECTION_RENDER } from '../fixtures/sections-default/case
 
 // Drawn with setContent. No app server. Photos are the option shots, swapped in after render.
 
-const shots = '/workspace/briefs/together-redesign/grok-shots'
+const shots = process.env.E2E_SHOTS_DIR ?? join(tmpdir(), 'sitebuilder-e2e-shots')
 
 const rows = [
   ['$10', 'Feeds a recovering dog for a week', 'Warm meals and clean water while a rescued dog heals.', 'Recovering rescued dogs resting on blankets at the Animal Aid Unlimited hospital'],
@@ -47,10 +50,13 @@ async function renderHtml(): Promise<string> {
   return rendered.html
 }
 
+async function webpDataUrl(width: number, height: number, r: number, g: number, b: number): Promise<string> {
+  const buf = await sharp({ create: { width, height, channels: 3, background: { r, g, b } } }).webp().toBuffer()
+  return `data:image/webp;base64,${buf.toString('base64')}`
+}
+
 async function paintPhotos(page: Page) {
-  const urls = [1, 2, 3, 4, 5].map(
-    (n) => `data:image/webp;base64,${readFileSync(`/workspace/briefs/together-redesign/options/img/g${n}-800.webp`).toString('base64')}`,
-  )
+  const urls = await Promise.all([1, 2, 3, 4, 5].map((n) => webpDataUrl(800, 600, 40 * n, 110, 140)))
   await page.evaluate((sources) => {
     document.querySelectorAll('.ga-f').forEach((fig, index) => {
       fig.querySelectorAll('source').forEach((node) => node.remove())

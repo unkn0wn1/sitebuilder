@@ -1,9 +1,11 @@
 import { expect, test, type Page } from 'playwright/test'
 import { mkdirSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 const email = process.env.SEED_ADMIN_EMAIL ?? 'admin@example.org'
 const password = process.env.SEED_ADMIN_PASSWORD ?? 'sb-demo-pass-17'
-const screenshotDir = process.env.EDITOR_SCREENSHOT_DIR ?? '/workspace'
+const screenshotDir = process.env.EDITOR_SCREENSHOT_DIR ?? join(tmpdir(), 'sitebuilder-e2e-shots')
 const SECTION_CSS = '& { outline: 3px solid #b5471d; }'
 
 function sectionCssSaved(page: Page) {

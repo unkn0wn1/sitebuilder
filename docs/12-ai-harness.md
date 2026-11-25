@@ -92,7 +92,7 @@ flowchart LR
 
 ## Agent loop
 
-Keep it simple but do it properly. Experience with an earlier agent (Sheru) showed that a good loop matters more than clever prompts: most of the quality comes from the agent checking its own work and fixing it before it answers.
+Keep it simple but do it properly. Experience with earlier agents showed that a good loop matters more than clever prompts: most of the quality comes from the agent checking its own work and fixing it before it answers.
 
 **One agent, one loop.** No multi-agent orchestration in v1.
 

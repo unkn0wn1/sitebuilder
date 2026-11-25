@@ -1,5 +1,7 @@
 import { expect, test, type Page } from 'playwright/test'
 import { mkdirSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { MatchThermometer } from '../../shared/blocks/library'
 import { emptyPageDoc } from '../../shared/page'
 import { THERMOMETER_JS, renderPageHtml } from '../../server/services/render'
@@ -7,7 +9,7 @@ import { SECTION_CASES, SECTION_NOW, SECTION_RENDER } from '../fixtures/sections
 
 // Drawn with setContent. No app server.
 
-const shots = '/workspace/briefs/together-redesign/grok-shots'
+const shots = process.env.E2E_SHOTS_DIR ?? join(tmpdir(), 'sitebuilder-e2e-shots')
 
 function browserHtml(html: string, script: 'run' | 'omit'): string {
   let out = html.replace(/<meta http-equiv="Content-Security-Policy" content="[^"]*">/, '')

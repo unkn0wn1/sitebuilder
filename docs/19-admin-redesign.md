@@ -86,7 +86,7 @@ All of these live in `app/components/ui/` and are auto-imported as `Ui…`:
   unchanged. Only where it's edited moves (into the Header screen). Folding it into the header document would change
   stored data and need a migration for no gain to the visitor.
 - **The menu look moves to the header (`header.style`).** The renderer now prefers the header's look and falls back
-  to the brand pack's `menuStyle` (kept in the schema, no longer shown) only when there is no header. On sb-demo
+  to the brand pack's `menuStyle` (kept in the schema, no longer shown) only when there is no header. On the sample site
   both are `mega`, so published output is unchanged.
 - **New `POST /api/v1/site-parts`** creates a menu or a top strip (both start off or empty, never live).
 - **New `POST /api/v1/preview/site-part`** draws a live page with draft site parts swapped in, using the same
