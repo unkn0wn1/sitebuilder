@@ -2,6 +2,8 @@
 // See docs/14-api.md#conventions and docs/15-security.md#the-builder.
 import { getCookie, getRequestHeader, getRequestURL, setResponseStatus } from 'h3'
 import { getSessionUser } from '../services/auth'
+import { demoMode } from '../services/demo-mode'
+import { currentSandbox } from '../services/demo-sandbox'
 import { AppError } from '../services/errors'
 import { SESSION_COOKIE } from '../utils/api'
 import { useServiceCtx } from '../utils/state'
@@ -18,9 +20,12 @@ export default defineEventHandler((event) => {
     }
   }
   // No cookie means no actor. Skip the database so liveness routes stay up in demo mode,
-  // where a sandbox is deliberately not opened for /api/v1/health.
+  // where a sandbox is deliberately not opened for /api/v1/health or /api/v1/demo/status.
+  // A leftover session cookie (sandbox evicted, cookie still on the browser) must not
+  // try to open a process-wide database that does not exist.
   const token = getCookie(event, SESSION_COOKIE)
   if (!token) return
+  if (demoMode() && !currentSandbox()) return
   try {
     const user = getSessionUser(useServiceCtx(), token)
     if (user) event.context.actor = { id: user.id, role: user.role, isOperator: user.isOperator }
